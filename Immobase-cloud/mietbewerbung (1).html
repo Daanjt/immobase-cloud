@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zimmer-Bewerbung — D&T Homes</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0c0e16;
+    --surface: #13151f;
+    --card: #181b28;
+    --border: #252836;
+    --accent: #4f8cff;
+    --accent2: #7c3aed;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --text: #e8eaf0;
+    --muted: #5a5e72;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(79,140,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,140,255,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glow {
+    position: fixed;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(79,140,255,.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeUp .6s ease both;
+  }
+  .logo-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(79,140,255,.1);
+    border: 1px solid rgba(79,140,255,.25);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--white);
+    line-height: 1.15;
+    margin-bottom: 14px;
+  }
+  h1 span {
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 460px;
+    margin: 0 auto;
+  }
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 40px;
+    overflow: hidden;
+    animation: fadeUp .6s .1s ease both;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #a78bfa);
+    border-radius: 2px;
+    transition: width .5s cubic-bezier(.4,0,.2,1);
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+  }
+  .form-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 16px;
+    animation: fadeUp .6s .2s ease both;
+    opacity: 0;
+    animation-fill-mode: forwards;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-icon {
+    width: 26px;
+    height: 26px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-size: 10.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  label .req { color: var(--accent); margin-left: 2px; }
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    outline: none;
+    transition: all .2s;
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,140,255,.12);
+  }
+  input::placeholder, textarea::placeholder { color: var(--muted); font-size: 13px; }
+  select option { background: var(--surface); color: var(--text); }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+  /* RADIO OPTION CARDS — for kaution & möbliert */
+  .option-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .option-card {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .option-card:hover { border-color: rgba(79,140,255,.4); }
+  .option-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .option-card .radio-dot {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 2px;
+    position: relative;
+    transition: all .15s;
+  }
+  .option-card.checked {
+    background: rgba(79,140,255,.06);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,140,255,.08);
+  }
+  .option-card.checked .radio-dot {
+    border-color: var(--accent);
+  }
+  .option-card.checked .radio-dot::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .option-card .body {
+    flex: 1;
+    min-width: 0;
+  }
+  .option-card .head-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 3px;
+    flex-wrap: wrap;
+  }
+  .option-card .title {
+    font-weight: 600;
+    color: var(--white);
+    font-size: 14px;
+  }
+  .option-card .price {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .option-card .desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .option-card .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--green);
+    background: rgba(52,211,153,.12);
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 6px;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+  }
+
+  /* Room selection cards */
+  .room-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .room-card {
+    position: relative;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .room-card:hover { border-color: rgba(79,140,255,.4); transform: translateY(-1px); }
+  .room-card input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .room-card.checked {
+    background: rgba(79,140,255,.08);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,140,255,.12);
+  }
+  .room-card .room-id {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--white);
+    margin-bottom: 3px;
+  }
+  .room-card .room-addr {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .room-card .room-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .room-card .tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(79,140,255,.1);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .room-card .tag.balkon {
+    background: rgba(52,211,153,.12);
+    color: var(--green);
+  }
+  .room-card .room-price {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 14px;
+  }
+  .room-card .room-price small {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .room-card .check-mark {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+    font-size: 12px;
+    color: transparent;
+    font-weight: 700;
+  }
+  .room-card.checked .check-mark {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  @media (max-width: 520px) {
+    .room-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Info box */
+  .info-box {
+    background: rgba(79,140,255,.06);
+    border: 1px solid rgba(79,140,255,.2);
+    border-radius: 8px;
+    padding: 11px 14px;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .info-box strong { color: var(--accent); }
+
+  /* Checkboxes */
+  .check-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13.5px;
+    color: var(--text);
+    padding: 9px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all .15s;
+  }
+  .check-item:hover { border-color: rgba(79,140,255,.4); }
+  .check-item input[type="checkbox"] {
+    width: 16px; height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .check-item.checked {
+    background: rgba(79,140,255,.08);
+    border-color: rgba(79,140,255,.35);
+  }
+
+  .submit-area {
+    animation: fadeUp .6s .35s ease both;
+    opacity: 0;
+    animation-fill-mode: forwards;
+  }
+  .submit-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), #6366f1);
+    border: none;
+    border-radius: 10px;
+    padding: 15px;
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+    letter-spacing: .3px;
+  }
+  .submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(79,140,255,.35);
+  }
+  .submit-btn:active { transform: translateY(0); }
+  .submit-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+  /* Cost summary */
+  .cost-summary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    animation: fadeUp .4s ease both;
+  }
+  .cost-summary h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+  .cost-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .cost-line:last-child { border-bottom: none; }
+  .cost-line .lbl { color: var(--muted); }
+  .cost-line .val { color: var(--text); font-weight: 600; }
+  .cost-total {
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 2px solid var(--accent);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .cost-total .lbl { color: var(--white); }
+  .cost-total .val { color: var(--accent); }
+
+  .disclaimer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 14px;
+    line-height: 1.6;
+  }
+
+  .success-screen {
+    display: none;
+    text-align: center;
+    padding: 60px 32px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    animation: fadeUp .5s ease both;
+  }
+  .success-icon {
+    width: 64px;
+    height: 64px;
+    background: rgba(52,211,153,.12);
+    border: 2px solid rgba(52,211,153,.3);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin: 0 auto 20px;
+  }
+  .success-screen h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--white);
+    margin-bottom: 10px;
+  }
+  .success-screen p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+  /* ROOM SELECTION CARDS */
+  .room-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .room-card {
+    position: relative;
+    padding: 14px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .room-card:hover { border-color: rgba(79,140,255,.4); transform: translateY(-1px); }
+  .room-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .room-card.checked {
+    background: rgba(79,140,255,.06);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,140,255,.08);
+  }
+  .room-card .room-id {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    color: var(--white);
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+  .room-card.checked .room-id { color: var(--accent); }
+  .room-card .room-addr {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .room-card .room-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .room-card .meta-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+    background: var(--border);
+    color: var(--muted);
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .room-card .meta-pill.balcony { background: rgba(52,211,153,.15); color: var(--green); }
+  .room-card .meta-pill.wg { background: rgba(79,140,255,.12); color: var(--accent); }
+  .room-card .room-price {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 14px;
+  }
+  .room-card .check-mark {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid var(--border);
+    border-radius: 50%;
+    transition: all .15s;
+  }
+  .room-card.checked .check-mark {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .room-card.checked .check-mark::after {
+    content: '✓';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  @media (max-width: 520px) {
+    .room-grid { grid-template-columns: 1fr; }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 520px) {
+    .field-row { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+    .form-card { padding: 22px 18px; }
+    .container { padding: 40px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="container">
+
+  <div class="header">
+    <div class="logo-tag">🏠 D&T Homes</div>
+    <h1>Zimmer-<span>Bewerbung</span></h1>
+    <p class="subtitle">Bitte füllen Sie das Formular vollständig aus. Ihre Angaben werden vertraulich behandelt und nur intern verwendet.</p>
+  </div>
+
+  <div id="formArea">
+    <div class="progress-label">
+      <span>Fortschritt</span>
+      <span id="progressText">0 / 5 Abschnitte</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+    <form id="mainForm" novalidate>
+
+      <!-- 1. Persönliche Daten -->
+      <div class="form-card">
+        <div class="section-title"><span class="section-icon">👤</span> Persönliche Angaben</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Vorname <span class="req">*</span></label>
+            <input type="text" name="vorname" placeholder="Max" required>
+          </div>
+          <div class="field">
+            <label>Nachname <span class="req">*</span></label>
+            <input type="text" name="nachname" placeholder="Mustermann" required>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Geburtsdatum <span class="req">*</span></label>
+            <input type="date" name="geburt" required>
+          </div>
+          <div class="field">
+            <label>Geschlecht <span class="req">*</span></label>
+            <select name="gender" required>
+              <option value="">— Bitte wählen —</option>
+              <option>Frau</option>
+              <option>Mann</option>
+              <option>Divers</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Nationalität <span class="req">*</span></label>
+          <input type="text" name="nat" placeholder="z.B. Schweiz, Deutschland…" required>
+        </div>
+      </div>
+
+      <!-- 2. Kontakt -->
+      <div class="form-card" style="animation-delay:.1s">
+        <div class="section-title"><span class="section-icon" style="background:#7c3aed">📱</span> Kontaktdaten</div>
+        <div class="field">
+          <label>E-Mail-Adresse <span class="req">*</span></label>
+          <input type="email" name="email" placeholder="max@beispiel.ch" required>
+        </div>
+        <div class="field">
+          <label>Telefonnummer <span class="req">*</span></label>
+          <input type="tel" name="phone" placeholder="+41 79 123 45 67" required>
+        </div>
+        <div class="field">
+          <label>Aktuelle Adresse <span class="req">*</span></label>
+          <input type="text" name="adresse" placeholder="Musterstrasse 1" required>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>PLZ <span class="req">*</span></label>
+            <input type="text" name="plz" placeholder="8001" required>
+          </div>
+          <div class="field">
+            <label>Ort <span class="req">*</span></label>
+            <input type="text" name="ort" placeholder="Zürich" required>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Zimmerwahl -->
+      <div class="form-card" style="animation-delay:.15s">
+        <div class="section-title"><span class="section-icon" style="background:#10b981">🚪</span> Wunsch-Zimmer auswählen</div>
+        <div class="info-box" style="margin-bottom:14px">
+          ℹ Wählen Sie das Zimmer, das Sie bevorzugen. Alle gezeigten Zimmer sind aktuell verfügbar. Die Zuteilung erfolgt nach Prüfung Ihrer Bewerbung.
+        </div>
+        <div class="room-grid" id="roomGrid">
+          <!-- Wird per JS befüllt -->
+        </div>
+      </div>
+
+      <!-- 4. Beruf & Finanzen -->
+      <div class="form-card" style="animation-delay:.2s">
+        <div class="section-title"><span class="section-icon" style="background:#059669">💼</span> Beruf & Finanzen</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Beschäftigungsstatus <span class="req">*</span></label>
+            <select name="type" required>
+              <option value="">— Bitte wählen —</option>
+              <option>Arbeitnehmer</option>
+              <option>Student</option>
+              <option>Selbstständig</option>
+              <option>AOZ / Sozialhilfe</option>
+              <option>Rentner</option>
+              <option>Sonstiges</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Beruf / Tätigkeit</label>
+            <input type="text" name="job" placeholder="z.B. Informatiker, Student…">
+          </div>
+        </div>
+        <div class="field">
+          <label>Monatliches Nettoeinkommen (CHF)</label>
+          <input type="number" name="einkommen" placeholder="z.B. 4500" min="0">
+        </div>
+        <div class="field">
+          <label>Arbeitgeber / Ausbildungsstätte</label>
+          <input type="text" name="arbeitgeber" placeholder="Name des Unternehmens oder Schule">
+        </div>
+      </div>
+
+      <!-- 5. Mietverhältnis & Optionen -->
+      <div class="form-card" style="animation-delay:.25s">
+        <div class="section-title"><span class="section-icon" style="background:#d97706">🔑</span> Mietverhältnis & Optionen</div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Gewünschter Einzug <span class="req">*</span></label>
+            <input type="date" name="einzug" required>
+          </div>
+          <div class="field">
+            <label>Geplanter Aufenthalt</label>
+            <select name="aufenthalt">
+              <option value="">— Bitte wählen —</option>
+              <option>Bis 6 Monate</option>
+              <option>6–12 Monate</option>
+              <option>1–2 Jahre</option>
+              <option>Mehr als 2 Jahre</option>
+              <option>Unbefristet</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- KAUTIONS-OPTIONEN -->
+        <div class="field" style="margin-top:18px">
+          <label style="margin-bottom:10px">Kaution wählen <span class="req">*</span></label>
+          <div class="info-box">
+            ℹ Die Kaution wird über <strong>Evorest</strong> abgewickelt. Sie können wählen, wie viel Sie hinterlegen möchten — je weniger Kaution, desto höher die monatliche Pauschale.
+          </div>
+          <div class="option-cards">
+            <label class="option-card" data-option="kaution">
+              <input type="radio" name="kautionOpt" value="3x" required>
+              <div class="radio-dot"></div>
+              <div class="body">
+                <div class="head-row">
+                  <span class="title">3× Monatsmiete <span class="badge">Standard</span></span>
+                  <span class="price">+ CHF 0.– / Mt.</span>
+                </div>
+                <div class="desc">Volle Kaution wird auf Evorest hinterlegt — keine zusätzliche Monatsmiete</div>
+              </div>
+            </label>
+            <label class="option-card" data-option="kaution">
+              <input type="radio" name="kautionOpt" value="2x" required>
+              <div class="radio-dot"></div>
+              <div class="body">
+                <div class="head-row">
+                  <span class="title">2× Monatsmiete</span>
+                  <span class="price">+ CHF 50.– / Mt.</span>
+                </div>
+                <div class="desc">Reduzierte Kaution — CHF 50.– zusätzlich zur Monatsmiete</div>
+              </div>
+            </label>
+            <label class="option-card" data-option="kaution">
+              <input type="radio" name="kautionOpt" value="1x" required>
+              <div class="radio-dot"></div>
+              <div class="body">
+                <div class="head-row">
+                  <span class="title">1× Monatsmiete</span>
+                  <span class="price">+ CHF 100.– / Mt.</span>
+                </div>
+                <div class="desc">Stark reduzierte Kaution — CHF 100.– zusätzlich zur Monatsmiete</div>
+              </div>
+            </label>
+            <label class="option-card" data-option="kaution">
+              <input type="radio" name="kautionOpt" value="0x" required>
+              <div class="radio-dot"></div>
+              <div class="body">
+                <div class="head-row">
+                  <span class="title">Keine Kaution <span class="badge" style="color:#fbbf24;background:rgba(251,191,36,.12)">Beliebt</span></span>
+                  <span class="price">+ CHF 150.– / Mt.</span>
+                </div>
+                <div class="desc">Keine Kaution erforderlich — CHF 150.– zusätzlich zur Monatsmiete</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- MÖBLIERUNG -->
+        <div class="field" style="margin-top:22px">
+          <label style="margin-bottom:10px">Möblierung <span class="req">*</span></label>
+          <div class="option-cards">
+            <label class="option-card" data-option="moebel">
+              <input type="radio" name="moebliert" value="ja" required>
+              <div class="radio-dot"></div>
+              <div class="body">
+                <div class="head-row">
+                  <span class="title">🛋 Möbliert</span>
+                  <span class="price">CHF 990.– einmalig</span>
+                </div>
+                <div class="desc">Zimmer wird vollständig möbliert übergeben — einmalige Pauschale beim Einzug</div>
+              </div>
+            </label>
+            <label class="option-card" data-option="moebel">
+              <input type="radio" name="moebliert" value="nein" required>
+              <div class="radio-dot"></div>
+              <div class="body">
+                <div class="head-row">
+                  <span class="title">📦 Unmöbliert</span>
+                  <span class="price">CHF 0.–</span>
+                </div>
+                <div class="desc">Zimmer wird leer übergeben — eigene Möblierung mitbringen</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:18px">
+          <label>Zusätzliche Angaben / Bemerkungen</label>
+          <textarea name="bemerkung" placeholder="Weitere relevante Informationen zu Ihrer Bewerbung…"></textarea>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <label style="margin-bottom:10px">Bestätigungen <span class="req">*</span></label>
+          <div class="check-group">
+            <label class="check-item" id="check1">
+              <input type="checkbox" name="noDebt" required onchange="updateCheck(this,'check1')">
+              Ich bestätige, dass ich keine offenen Betreibungen habe
+            </label>
+            <label class="check-item" id="check2">
+              <input type="checkbox" name="truthful" required onchange="updateCheck(this,'check2')">
+              Ich bestätige, dass alle Angaben der Wahrheit entsprechen
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- KOSTENZUSAMMENFASSUNG -->
+      <div class="cost-summary" id="costSummary" style="display:none">
+        <h3>💰 Ihre gewählten Konditionen</h3>
+        <div class="cost-line"><span class="lbl">Kaution</span><span class="val" id="kautionLabel">—</span></div>
+        <div class="cost-line"><span class="lbl">Möblierung</span><span class="val" id="moebelLabel">—</span></div>
+        <div class="cost-total"><span class="lbl">Aufschlag pro Monat</span><span class="val" id="totalLabel">CHF 0.–</span></div>
+      </div>
+
+      <div class="submit-area">
+        <button type="submit" class="submit-btn" id="submitBtn">
+          Bewerbung einreichen →
+        </button>
+        <p class="disclaimer">
+          Ihre Daten werden vertraulich behandelt und nicht an Dritte weitergegeben.<br>
+          D&T Homes · Zürich
+        </p>
+      </div>
+
+    </form>
+
+    <div class="success-screen" id="successScreen">
+      <div class="success-icon">✓</div>
+      <h2>Bewerbung eingegangen!</h2>
+      <p>Vielen Dank für Ihre Bewerbung.<br>Wir melden uns in Kürze bei Ihnen.<br><br>
+      <strong style="color:#e2e4ed">D&T Homes</strong><br>
+      <span style="font-size:12px">Zürich</span></p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── VERFÜGBARE ZIMMER ───────────────────────────────────────────────────
+// Diese Liste wird vom Vermieter aktualisiert je nach freien Zimmern
+// wgGroesse = Wohnungs-Zimmeranzahl total (z.B. 3-Zimmer-WG)
+const FREIE_ZIMMER = [
+  {id:"A5-3", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1090, balkon:true,  qm:null, etage:"EG",    wgGroesse:"3-Zimmer-WG"},
+  {id:"A6-2", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1490, balkon:true,  qm:null, etage:"EG",    wgGroesse:"4.5-Zimmer-WG"},
+  {id:"A7-2", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1190, balkon:true,  qm:null, etage:"2. OG", wgGroesse:"3-Zimmer-WG"},
+  {id:"A7-3", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1290, balkon:true,  qm:null, etage:"2. OG", wgGroesse:"3-Zimmer-WG"},
+  {id:"A8-2", adresse:"Engimattstrasse 33, 8002 Zürich", miete:1490, balkon:true,  qm:null, etage:"1. OG", wgGroesse:"4.5-Zimmer-WG"},
+];
+
+// Render rooms
+function renderRooms() {
+  const grid = document.getElementById('roomGrid');
+  if (FREIE_ZIMMER.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px">Aktuell sind keine Zimmer verfügbar</div>';
+    return;
+  }
+  grid.innerHTML = FREIE_ZIMMER.map(r => `
+    <label class="room-card" data-room="${r.id}">
+      <input type="radio" name="zimmerWunsch" value="${r.id}" required>
+      <div class="check-mark"></div>
+      <div class="room-id">${r.id}</div>
+      <div class="room-addr">${r.adresse}<br>${r.etage}</div>
+      <div class="room-meta">
+        <span class="meta-pill wg">🏠 ${r.wgGroesse}</span>
+        ${r.balkon ? '<span class="meta-pill balcony">🌿 Balkon</span>' : ''}
+        ${r.qm ? `<span class="meta-pill">${r.qm} m²</span>` : ''}
+      </div>
+      <div class="room-price">CHF ${r.miete.toLocaleString('de-CH')}.– / Mt.</div>
+    </label>
+  `).join('');
+
+  // Wire up listeners
+  grid.querySelectorAll('input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      grid.querySelectorAll('.room-card').forEach(c => {
+        c.classList.toggle('checked', c.querySelector('input').checked);
+      });
+      updateProgress();
+    });
+  });
+}
+renderRooms();
+
+
+function updateCheck(el, id) {
+  document.getElementById(id).classList.toggle('checked', el.checked);
+  updateProgress();
+}
+
+// Handle option card selection
+document.querySelectorAll('.option-card input[type="radio"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    const group = this.name;
+    document.querySelectorAll(`input[name="${group}"]`).forEach(r => {
+      r.closest('.option-card').classList.toggle('checked', r.checked);
+    });
+    updateCostSummary();
+    updateProgress();
+  });
+});
+
+const KAUTION_LABELS = {
+  '3x': { label: '3× Miete (volle Kaution)', extra: 0 },
+  '2x': { label: '2× Miete', extra: 50 },
+  '1x': { label: '1× Miete', extra: 100 },
+  '0x': { label: 'Keine Kaution', extra: 150 },
+};
+
+const MOEBEL_LABELS = {
+  'ja': 'Möbliert (CHF 990.– einmalig)',
+  'nein': 'Unmöbliert',
+};
+
+function updateCostSummary() {
+  const kaution = document.querySelector('input[name="kautionOpt"]:checked');
+  const moebel = document.querySelector('input[name="moebliert"]:checked');
+  const summary = document.getElementById('costSummary');
+
+  if (!kaution && !moebel) {
+    summary.style.display = 'none';
+    return;
+  }
+
+  summary.style.display = 'block';
+
+  let extra = 0;
+  if (kaution) {
+    document.getElementById('kautionLabel').textContent = KAUTION_LABELS[kaution.value].label;
+    extra += KAUTION_LABELS[kaution.value].extra;
+  } else {
+    document.getElementById('kautionLabel').textContent = '— noch wählen —';
+  }
+
+  if (moebel) {
+    document.getElementById('moebelLabel').textContent = MOEBEL_LABELS[moebel.value];
+  } else {
+    document.getElementById('moebelLabel').textContent = '— noch wählen —';
+  }
+
+  document.getElementById('totalLabel').textContent =
+    extra === 0 ? 'CHF 0.–' : '+ CHF ' + extra + '.– / Mt.';
+}
+
+function updateProgress() {
+  const form = document.getElementById('mainForm');
+  const sections = form.querySelectorAll('.form-card');
+  let filled = 0;
+  sections.forEach(s => {
+    const inputs = s.querySelectorAll('input,select,textarea');
+    let hasValue = false;
+    inputs.forEach(i => {
+      if (i.type === 'radio' || i.type === 'checkbox') {
+        if (i.checked) hasValue = true;
+      } else if (i.value && i.value.trim()) {
+        hasValue = true;
+      }
+    });
+    if (hasValue) filled++;
+  });
+  const pct = Math.round(filled/sections.length*100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = filled + ' / ' + sections.length + ' Abschnitte';
+}
+
+document.querySelectorAll('input,select,textarea').forEach(el => {
+  el.addEventListener('input', updateProgress);
+});
+
+document.getElementById('mainForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+
+  const required = this.querySelectorAll('[required]');
+  let valid = true;
+  let firstInvalid = null;
+  required.forEach(el => {
+    let elValid = false;
+    if (el.type === 'radio') {
+      elValid = !!document.querySelector(`input[name="${el.name}"]:checked`);
+    } else if (el.type === 'checkbox') {
+      elValid = el.checked;
+    } else {
+      elValid = !!el.value;
+    }
+    if (!elValid) {
+      if (el.type !== 'radio') el.style.borderColor = '#f87171';
+      valid = false;
+      if (!firstInvalid) firstInvalid = el;
+    } else {
+      if (el.type !== 'radio') el.style.borderColor = '';
+    }
+  });
+
+  if (!valid) {
+    firstInvalid?.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+
+  const fd = new FormData(this);
+  const data = {};
+  fd.forEach((v,k) => data[k] = v);
+  data.id = 'B' + Date.now();
+  data.status = 'Neu';
+  data.eingereichtAm = new Date().toLocaleDateString('de-CH');
+
+  // Translate kaution option to readable form
+  if (data.kautionOpt) {
+    data.kautionType = KAUTION_LABELS[data.kautionOpt].label;
+    data.kautionAufschlag = KAUTION_LABELS[data.kautionOpt].extra;
+  }
+  if (data.moebliert) {
+    data.moeblierungPauschale = data.moebliert === 'ja' ? 990 : 0;
+  }
+
+  btn.textContent = 'Wird gesendet…';
+  btn.disabled = true;
+
+  // ─── Save to Supabase ───
+  const SUPABASE_URL = 'https://aohcqrxpsqronlcwssrk.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvaGNxcnhwc3Fyb25sY3dzc3JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODM0MjEsImV4cCI6MjA5MzU1OTQyMX0.izqvV2CPiOyVXoCsFTq_k8KRzBgfomp8LXwwAx22XP4';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Map to DB column names (snake_case)
+  const dbRow = {
+    id: data.id,
+    vorname: data.vorname || '',
+    nachname: data.nachname || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    geburt: data.geburt || '',
+    gender: data.gender || '',
+    nat: data.nat || '',
+    adresse: data.adresse || '',
+    plz: data.plz || '',
+    ort: data.ort || '',
+    type: data.type || '',
+    job: data.job || '',
+    einkommen: data.einkommen || '',
+    arbeitgeber: data.arbeitgeber || '',
+    einzug: data.einzug || '',
+    aufenthalt: data.aufenthalt || '',
+    zimmer_wunsch: data.zimmerWunsch || '',
+    kaution_opt: data.kautionOpt || '',
+    kaution_type: data.kautionType || '',
+    kaution_aufschlag: data.kautionAufschlag || 0,
+    moebliert: data.moebliert || '',
+    moeblierung_pauschale: data.moeblierungPauschale || 0,
+    bemerkung: data.bemerkung || '',
+    no_debt: !!data.noDebt,
+    truthful: !!data.truthful,
+    status: 'Neu',
+    eingereicht_am: data.eingereichtAm,
+  };
+
+  const { error } = await sb.from('applicants').insert([dbRow]);
+
+  if (error) {
+    console.error('Supabase error:', error);
+    btn.textContent = 'Fehler — bitte erneut versuchen';
+    btn.disabled = false;
+    alert('Bewerbung konnte nicht gespeichert werden. Bitte versuche es noch einmal.\n\nFehler: ' + error.message);
+    return;
+  }
+
+  document.getElementById('mainForm').style.display = 'none';
+  document.getElementById('costSummary').style.display = 'none';
+  document.getElementById('successScreen').style.display = 'block';
+  document.getElementById('progressFill').style.width = '100%';
+});
+</script>
+</body>
+</html>

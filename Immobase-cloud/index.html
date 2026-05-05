@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ImmoBase — D&T Homes</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1117;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:13.5px;min-height:100vh}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2a2d3e;border-radius:4px}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at top,#1a2540 0%,#0f1117 60%)}
+.login-card{background:#1a1d27;border:1px solid #2a2d3e;border-radius:16px;padding:36px 32px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo h1{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#fff;margin-bottom:4px}
+.login-logo p{font-size:11px;color:#5e6273;letter-spacing:.5px}
+.login-card h2{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#fff;margin-bottom:8px}
+.login-card .desc{font-size:12.5px;color:#5e6273;line-height:1.6;margin-bottom:20px}
+.login-input{width:100%;background:#1e2130;border:1px solid #2a2d3e;border-radius:8px;padding:11px 14px;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;margin-bottom:12px;transition:.15s border}
+.login-input:focus{border-color:#4f8cff}
+.login-btn{width:100%;background:linear-gradient(135deg,#4f8cff,#6366f1);border:none;border-radius:8px;padding:12px;color:#fff;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.15s all;letter-spacing:.3px}
+.login-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,140,255,.35)}
+.login-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.login-msg{margin-top:16px;padding:10px 12px;border-radius:7px;font-size:12px;line-height:1.5}
+.login-msg.success{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399}
+.login-msg.error{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#f87171}
+.login-foot{text-align:center;margin-top:20px;font-size:10.5px;color:#5e6273}
+
+/* APP LAYOUT */
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:200px;min-width:200px;background:#1a1d27;border-right:1px solid #2a2d3e;display:flex;flex-direction:column}
+.logo{padding:20px 16px 16px;border-bottom:1px solid #2a2d3e}
+.logo h1{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:#fff}
+.logo p{font-size:10px;color:#5e6273;margin-top:2px}
+.nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
+.nb{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;border:none;background:none;color:#5e6273;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;text-align:left;width:100%;transition:.15s all}
+.nb:hover{background:rgba(255,255,255,.05);color:#e2e4ed}
+.nb.on{background:#1a2540;color:#4f8cff}
+.ni{font-size:14px;width:16px;text-align:center}
+.user-info{padding:10px 14px;border-top:1px solid #2a2d3e;font-size:10.5px;color:#5e6273}
+.user-info .uemail{color:#e2e4ed;font-weight:500;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px}
+.logout-btn{background:none;border:1px solid #2a2d3e;color:#5e6273;border-radius:5px;padding:4px 10px;font-size:10.5px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.15s}
+.logout-btn:hover{background:#2a0f0f;color:#f87171;border-color:rgba(248,113,113,.3)}
+.main{flex:1;overflow-y:auto;padding:24px 28px}
+.pt{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:3px}
+.ps{font-size:11px;color:#5e6273;margin-bottom:20px}
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.sc{background:#1e2130;border:1px solid #2a2d3e;border-radius:10px;padding:14px 16px}
+.sl{font-size:9.5px;color:#5e6273;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+.sv{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#fff}
+.sn{font-size:10.5px;margin-top:2px}
+.card{background:#1e2130;border:1px solid #2a2d3e;border-radius:10px;padding:16px;margin-bottom:16px}
+.ct{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#fff;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:9.5px;color:#5e6273;text-transform:uppercase;letter-spacing:.7px;padding:0 8px 8px;border-bottom:1px solid #2a2d3e;font-weight:600}
+td{padding:9px 8px;border-bottom:1px solid rgba(42,45,62,.5);font-size:12.5px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.015)}
+.bx{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:700;white-space:nowrap}
+.b-g{background:#0d2820;color:#34d399}.b-y{background:#2a1e08;color:#fbbf24}.b-r{background:#2a0f0f;color:#f87171}.b-b{background:#1a2540;color:#4f8cff}.b-x{background:#22243a;color:#5e6273}.b-p{background:#1e1a30;color:#a78bfa}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:6px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;transition:.15s all}
+.btn-p{background:#4f8cff;color:#fff}.btn-p:hover{background:#3a72f5}
+.btn-g{background:#2a2d3e;color:#e2e4ed}.btn-g:hover{background:#303348}
+.btn-gr{background:#0d2820;color:#34d399}.btn-gr:hover{background:#112f24}
+.btn-r{background:#2a0f0f;color:#f87171}
+.btn-sm{padding:3px 8px;font-size:11px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
+.inp{background:#1a1d27;border:1px solid #2a2d3e;border-radius:6px;padding:6px 11px;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:12px;outline:none}
+.inp:focus{border-color:#4f8cff}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(6px)}
+.modal{background:#1a1d27;border:1px solid #2a2d3e;border-radius:13px;padding:24px;width:520px;max-height:86vh;overflow-y:auto}
+.mt{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#fff;margin-bottom:16px}
+.fg{margin-bottom:10px}
+.fl{font-size:10px;color:#5e6273;margin-bottom:3px;display:block;letter-spacing:.3px;text-transform:uppercase}
+.fi{width:100%;background:#1e2130;border:1px solid #2a2d3e;border-radius:6px;padding:7px 10px;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:12.5px;outline:none}
+.fi:focus{border-color:#4f8cff}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ma{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.tabs{display:flex;margin-bottom:16px;border-bottom:1px solid #2a2d3e}
+.tab{padding:7px 14px;border:none;background:none;color:#5e6273;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s all}
+.tab.on{color:#4f8cff;border-bottom-color:#4f8cff}
+.tab:hover:not(.on){color:#e2e4ed}
+.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#1a2540;color:#4f8cff;font-family:'Syne',sans-serif;font-weight:700;flex-shrink:0}
+.warn{background:#2a1e08;border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:9px 13px;font-size:11.5px;color:#fbbf24;margin-bottom:14px;line-height:1.6}
+.warn-r{background:#2a0f0f;border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:9px 13px;font-size:11.5px;color:#f87171;margin-bottom:14px;line-height:1.6}
+.igrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ig label{font-size:9.5px;color:#5e6273;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.4px}
+.ig span{font-size:12.5px;color:#e2e4ed}
+a{color:#4f8cff;text-decoration:none}a:hover{text-decoration:underline}
+.empty{text-align:center;color:#5e6273;font-size:12px;padding:24px}
+.bewerber-card{background:#1e2130;border:1px solid #2a2d3e;border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:.15s all;cursor:pointer}
+.bewerber-card:hover{border-color:#4f8cff44}
+.bewerber-card.selected{border-color:#4f8cff;background:#1a2540}
+.zimmer-option{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#1a1d27;border:1px solid #2a2d3e;border-radius:8px;margin-bottom:7px;cursor:pointer;transition:.15s all}
+.zimmer-option:hover{border-color:#34d399;background:#0d2820}
+.zimmer-option.sel{border-color:#34d399;background:#0d2820}
+.link-box{background:#1a1d27;border:1px solid #2a2d3e;border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.link-text{font-size:11.5px;color:#5e6273;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px}
+.spinner{width:32px;height:32px;border:3px solid #2a2d3e;border-top-color:#4f8cff;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{font-size:12px;color:#5e6273}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-type="module">
+const { useState, useEffect, useCallback } = React;
+
+// ─── SUPABASE CONFIG ─────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://aohcqrxpsqronlcwssrk.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvaGNxcnhwc3Fyb25sY3dzc3JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODM0MjEsImV4cCI6MjA5MzU1OTQyMX0.izqvV2CPiOyVXoCsFTq_k8KRzBgfomp8LXwwAx22XP4";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function Av({name,size=30}){const i=(name||"?").trim().split(" ").filter(Boolean).map(n=>n[0]).join("").slice(0,2).toUpperCase();return <div className="av" style={{width:size,height:size,fontSize:size*0.36}}>{i}</div>;}
+const chf=n=>`CHF ${Number(n||0).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
+function Bdg({label,color="x"}){if(!label&&label!==0)return null;return <span className={`bx b-${color}`}>{label}</span>;}
+function TypeBadge({type}){
+  const m={WG:["b","WG"],Airbnb:["p","Airbnb"],Evorest:["x","Evorest"],GoCaution:["x","GoCaution"],Firstcaution:["x","Firstcaution"],"Kautionsreduktion auf 0":["y","0-Kaution"],Versicherung:["b","Versicherung"],AOZ:["p","AOZ"],Student:["g","Student"],Arbeitnehmer:["g","Arbeitnehmer"],Selbstständig:["b","Selbst."]};
+  if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
+}
+function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#34d399":p>60?"#4f8cff":"#fbbf24";return <div style={{height:4,background:"#2a2d3e",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
+function parseDMY(s){if(!s)return null;const parts=s.split(".");if(parts.length===3)return new Date(+parts[2],+parts[1]-1,+parts[0]);return new Date(s);}
+function StatusBdg({status}){
+  const m={"Neu":["b","● Neu"],"In Prüfung":["y","◐ In Prüfung"],"Bestätigt":["g","✓ Bestätigt"],"Abgelehnt":["r","✗ Abgelehnt"],"Zugeteilt":["g","🏠 Zugeteilt"]};
+  const [c,l]=m[status]||["x",status];return <span className={`bx b-${c}`}>{l}</span>;
+}
+
+// ─── LOGIN ───────────────────────────────────────────────────────────────────
+function Login() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function sendLink(e) {
+    e.preventDefault();
+    setLoading(true); setMsg(null);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { emailRedirectTo: window.location.origin }
+    });
+    setLoading(false);
+    if (error) setMsg({type:"error", text:"Login nicht möglich. Diese E-Mail ist nicht freigeschaltet oder es gab einen Fehler."});
+    else setMsg({type:"success", text:"Wir haben dir einen Login-Link an "+email+" geschickt. Schau in deine E-Mails (auch Spam-Ordner)."});
+  }
+
+  return (
+    <div className="login-wrap">
+      <div className="login-card">
+        <div className="login-logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
+        <h2>Anmelden</h2>
+        <p className="desc">Gib deine E-Mail-Adresse ein. Du bekommst einen sicheren Login-Link per E-Mail — kein Passwort nötig.</p>
+        <form onSubmit={sendLink}>
+          <input className="login-input" type="email" required placeholder="deine@email.ch" value={email} onChange={e=>setEmail(e.target.value)} disabled={loading}/>
+          <button className="login-btn" type="submit" disabled={loading||!email}>
+            {loading?"Sende Link…":"Login-Link senden →"}
+          </button>
+        </form>
+        {msg && <div className={`login-msg ${msg.type}`}>{msg.text}</div>}
+        <div className="login-foot">Nur freigeschaltete E-Mails haben Zugriff.</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DATA HOOKS ──────────────────────────────────────────────────────────────
+function useSupabaseData() {
+  const [apts, setApts] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [bewerber, setBewerber] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function loadAll() {
+    setLoading(true);
+    const [a, r, t, b] = await Promise.all([
+      supabase.from("apartments").select("*").order("id"),
+      supabase.from("rooms").select("*").order("id"),
+      supabase.from("tenants").select("*").order("id"),
+      supabase.from("applicants").select("*").order("created_at", {ascending:false}),
+    ]);
+    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr})));
+    setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
+    setTenants((t.data||[]).map(x=>({...x, kautionArt:x.kaution_art, schluesselNr:x.schluessel_nr})));
+    setBewerber((b.data||[]).map(x=>({
+      ...x,
+      kautionOpt:x.kaution_opt, kautionType:x.kaution_type, kautionAufschlag:x.kaution_aufschlag,
+      moeblierungPauschale:x.moeblierung_pauschale, zimmerWunsch:x.zimmer_wunsch,
+      zugeteiltes_zimmer:x.zugeteiltes_zimmer, eingereichtAm:x.eingereicht_am, noDebt:x.no_debt
+    })));
+    setLoading(false);
+  }
+
+  useEffect(()=>{
+    loadAll();
+    // Real-time subscription
+    const channels = ["apartments","rooms","tenants","applicants"].map(table =>
+      supabase.channel(`public:${table}`)
+        .on("postgres_changes", {event:"*", schema:"public", table}, () => loadAll())
+        .subscribe()
+    );
+    return () => channels.forEach(c=>supabase.removeChannel(c));
+  },[]);
+
+  // Update functions
+  async function updateApt(id, fields) {
+    const dbFields = {...fields};
+    if(dbFields.kautionType !== undefined){dbFields.kaution_type=dbFields.kautionType;delete dbFields.kautionType;}
+    await supabase.from("apartments").update(dbFields).eq("id", id);
+  }
+  async function updateTenant(id, fields) {
+    const dbFields = {...fields};
+    if(dbFields.kautionArt !== undefined){dbFields.kaution_art=dbFields.kautionArt;delete dbFields.kautionArt;}
+    if(dbFields.schluesselNr !== undefined){dbFields.schluessel_nr=dbFields.schluesselNr;delete dbFields.schluesselNr;}
+    await supabase.from("tenants").update(dbFields).eq("id", id);
+  }
+  async function insertTenant(t) {
+    const dbT = {...t};
+    if(dbT.kautionArt !== undefined){dbT.kaution_art=dbT.kautionArt;delete dbT.kautionArt;}
+    if(dbT.schluesselNr !== undefined){dbT.schluessel_nr=dbT.schluesselNr;delete dbT.schluesselNr;}
+    await supabase.from("tenants").insert([dbT]);
+  }
+  async function updateRoom(id, fields) {
+    const dbFields = {...fields};
+    if(dbFields.tenantId !== undefined){dbFields.tenant_id=dbFields.tenantId;delete dbFields.tenantId;}
+    if(dbFields.aptId !== undefined){dbFields.apt_id=dbFields.aptId;delete dbFields.aptId;}
+    await supabase.from("rooms").update(dbFields).eq("id", id);
+  }
+  async function updateBewerber(id, fields) {
+    const dbFields = {...fields};
+    if(dbFields.zugeteiltes_zimmer !== undefined){dbFields.zugeteiltes_zimmer=dbFields.zugeteiltes_zimmer;}
+    await supabase.from("applicants").update(dbFields).eq("id", id);
+  }
+
+  return {apts, rooms, tenants, bewerber, loading, loadAll, updateApt, updateTenant, insertTenant, updateRoom, updateBewerber};
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+function Dashboard({apts,rooms,tenants,bewerber}){
+  const heute=new Date();
+  const wgRooms=rooms.filter(r=>["A2","A3","A5","A6","A7","A8"].includes(r.aptId));
+  const occ=wgRooms.filter(r=>r.occupied).length;
+  const free=wgRooms.filter(r=>!r.occupied);
+  const mieteSoll=wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
+  const incomplete=tenants.filter(t=>!t.email||!t.phone||!t.geburt);
+  const neueBewerber=bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung");
+  const baldEnde=apts.filter(a=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<120;});
+  return(
+    <div>
+      <div className="pt">Dashboard</div>
+      <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
+      <div className="sg">
+        <div className="sc"><div className="sl">Zimmer belegt</div><div className="sv">{occ}<span style={{fontSize:14,color:"#5e6273"}}>/{wgRooms.length}</span></div><div className="sn" style={{color:free.length?"#fbbf24":"#34d399"}}>{free.length} frei</div></div>
+        <div className="sc"><div className="sl">Soll-Miete / Mt.</div><div className="sv" style={{fontSize:19}}>{Math.round(mieteSoll/1000)}k</div><div className="sn" style={{color:"#5e6273"}}>CHF</div></div>
+        <div className="sc"><div className="sl">Bewerber</div><div className="sv">{bewerber.length}</div><div className="sn" style={{color:neueBewerber.length?"#fbbf24":"#34d399"}}>{neueBewerber.length} neu / offen</div></div>
+        <div className="sc"><div className="sl">Mieter</div><div className="sv">{tenants.length}</div><div className="sn" style={{color:incomplete.length?"#fbbf24":"#34d399"}}>{incomplete.length} unvollständig</div></div>
+      </div>
+      {free.length>0&&<div className="warn">⚠ <strong>{free.length} Zimmer frei:</strong> {free.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}
+      {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
+      {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;120 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
+      {tenants.filter(t=>t.betreibung).length>0&&<div className="warn-r">⚡ <strong>Betreibung:</strong> {tenants.filter(t=>t.betreibung).map(t=>`${t.vorname} ${t.nachname}`).join(", ")}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div className="card">
+          <div className="ct">Zimmerbelegung pro WG</div>
+          {apts.filter(a=>a.type==="WG").map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;return(<div key={a.id} style={{marginBottom:11}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span>{a.id} — {a.adresse}</span><span style={{color:"#5e6273",fontSize:11}}>{o}/{rs.length}</span></div><Prog val={o} max={rs.length}/></div>);})}
+        </div>
+        <div className="card">
+          <div className="ct">Neueste Bewerber</div>
+          {bewerber.length===0?<div className="empty">Noch keine Bewerbungen</div>:bewerber.slice(0,5).map(b=>(
+            <div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#5e6273"}}>{b.eingereichtAm} · {b.type||"—"}</div></div></div>
+              <StatusBdg status={b.status}/>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BEWERBER ────────────────────────────────────────────────────────────────
+function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertTenant}){
+  const [sel,setSel]=useState(null);
+  const [zuteilModal,setZuteilModal]=useState(false);
+  const [selZimmer,setSelZimmer]=useState(null);
+  const [einzugDate,setEinzugDate]=useState("");
+  const [filterStatus,setFilterStatus]=useState("alle");
+  const [copied,setCopied]=useState(false);
+
+  // Form link assumes form is hosted at same origin under /mietbewerbung.html
+  const formLink = window.location.origin + "/mietbewerbung.html";
+
+  const b=bewerber.find(x=>x.id===sel);
+  const freeRooms=rooms.filter(r=>!r.occupied);
+  const shown=filterStatus==="alle"?bewerber:bewerber.filter(x=>x.status===filterStatus);
+
+  async function setStatus(id,status){await updateBewerber(id,{status});}
+
+  async function confirmZuteilung(){
+    if(!selZimmer||!b)return;
+    const room=rooms.find(r=>r.id===selZimmer);
+    const newId="T"+Date.now().toString().slice(-6);
+    const newTenant={
+      id:newId,
+      vorname:b.vorname,nachname:b.nachname,
+      email:b.email,phone:b.phone,
+      geburt:b.geburt?new Date(b.geburt).toLocaleDateString("de-CH"):"",
+      gender:b.gender||"",nat:b.nat||"",
+      adresse:b.adresse||"",plz:b.plz||"",ort:b.ort||"",
+      type:b.type==="AOZ / Sozialhilfe"?"AOZ":b.type||"",
+      job:b.job||"",einkommen:b.einkommen||"",
+      kautionArt:b.kautionType||"",deposit:false,
+      schluessel:false,furnished:b.moebliert==="ja",betreibung:false,
+      einzug:einzugDate?new Date(einzugDate).toLocaleDateString("de-CH"):(b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):""),
+      auszug:"",schluessel_nr:"",
+    };
+    await insertTenant(newTenant);
+    await updateRoom(selZimmer,{occupied:true,tenantId:newId});
+    await updateBewerber(b.id,{status:"Zugeteilt",zugeteiltes_zimmer:selZimmer});
+    setZuteilModal(false);setSelZimmer(null);setSel(null);
+  }
+
+  function copyLink(){navigator.clipboard.writeText(formLink).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}
+
+  return(
+    <div>
+      <div className="pt">Bewerber</div>
+      <div className="ps">{bewerber.length} Bewerbungen · {freeRooms.length} freie Zimmer</div>
+      <div className="card" style={{marginBottom:20}}>
+        <div className="ct">📋 Bewerbungsformular-Link</div>
+        <div style={{fontSize:12.5,color:"#5e6273",marginBottom:10}}>Diesen Link an potenzielle Mieter senden — Bewerbungen erscheinen automatisch hier.</div>
+        <div className="link-box">
+          <span className="link-text">{formLink}</span>
+          <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
+        <div>
+          <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+            {["alle","Neu","In Prüfung","Bestätigt","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
+          </div>
+          {shown.length===0?<div className="empty">Keine Bewerbungen</div>:shown.map(bw=>(
+            <div key={bw.id} className={`bewerber-card${sel===bw.id?" selected":""}`} onClick={()=>setSel(bw.id)}>
+              <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}>
+                <Av name={bw.vorname} size={30}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:12.5,color:sel===bw.id?"#4f8cff":"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{bw.vorname} {bw.nachname}</div>
+                  <div style={{fontSize:10.5,color:"#5e6273"}}>{bw.eingereichtAm}</div>
+                </div>
+                <StatusBdg status={bw.status}/>
+              </div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                {bw.type&&<TypeBadge type={bw.type==="AOZ / Sozialhilfe"?"AOZ":bw.type}/>}
+                {bw.zimmerWunsch&&!bw.zugeteiltes_zimmer&&<Bdg label={`💭 ${bw.zimmerWunsch}`} color="b"/>}
+                {bw.zugeteiltes_zimmer&&<Bdg label={`🏠 ${bw.zugeteiltes_zimmer}`} color="g"/>}
+              </div>
+            </div>
+          ))}
+        </div>
+        {b?(
+          <div className="card" style={{margin:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:11}}>
+                <Av name={b.vorname} size={40}/>
+                <div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#fff"}}>{b.vorname} {b.nachname}</div>
+                  <div style={{fontSize:11,color:"#5e6273",marginTop:2}}>Eingereicht: {b.eingereichtAm} · <StatusBdg status={b.status}/></div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
+                {b.status==="Neu"&&<button className="btn btn-sm" style={{background:"#2a1e08",color:"#fbbf24"}} onClick={()=>setStatus(b.id,"In Prüfung")}>◐ In Prüfung</button>}
+                {(b.status==="Neu"||b.status==="In Prüfung")&&<button className="btn btn-sm" style={{background:"#0d2820",color:"#34d399"}} onClick={()=>setStatus(b.id,"Bestätigt")}>✓ Bestätigen</button>}
+                {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
+              </div>
+            </div>
+
+            {b.zimmerWunsch&&!b.zugeteiltes_zimmer&&(()=>{
+              const wRoom=rooms.find(r=>r.id===b.zimmerWunsch);
+              const wApt=wRoom?apts.find(a=>a.id===wRoom.aptId):null;
+              const stillFree=wRoom&&!wRoom.occupied;
+              return(
+                <div style={{background:stillFree?"#1a2540":"#2a1e08",border:`1px solid ${stillFree?"rgba(79,140,255,.3)":"rgba(251,191,36,.3)"}`,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+                  <div style={{fontSize:9.5,color:"#5e6273",textTransform:"uppercase",letterSpacing:".4px",marginBottom:8,fontWeight:700}}>💭 Wunschzimmer</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:stillFree?"#4f8cff":"#fbbf24"}}>{b.zimmerWunsch}</div>
+                      <div style={{fontSize:11.5,color:"#5e6273",marginTop:2}}>{wApt?.adresse||"—"}{wRoom?.balkon?" · 🌿":""}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"#34d399",fontSize:14}}>{wRoom?chf(wRoom.miete):"—"}/Mt.</div>
+                      <div style={{fontSize:10.5,marginTop:3}}>{stillFree?<Bdg label="○ noch frei" color="g"/>:<Bdg label="● belegt" color="y"/>}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="igrid" style={{marginBottom:16}}>
+              {[
+                ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"—"],
+                ["Telefon",b.phone?<a href={`tel:${b.phone}`}>{b.phone}</a>:"—"],
+                ["Geburtsdatum",b.geburt?new Date(b.geburt).toLocaleDateString("de-CH"):"—"],
+                ["Geschlecht",b.gender||"—"],
+                ["Nationalität",b.nat||"—"],
+                ["Adresse",b.adresse?`${b.adresse}, ${b.plz} ${b.ort}`:"—"],
+                ["Beschäftigung",b.type||"—"],
+                ["Beruf",b.job||"—"],
+                ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"—"],
+                ["Arbeitgeber",b.arbeitgeber||"—"],
+                ["Gewünschter Einzug",b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):"—"],
+                ["Aufenthaltsdauer",b.aufenthalt||"—"],
+                ["Keine Betreibung",b.noDebt?<Bdg label="✓ Bestätigt" color="g"/>:<Bdg label="— Nicht bestätigt" color="y"/>],
+              ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}
+            </div>
+
+            <div style={{background:"#1a1d27",border:"1px solid #2a2d3e",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+              <div style={{fontSize:9.5,color:"#5e6273",textTransform:"uppercase",letterSpacing:".4px",marginBottom:9,fontWeight:700}}>💰 Gewählte Konditionen</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <div>
+                  <div style={{fontSize:10,color:"#5e6273",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
+                  <div style={{fontSize:12.5,color:"#e2e4ed",fontWeight:500}}>{b.kautionType||"—"}</div>
+                  {b.kautionAufschlag>0&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>+ CHF {b.kautionAufschlag}.– / Monat</div>}
+                  {b.kautionAufschlag===0&&<div style={{fontSize:11,color:"#34d399",marginTop:2}}>Kein Aufschlag</div>}
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#5e6273",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
+                  <div style={{fontSize:12.5,color:"#e2e4ed",fontWeight:500}}>{b.moebliert==="ja"?"🛋 Möbliert":b.moebliert==="nein"?"📦 Unmöbliert":"—"}</div>
+                  {b.moeblierungPauschale>0&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>CHF {b.moeblierungPauschale}.– einmalig</div>}
+                </div>
+              </div>
+            </div>
+
+            {b.bemerkung&&(<div style={{background:"#1a1d27",border:"1px solid #2a2d3e",borderRadius:7,padding:"10px 13px",marginBottom:12}}><div style={{fontSize:9.5,color:"#5e6273",textTransform:"uppercase",marginBottom:5}}>Bemerkung</div><div style={{fontSize:12.5,lineHeight:1.6}}>{b.bemerkung}</div></div>)}
+
+            {b.zugeteiltes_zimmer&&(<div style={{background:"#0d2820",border:"1px solid rgba(52,211,153,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#34d399"}}>✓ Zugeteilt zu Zimmer <strong>{b.zugeteiltes_zimmer}</strong></div></div>)}
+          </div>
+        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#5e6273",fontSize:12}}>← Bewerber wählen</span></div>}
+      </div>
+
+      {zuteilModal&&b&&(
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&setZuteilModal(false)}>
+          <div className="modal">
+            <div className="mt">🏠 Zimmer zuteilen</div>
+            <div style={{background:"#1a2540",border:"1px solid #2a2d3e",borderRadius:8,padding:"10px 13px",marginBottom:16,fontSize:12.5}}>
+              <strong style={{color:"#fff"}}>{b.vorname} {b.nachname}</strong>
+            </div>
+            <div style={{fontSize:10,color:"#5e6273",textTransform:"uppercase",marginBottom:10}}>Freie Zimmer ({freeRooms.length})</div>
+            {freeRooms.length===0?<div className="empty">Aktuell keine freien Zimmer</div>:[...freeRooms].sort((a,c)=>{if(a.id===b.zimmerWunsch)return -1;if(c.id===b.zimmerWunsch)return 1;return 0;}).map(r=>{
+              const apt=apts.find(a=>a.id===r.aptId);
+              const isWunsch=r.id===b.zimmerWunsch;
+              return(
+                <div key={r.id} className={`zimmer-option${selZimmer===r.id?" sel":""}`} onClick={()=>setSelZimmer(r.id)} style={isWunsch?{borderColor:"#4f8cff",background:selZimmer===r.id?"#0d2820":"#1a2540"}:undefined}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13,color:selZimmer===r.id?"#34d399":isWunsch?"#4f8cff":"#fff",display:"flex",alignItems:"center",gap:7}}>{r.id}{isWunsch&&<Bdg label="💭 Wunsch" color="b"/>}</div>
+                    <div style={{fontSize:11,color:"#5e6273",marginTop:2}}>{apt?.adresse}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontWeight:600,color:"#34d399",fontSize:13}}>{chf(r.miete)}/Mt.</div>
+                    <div style={{fontSize:10.5,color:"#5e6273"}}>{r.balkon?"🌿 Balkon":""}</div>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="fg" style={{marginTop:14}}><label className="fl">Einzugsdatum</label><input className="fi" type="date" value={einzugDate} onChange={e=>setEinzugDate(e.target.value)}/></div>
+            <div className="ma">
+              <button className="btn btn-g" onClick={()=>setZuteilModal(false)}>Abbrechen</button>
+              <button className="btn btn-gr" onClick={confirmZuteilung} disabled={!selZimmer}>✓ Zuteilung bestätigen</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
+function Wohnungen({apts,rooms,tenants,updateApt}){
+  const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
+  const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id):[];
+  function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
+  async function save(){await updateApt(form.id,{adresse:form.adresse,miete:+form.miete,kaution:+form.kaution,mietbeginn:form.mietbeginn,mietende:form.mietende,vertrag:form.vertrag,extra:form.extra});setEditing(false);}
+  return(
+    <div>
+      <div className="pt">Wohnungen</div><div className="ps">{apts.length} Objekte</div>
+      <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16}}>
+        <div>{apts.map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;const on=sel===a.id;return(
+          <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#1a2540":"#1e2130",border:`1px solid ${on?"#4f8cff":"#2a2d3e"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#4f8cff":"#fff"}}>{a.id}</span><TypeBadge type={a.type}/></div>
+            <div style={{fontSize:11,color:"#5e6273"}}>{a.adresse}</div>
+            {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
+          </div>);})}
+        </div>
+        {apt?(
+          <div className="card" style={{margin:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:"#fff"}}>{apt.id} — {apt.adresse}</div><div style={{fontSize:11,color:"#5e6273",marginTop:2}}>{apt.plz} {apt.ort} · OG {apt.stockwerk}</div></div>
+              <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
+            </div>
+            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["vertrag","Vertrag"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            {tab==="info"&&<div className="igrid">{[["Typ",<TypeBadge type={apt.type}/>],["Zimmer",apt.zimmer+" Zi."],["Miete",<strong style={{color:"#34d399"}}>{chf(apt.miete)}</strong>],["Kaution",chf(apt.kaution)],["Kautionstyp",apt.kautionType||apt.kaution_type],["Mietbeginn",apt.mietbeginn],["Mietende",apt.mietende||"—"],["Verwaltung",apt.verwaltung],["Eigentümer",apt.eigentuemer]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>}
+            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#34d399"}}>{chf(r.miete)}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}</tbody></table>)}
+            {tab==="vertrag"&&<div>{apt.vertrag&&<a href={apt.vertrag} target="_blank" rel="noreferrer" className="btn btn-p" style={{display:"inline-flex"}}>📄 Vertrag öffnen</a>}</div>}
+          </div>
+        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#5e6273"}}>← Wohnung wählen</span></div>}
+      </div>
+      {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal">
+        <div className="mt">Wohnung bearbeiten — {form.id}</div>
+        <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
+        <div className="frow"><div className="fg"><label className="fl">Miete</label><input className="fi" type="number" value={form.miete||""} onChange={F("miete")}/></div><div className="fg"><label className="fl">Kaution</label><input className="fi" type="number" value={form.kaution||""} onChange={F("kaution")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Mietbeginn</label><input className="fi" value={form.mietbeginn||""} onChange={F("mietbeginn")}/></div><div className="fg"><label className="fl">Mietende</label><input className="fi" value={form.mietende||""} onChange={F("mietende")}/></div></div>
+        <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
+      </div></div>}
+    </div>
+  );
+}
+
+// ─── ZIMMER ──────────────────────────────────────────────────────────────────
+function Zimmer({rooms,tenants,apts}){
+  const [filter,setFilter]=useState("alle");
+  const shown=filter==="frei"?rooms.filter(r=>!r.occupied):filter==="belegt"?rooms.filter(r=>r.occupied):rooms;
+  const free=rooms.filter(r=>!r.occupied);
+  const grouped=apts.filter(a=>a.type==="WG").map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id)})).filter(g=>g.rs.length>0);
+  return(
+    <div>
+      <div className="pt">Zimmer</div><div className="ps">{rooms.length} Zimmer · {free.length} frei</div>
+      <div className="row"><div style={{display:"flex",gap:6}}>{[["alle","Alle"],["frei","Nur freie"],["belegt","Belegt"]].map(([k,l])=>(<button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>))}</div></div>
+      {grouped.map(({apt,rs})=>(
+        <div key={apt.id} className="card">
+          <div className="ct">{apt.id} — {apt.adresse}</div>
+          <table><thead><tr><th>Zimmer</th><th>Miete</th><th>Balkon</th><th>Status</th><th>Mieter</th></tr></thead><tbody>
+            {rs.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#34d399"}}>{chf(r.miete)}</td><td>{r.balkon?"🌿":"—"}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}
+          </tbody></table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── MIETER ──────────────────────────────────────────────────────────────────
+function Mieter({tenants,rooms,apts,updateTenant}){
+  const [search,setSearch]=useState("");const [sel,setSel]=useState(null);const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
+  const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase()));
+  const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
+  function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
+  async function save(){await updateTenant(form.id,{vorname:form.vorname,nachname:form.nachname,email:form.email,phone:form.phone,geburt:form.geburt,nat:form.nat,adresse:form.adresse,plz:form.plz,ort:form.ort,einzug:form.einzug,auszug:form.auszug,job:form.job,einkommen:form.einkommen,schluesselNr:form.schluesselNr,deposit:form.deposit,schluessel:form.schluessel,furnished:form.furnished,betreibung:form.betreibung});setEditing(false);}
+  return(
+    <div>
+      <div className="pt">Mieter</div><div className="ps">{tenants.length} Personen</div>
+      <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+        <div>
+          <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
+          <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
+            {filtered.map(t=>{const on=sel===t.id;return(
+              <div key={t.id} onClick={()=>setSel(t.id)} style={{background:on?"#1a2540":"#1e2130",border:`1px solid ${on?"#4f8cff":"#2a2d3e"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={t.vorname} size={28}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:500,fontSize:12.5,color:on?"#4f8cff":"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.vorname} {t.nachname}</div>{t.type&&<TypeBadge type={t.type}/>}</div></div>
+              </div>);})}
+          </div>
+        </div>
+        {tenant?(
+          <div className="card" style={{margin:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:11}}><Av name={tenant.vorname} size={40}/><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#fff"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#5e6273",marginTop:2}}>{tenant.id}</div></div></div>
+              <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant});setEditing(true);}}>✏ Bearbeiten</button>
+            </div>
+            {room&&<div style={{background:"#1a1d27",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12}}>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>}
+            <div className="igrid">{[["E-Mail",tenant.email||"—"],["Telefon",tenant.phone||"—"],["Geburt",tenant.geburt||"—"],["Nationalität",tenant.nat||"—"],["Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz} ${tenant.ort}`:"—"],["Einzug",tenant.einzug||"—"],["Auszug",tenant.auszug||"—"]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+          </div>
+        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#5e6273"}}>← Mieter wählen</span></div>}
+      </div>
+      {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal">
+        <div className="mt">Mieter bearbeiten</div>
+        <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={form.vorname||""} onChange={F("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={form.nachname||""} onChange={F("nachname")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" value={form.email||""} onChange={F("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={form.phone||""} onChange={F("phone")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")}/></div><div className="fg"><label className="fl">Nationalität</label><input className="fi" value={form.nat||""} onChange={F("nat")}/></div></div>
+        <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
+        <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={form.einzug||""} onChange={F("einzug")}/></div><div className="fg"><label className="fl">Auszug</label><input className="fi" value={form.auszug||""} onChange={F("auszug")}/></div></div>
+        <div style={{display:"flex",gap:16,margin:"10px 0",fontSize:12.5,flexWrap:"wrap"}}>{[["deposit","Kaution"],["schluessel","Schlüssel"],["furnished","Möbliert"],["betreibung","Betreibung"]].map(([k,l])=>(<label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form[k]} onChange={FB(k)}/> {l}</label>))}</div>
+        <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
+      </div></div>}
+    </div>
+  );
+}
+
+// ─── FINANZEN & FRISTEN ──────────────────────────────────────────────────────
+function Finanzen({apts,rooms}){
+  const wgRooms=rooms.filter(r=>["A2","A3","A5","A6","A7","A8"].includes(r.aptId));
+  const soll=wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
+  const pot=wgRooms.reduce((s,r)=>s+(+r.miete||0),0);
+  const byApt=apts.filter(a=>a.type==="WG").map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);return{...a,soll:rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0),pot:rs.reduce((s,r)=>s+(+r.miete||0),0)};});
+  return(
+    <div>
+      <div className="pt">Finanzen</div>
+      <div className="sg">
+        <div className="sc"><div className="sl">Ist-Miete</div><div className="sv" style={{fontSize:20,color:"#34d399"}}>{Math.round(soll/1000)}k</div><div className="sn">CHF/Mt.</div></div>
+        <div className="sc"><div className="sl">Potenzial</div><div className="sv" style={{fontSize:20}}>{Math.round(pot/1000)}k</div><div className="sn">CHF/Mt.</div></div>
+        <div className="sc"><div className="sl">Ausfall</div><div className="sv" style={{fontSize:20,color:"#fbbf24"}}>{chf(pot-soll)}</div></div>
+        <div className="sc"><div className="sl">Auslastung</div><div className="sv" style={{fontSize:20}}>{pot?Math.round(soll/pot*100):0}%</div></div>
+      </div>
+      <div className="card">
+        <div className="ct">Pro Wohnung</div>
+        <table><thead><tr><th>WG</th><th>Adresse</th><th>Ist</th><th>Pot.</th><th>Auslastung</th></tr></thead><tbody>
+          {byApt.map(a=>{const p=a.pot?Math.round(a.soll/a.pot*100):0;return(<tr key={a.id}><td style={{fontWeight:700}}>{a.id}</td><td style={{fontSize:11.5,color:"#5e6273"}}>{a.adresse}</td><td style={{color:"#34d399"}}>{chf(a.soll)}</td><td style={{color:"#5e6273"}}>{chf(a.pot)}</td><td style={{minWidth:130}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1}}><Prog val={a.soll} max={a.pot}/></div><span style={{fontSize:10.5}}>{p}%</span></div></td></tr>);})}
+        </tbody></table>
+      </div>
+    </div>
+  );
+}
+
+function Fristen({apts,tenants,rooms}){
+  const heute=new Date();
+  const aptEnds=apts.filter(a=>a.mietende).map(a=>{const d=parseDMY(a.mietende);return{...a,tage:Math.ceil((d-heute)/86400000)};}).sort((a,b)=>a.tage-b.tage);
+  return(
+    <div>
+      <div className="pt">Fristen</div>
+      <div className="card">
+        <div className="ct">Wohnungs-Mietenden</div>
+        <table><thead><tr><th>ID</th><th>Adresse</th><th>Ende</th><th>Verbleibend</th></tr></thead><tbody>
+          {aptEnds.map(a=>{const c=a.tage<30?"r":a.tage<90?"y":"g";return(<tr key={a.id}><td style={{fontWeight:700}}>{a.id}</td><td>{a.adresse}</td><td>{a.mietende}</td><td><Bdg label={`${a.tage}d`} color={c}/></td></tr>);})}
+        </tbody></table>
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+const PAGES=[
+  {id:"dashboard",icon:"⊞",label:"Dashboard"},
+  {id:"bewerber",icon:"📋",label:"Bewerber"},
+  {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
+  {id:"zimmer",icon:"🚪",label:"Zimmer"},
+  {id:"mieter",icon:"👤",label:"Mieter"},
+  {id:"finanzen",icon:"💰",label:"Finanzen"},
+  {id:"fristen",icon:"📅",label:"Fristen"},
+];
+
+function MainApp({user}) {
+  const [page, setPage] = useState("dashboard");
+  const data = useSupabaseData();
+
+  if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
+
+  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,finanzen:Finanzen,fristen:Fristen}[page];
+  const freeCount=data.rooms.filter(r=>!r.occupied).length;
+  const neueBewerber=data.bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung").length;
+
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.reload();
+  }
+
+  return (
+    <div className="app">
+      <div className="sidebar">
+        <div className="logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
+        <div className="nav">
+          {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>setPage(p.id)}>
+            <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
+            {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#1a2540",color:"#4f8cff",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
+            {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#2a1e08",color:"#fbbf24",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
+          </button>))}
+        </div>
+        <div className="user-info">
+          <div className="uemail">{user.email}</div>
+          <button className="logout-btn" onClick={logout}>Abmelden</button>
+        </div>
+      </div>
+      <div className="main"><Page {...data}/></div>
+    </div>
+  );
+}
+
+function App() {
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({data}) => setSession(data.session));
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((_, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
+  if (!session) return <Login/>;
+  return <MainApp user={session.user}/>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
