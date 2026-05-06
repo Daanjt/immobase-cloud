@@ -4,110 +4,169 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ImmoBase — D&T Homes</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <style>
+:root{
+  --bg: #f6f1e8;
+  --surface: #fefcf7;
+  --card: #fefcf7;
+  --beige: #c9b896;
+  --beige-soft: #ede4d3;
+  --beige-line: #ddd0b8;
+  --gold: #1a1814;
+  --line: #e1d8c5;
+  --line-soft: #ebe3d2;
+  --ink: #1a1814;
+  --text: #4a4439;
+  --muted: #8a8174;
+  --muted-light: #b8af9f;
+  --green: #5a6e4a;
+  --green-soft: #e8eadb;
+  --warn: #b8843e;
+  --warn-soft: #f4e8d3;
+  --error: #9b4a3e;
+  --error-soft: #f0dcd5;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0f1117;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:13.5px;min-height:100vh}
-::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2a2d3e;border-radius:4px}
+body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;font-size:13.5px;font-weight:400;letter-spacing:.005em;min-height:100vh}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--beige-line);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--beige)}
 
 /* LOGIN */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at top,#1a2540 0%,#0f1117 60%)}
-.login-card{background:#1a1d27;border:1px solid #2a2d3e;border-radius:16px;padding:36px 32px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
-.login-logo{text-align:center;margin-bottom:28px}
-.login-logo h1{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#fff;margin-bottom:4px}
-.login-logo p{font-size:11px;color:#5e6273;letter-spacing:.5px}
-.login-card h2{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#fff;margin-bottom:8px}
-.login-card .desc{font-size:12.5px;color:#5e6273;line-height:1.6;margin-bottom:20px}
-.login-input{width:100%;background:#1e2130;border:1px solid #2a2d3e;border-radius:8px;padding:11px 14px;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;margin-bottom:12px;transition:.15s border}
-.login-input:focus{border-color:#4f8cff}
-.login-btn{width:100%;background:linear-gradient(135deg,#4f8cff,#6366f1);border:none;border-radius:8px;padding:12px;color:#fff;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.15s all;letter-spacing:.3px}
-.login-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,140,255,.35)}
-.login-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
-.login-msg{margin-top:16px;padding:10px 12px;border-radius:7px;font-size:12px;line-height:1.5}
-.login-msg.success{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399}
-.login-msg.error{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#f87171}
-.login-foot{text-align:center;margin-top:20px;font-size:10.5px;color:#5e6273}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg);position:relative;overflow:hidden}
+.login-wrap::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at top,var(--beige-soft) 0%,transparent 60%);pointer-events:none}
+.login-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:48px 44px;width:100%;max-width:420px;position:relative;z-index:1;box-shadow:0 1px 60px rgba(160,136,100,.06)}
+.login-logo{text-align:center;margin-bottom:36px;padding-bottom:28px;border-bottom:1px solid var(--line-soft)}
+.login-logo h1{font-family:'Manrope', sans-serif;font-size:32px;font-weight:400;color:var(--ink);letter-spacing:.05em;margin-bottom:6px}
+.login-logo p{font-size:10px;color:var(--muted);letter-spacing:.4em;text-transform:uppercase;font-weight:400}
+.login-card h2{font-family:'Manrope', sans-serif;font-size:22px;font-weight:400;color:var(--ink);margin-bottom:10px;letter-spacing:.01em}
+.login-card .desc{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:24px;font-weight:300}
+.login-input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:13px 14px;color:var(--ink);font-family:'Manrope', sans-serif;font-size:13.5px;outline:none;margin-bottom:14px;transition:border-color .25s ease}
+.login-input:focus{border-color:var(--gold);background:var(--surface)}
+.login-input::placeholder{color:var(--muted-light);font-weight:300}
+.login-btn{width:100%;background:var(--ink);border:none;border-radius:8px;padding:14px;color:var(--surface);font-family:'Manrope', sans-serif;font-size:11px;font-weight:500;cursor:pointer;transition:.2s all;letter-spacing:.18em;text-transform:uppercase}
+.login-btn:hover{background:var(--gold);transform:translateY(-1px)}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.login-msg{margin-top:18px;padding:11px 14px;border-radius:8px;font-size:12px;line-height:1.6;border-left:2px solid}
+.login-msg.success{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.login-msg.error{background:var(--error-soft);border-color:var(--error);color:var(--error)}
+.login-foot{text-align:center;margin-top:24px;font-size:10px;color:var(--muted-light);letter-spacing:.2em;text-transform:uppercase}
 
 /* APP LAYOUT */
-.app{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:200px;min-width:200px;background:#1a1d27;border-right:1px solid #2a2d3e;display:flex;flex-direction:column}
-.logo{padding:20px 16px 16px;border-bottom:1px solid #2a2d3e}
-.logo h1{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:#fff}
-.logo p{font-size:10px;color:#5e6273;margin-top:2px}
-.nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
-.nb{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;border:none;background:none;color:#5e6273;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;text-align:left;width:100%;transition:.15s all}
-.nb:hover{background:rgba(255,255,255,.05);color:#e2e4ed}
-.nb.on{background:#1a2540;color:#4f8cff}
-.ni{font-size:14px;width:16px;text-align:center}
-.user-info{padding:10px 14px;border-top:1px solid #2a2d3e;font-size:10.5px;color:#5e6273}
-.user-info .uemail{color:#e2e4ed;font-weight:500;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px}
-.logout-btn{background:none;border:1px solid #2a2d3e;color:#5e6273;border-radius:5px;padding:4px 10px;font-size:10.5px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.15s}
-.logout-btn:hover{background:#2a0f0f;color:#f87171;border-color:rgba(248,113,113,.3)}
-.main{flex:1;overflow-y:auto;padding:24px 28px}
-.pt{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:3px}
-.ps{font-size:11px;color:#5e6273;margin-bottom:20px}
-.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
-.sc{background:#1e2130;border:1px solid #2a2d3e;border-radius:10px;padding:14px 16px}
-.sl{font-size:9.5px;color:#5e6273;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
-.sv{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#fff}
-.sn{font-size:10.5px;margin-top:2px}
-.card{background:#1e2130;border:1px solid #2a2d3e;border-radius:10px;padding:16px;margin-bottom:16px}
-.ct{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#fff;margin-bottom:12px}
-table{width:100%;border-collapse:collapse}
-th{text-align:left;font-size:9.5px;color:#5e6273;text-transform:uppercase;letter-spacing:.7px;padding:0 8px 8px;border-bottom:1px solid #2a2d3e;font-weight:600}
-td{padding:9px 8px;border-bottom:1px solid rgba(42,45,62,.5);font-size:12.5px;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.015)}
-.bx{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:700;white-space:nowrap}
-.b-g{background:#0d2820;color:#34d399}.b-y{background:#2a1e08;color:#fbbf24}.b-r{background:#2a0f0f;color:#f87171}.b-b{background:#1a2540;color:#4f8cff}.b-x{background:#22243a;color:#5e6273}.b-p{background:#1e1a30;color:#a78bfa}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:6px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;transition:.15s all}
-.btn-p{background:#4f8cff;color:#fff}.btn-p:hover{background:#3a72f5}
-.btn-g{background:#2a2d3e;color:#e2e4ed}.btn-g:hover{background:#303348}
-.btn-gr{background:#0d2820;color:#34d399}.btn-gr:hover{background:#112f24}
-.btn-r{background:#2a0f0f;color:#f87171}
-.btn-sm{padding:3px 8px;font-size:11px}
-.row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
-.inp{background:#1a1d27;border:1px solid #2a2d3e;border-radius:6px;padding:6px 11px;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:12px;outline:none}
-.inp:focus{border-color:#4f8cff}
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(6px)}
-.modal{background:#1a1d27;border:1px solid #2a2d3e;border-radius:13px;padding:24px;width:520px;max-height:86vh;overflow-y:auto}
-.mt{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#fff;margin-bottom:16px}
-.fg{margin-bottom:10px}
-.fl{font-size:10px;color:#5e6273;margin-bottom:3px;display:block;letter-spacing:.3px;text-transform:uppercase}
-.fi{width:100%;background:#1e2130;border:1px solid #2a2d3e;border-radius:6px;padding:7px 10px;color:#e2e4ed;font-family:'DM Sans',sans-serif;font-size:12.5px;outline:none}
-.fi:focus{border-color:#4f8cff}
-.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.ma{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-.tabs{display:flex;margin-bottom:16px;border-bottom:1px solid #2a2d3e}
-.tab{padding:7px 14px;border:none;background:none;color:#5e6273;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s all}
-.tab.on{color:#4f8cff;border-bottom-color:#4f8cff}
-.tab:hover:not(.on){color:#e2e4ed}
-.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#1a2540;color:#4f8cff;font-family:'Syne',sans-serif;font-weight:700;flex-shrink:0}
-.warn{background:#2a1e08;border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:9px 13px;font-size:11.5px;color:#fbbf24;margin-bottom:14px;line-height:1.6}
-.warn-r{background:#2a0f0f;border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:9px 13px;font-size:11.5px;color:#f87171;margin-bottom:14px;line-height:1.6}
-.igrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.ig label{font-size:9.5px;color:#5e6273;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.4px}
-.ig span{font-size:12.5px;color:#e2e4ed}
-a{color:#4f8cff;text-decoration:none}a:hover{text-decoration:underline}
-.empty{text-align:center;color:#5e6273;font-size:12px;padding:24px}
-.bewerber-card{background:#1e2130;border:1px solid #2a2d3e;border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:.15s all;cursor:pointer}
-.bewerber-card:hover{border-color:#4f8cff44}
-.bewerber-card.selected{border-color:#4f8cff;background:#1a2540}
-.zimmer-option{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#1a1d27;border:1px solid #2a2d3e;border-radius:8px;margin-bottom:7px;cursor:pointer;transition:.15s all}
-.zimmer-option:hover{border-color:#34d399;background:#0d2820}
-.zimmer-option.sel{border-color:#34d399;background:#0d2820}
-.link-box{background:#1a1d27;border:1px solid #2a2d3e;border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
-.link-text{font-size:11.5px;color:#5e6273;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app{display:flex;height:100vh;overflow:hidden;background:var(--bg)}
+.sidebar{width:230px;min-width:230px;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column}
+.logo{padding:30px 24px 24px;border-bottom:1px solid var(--line-soft)}
+.logo h1{font-family:'Manrope', sans-serif;font-size:22px;font-weight:400;color:var(--ink);letter-spacing:.04em}
+.logo p{font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.4em;text-transform:uppercase;font-weight:400}
+.nav{flex:1;padding:18px 14px;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
+.nb{display:flex;align-items:center;gap:11px;padding:10px 14px;border-radius:0;border:none;background:none;color:var(--muted);cursor:pointer;font-family:'Manrope', sans-serif;font-size:12px;font-weight:400;text-align:left;width:100%;transition:.2s all;letter-spacing:.04em;position:relative}
+.nb:hover{color:var(--ink);background:var(--beige-soft)}
+.nb.on{color:var(--ink);background:var(--beige-soft);font-weight:500}
+.nb.on::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:2px;background:var(--gold)}
+.ni{font-size:13px;width:18px;text-align:center;color:var(--muted-light)}
+.nb.on .ni{color:var(--gold)}
+.user-info{padding:18px 24px;border-top:1px solid var(--line-soft);font-size:10.5px;color:var(--muted)}
+.user-info .uemail{color:var(--ink);font-weight:500;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px;letter-spacing:.01em}
+.logout-btn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:9.5px;cursor:pointer;font-family:'Manrope', sans-serif;letter-spacing:.18em;text-transform:uppercase;transition:.2s}
+.logout-btn:hover{border-color:var(--ink);color:var(--ink)}
 
-.loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px}
-.spinner{width:32px;height:32px;border:3px solid #2a2d3e;border-top-color:#4f8cff;border-radius:50%;animation:spin 1s linear infinite}
+.main{flex:1;overflow-y:auto;padding:48px 56px}
+.pt{font-family:'Manrope', sans-serif;font-size:34px;font-weight:400;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
+.ps{font-size:11px;color:var(--muted);margin-bottom:32px;letter-spacing:.18em;text-transform:uppercase;font-weight:400}
+
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-bottom:30px;background:var(--line);border:1px solid var(--line)}
+.sc{background:var(--surface);padding:24px 26px;transition:.2s background}
+.sc:hover{background:var(--beige-soft)}
+.sl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.3em;margin-bottom:10px;font-weight:500}
+.sv{font-family:'Manrope', sans-serif;font-size:36px;font-weight:300;color:var(--ink);line-height:1;letter-spacing:.01em}
+.sn{font-size:10.5px;margin-top:8px;color:var(--muted);letter-spacing:.05em}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:32px;margin-bottom:24px}
+.ct{font-family:'Manrope', sans-serif;font-size:18px;font-weight:400;color:var(--ink);margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);letter-spacing:.01em}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.25em;padding:0 10px 12px;border-bottom:1px solid var(--line);font-weight:500}
+td{padding:13px 10px;border-bottom:1px solid var(--line-soft);font-size:12.5px;vertical-align:middle;color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--beige-soft)}
+
+.bx{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:8px;font-size:9.5px;font-weight:500;white-space:nowrap;letter-spacing:.08em;text-transform:uppercase;border:1px solid}
+.b-g{background:var(--green-soft);color:var(--green);border-color:var(--green-soft)}
+.b-y{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.b-r{background:var(--error-soft);color:var(--error);border-color:var(--error-soft)}
+.b-b{background:var(--beige-soft);color:var(--gold);border-color:var(--beige-line)}
+.b-x{background:transparent;color:var(--muted);border-color:var(--line)}
+.b-p{background:var(--beige-soft);color:var(--gold);border-color:var(--beige-line)}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:1px solid;cursor:pointer;font-family:'Manrope', sans-serif;font-size:10.5px;font-weight:500;transition:.2s all;letter-spacing:.15em;text-transform:uppercase}
+.btn-p{background:var(--ink);color:var(--surface);border-color:var(--ink)}.btn-p:hover{background:var(--gold);border-color:var(--gold)}
+.btn-g{background:transparent;color:var(--text);border-color:var(--line)}.btn-g:hover{border-color:var(--ink);color:var(--ink)}
+.btn-gr{background:var(--green-soft);color:var(--green);border-color:var(--green-soft)}.btn-gr:hover{background:var(--green);color:var(--surface);border-color:var(--green)}
+.btn-r{background:var(--error-soft);color:var(--error);border-color:var(--error-soft)}.btn-r:hover{background:var(--error);color:var(--surface);border-color:var(--error)}
+.btn-sm{padding:6px 12px;font-size:9.5px}
+
+.row{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
+.inp{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 14px;color:var(--ink);font-family:'Manrope', sans-serif;font-size:12.5px;outline:none;transition:.2s;letter-spacing:.01em}
+.inp:focus{border-color:var(--gold)}
+.inp::placeholder{color:var(--muted-light);font-weight:300}
+
+.ov{position:fixed;inset:0;background:rgba(31,29,24,.4);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px)}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:40px;width:540px;max-height:86vh;overflow-y:auto;box-shadow:0 4px 80px rgba(31,29,24,.12)}
+.mt{font-family:'Manrope', sans-serif;font-size:24px;font-weight:400;color:var(--ink);margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);letter-spacing:.01em}
+
+.fg{margin-bottom:14px}
+.fl{font-size:9.5px;color:var(--muted);margin-bottom:6px;display:block;letter-spacing:.25em;text-transform:uppercase;font-weight:500}
+.fi{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 13px;color:var(--ink);font-family:'Manrope', sans-serif;font-size:12.5px;outline:none;transition:.2s;letter-spacing:.01em}
+.fi:focus{border-color:var(--gold)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ma{display:flex;gap:12px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
+
+.tabs{display:flex;margin-bottom:22px;border-bottom:1px solid var(--line);gap:4px}
+.tab{padding:10px 20px;border:none;background:none;color:var(--muted);cursor:pointer;font-family:'Manrope', sans-serif;font-size:10.5px;font-weight:500;border-bottom:1px solid transparent;margin-bottom:-1px;transition:.2s;letter-spacing:.18em;text-transform:uppercase}
+.tab.on{color:var(--ink);border-bottom-color:var(--gold)}
+.tab:hover:not(.on){color:var(--ink)}
+
+.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--beige-soft);color:var(--gold);font-family:'Manrope', sans-serif;font-weight:500;flex-shrink:0;border:1px solid var(--beige-line)}
+
+.warn{background:var(--warn-soft);border:1px solid var(--warn-soft);border-left:3px solid var(--warn);border-radius:8px;padding:13px 18px;font-size:12px;color:var(--warn);margin-bottom:18px;line-height:1.6;letter-spacing:.01em}
+.warn-r{background:var(--error-soft);border:1px solid var(--error-soft);border-left:3px solid var(--error);border-radius:8px;padding:13px 18px;font-size:12px;color:var(--error);margin-bottom:18px;line-height:1.6;letter-spacing:.01em}
+
+.igrid{display:grid;grid-template-columns:1fr 1fr;gap:18px 22px}
+.ig{padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
+.ig label{font-size:9px;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.25em;font-weight:500}
+.ig span{font-size:13px;color:var(--ink);font-weight:400}
+
+a{color:var(--gold);text-decoration:none;transition:.2s;border-bottom:1px solid transparent}
+a:hover{border-bottom-color:var(--gold)}
+.empty{text-align:center;color:var(--muted);font-size:12px;padding:36px;font-style:italic;font-family:'Manrope', sans-serif;font-size:14px}
+
+.bewerber-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:8px;transition:.2s all;cursor:pointer}
+.bewerber-card:hover{border-color:var(--beige);background:var(--beige-soft)}
+.bewerber-card.selected{border-color:var(--gold);background:var(--beige-soft);border-left:3px solid var(--gold)}
+
+.zimmer-option{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--bg);border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:.2s all}
+.zimmer-option:hover{border-color:var(--gold);background:var(--beige-soft)}
+.zimmer-option.sel{border-color:var(--green);background:var(--green-soft);border-left:3px solid var(--green)}
+
+.link-box{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px}
+.link-text{font-size:11.5px;color:var(--muted);font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
+
+.loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:18px;background:var(--bg)}
+.spinner{width:36px;height:36px;border:1px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading p{font-size:12px;color:#5e6273}
+.loading p{font-size:11px;color:var(--muted);letter-spacing:.3em;text-transform:uppercase;font-weight:400}
+
+/* Progress bar */
+.prog-bar{height:1px;background:var(--line)}
+.prog-fill{height:100%;background:var(--gold);transition:width .5s ease}
+
+/* Number badge in nav */
+.nav-badge{background:var(--ink);color:var(--surface);font-size:9px;padding:2px 7px;border-radius:8px;font-weight:500;letter-spacing:.05em}
+.nav-badge.warn{background:var(--warn)}
 </style>
 </head>
 <body>
@@ -122,6 +181,8 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const DT_LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbIAAABkCAYAAADjY7WaAABPJklEQVR42u29eXxU53kv/rzLOWc2jXYJic3GELDYLXZkRoBYbMhaj9M2btP0Js7SJU2Tm8RJmmFiJ03i25u0zU0bp01vm95fE8Z1NjteMEYHsAiGwcEG4QUwYGNA+zLbOeddfn/oPWRCWKQZCQSc7+czHxBoZt7zLs/3eZ73WQA8ePDgwYOH6xjown+IxWJ4LL8wHo/n/yjVy4OH39mbsVgMXe8PEY/HvT3uwcPVJrKrjWg0SvJ/7ujoOD8m0zR5HuF58ODBgwcPlyeyaDSqZzKZqWP1ZYODg2BZFgwMDIBlWZBKpQY6OjrOXel9sVgMt7a24ubmZqEsOuEt3Q29J2VjY2Pd1KlTQ5ZlXZcPYRgGAACcPn16YO/evefc5/KW14OHMSKyWCyG4/G4WLFixczy8vJXCBkykqQcvXMnpQQhxPk/hRAAAD2BQOCAEAI5jiNyuRyilLaWlJQcO3v2LBBCnj5x4kTurbfeyl5IbO3t7QgAIJFICE9A3DiIRCLUNE22bNmy/66vr3+fbdscIUSut+eQUnJd18nJkyf/LZlM/qn7XN4Ke/Aw+qAXIxyEkEs0o8eYCAEhBBD6jRGIMa7AGLdQSkHTNAgEAoAQagEAqKmpASFEdygU4rfffvt+IcTLJSUljx0+fHgwHo8fuVD41dTUyJuU1FA0Gr3sveZ1Oi9S7Zvrcj0RQlJKCXI0tUEPHjwMj8gAYNRJ7EKidM+2lFIyxoRLnvkCAGMMGONKwzCAEHI3ANzNOf/cLbfcwqdNm7Y/l8v9KpfLPbF379420zTTLlnec8895AYnNBSJRIgibg4A7p9XVCRWrVp13RC+EOK3lB4PHjx4GBGRXQVtNe+viFwosBBCLuFJKSVwzoUiOOL3+wkhZGkwGFzqOM4nN2zY8EY2m33Ksqyte/fuNV2hHo1GbyhCc+8JTdNkF7ioyNy5c1dOmTIFU/rby9nX1wfnzp2Tr7zyyvNSyt9633ifH4wxeMaMBw8exi2RjYzzEAAAySM46TiOUP+O/X7/rcFg8OOO43x8/fr1+6SUD2/btu2/LyA0fh2vEYrFYigejwsAELNmzaosLS39QDgcnosxXqlpGpVSztA07bwC4KK0tBSCwSBMmzbtmG3bKUrpYz09PS+9+uqrZiKR6AU4fyfFwbtn9ODBg0dkV5Xczl/+c84F51wAAAoGg4uFEFs3bdqUtG37O/v379+eSCTelFKiLVu2uGRw3TxnJBIhpmmyeDwuFy1atDgcDv+5z+dbaxjGRIwxcD7Ez0IIwRg7T0Suq1bdSyJCyG26rgMhZL6u61BWVnaGc/7ImTNn/tk0zbM3COF78ODBI7LrFli9wHEcAQCgaVqjruv/tmjRor5UKvVphNAPAEBeR+5GhBCSpmmyBQsWzKiurv66ruvvMQwDCyGAMcaklAhU1ClCCOe7Zy901TLGhEv6yoqtI4TEfD7fJyZPnvyPL7300j8lEokuj8w8ePBwvZLADQMl0DHnXDDGWDAYLJswYcK/3nXXXf+9evXq+W5wBIyDRPDLgAwZVTKwatWq2KRJk3aFw+H3EUKQbduccy4BgKq7RYwQwsOdF6W4YMaYtG2bEUKqg8HgV+bOnbt/4cKF70wkElwlqHtRFh48ePCIbBw8F+WcS8dxuM/ne18oFNq/fv36GAAEAUBGIpFxZ42q8mAcAPTVq1f/tLq6egshpDaXy3EppRsYUzTJYIwRAFAhhHQchwUCgamTJ0/+eXNz818mEgmuQt49MvPgwYNHZOPDSEPEcRwOACQUCm1ZvXr19mnTppWapsnGE5lFo1ESj8fltGnTZmzatOmpioqKdfaQCSYxxufvBEcrkk/doSEAoIwxgRBi5eXlf3/nnXc+JqUsUXUOPTLz4MGDR2TjhM0IACDHcVhFRcXS22+//fmFCxduNE2TNTY2auNhiI8++iifPn26PnPmzB/4/f7VlmU5AKCjq5BMpdyx1HEcVltb+97ly5f/MB6PiyslWnvw4MGDR2RXH9SyLG4YxuyJEyf+YuXKlXclk0nnGltmKBqN4gkTJgSmTZv280Ag0JTL5RwAuKoEq/iSWpZl19XVvXvZsmXfTiQSfDy6YD148ODhZiYyQAgR27Y5IYRUVFT8dM2aNXddS8ssEomQRCLBp0+f/i/hcHi9ZVkOQki7FlUtVB6azhjj1dXVn1y8ePFG0zTZhR0KPHjw4MEjsnFAZuruSQsGgz+NRCIbk8mkc7UFtltItrGxMVpeXv4HLold47kBIQQihEBlZeU/z5o1q7KhocEL/vDgwcPNRWSqtJS40guG2rFck5wudS8kMcZ6KBT6+YIFC+7KCz+/KkNobm4WAEDKysrihBCQUo4LxULNDQuFQlPr6uo+EY/HRSQSuaokP5z9c4WXvJp7+VIvhJDXcsiDhzHGmNx/aJp22Yi3/MLB6mfm/iyEQCrv6aoEOTDGuK7rWnV19X9Onz791q1btw6qnKsxFUDRaBTH43G+cuXKPwyFQrczxhiMowR1KSVmjHG/3//nkUjkH03T7FeKz1URzBjjkKZpWEqpF7IVVI3OYsfgpiqgAr5f1zQNpJRBT8x48HAdEllvb28XY8y6UABhjIFSCpRSwBiD6numI4SqNe03HjUhBKjEXy6lHFbSbxHCijiOw0KhUMWkSZOeRAjdGYlEsGmaY9miHil3naHr+pcwxuA4DnL7wI0nqywQCNRYlvUXAPCgKpk1pkRWU1MjAQBs2zY7OzvnMcY4qFqbIyExv98fDAQCZcV0crAsS6TT6bOF7AOEEMcYEyHE7vzn8uDBwxjIK4DfbqxZVlb2SqECFSHEhRDk2LFjm44cObJNCaCLqsUNDQ3I7/dLxlhQ07Q1tbW1cnBw8HbDMFYghJp8Pl8ppRSklG6JJTGWpOY2Quzu7v6saZoPj3G5JgIAfM6cOcunTJnSpmmaEEIU81xSzTPK6xzgrgkpYk4EpRRns9mDb7755pJoNMqucr3KQu4LKQCwDRs2fCIUCn3btu0RW7pSSkkpRb29vT2maU4HgBQU3uHZ8cSMBw/XkUXmCs9AIOAAgCOlZJdqjNje3u7+tQ8AHlN//wkAwNSpUydMnDhxhs/nu1PTtLt1XV+paRrmnAPnnCsyG23Xo3svFF+wYMETW7duPbJlyxY8FoI7Eokg0zShrq6uyefzSZWwjQucc6kKA1MhBNi2DQghoJQCIQQcx5GqKkghigninEtN0+aXlZU1xOPxX1/FeoyoEBKIxWI8Ho8LwzCK7sas5swqkowKJUAPHjxcCyK74PCi5ubmS1pkFwj281aDavx49uTJk2cBYBcAfG3RokWRkpKSe/x+/0afzzddFc4dVUJTQhsZhuEvLS39Z4TQqrFKCG5ubhamaYKUcp0QAilLsyCLSdM0bFnWuf7+/scopf/99ttvS8MwUFVVlWSM/VEgEPgTSqkY4v8RfwkCAEfXdarr+noA+PXx48fxcNZ0NPSiQtb28ccfd2tVjpai49aeLJSQPBLz4OE6JTIAAKnuBa54kC9oFAmgkoSPHz+ODxw44Ozfv98EALOxsTFQUlLy4WAw+NeGYUx1HAcKNjcuTmbEcRxeVlbW1NTUFEkkEuZYWCDxeFwCAOi6PjmPMEZsiWmahvv6+s4cP3587cmTJ49c5Neemz9//sGJEyd+S9M0JoQopCAwQgghn89XCwAQCoWupmAe8Xep8clRHoP0SMmDh5uTyIoSHoo8zjfH7OjoQKZpZgDgH6ZPn/5/p0yZ8ld+v/9LmqZpyjoblUgJKSUQQlBJSUkMANaMwbNhABAzZsxYIISYokK0R2r5SUopMMZ6zp49u+7kyZNHotGofhFLiSQSiW/7fD6jvr7+62Io8gGNcD6wclm+EwA+fRGlw4MHDx48IrsS8iwit9nkwNGjR7+yYsWKX4ZCoZ+XlJTUFXKpfymrjDEmNE1bPRZWWTQaRYlEAoLBYCmlNCAKCKuTUgqMMenr69t+5MiRw42NjVoikbAv8qtCJV3/3aZNmz6kadpMtyfZCOYDAAA0TfMIzIMHD+MS11tlD6ksAhSNRklbW9v+EydOzBsYGEhomkYRQkVHiKn8I0kpBV3XvwwAoELlRxWhUOiSgTDDIBeJEAJd158CAHwZd59USdcsnU6fwRhDEYnCnlvNgwcPHpGNJqG5VThee+21rm3btr3/7Nmzj1JKNYSQU0xRB4QQYIwJY4z7fL7Vc+fOXaYqwY9qkpdlWaSYgATOOTDGdBhegjJKp9N6ocQupQTLsvz5FpoHDx48eEQ2ClDuPhyLxVBbW1u0s7PzUUqpBqMQVSellH6/H1VXV78PAKCjowON0pglAMDg4GBKCJErlBgIIeDz+RwY3p2X9Pv9doHELlQi+/MAAPfcc49XQNiDBw8ekY0yRDwel7FYDO/atevenp6eR3VdJ1LKoshMSok556Dr+rsmTZrkVy660SAzAQDolVdeOYAxfg1jjFXdyZGMDQkhIJ1O3wW/iQ69KA8BANTV1QWCweBEZamiAsYLUsp2AIDDhw97RObBgwePyMYAUpEZam1tfX8ul/uVpmlFkZlbVJhSOnPixInzxqLRpG3bvkLXTQgBuq6vufXWW2sTicRFSTYSiZB4PC4mTZr0AV3XZziOw0cYISlhqIO07Ovr2w8AMHv2bO4dGw8ePHhENkZk1t7ejgBADAwMfJRznlL5ZcUEKTBd16VhGPcAAFLJwEUjFoshAADHcdoxxjDSCukIISSE4MFgsLympmY1wFAR4gt/TVlqWjgc/hzGuKAEY4wxzuVyrL+//9cAv3GNevDgwYNHZGMAt6Px7t27X8pkMv+maVpRVSiklERKiTRNuxsAZDKZHJW6ea2trRgAgFL6/4QQvMCxIYSQNAzjcwAgL4ysbGxspIlEgjc3N38kHA7fxodKwY90vTkhBBhj/9/Ro0e7VcCL15bEgwcPHpGNJUzTFLFYDJ8+ffrvcrlcBmNMCrXKVNkq4fP56m677bbpyprCozFGAICenp7nLcsiGGM60jG6rs+ysrJZd9xxx29FVjY2NmrJZNJpbGxsDoVC3xZCcCklGWFgiVStXLIY4696BObBgwePyK4eRGtrKz5y5MjJTCbzA0opKsIqQ0IIqWla+eTJk6cCACj3ZbGQ0WiUnDt3rk8IYQ7Fe8gRE4UQAiilvmAw+AMA0AGGqqAkk0mnoaGhora29h81TdNUX66RspjQdR1ls9nDzz777OuxWAxfpWLBHjx48HDTE9l5i6e7u/sbmUymH2NMCk0EVnllknO+YhSHKAEA3nrrrSxj7B8LrRWJEMKO47DKysrbly5dujmRSPBEIsHr6+srJ0+e/KzP55ujAjxIIc/NGEODg4NfAwDkukM9ePDgwSOyq2SVRSIR+vLLL7/FGHuMEIIQQoWWWJIAgPx+/xyAUc0nEwCAXn/99eds2z6JMUaFWGVSSgwAvKys7JsAEGhoaAjNmzfvmVAotNBxHFYIiUkpuSpI/Otf/epXv4jFYsirsejBgwePyK4yVMQeEkJsVeUMC81/wlJKEELMA4CwaZocRiefTDY2NtJTp071plKpxzRNwwihEbvuEEKYMYaCweBtkUjkW5MnT348GAzeYVlWIQ0l3f5m0rZtmc1mPwQALB6PeyfFgwcPHpFdbagwcXnmzJn2bDabxRgX+qxICAEIoRlTp04NwCjWHEwmkzwWi+GOjo7v5nK5c4UEfUgpASGEbdsWFRUV9/v9/ohlWQIhNOICygghQAhxQgjN5XJf2bdv368jkQgFL9DDgwcPHpFdE4hoNEra29vfchznJVUwt9BQd/D5fLklS5bYoz3G1tZW3N7efpQx9neFBKbkXa9hx3E457yQtjAuuKZpNJ1O7z9x4sTXo9EoURaoBw8ePHhEdi2g7rOEEGKnsjaKqfxOOjo6KkZ7jIoo8LFjx76XyWTOKstxxONUz0eKWFNJCBG2bWfPnDnz50ePHrXynt2DBw8ePCK7lqCUvljE25GUkhNCfLlc7m6AodJPozg8GYlE8NGjRwcGBwe/RSnFAMCvQZV5jjHWBgYGPvbSSy/tjUQi1Au39+DBg0dk1xhuMd233347rSL4CmYHjDGUl5ePiXVimiaPxWL48OHD3+vv7z9MKaWqAebVAtM0jfb19T2yc+fOH6pmnF6UogcPHjwiu9ZQIe4QDoe3AUAfDEUuFpNPNlZDle3t7ai3t7e/r6/vzxhjjqqNeDXcekzXddrX1/er55577qMq1N6zxDx48OAR2bh6SIwp5xwhhKCYppuEjF0Hk0QiwRsbG7X9+/ebqVTqu7quExiFvmqXgxCCa5pGBwcHT546deq+WCyGVai9dy/mwYMHj8jGE15//XXpOM5odDceUwGfTCadWCyGhRCfSafTRymltJAk6eGSmK7rJJPJnOzu7l579OjRY+5/ecfCgwcPHpGNM3R2dgJjxV/5qCoaY4r29nZkmiZPp9MfsG3bIoSMetSHlJLruk4syzrV2dm5NplMHotGoyQej3sk5sGDh+sO9GZ5UJXUXDCBSSmhq6vrDwDgH1pbW8csqlClDMj29va3GhsbezRNmyBVz5ZRIjFBKSWO45y0LGtNMpk8Ho1GiReh6OEaAkWjUTyc8m81NTVSFTvwlK7rHNFolFxqzdU6CximF4zeTBNXxP2YRAhBKBTaAQBw7733FtXn7HILm0gkWCQSmR4MBp8wDKPOcRwxWpazlFJomoYtyzqdTqdbTNM8rsLsvQjF62cP/9bBLyI3ctjfo3So0f4eFI1GcUNDg4zH42KkipSUEjU3N7sJ+2Pq8ld3x2I8rH2B641isRjasmXLmMzTSPdHNBolW7duFcMpyTdcJfumIbJiAjXczRMIBE7lWU2juhfuv/9++sgjjziLFy/+YCgU+idN0/yO4xRTpePCQyAJISiTyfR2d3cv379//5temP11aLqMEXFdze9xhZMroKZPnx6+9dZb56ZSqfXhcHiS3++Xtm0j98xKKaUQAvX19Z2rrKx84vjx4z0IoSMAwAAA1D4eM0JTJIbgGgdBqTUpZBwyHo/LcVAzFamSehwhBBs3blzMGHtfIBCoFkIAxhiEECiVStm2bW9ta2vbnUgkHLVfLmud3RREVl1dDYSQoiIWAQCEEPpYLG4sFkPxeNxZt27dB/1+//9VLVRGjcTyyYxSijVNC7rmu0cN1wd/AYBcu3ZtpZTyKQAwEEJcSkn6+/s/kEwmX1ZWe1FWg6vYrF69+i8Mw/iI4zgWpdTo6OjY++KLL36kWMvkQk18zZo175FS/pXP57tF1/WpoVDofIqL3+8/f17daOMJEyaAlPKByZMn2/X19S/Ytv3fnZ2dPzJN8+xItPdhAgOAWLly5TIp5V+0tbV9YDTmuIj1h1WrVj1SW1v7mUQi0T9MQkMAAJWVlaHbb7/9vwKBwBTG2Kh5eBBCAmOMHcd5q7W1ddMVxoNcz9bmzZvXI4Q+jRBaHwgE8q06AADQdR0YYx/bsGHDoe7u7m8kEon/zP+Mm5bIZsyYgXRd/50JK4DIRlvwY3X/hVetWvV/AoHAx6SUknMu8VC3zdHU5pAQQuq6XlpaWrp7xowZLVu3bj2oylp592PXARhjWjgcXqTrOnDOAWMMCKGQEuIokUgU9fmpVAoBAJSWlk4yDGNuLpcDn88HmUxmAKC4prKuCxshBEuXLv1cVVXVeymlSwkhIIQAPgShCBrcO2H3vKp+gkhKSXVd1ymlTVLKpmAw+IXa2tpn+vr6vphIJE4qYYeKJRx3PktLS7Hf7//DFStWfKetrW3P1b5Pdq3NZcuW3V9ZWfnhEydO/AgAtkej0eE0ukUAIBhjlYZhbAqHw8AYg9G635dSAqUULMuqGo6y/r3vfW/K/Pnz45qmfVDtZ+E4DgdVyShP3lEAQIFAYI7f7/9heXn5rG3btn0TAAYupUzdFFGLM2bMcAgpuLfmWMElMbRq1apEdXX1x4QQXAiBEEJ4LMaqGnHyYDBYWV9fvxUhJJV2jMDDuAchRHLOM7ZtC865o/4cdQvBcRzbcRwhhMhYliU455kiPQ7YNE22YMGCu+6+++5ddXV1XzcMYynnXDiOwzjnDgAQbQg+TdN8lFKDUmoQQgyMseH+G8aYcM65bdsOY8yhlFZXVFR8YOLEiS+uXr36IVd4q64NBcO9Pujs7HwPxliEQqG/uRZr3tzcLABAlpWV3UsphZKSksn54xsOLMvinHPbcRzhOA5njAk2BItzXswryxizEEL9l5NX0WgUx+NxmDlz5s/C4fAHHcfhtm1zABAYY03XdR+l1OeuPUKICiHAcRzBOXfC4fAXm5ubnwaA0jw3781DZNFoFAMA7Nmzp1kIUaqq3xcktN1eXaPoTgSEEF69evVj1dXV73Ecx5ZSkrGusYgQIpZlsaqqqhmRSORHUkq9sbGRemR2nfgYEcLK5YxH2/V8gQGPpZQ47/sK+hwpJcTjcbF69eq/mDRp0hOGYTQpIuIwVKiaapqmCSHsVCr1WiqV+lFnZ+cWzvm6bDa7wbbtdf39/e/v6ur6USaTecayrKymaUTXdQ0ANCklsyyLEULKKyoqvrhx48Z98+bNW2iaJiuWzAAAqqqqwkII7PP5NjY1Na1MJBIiGo2SqyS/SDweF2vWrFmt63oz5xwMwyjknCIAIO5aIoQwxphijI1iXoQQPyHEcByn9lJyy63ZumHDhi9XVVXNz+VyNgAQjDGilNJsNpvNZDKJ3t7eHw0MDPzIsqwnGGOgCkJIANAsy3KqqqqWrV69+sny8vJSJdfRTeNadLWW2traCZRSjXNecGCDlBL6+vqM0RASSkORzc3NiYqKinfbtu0AgH4VCwVT27ZZZWXl+1esWHGgra3tm42NjVoymXQ8qvAwWmQYjUYxQoi3tLT8sLS09D7btoVt2wJjDIQQgjGGVCrVa9v2Dyil392+fftZALiU9bcVAGD58uU1tm03YYw/6fP5lhiG4XPbF3HOeSAQuGPy5MnPlJeX/4Fpms8Weq+n7o+JlLJcCAGEEOTz+b4MABuutudG07QthBAspYRUKvUHAPB/i7jfFgghcvr06Z1SygSllBTa3koRDeKcD8BF7q5cN+wdd9yxTNf1zzqOw6WUGkJIAADu6Oj4lzNnznzz+PHjr+e/b/78+UsqKiq+XFZWtknFCmiWZbGKiorlt99++88SiURznhEmb3gicw9UaWkpJYQU5B+WUgLGGDPGWDabbc/b5AUhEomQRCLBmpqaHq2oqHivZVkOAGhXs9q98kcTxphTVVX14OLFi0/s27dv6yhFMV7z6C4P1/7MqQAmvn79+h+Gw+H7LMtypJSUECIppSSTyfQzxj514MCBZ3p6ek7na/AXO2MdHR2oublZxOPxDgB4DAAea2pqaigpKfmspmkfVOcbWZbFKaVVpaWl2xobG/8mHo8/VMC+RolEgpeXl5dalrXR5/MB55wFAoGWO++8c0UikWgb67sy15K58847V/t8vlWMMUfTNC0cDuujcb40TXtgz549bVfBkJDBYPCzuq77LctiCCFJCMFdXV0fff755x/JX3N33ROJxAsA8K6mpqaPlpeXfxdjLDnnxLZtq76+PrJq1arYzp074/lrcEMTmToMMpvNvk/XdSgwr1gq9s8tWbKk7de//vX5YsSFbE4VFfbHZWVlv8cYu+oklu87EkJQSilUVlb+qKGh4YRpmi8Uc0Dz3uuR2U1MYo2NjTQej7O1a9f+FolhjDnGmGaz2X987bXX/tfx48dP5e0bCQDycoRjmuZ5S0/ln7UDwJ8sX7788dLS0n/w+/11jDHJOReUUjFp0qQHOednTNP810I8Dvfdd1/ujTfecIQQAACSUop1Xd8CAOvHehKbm5uFaZpS1/UvK0Eu1fVGWW1tbbChoSFb4DlDAAD19fX9kUiE1tTU4I6OjqLvWS+ybqi5uVm89tprgVAoNINzLhFCklKKBwYGXti9e/cjW7duJffee+/F1hzHYjGIx+P/FIlEUqWlpf+q3mtks9mObDabuplci6ihoUGGw+EKQsgsVdljxIzhvsVxHPziiy/6AaC/GBJbtGjRO0Oh0L9zzpmUkhZLYsVU/UAIIdu2eSAQIFOmTPmXrq6udR0dHd1QQJixGkY+iV2rUGUP1xAqms5Zvnz598vLy+/L5XIOAGiEEEdKqZ07d+5v9+zZ84U8AhtpMrTM+30ciUSwaZqPTp8+3ZwyZcqT5eXljZZlccdxsK7rbPLkyX8LAPuTyeTBEbgZEQDI559/fk59fX1A7WPqOI4IBoPrli9fviKRSLTBUDeNMSmMEI/H+ZIlS1YHg8FVKp9UZ4xJKeX8+vr62+Lx+EvqjBWkMOZyOWqaJovFYrhQxfxKcxiPx8XixYtvRQjNUcoAQghBOp3+LwBA3/jGNzAAXEy5EPF4HDZu3Gg89dRTP2xqarp9woQJDwwODr585syZe1566aXX1Fqen/sbNthDuTbEbbfdNknTtFs55wU9r3ItgmVZvL29vdAFx83NzWLu3LnltbW136KUCiEEBnUZXgSJCUppUdYPIYTYts2DweDchoaGn5imyaLRKILhB3/gWCyGEUJyxYoV3968efOvIpFIlTr8GDzcTCRGEokEb2pq2lhdXf1h27YdpaxxANDefPPNv92zZ88XGhsbNQBww8eLsdyFG9Rx9OjRzueeey4yODj4hK7rBGMsbNtGmqZV19TU/NvUqVN9Kn3givs6EolgAACfz3cHpdSvCncjlYcJbgRjLBYbS68DKikpiV1Ya1XTNHnrrbem1PcX/OGqTdRYyl8AAKiurhZDtc+lBADKGIP6+vqfA4DcvHnzZZWAp556yo5Go2T37t1fffvtt//66aefvuOll1567WJ1YW9YQfP4448TGLofu8swDAkATiGGC8aYE0LA7/dvT6fTXcqfK0d4wFE8Hhe1tbVfNwzjtvyKHUXUf+SapuF0Om0XUbrGtcyIbdtOZWXl8k2bNj2YSCS46oKNrrBZsdKeRHNz8/dramo+aRjGEr/fv2PKlCl1SiB4ZHaTuBQBAKZPn14dDAa/SwiRQgiCMRaEENLR0fG3L7744heUi4+NprXukhlCKP3yyy9/ore3t4tSShBC2LZtp6SkZOGMGTM+l7evh4WqqqrB/IpACCHiOI4wDGPD8uXLV8Tj8VGPYHSVgSVLljQHg8EIY4yrXE+QUgqMMTpz5sxKAIDW1tZxf7YuIEwppYTu7u6KYSrKrvWdbmtr+xYMVXK5aP7cjSpk0P79+xkMhffeI6VEKpS4EMIAKSVkMpmeQg6furQVK1eubAqFQvczxhhCqCiXrpSSG4ZB+vr6Tr/66qvL0+n03ynLrJioTM22be7z+b60fv36B5Vlhi/3XPF4XEyYMGHqxo0b/6OysvLDnHNm27YTDAbnTJs27dECrDsP17dLkdfW1n4pGAzeyhjjyoIg586dO7Bnz54vRKNRokhs1K0B0zSZlJKcOXPm1NmzZ9fncrksIUQCAGGMMcMwvtDY2HiHuo+5LPm4gSY9PT3vVeff3b9CSil1XUd+v//LYzGPDQ0NEgCgpKTkb5QlA0ruSJX3CT6fbxHAbxLYxzO6u7sp59yVAUzTNBBCtCiSGq4cREphuGSiO75RDxVCCJYtWzY3GAzOURUDCkoyViQIhmH8JH+Tj+CACQCQ4XD4bxBCothUNISQYxgGGRgY+OmBAwfmnDp16sCOHTs+09PT85Ku67TQUFo3ktFxHBYMBr+0YsWKr7jNPi9GYqZpstmzZ982Z86cncFg8I9s22YwdOeq2bbtVFRUrGhpafnbkWrBHq4/qHsWfvvtt08tKSn5EOdcSCkRIQQymUzX4ODg3ep3xrrrOY9EIvTIkSMvdnZ2blE5U5JzjgzD0EtKSmIAQKLR6LA+zO/3TxJCnK84gTHGyirjwWBw3YoVK5YnEgk+WlaZ6zJbsmTJar/fv9pxHAkq/0u5NgFjDCUlJanxvifi8biMxWI4k8m8JaV8XVm2SEopg8HgegDQZ8+ePdy8XnklN/QNSWRu2Keu65+klPpcH3eBpjE4juN0dnb2FrIxAUCsXr16ha7rLYwxCUUE2CCEHEqp1tHR8ZNt27b9Xn9/f19jY6MWi8Vwd3f3e9PpdA+lFBXajBMhBEIIyjl3ampq/mbFihXvTyaTTkNDg1tjErkktmrVqrlTp059NhwOT1F5cPnPpdm2zUtKSj7f1NT0tdFKTvUwPqFcXKiysvLDgUCgRFUbQRhjbFnWXx46dOicup8a8+Af0zR5JBKh+/fvf3hgYOCQSqwFxpgMBoMbli9fXpkXWXs5UMMwACEEhBCUzWadvr6+U5RSCQBC0zTs8/liY/AIKBgMflmV1BOEEEilUq9xznswxlgIAYODg5sBgCqv03i1ymR7ezs6ePBgn+M4x1RlJWTbtvD7/asXLVr0GaUoj4pcuBGJDAMALFy4cHo4HL5LaYcFPafySRPO+bkDBw60AQAUEJpOKKXnExqLgKNpmtbV1fWzXbt2RdVlKk4mk057ezt6+eWXj7/55pufYoypMo2FfZlLZkIIXl1d/Z21a9cubm9vtxsaGnQpJZimyVasWPHxcDh8QNf1W2zbFggh7YJ5A9elU11d/cAdd9zxkEdmNy5U5XkcDAbf5e47SikeHBw8t2PHjsfyqpdfFQHqbuV0Ov0Q51yqPckNw9B9Pt8nlKvqUjIBJxIJPmXKlHfkcrlljDFOCMGapu3p7u7+Y845Up4LEQwGNyxYsGDFaFT7yLsbWxoKhSKqBiGWUjLHcT6kaVoHQggLIcDn81XBUGLzdZHiMjg4+F3OOUIISYwx5pzz6urqhxYsWNCQTCadi3l9bnoiU+G4LBgMPuTz+erFUPHCgp5TVXcGzvkLMBRmO5LNihKJBJ83b94UXddXqzyKEY3D5SJ1CLW+vr6f7ty5831SSqFaMgiXXCORCD18+PB/9Pf3fwxjTDDGvFDiVDlmCCFUFQgEnlq8ePGi9vZ2GyHkW7NmzcPV1dXfxRhTN2jlwu9BCLlBLEQIwerr678YiUSWmabJRmPTehhXIAAgV65cOccwjNvVPnc9GX8PALbrIbmKxMqklLB3795H0+n0G6p6hZRSIk3TNgOAdO+iLuImBQCAWbNm2X6/H4Oq2E4IyRw6dMi0LGuHrutYSunoug6VlZVfGsVnQ2VlZf9D0zQkpWSapuFsNvvLXbt2taXT6TpXJhBCYPr06aFivkgIMeaWXCKR4LFYDP/qV796fGBg4Gld16kYAjYMQ06aNOnxpqamaXlkVvCYbigN2W1MOX/+/PXl5eXvzbu3KUa7k+l0eg8AQGNjI04mk8OyyCKRCDFNk1dXV79T13WiLr9HPBYVnUhSqdTPtm/fHlU1Gn/HTeOSxK5du763fPny1fX19e8v5vkRQpgxxjVNqygrK9s+Z86cT0yaNOm+YDC40bIsruq1XYmYEeecEEJ4KBR6+o477tiQTCZ/5XWkHkU/FEIkEonQwcFBEolEihJOlmXRSCQiR+LBiEQiyDRNRCm9V9M0zbZtplyKua6urp/CUJLzVc8ndJvfZjKZp0pKSj6hPA1S1/VpS5cuvSUej7uV8n+LhNwK/+l0ekYgEADOuRRCQH9/P1FWXlzX9QhCiDqOw/1+//olS5YsSyQSBe9r12KdP39+xDCMDzuOwxFCmuM4kMvlvgoAiDF2jBByh+M4NkKovrS0dA0A/FTJGTZCmQbd3d0zI5HI4b1795JIJFL0WbzUGOLxOEgpYfbs2fdTStuDwWDQtm3hOA7Sdf3WioqK3U1NTbHdu3d/X0qJ7r333oLm8EYiMtTR0YHq6+srJ0yY8B1Kqa4shmKEhJbNZqG/v/8ZAIDhkphaWAEAEmP8Hhi65Cwkb1koEju3bdu23wcAFo/HL5lonEwmWWNjo7Znz54/Xbt2bUVZWdm6IsmMOI4jA4FA+NZbb/1PQgjYts0QQlS12riyyY8xYowhXdfDlZWVT06ZMqUlkUgkPTIbHWia1vPMM88wKCJiNQ8MAGDz5s3p4b7BrZ6j6/pKN8IOY0xt237p8OHDR2AUWqoUaA0AAIBt2z92HOdjAEA455JSWu73+2cCwAmVVPtbRHb8+HEMAFxKuV7tb44x1kKh0H8CgNy9e/fOdevW7QiFQmsZY5au60YwGIwBwF2FjlVZh7KsrOxvdF2Xtm0zXdeN/v7+J3bt2vUCAEBpaekzCKE7AEBQSmHSpEnZZDJZ0LEGAKiurt73i1/8YrT2zWVl2JYtW3B7e/spjPGmiRMnPhkMBv22bXPHcRAhpK6iouKRlpaWuQihzwCAXUgVlhuFyFAsFiPxeJzdeeedPwyFQjNUXa+Cn08IIXRdx9ls9sVDhw4dGWHxUQQAcvr06dWU0umqj9lIWUxijIExlurt7X0nAOSGIfxlMpnkCCGnvb39w7NmzTpUXl5eYlmWGIb1dDk3o0QIcc45HgmJ5blCMGOMlZSUlL3jHe/4l1OnTi1JJBIOeKWsitrzAAD9/f1/vGDBguMqEKAowkAIESklt217uaZpMAzLDDU0NMjS0tIySmmt2yGCEAI+n+9xUOWqrlExaqnmp720tDQXDAYDQghH7ed3AsDTKkjlonNWVVU16B4Ztd/PRwrmcrmvBAKBtaCqfQQCgY3KKtsLI6z24VbxmD9//uqSkpJmx3EEDBX15pZlfcU9I11dXWW1tbXuOkFfX988AHi60HnJ5XIPbd68eQcUWZ2EEAKc88HHH3/8x5f6HTffLpFImJzzjVOmTNkaDAZrVXsZN6r7LzZt2nT7uXPnPrt///4XR6ro3ghE5rbPZuvWrftSMBi8y3GconO1MMYCIYQYY1sBwGltbaXD1SzdnJr6+vpbNE2bXMg9nZRS6LqOe3t7f7B///59I1hYcc8995BEInHK7/ffrev6U36/P8gYE0U060RSSuoe6gLco+AeztLS0gXr1q1LnD59+r5oNJpRd30emRVIZLW1tQ+MxYczxgCGQr8vOwZVPWci53yWWz1HCAHd3d2Ba7yuQkXY9r7jHe94jhCymXPOMcZaOBy+JLGGQiEJAMhxnImapoH6O5w5c0YDANi4caP+1FNP7WxpaXm2tLS0xbIsyzAMQ1X72BSNRmEkDU7dDh0VFRWfMAwD27ZtaZpmDA4OPrFr164XotGonkgkbCnls0KIj7nKBUKoBQAeLkS0CSEgFAr9Icb4D4udZIwxZLPZXhjqTiAvYyFzJcN2Oo4z97bbbvtxSUnJ6lwuxwGAOI7jGIbRUl1dbTY2Nj6USCS+mVeD84py97oO9nCrbCCEaEtLyxdLSkoe5JxzIUSxBC0RQiSXyw0ODAz8U56rcETw+/2+Aht6SowxzmQycmBg4O9hKJJq2B/iBn8cP358d3d393rG2CClFBWrsRcteYdclVZZWdm7NU37bDweF16OWdFwpJQ2AIzay81FvJLV7QZGTJkyhWmaJpVCiRljkMvlXswjhmsJriyx888jhAhdwkOC1F2PZtv23ZxzQAjpCKHOYDD4HABANpvlAACZTOYrjuNAvlXW2Ni4dIR5Zdg0TbFmzZqJwWBwreM4UkpJGWPScZwHAQAdP35cKgvxkPKMICkllJaWDhS1aRzHsW07W8zLcZy0ZVlZADgzErl09OjRzqeffvruc+fO/ZJSSgghTEpJbNvmmqaVTJky5Rtr1679hlLchaogdEMSGW5sbNRM02QVFRXhNWvWtIbD4YfYUFVNMgqFeIWmaSiTyTyTTCYH3HywkWpZPT09914sMGM4308IQUKI3fv3739LVccY0We44e779+9vy+VydwshbEKIuFZtstXXMk3TjI6OjkcGBgb+TzQaJSp028PIlQJXI9YIITrGeDRfZDhE5iIYDCKMsesmJkIImDx58h6A8x2Oryksy3JrmhIhBAwMDGwCAJ8irYs9pB0IBHLqPYhzLhsaGvrUueLRaJS0tbXtzuVyz+m6ToQQTNd1HA6HR5RX5p5rQsinDMMoF0LYhmGQXC73y9bW1r3RaBRPmzZNAAC8+uqrJbZtIxgKyYd0Or28rq6uSp2fEQs81Y3bX8yLUho0DMMPAHUjkUvqGaxdu3Zt6unp+aTqwuEmfUvGGCsrK/vsunXrflFTU1M7nFJg15trEUejUZRIJHgymRRNTU0tZWVlX9d1vdFxHAYAdDRaoqiq8FnG2INwmVDdYVhkIxIIed8vldZ3FobClwtaJzeS8dlnn929cOHCr0+dOjWGMXaEEJqroV4NXpNSSlWzkqZSqc+apvktAGBvvPGGd0dWnGIAuVzuFCEkq8ooFTuXSK1VFSGkUt3tDptYVYcJQAgBY8w33kjfnTOEkO9iwt+9Epg/f/5sKWWFEIJTSkkqlep/5JFHLuxKLHO53BbDMFa71T4CgcCGxsbGJYlE4ortkNw79zvvvLPOMIwPqwaSxHEcmclkHlQWDMBQWSxUW1v75q233vomxniSEAI0TZs4bdq0wJkzZ7pgZFXwBcaYdHV1PW8Yxi/de9EC51VSShFjrG+Ee08ghJCag39YtGjRudra2od1XZ/strayLIuVlpZubmxsfK6rq2ttIpE4C5e5zxvvRIbcDbZ161aBEBKJRAIikcisUCj05xjj+ymlmmVZHGNMR0lAcF3XSX9//8u7d+9+qdAOswAAPp9PFljfEak/twMU18jTzdFIJpNb/H5/aMKECZ9Wliu9WiRGCOEIIZpKpT67bdu2h1UEp0dixUFIKUl/f/89e/bs2QejEzhDAIBv2rTpQU3TvmRZ1rAiXi+WgJ9KpcaNy5hS6gpegRCCQCDwDFwkeMr1pFRVVU2nlIY55zlCCAkEAk8AgOVWtXHzo+Lx+K7169c/FwwG1zDGbMMwjHA4/GUA2HylMalAExYIBD5tGEapZVmWrutGKpV6cvfu3Xvzx7Zlyxbc0dFxjlJ6AmM82XEcqWkaC4VC2HXxqrvmYR1JhBAMDAz888GDB//zWupi8Xhcqjn98bx5816srq7eUVZWVm/btoMQ0nK5nBMIBBrq6uq2NTU1rdm9e3fnpeTxeCMyEo1Gz28oNzchkUhwhBAsXLhwUVVV1Z/quv6nPp/PsG0bVOv0UTs0GGPkOA5LpVKfhqHL7II/yzCMQjVICQDAOV8MAN9356MYMlMH4zNr1qzBZWVln1KVA8ZU2Ighn4FACNHe3t7Pmqb5cGNjo4YQGpPCsTcbMMbgCjPXmijm8+6//378yCOPcEoputCKuRzOnDlDa2pqkIryYxhj2t/f/z4A+JrqQnFN3YtqD54X4n6//y0AEJfydCCEKlQzSxBCgGVZ5BJEJDOZzIN+v3+tutsSfr//bnVXdjmrDJumye+88846SulHHMcRGGPiOA7PZDKXEjior6/PX11dDTDUyUPv7e19LwB863LRlxf7bkXWxxobG7Xq6mrc2dlZ0PqEQiGZSqVQKBSShXaWd71GyWTyterq6lULFy78WklJyb3O0AWkZlkW03V9Tjgcfm7OnDkt8Xj83MWUNjoWh4tSShobG7XBwUHc2NiILzUJO3fuZBccFn5BxE95S0uLP5fLfcgwjHsNw5jn8/mAMQYqvJ4UGlZ+CeuBGYZBOzo6frJ3797dxeY6McZA1UyDAjfKhNES+IlEQkYiEd9zzz3312vWrLFKS0s/r5K0x4TMFIlhKSXu7Oz8bFtb28NK+3LAw6i5F1XAwajAzUtijJ23Yi4HlYOFurq6uiorK09TSicqdxwtLy+/1hYZNk2T19bW1uRyuVWUUpBSYiklDA4Ohi/3xnQ6fU84HHa9ItDb25u9mAB2o/BaWlp2lJaWrrZt2/L5fG4E4yWtMnU9Inw+318bhhG2bdvSdd1Ip9O/vNAau8B6+2+E0CKEEKeUQkVFBSl034TD4cHt27c7xXicRnHfOQCAOzs7jz3zzDPvb2pqytbU1HzQTUVwHIf5fL451dXV28rLy+9saWlJqZJnckyIDCEEnHPIZDK9L7/88ohPWENDw5KpU6eGMpnMPMMwlgghWnw+XygcDvvVAZOuJVFseP1Fxi11XYdsNnu2p6fnz0ZjgXO5nPT7/QVZpmo8axYsWDDDNM2jUHjHZeRm/5ummVu5cuUUQkhICCFHkg82UhLTNA1zzntOnTr14MGDB7/tumU8+rmxuFQJ3XOzZ89+lRAy0Q2M9fl8da7Cei3HN3/+fEPTtAo1LiKlBCHEswCXdtmXl5db7jkUQkB1dXUCYChwxTTN3/mOdDq9JRAINCuhy0Oh0MbZs2cvTiQSF0ubQVu3bhV33HFHvWEY97uFxBljwBh7CC4TuEEp7XQ/QxHSxMs9xxWU7PEW6CcAgMRiMRmPx/9k2bJl/bW1tX82NFRGVUeNuQsWLLg/kUg8fKE8GVUik1IijDHU1dV99JZbblmjeoCJC38HISQZY/7+/v7fo5Rin88HhmGA4zgzDcMAn893/vJYCAG2bXP12XgsrEjVHoEhhLSurq6/P3To0LnKykoKRWa9p9Npo6ysrCBuFUJwwzAC1dXVDwLA70ciEdLc3AzDbdUejUZxQ0ODjMfjwjRNNnPmzPrJkyf/lc/n+4hhGGW2bUu3Yd8oz6UwDAPncrlzuVxuzcGDB9s9Ervhgfr7+3PK7YUZYyClfPekSZM+bZpm9loMSNVclY7jrAsGg8AYczDGlDGWCwQCLyrF+WIEQBFCoXzFPJfLOZfwcpzPjVq/fv2OUCi0xrZtyzAMo6KiYgsAvPtCj0okEiEq5/VTuq671pieyWQe3759+57LeYHOnDljTZ48WbgEa1nWOwHgrx999NEbJfKXx+NxpObgk0uWLNEnTpz4MYwxU65bFgqFPj9//vxfmqbZnq/cjzYpYKWF/cmVNH1d18Hv959vXCmlBF3XgXPOlaUg3VB6hBAZC8shX0HRdV3r6+v7r7179/5vJXgL3hyuhqTr+hNSyg/Db5K2R2IlEtu2eSgUen9zc3Nva2vrx03ThEgkQmtqauTFqolHIhGi/o+7h2HlypVTgsHgxyilH/H5fFWcc7Asq+BCylfSqgghKJPJnOjv779rz549r3gkdmPDLQgspfwvzvnGPCWsburUqU1vvfXWs6NxfzdSKOtJUkqjqrA1I4Qgy7JeffLJJ49dxOOCTdNkdXV1U2zbblauVWJZlnzjjTdcV+olj6tlWQ/6fL41qgYjhEKhuxcuXDgxkUicyhO42DRNvnTp0lpd1z/MGBMwlKCMent7v583nxe6MTkAQHV19S+FEGmEUImSsxk19zeUla+6CeiJROITTU1N5TU1Ne+3bZszxpDP56soLy//HAD8sfI0ifPEM9qwbZvbtu3Yts3Unxd7MVU8UjDGhGq3AsptSJRmdDW6CzPDMKhlWc9u3779D2OxGFMbp+jdQQg54TgOIIQKqbPoJhDz8vLyj23YsOGxefPm3epGTanx/dbL/b/KysqSpqamljVr1jxeVlb2UigUeoBSWmXbNlNJlWOy7i5ZI4QyqVTqHEIITNP0gjpuYLhC9uzZs09blpVRgVeSEIL8fv9HAUAWG6w0UiiSgjVr1kz0+XzLh4J0JSKESMuyXgAA4RYHznsPAAAsW7bM0XUdcc4lxhgbhnHgxIkT7SopV1zMKovFYsg0TTObze5QlfZtv98P9fX1fwoAMhKJYNdKBAAZCAT+2jCMMiGEo2malk6nn927d++zV8qrzGQyUrVDASGE4JzXz5gxY1q+EXGjkFlDQwOTUsLrr7/+l4ODg6cppUiV7JOBQGBtY2Pjb+XQjcnDKyLSlMWnXeJFVQfX86+rPltSckopTafTHWfOnPkLAMDxeLzoMGZlLaHTp08fB4BjKlm00GaXrmX23smTJ7dt3LjxywsWLLgnEomULVmyJDxt2rTSjRs3hufPnz9x6dKlH2ppafnekiVLfl1RUbGttLR0E8a41LZtrgiMjqVioKo6SL/f31BfX7+7pqamBgBGrYOuh/EpdKLRKDl69GgXY+wJQggCAHAcRxiG8b7Zs2fPd5Ngr9aA3Cg+hNBnNE0rlVJyjDF2HAf19fX96DLvgWPHjt2lyNhBCIFlWQIALnvfr0hRZrPZuLp7JowxjhB6YMGCBYvd4gSmaYqFCxfWG4bxccaYRAhRdX3yZQDIuPN5qe/ZvXu3zGazjmotJTRNq6ysrJwGcD65+oZBPB4Xzc3N5Ny5cx2Msc+6Xi0hBNI0rb6ysnIiAMhYLDZ2RDauT11ejy9KKbFt+9zAwMCaZDL5itoMfJQONz569OiA4zivqrIyBZMjxphYlsUppROCwWB88uTJiZKSkuMVFRUnp0+ffoIQcnLSpEmvTJgw4QfhcPh+wzCmSSmFCoyRyjV7VTY6Qgjbts2DwWDDnDlznqupqalVFuRNt9dutqOFEHpIhU1jABC6rsOECRMehqG0mqvhXQFl1Yi5c+eu8vv9H1eRuaBpGslkMnsOHDhgXu4eqrS0dKLS/gVCCLLZ7NlhKK48Go2S3bt3m+l02vT5fIRzznVd11S1D6qKI4jS0tK/CgaDJVJKW9M0YlnWU1e6G1NWHQWA/kAg8EuMMSCEOMZYVldXZ8fzpojFYrjQhrrKbYgYY3ts20augoExlul0+l35CshNJ1xUNQumaRqxbftcT09Py/PPP384EonQ0fTjK3cKymazCRiFbq4IIcI5l6otC8cYlxuGUeb3+8swxmUY45AQgilfsgAArCxjdA3mmDiOw8rKymY3NDQ8W11dPUEJMo/MbkC4gnzbtm2HbNt+TNf181ZZOBxet3Llyo+PZlv7y229hoYGBACirq4uruu6oaIVkQqOiF9JUa2oqBgkhIAcikqDioqKn+QLzCvBrcGIMSaMMVlSUrL+zjvvrH7qqaeshoaGCX6//yOO4wgpJeWcC8dxvjISZcG27XzFAXV2dkbz5M14AlaV/cVlSoFd8XmVxWs5jnOOEAJuvUld13+rcszNJlgkADiaptF0On26o6OjZc+ePYfGIiDBvWc7derUU5lMxlakUiyZIRhy1xIhhHRfQwamlFJKqqyv8bCu1LZtVllZOWfWrFmPK2F3VbRyD9eEzNycsq/mcjmkrAYkhOClpaUPL1++fGoymXQK1c6HczwikQiJx+MsEol8NRgMNtu2fd4aGxgYaN21a9fTsVjsooEnra2tHAAglUqtV8WCsRAC+vr6/MN8fh6LxXBbW9uObDa7Q6WfOIZhUIzxdwAAKisrP+P3+8uEEEzTNDI4OPjq9u3bk6C6yQ/newYHB0/mK+VlZWUV43RLiEQiwVesWLF87dq1/xWJRIi6ZxzJ+UcAIIPBoE8IUSaEAHVN8zsthm4aIpNScoSQoJRqqVTqx+3t7fP2799/SLkixiKqTkYiEXry5MmOVCr1E3V3MGoWX14gDFI/Xi3v4UjmnNq2zaqrqxvvuuuuv83Tyj0yu/EgotEoTiaTL2cyma9SSqmUUnDOka7rRnl5+dPz58+f6FZyGG3tv7GxkZqmyRYvXvzVsrKyLyiXIlZtRqxUKvWncJlKPa7HhFI6Q90CYMaY6Orq6hvuIPK6Sz+ogjKI4zgoEAi8d9asWeuCweB9QgjptlOSUv4VADjD6QDhRkLX1NT8QggBee1c/ABAiiljN9oKBQCgOXPmzFu7du0jFRUVz1VWVv4+IeRrI+12oQJw0NSpU6XP5zPcIs5CCBgcHOy7qYhMSsmllFzTNMIYI93d3X+2bdu2P3zrrbd6xrpLsar8LTo6Oh7MZrMir0L4TQFFrFQVVP38+vXrv6a0ci/448a0ykQsFsM7dux4KJ1OP6/rOlXVzKVhGDMnTpz47IYNG+rc+p+jIX/czhTJZNJZvnz5Q/X19V8AAKZyWB1KKenv7//UCy+88Ibad5cLusKaptlKbmgAkLr11lufzPOwXNEqU5XxW7PZrKlpGgEATggRU6ZM+Q9N02odx5GEEDIwMHDi4MGDv5JSwkhSfc6dOxfgnAPGGHPOwbbtDfX19WVKjl1zBVEFX8iysrK/r6qq+oiUUs9ms04wGPzUypUr141EkVHlzaRhGBsNwwApJVOeHu73+3+SJ2NvXCJTwRVM0zRCKSUDAwM7Tp06tX7nzp3fVf+Hxjq3JR6Pi1gshl9//fUjg4OD/4cQQgCAjzfL6TJzKJQVWTD5qmcltm07oVDogZaWlq+5UVyeZXbjHTtl8eSOHj36+6lUimmaRlQpLebz+WYZhmGuWLHi91RZIrfX1EjlEIpGo8R1E5aXl5du3Ljxa7W1tV+UUjqcc4oQYoZh6J2dnf/Z1tb2yOVC292o2gULFiwTQrxDNeCEbDZrHDx4sKC7HcuytrjdAxBCxO/3T0AIAcZYSCnR4ODgN3t6egaam5uHdeXg9iM8e/ZsH2Ms554dv98vV65caRVwLgkAEEUWBb/U3JE8mefGBnw+k8kMUEr5UN1wgkOh0M9vu+222clk0mloaLhs7b5IJEIPHDjgTJ069RZCyFfdXoqEECmE2L979+5j7h3cDUlkyoXIKKVI0zTqOE7bwMDAu7Zv377m0KFD26LRKFFuhKtiGbkVnp9//vm/HBgYaNM0jQoh2DifQwkAjFKKMcakGLdlXrCmxhhj4XD4gVWrVrlkdk2CUTyMuYuRHD169K0zZ868K5vN2rquYwBAtm0LhNCMqqqqR1taWn44c+bMRUoQCRi646KRSITmkdv5VzQaJZFIhCrBKROJBI/H42Lp0qXvX7JkyUuBQOCBvKa6tq7rWnd39//btWvXH8ViMXlhbb6LYerUqaDrOoWhVicghHjtrbfeyo1ETirlmJim2ZrJZExN0zAAMHWfLZSFeGrfvn0/jMVieATWmAAAdOrUqQOEkGMYYyKE4Agh/ciRI7Py3HrDQjgc7gMArhQKXuhLPW/+M/BIJEKSyeTe/v7+RyilGkKIqbQc38yZM78/Y8aMpe3t7XY0GnWJEF24zqZpMiml/o53vOP7wWCwXOUCAsYY5XK5/wAAnh/gQm+Ek6MsBzeahUgpIZfLnc7lct/bsWPHNwHAisViuL29HV3tCgMwlKgsAAD39fX9kc/n204pvUX1H8LjbyqlwBgTTdNoLpc72tvbuyUUCunBYPARzrkUQtBCWc0tM1NZWfnA8uXLpWmaX8yrouIlTt84Lka3dNOTjLH33nLLLf/o9/unOY7DVCAFKi0tvY9S+oFbbrnlawMDAz/as2fPIfeu+iL1DCG/mPjcuXPLJ0yY0IQx/qRhGGsxxqACOxDGWGqapnd1df0/0zTvU8nRw1JcBwYGJqmSckJ1FtgDAJmRBoNFIhFkmibq7+9/UNVgxENGEOJSSprJZL4BAKnW1tYRlcFzCw5kMhlSWloKStn0lZSUrACA/aos15XyVSUAwOHDhz9yyy23PGUYBhFCFCsTc6+//voL7g+maYpoNEp27tz5MKX0PWVlZdNzuRxXuYXLb7nlltaKioo/SSQSP75wXO46z549e8XEiRP/dygUWuqWKNQ0Dff397/e2tr6Axjq5s2vdyKTKjxWAABRlgMwxsC27R19fX2PHz9+/N/ffvvtbtd1EI/Hr2U9MqEO1PG1a9eu9fl8BzRNC6ukSTJO5pNjjKmmaSSXy2UHBgb+/eDBg5/v7e3tBwBYtWpVQ1VV1Wccx7EBQC/ii6gQgtXW1n5h4cKFYJrmF8f6rtLDtSEzRQC/zGQybdOnT3+qoqJiqWVZXOU4gq7rVNO0LxJCPr9+/fp9mqb9tKOjo2fSpElPptNp1NfXJzVNwyUlJaK3t3d6MBhcijGepWnaOsMwJmKMwXEcqZRCqfJCZW9vb3zXrl1b3LquVyIxV7MXQrw7X6j29vaWFfLseZXxd7S0tOwMh8OrLMtydF0ng4ODJ/bu3fs7gng4UG5Ipuv6TzDGDyilE6qrq/tG8DFYCAF1dXUP1NbWPlDsOqs1OPv666/X582zSCQSGAA66uvrWwzDeM7v90+zbZs5jgOBQMDn8/l+dNddd71zYGDgMb/fv39wcBCXlJSITCazIBwObyaE3GcYhl/1mkSEEMEYo319fR+Ci/SSG/dElpdILFReMUIIEZW0iFVLl1ey2ew2y7J+tmfPnu35vu9EIiHGg5BUETt0+/btx2fPnv3pKVOmPOLz+YjjONeMzKSUQjUbpJqmUdu20+l0+gc9PT3f2bdv32sAAO7F7M6dO2MrVqy4va6ubpNt2w4MVWcpjNWFoBhjNmnSpC9wzmUikfiS6knktXgZxrIp74Mc4yJ7579nJJ2iLxToisz6Tp48uWHVqlWfC4VCD/j9fnAcB4QQzLIsIIRQwzCWYYyX1dfXA+ecqTYlgBACQgjU1tZSQgioqhaglEAOAJgQQjHGkMlk9qfT6T/fvXv33lgshkd6hRAMBp28XoASY/wLgKIa28p0Oh0PBoPPqrJSmHP+0YsJ4pFA1/VO97mklLKnp+duAPiPy41TKf3nO0lTSkcjOERgjDEhZPBSLuZEInFy4cKFa+rq6rb7/f7bLMtyOOcAANLv939A1/UPqPVGlFIZCAQopdQ1SjgAACEEM8bwm2+++amDBw8+f7G5GzeuLSmlcCMMVettBkMRP4gQgnRdJ5qmURV9aKXT6fbBwcH/1dXVterJJ5+8o7W19S/37NmzXUqJ3ECCvJqE4wKupnb48OF/7ezsXJRKpU4YhkEAgI+CeT8i60v1jcKaplHOeSadTn+/p6en8emnn/7Lffv2veb6rpPJpJNMJhlCKNPW1vaerq6uJ3Rd1+AKZXuuBM45wRg7U6dO/eKSJUvePZwLYA9DyqebT4gxRpTSUb9jVCXjEEKIIoRQMY1r85Jh+3fu3PmFkydPrhwcHHxUlViidKg6r3Acx7Zt2xJC2FJKSimlymKjqpQTZ4xZtm1bjDFbub91SilljL3W19d3/9NPP33n7t2790YiEaru3oZz9pEaY2kmk9kspURSSoMQgsrLy48V617ds2fPc5lMxgwGg1oqlTpx6NChNhWkUnCLqM7OzqAQAiGENABAfr9/FsAlq/mDYRgYADS1pjg/H7WYl4rsJEII/XJz8OKLL548c+bM2lQqtU/TNE11MRG2bdtCCAchRHVdJ+46q39nCCGilP23Tp8+/fsHDx789qXyAOmlfKhXA+5Vi4rmwfn/jhACxhgIIVK5XA4opc9ls9k+jPGjHR0drx86dOiV/M9yI4+UljZugyny7g9enDJlyooZM2Y86Pf7/4eu66AayblFfUdNQCnNXSCEJMaYEkKIEAIcxzmSzWafSqfT/7R3797XlX+fmqZ5oRUrVVNCjhB679q1a39aVlZ2t+M4TEpJCl17xhjWNM2ZMGHCvyxfvvztPXv27IPC+65d+PkXFlUeqTVyVc/CcEAIkQAwIIQwlPJDHMcZi72ek1KmhBCWlNKQUqZHwbpDqgp+2+HDh9sWLFiwuKqq6qOU0o0+n28ixlhXGw1UTT2Rv1cIIUQ10gUpJViWleWcm5lM5uevvPLKv585cyaT54UZ8ZzMnTsXG4bBOecpjDG3LIu8/fbbo+GxQrZtx23bXpROp7/e2dk54ruxPKVAqDn6JWPsfyrvBjYMo/ty8y6EGCSEvCalrAcA4TYYHYXoaSGEwAihwcvJOwDAL7744kkAWLJ69eotfr//z30+X6X6AHCLOuSvM0IIbNu2ent7f9zZ2fnFl19++a3LXREhgPPVokUkEplVUlJyRHVTHXXSyqtzeL7XmJTS7aT8a4yxzTlHAwMDg6WlpY92dHT0T5w48elXXnkFXnnlld9ZLJe8hhORNN6Qbx4vXbq0ubKy8tOU0s2UUlAt1pmUEqm5Ixchp0tuRGXRusKcKB+zO9eduVxul23bPz19+vTWo0ePWnnjkVcgEax8u9r69et/GgqF7lJugoKVGCEEUErBtu1sT0/Phra2tt2xWAwV2tTUvZh/17ve9UnDML5tWdaID6yUEjRNg66urrRpmhMAIAUXaa9+DYCj0WiZ4zgIAGBwcBAYY/2jndC/efPmAKXUr2madBwHvf32284LL7wwMFrPEIvFzvfVmzlzZkl1dXUkGAw22Lb9e8FgEDjn9VLKSRfskSNSysFsNtuOEPpVOp1+eu/evScuWPdiPDBo06ZNZSrKEAYHB2H79u0DxXoeXCxevLhy3759fep8yVGQHxXuPkilUuzZZ5/tv9zvf/CDH/T19/cH3TUdZRcP/9nPftZ3pXV3ZcvMmTPrJ06c+D6E0D1+vz9s2/ZCVz4hhE4LIU5ns9k2xth32trajuWf60su3gVCwFdSUtIwlifRbc2eyWTAcRxIp9PQ3d0t3n777V9fSfB3dHQg1W/rSgL3eoHbp0wCADQ1Na3VNO1/+v3+lbquh1zt0yV9dbDdViwXfpbmEkR+m3rlaz4nhNiRTqfbMcb/smvXrjMXCAAxgvl0NyTdvHnzPIyxFEIUdTCEEKK8vFx74403Btra2l4tkjQQAMiNGzdW+/3+ySrScsTj0zQNOjo6+PPPP//yDbLXxhuwirL7HeFUXl5eWltbe5sK4ECZTAaOHTv28oWkkheJfN0psjcrLkZIM2bMmB8Oh0k6nYa33377xMDAQE8eSbq5P+JKh37cCHW3JD/Ab4p05kX23LAbNRqNErebs9JYbqmvr19OCFnv8/ludxxnqcpsB0opuASXbzW7lpG6PN9n23afYRg/UXeJ+5LJZCZfALS2tuIiNFjkCY5rd04u4QYdy+8Yy/OHotEo7ujoQG6VhktZ4y5xdXR0oBEqX+NhbtEYfN5IxjrWsn4kz4ZUx3txsdSIPAVl2AYLuthmuZqnMq/22U2v9UajUbJ169bfqZQ/b968d0yfPl12d3cHGWPvLSsrwwghmcvlUC6Xg1wuB+Fw+Cd+v3/wzTffRC+99NJrF1vXIsnrsorHKO6F0doHozK+Ql2cHooW0hcT1J7ydINa58rd7K3zDeh2odFolLj3ZCOSAgjBBZUQvOoZHjx4uGncFB7GscYCcOm+SHluGc+69eDBgwcPHjx48ODhesH/Dyxm+r92K2i/AAAAAElFTkSuQmCC";
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function Av({name,size=30}){const i=(name||"?").trim().split(" ").filter(Boolean).map(n=>n[0]).join("").slice(0,2).toUpperCase();return <div className="av" style={{width:size,height:size,fontSize:size*0.36}}>{i}</div>;}
 const chf=n=>`CHF ${Number(n||0).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
@@ -130,7 +191,7 @@ function TypeBadge({type}){
   const m={WG:["b","WG"],Airbnb:["p","Airbnb"],Evorest:["x","Evorest"],GoCaution:["x","GoCaution"],Firstcaution:["x","Firstcaution"],"Kautionsreduktion auf 0":["y","0-Kaution"],Versicherung:["b","Versicherung"],AOZ:["p","AOZ"],Student:["g","Student"],Arbeitnehmer:["g","Arbeitnehmer"],Selbstständig:["b","Selbst."]};
   if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
 }
-function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#34d399":p>60?"#4f8cff":"#fbbf24";return <div style={{height:4,background:"#2a2d3e",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
+function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
 function parseDMY(s){if(!s)return null;const parts=s.split(".");if(parts.length===3)return new Date(+parts[2],+parts[1]-1,+parts[0]);return new Date(s);}
 function StatusBdg({status}){
   const m={"Neu":["b","● Neu"],"In Prüfung":["y","◐ In Prüfung"],"Bestätigt":["g","✓ Bestätigt"],"Abgelehnt":["r","✗ Abgelehnt"],"Zugeteilt":["g","🏠 Zugeteilt"]};
@@ -219,6 +280,23 @@ function useSupabaseData() {
     if(dbFields.kautionType !== undefined){dbFields.kaution_type=dbFields.kautionType;delete dbFields.kautionType;}
     await supabase.from("apartments").update(dbFields).eq("id", id);
   }
+  async function insertApt(a) {
+    const dbA = {...a};
+    if(dbA.kautionType !== undefined){dbA.kaution_type=dbA.kautionType;delete dbA.kautionType;}
+    await supabase.from("apartments").insert([dbA]);
+    // Auto-create rooms for WG type
+    if (a.type === "WG" && a.units > 0) {
+      const newRooms = [];
+      for (let i=1; i<=a.units; i++) {
+        newRooms.push({id:`${a.id}-${i}`, apt_id:a.id, occupied:false, miete:0});
+      }
+      await supabase.from("rooms").insert(newRooms);
+    }
+  }
+  async function deleteApt(id) {
+    await supabase.from("rooms").delete().eq("apt_id", id);
+    await supabase.from("apartments").delete().eq("id", id);
+  }
   async function updateTenant(id, fields) {
     const dbFields = {...fields};
     if(dbFields.kautionArt !== undefined){dbFields.kaution_art=dbFields.kautionArt;delete dbFields.kautionArt;}
@@ -238,48 +316,200 @@ function useSupabaseData() {
     await supabase.from("rooms").update(dbFields).eq("id", id);
   }
   async function updateBewerber(id, fields) {
-    const dbFields = {...fields};
-    if(dbFields.zugeteiltes_zimmer !== undefined){dbFields.zugeteiltes_zimmer=dbFields.zugeteiltes_zimmer;}
+    const dbFields = {};
+    const map = {
+      kautionOpt: "kaution_opt",
+      kautionType: "kaution_type",
+      kautionAufschlag: "kaution_aufschlag",
+      moeblierungPauschale: "moeblierung_pauschale",
+      zimmerWunsch: "zimmer_wunsch",
+      eingereichtAm: "eingereicht_am",
+      noDebt: "no_debt",
+    };
+    for (const k in fields) {
+      const dbKey = map[k] || k;
+      dbFields[dbKey] = fields[k];
+    }
+    // Strip non-DB fields
+    delete dbFields.created_at;
+    delete dbFields.updated_at;
     await supabase.from("applicants").update(dbFields).eq("id", id);
   }
 
-  return {apts, rooms, tenants, bewerber, loading, loadAll, updateApt, updateTenant, insertTenant, updateRoom, updateBewerber};
+  return {apts, rooms, tenants, bewerber, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, updateRoom, updateBewerber};
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function Dashboard({apts,rooms,tenants,bewerber}){
   const heute=new Date();
-  const wgRooms=rooms.filter(r=>["A2","A3","A5","A6","A7","A8"].includes(r.aptId));
-  const occ=wgRooms.filter(r=>r.occupied).length;
-  const free=wgRooms.filter(r=>!r.occupied);
-  const mieteSoll=wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
+  
+  // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
+  const wgApts = apts.filter(a=>a.type==="WG");
+  const airbnbApts = apts.filter(a=>a.type==="Airbnb");
+  const wgIds = wgApts.map(a=>a.id);
+  const airbnbIds = airbnbApts.map(a=>a.id);
+  const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
+  
+  // WG calculations
+  const wgAusgaben = wgApts.reduce((s,a)=>s+(+a.miete||0),0);
+  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
+  const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0);
+  const wgMargeIst = wgEinnahmenIst - wgAusgaben;
+  const wgMargeMax = wgEinnahmenMax - wgAusgaben;
+  const wgLeerstand = wgEinnahmenMax - wgEinnahmenIst;
+  const wgOcc = wgRooms.filter(r=>r.occupied).length;
+  const wgFree = wgRooms.filter(r=>!r.occupied);
+  const wgAuslastung = wgRooms.length ? Math.round(wgOcc/wgRooms.length*100) : 0;
+  
+  // Airbnb calculations (whole apt = 1 unit, no rooms)
+  const abAusgaben = airbnbApts.reduce((s,a)=>s+(+a.miete||0),0);
+  // For Airbnb income we assume the apt rent IS the cost; income comes from bookings (data not in system yet)
+  // For now: Airbnb is shown as cost only — income tracking future feature
+  
+  // Total
+  const totalAusgaben = wgAusgaben + abAusgaben;
+  const totalEinnahmenIst = wgEinnahmenIst; // Airbnb income not tracked
+  const totalMargeIst = totalEinnahmenIst - totalAusgaben;
+
   const incomplete=tenants.filter(t=>!t.email||!t.phone||!t.geburt);
   const neueBewerber=bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung");
   const baldEnde=apts.filter(a=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<120;});
+
   return(
     <div>
       <div className="pt">Dashboard</div>
       <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
-      <div className="sg">
-        <div className="sc"><div className="sl">Zimmer belegt</div><div className="sv">{occ}<span style={{fontSize:14,color:"#5e6273"}}>/{wgRooms.length}</span></div><div className="sn" style={{color:free.length?"#fbbf24":"#34d399"}}>{free.length} frei</div></div>
-        <div className="sc"><div className="sl">Soll-Miete / Mt.</div><div className="sv" style={{fontSize:19}}>{Math.round(mieteSoll/1000)}k</div><div className="sn" style={{color:"#5e6273"}}>CHF</div></div>
-        <div className="sc"><div className="sl">Bewerber</div><div className="sv">{bewerber.length}</div><div className="sn" style={{color:neueBewerber.length?"#fbbf24":"#34d399"}}>{neueBewerber.length} neu / offen</div></div>
-        <div className="sc"><div className="sl">Mieter</div><div className="sv">{tenants.length}</div><div className="sn" style={{color:incomplete.length?"#fbbf24":"#34d399"}}>{incomplete.length} unvollständig</div></div>
+
+      {/* TOTAL OVERVIEW — 3-column hero */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
+        <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px"}}>
+          <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Total Ausgaben / Mt.</div>
+          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:300,color:"#1a1814",lineHeight:1,marginBottom:6}}>{chf(totalAusgaben)}</div>
+          <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.length} WG + {airbnbApts.length} Airbnb</div>
+        </div>
+        <div style={{background:wgMargeIst>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${wgMargeIst>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px"}}>
+          <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>WG-Marge aktuell / Mt.</div>
+          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:wgMargeIst>=0?"#3d4f2f":"#9b4a3e",lineHeight:1,marginBottom:6}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</div>
+          <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WG-Einnahmen − WG-Ausgaben</div>
+        </div>
+        <div style={{background:"#1a1814",borderRadius:8,padding:"24px 26px",color:"#fefcf7"}}>
+          <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>WG-Marge maximal / Mt.</div>
+          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:"#fefcf7",lineHeight:1,marginBottom:6}}>+{chf(wgMargeMax)}</div>
+          <div style={{fontSize:11,color:"#b8af9f",letterSpacing:".05em"}}>Bei 100% Belegung</div>
+        </div>
       </div>
-      {free.length>0&&<div className="warn">⚠ <strong>{free.length} Zimmer frei:</strong> {free.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}
+
+      {/* WG SECTION */}
+      <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WG-Wohnungen</div>
+      <div className="sg" style={{marginBottom:18}}>
+        <div className="sc"><div className="sl">Auslastung</div><div className="sv">{wgAuslastung}%</div><div className="sn" style={{color:wgAuslastung>=80?"#5a6e4a":wgAuslastung>=50?"#b8843e":"#9b4a3e"}}>{wgOcc}/{wgRooms.length} Zimmer</div></div>
+        <div className="sc"><div className="sl">Ausgaben</div><div className="sv" style={{fontSize:24}}>{chf(wgAusgaben).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
+        <div className="sc"><div className="sl">Einnahmen Ist</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(wgEinnahmenIst).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>von max. {chf(wgEinnahmenMax)}</div></div>
+        <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:wgLeerstand>0?"#9b4a3e":"#5a6e4a"}}>{wgLeerstand>0?"−":""}{chf(wgLeerstand).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{wgFree.length} freie Zimmer</div></div>
+      </div>
+      {wgFree.length>0&&<div className="warn">⚠ <strong>{wgFree.length} WG-Zimmer frei:</strong> {wgFree.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}
+
       {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;120 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
-      {tenants.filter(t=>t.betreibung).length>0&&<div className="warn-r">⚡ <strong>Betreibung:</strong> {tenants.filter(t=>t.betreibung).map(t=>`${t.vorname} ${t.nachname}`).join(", ")}</div>}
+
+      {/* PER-APARTMENT FINANCE BREAKDOWN — separated WG / Airbnb */}
+      <div className="card" style={{marginBottom:24}}>
+        <div className="ct">Finanzübersicht — WG-Wohnungen</div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Adresse</th>
+              <th style={{textAlign:"right"}}>Ausgabe</th>
+              <th style={{textAlign:"right"}}>Einnahme Ist</th>
+              <th style={{textAlign:"right"}}>Einnahme Max</th>
+              <th style={{textAlign:"right"}}>Marge Ist</th>
+              <th style={{textAlign:"right"}}>Marge Max</th>
+              <th>Belegung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {wgApts.map(a=>{
+              const rs=rooms.filter(r=>r.aptId===a.id);
+              const aOcc=rs.filter(r=>r.occupied).length;
+              const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
+              const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0);
+              const aMargeIst=aIst-(+a.miete||0);
+              const aMargeMax=aMax-(+a.miete||0);
+              return (
+                <tr key={a.id}>
+                  <td style={{fontWeight:600}}>{a.id}</td>
+                  <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
+                  <td style={{textAlign:"right"}}>{chf(a.miete)}</td>
+                  <td style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
+                  <td style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
+                  <td style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
+                  <td style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                  <td style={{minWidth:120}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{flex:1}}><Prog val={aOcc} max={rs.length}/></div>
+                      <span style={{fontSize:10.5,color:"#8a8174"}}>{aOcc}/{rs.length}</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{borderTop:"2px solid #1a1814"}}>
+              <td colSpan={2} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
+              <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:wgMargeIst>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax)}</td>
+              <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{wgAuslastung}%</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="card" style={{marginBottom:24}}>
+        <div className="ct">Finanzübersicht — Airbnb-Wohnungen</div>
+        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>Einnahmen aus Buchungen werden nicht im System getrackt — nur Kosten zur Eigentümerin.</div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Adresse</th><th>Zimmer</th>
+              <th style={{textAlign:"right"}}>Ausgabe / Mt.</th>
+              <th>Mietende</th>
+            </tr>
+          </thead>
+          <tbody>
+            {airbnbApts.map(a=>(
+              <tr key={a.id}>
+                <td style={{fontWeight:600}}>{a.id}</td>
+                <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
+                <td>{a.zimmer} Zi.</td>
+                <td style={{textAlign:"right"}}>{chf(a.miete)}</td>
+                <td style={{fontSize:11.5,color:"#8a8174"}}>{a.mietende||"unbefristet"}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{borderTop:"2px solid #1a1814"}}>
+              <td colSpan={3} style={{fontWeight:700,paddingTop:14}}>Total Airbnb</td>
+              <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(abAusgaben)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
         <div className="card">
           <div className="ct">Zimmerbelegung pro WG</div>
-          {apts.filter(a=>a.type==="WG").map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;return(<div key={a.id} style={{marginBottom:11}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span>{a.id} — {a.adresse}</span><span style={{color:"#5e6273",fontSize:11}}>{o}/{rs.length}</span></div><Prog val={o} max={rs.length}/></div>);})}
+          {wgApts.map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;return(<div key={a.id} style={{marginBottom:11}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span>{a.id} — {a.adresse}</span><span style={{color:"#8a8478",fontSize:11}}>{o}/{rs.length}</span></div><Prog val={o} max={rs.length}/></div>);})}
         </div>
         <div className="card">
           <div className="ct">Neueste Bewerber</div>
           {bewerber.length===0?<div className="empty">Noch keine Bewerbungen</div>:bewerber.slice(0,5).map(b=>(
             <div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#5e6273"}}>{b.eingereichtAm} · {b.type||"—"}</div></div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#8a8478"}}>{b.eingereichtAm} · {b.type||"—"}</div></div></div>
               <StatusBdg status={b.status}/>
             </div>
           ))}
@@ -297,6 +527,10 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("alle");
   const [copied,setCopied]=useState(false);
+  const [vertragModal,setVertragModal]=useState(false);
+  const [editModal,setEditModal]=useState(false);
+  const [editForm,setEditForm]=useState({});
+  const [vertragData,setVertragData]=useState(null);
 
   // Form link assumes form is hosted at same origin under /mietbewerbung.html
   const formLink = window.location.origin + "/mietbewerbung.html";
@@ -333,13 +567,613 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 
   function copyLink(){navigator.clipboard.writeText(formLink).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}
 
+  function openEdit(){
+    if(!b)return;
+    setEditForm({...b});
+    setEditModal(true);
+  }
+  async function saveEdit(){
+    const {id,...fields}=editForm;
+    await updateBewerber(id,fields);
+    setEditModal(false);
+  }
+  function EF(k){return e=>setEditForm(p=>({...p,[k]:e.target.value}));}
+  function EFB(k){return e=>setEditForm(p=>({...p,[k]:e.target.checked}));}
+
+  function openVertragModal(){
+    if(!b) return;
+    // Determine the room: assigned > wish > first free
+    const targetRoomId = b.zugeteiltes_zimmer || b.zimmerWunsch;
+    const room = targetRoomId ? rooms.find(r=>r.id===targetRoomId) : null;
+    const apt = room ? apts.find(a=>a.id===room.aptId) : null;
+    const bruttomiete = room ? +room.miete : 1000;
+    const nebenkosten = 100;
+    const nettomiete = bruttomiete - nebenkosten;
+    const strom = 25;
+    // Detect kaution variant from multiple possible sources
+    let kautionMonate = 3;
+    let aufschlag = 0;
+    if (b.kautionOpt === "0x" || b.kautionAufschlag === 150 || (b.kautionType||"").toLowerCase().includes("keine")) {
+      kautionMonate = 0; aufschlag = 150;
+    } else if (b.kautionOpt === "1x" || b.kautionAufschlag === 100 || (b.kautionType||"").startsWith("1")) {
+      kautionMonate = 1; aufschlag = 100;
+    } else if (b.kautionOpt === "2x" || b.kautionAufschlag === 50 || (b.kautionType||"").startsWith("2")) {
+      kautionMonate = 2; aufschlag = 50;
+    } else {
+      kautionMonate = 3; aufschlag = 0;
+    }
+    const kautionBetrag = (bruttomiete + strom) * kautionMonate;
+    const total = bruttomiete + strom + aufschlag;
+
+    setVertragData({
+      zimmerId: targetRoomId || "",
+      apt: apt || null,
+      room: room || null,
+      // Editable fields
+      adresse: apt?.adresse || "",
+      plz: apt?.plz || "",
+      ort: apt?.ort || "Zürich",
+      nettomiete,
+      nebenkosten,
+      bruttomiete,
+      strom,
+      aufschlag,
+      total,
+      kautionMonate,
+      kautionBetrag,
+      moebliert: b.moebliert === "ja",
+      einzug: b.einzug || "",
+      ortVertrag: "Zürich",
+      datumVertrag: new Date().toISOString().split("T")[0],
+    });
+    setVertragModal(true);
+  }
+
+  function formatDateLong(dateStr){
+    if (!dateStr) return "____";
+    const d = typeof dateStr === "string" ? new Date(dateStr.includes("-") ? dateStr : dateStr.split(".").reverse().join("-")) : dateStr;
+    if (isNaN(d.getTime())) return dateStr;
+    const months = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+    return `${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  function generateContract(){
+    if (!vertragData || !b) return;
+    const v = vertragData;
+    const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
+    const html = buildContractHTML(b, v, fullName, formatDateLong);
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup wurde blockiert.\n\nBitte erlaube Popups für diese Seite und versuche es erneut.");
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    // Wait for content + images to load, then trigger print dialog
+    win.onload = () => {
+      setTimeout(() => {
+        win.focus();
+        win.print();
+      }, 300);
+    };
+  }
+
+  function buildContractHTML(b, v, fullName, fmtDate){
+    const chf2 = n => Number(n||0).toLocaleString("de-CH");
+    const adresseFull = `${v.adresse}, CH-${v.plz} in ${v.ort}`;
+    const refStr = `${v.adresse} & ${fullName}`;
+    return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag — ${fullName}</title>
+<style>
+  @page{size:A4;margin:18mm 18mm 22mm 18mm}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{background:#fff}
+  body{
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:10pt;
+    line-height:1.55;
+    color:#1a1a1a;
+    padding:18mm 18mm 22mm 18mm;
+    width:210mm;
+    margin:0 auto;
+  }
+  @media print {
+    body{padding:0;width:auto}
+    .print-banner{display:none!important}
+  }
+  .print-banner{
+    position:fixed;top:0;left:0;right:0;
+    background:#1a1a1a;color:#fff;
+    padding:12px 20px;
+    text-align:center;
+    font-size:13px;
+    z-index:9999;
+    font-family:Helvetica,Arial,sans-serif;
+    box-shadow:0 2px 12px rgba(0,0,0,.2);
+  }
+  .print-banner button{
+    background:#fff;color:#1a1a1a;
+    border:none;padding:7px 18px;
+    margin-left:14px;
+    font-weight:600;
+    border-radius:4px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  .print-banner button:hover{background:#f0ebe0}
+  
+  /* HEADER mit Logo */
+  .doc-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    padding-bottom:14pt;
+    border-bottom:1.5pt solid #1a1a1a;
+    margin-bottom:24pt;
+  }
+  .doc-header .left{flex:1}
+  .doc-header .left .label{
+    font-size:8pt;
+    color:#888;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    font-weight:500;
+    margin-bottom:6pt;
+  }
+  .doc-header .left .doc-title{
+    font-size:22pt;
+    font-weight:300;
+    letter-spacing:-.3pt;
+    color:#1a1a1a;
+  }
+  .doc-header .logo{width:42mm;height:auto}
+  .doc-header .logo img{width:100%;display:block}
+  
+  /* PERSONENDATEN-BLOCK */
+  .person-card{
+    background:#faf8f3;
+    border-left:3pt solid #1a1a1a;
+    padding:14pt 18pt;
+    margin-bottom:22pt;
+  }
+  .person-card .ph{
+    font-size:8pt;
+    color:#888;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    font-weight:600;
+    margin-bottom:10pt;
+  }
+  .person-grid{
+    display:grid;
+    grid-template-columns:auto 1fr auto 1fr;
+    gap:7pt 18pt;
+    font-size:9.5pt;
+  }
+  .person-grid .pl{font-weight:600;color:#444;white-space:nowrap}
+  .person-grid .pv{color:#1a1a1a}
+  
+  /* GREETING */
+  .greeting{margin-bottom:16pt}
+  .greeting p{margin-bottom:7pt;text-align:justify;hyphens:auto}
+  .greeting p.welcome{font-weight:500;color:#1a1a1a}
+  
+  /* SECTIONS */
+  .section{margin-bottom:14pt;page-break-inside:avoid}
+  .section.allow-break{page-break-inside:auto}
+  .section h2{
+    font-size:11pt;
+    font-weight:700;
+    color:#1a1a1a;
+    margin-bottom:7pt;
+    padding-bottom:3pt;
+    border-bottom:.5pt solid #ddd;
+    page-break-after:avoid;
+  }
+  .section p{
+    margin-bottom:5pt;
+    text-align:justify;
+    hyphens:auto;
+    orphans:2;
+    widows:2;
+  }
+  .clause{margin-bottom:5pt;text-align:justify}
+  .clause-num{font-weight:700;color:#1a1a1a;margin-right:4pt}
+  
+  /* MIETZINS-TABELLE */
+  .miet-wrap{
+    background:#fafafa;
+    border:.5pt solid #e0e0e0;
+    border-radius:4pt;
+    padding:12pt 16pt;
+    margin:8pt 0 12pt;
+  }
+  .miet-table{width:100%;border-collapse:collapse}
+  .miet-table td{
+    padding:5pt 0;
+    font-size:10pt;
+    border-bottom:.25pt solid #e8e8e8;
+  }
+  .miet-table td.amt{text-align:right;width:90pt;font-variant-numeric:tabular-nums}
+  .miet-table tr:last-child td{border-bottom:none}
+  .miet-table tr.brutto td{
+    font-weight:700;
+    background:#f0ebe0;
+    border-bottom:.5pt solid #999;
+    border-top:.5pt solid #999;
+    padding:6pt 8pt;
+  }
+  .miet-table tr.brutto td.amt{padding-right:8pt}
+  .miet-table tr.brutto td:first-child{padding-left:8pt}
+  .miet-table tr.aufschlag td{color:#a85c4d;font-style:italic}
+  .miet-table tr.total td{
+    font-weight:700;
+    font-size:11pt;
+    background:#1a1a1a;
+    color:#fff;
+    padding:8pt;
+  }
+  .miet-table tr.total td:first-child{padding-left:10pt}
+  .miet-table tr.total td.amt{padding-right:10pt}
+  
+  /* BANK BLOCK */
+  .bank-block{
+    display:flex;
+    gap:16pt;
+    align-items:flex-start;
+    margin:10pt 0 12pt;
+    padding:12pt 16pt;
+    background:#fafafa;
+    border:.5pt solid #e0e0e0;
+    border-radius:4pt;
+  }
+  .qr-box{
+    width:80pt;
+    height:80pt;
+    border:.5pt solid #999;
+    background:repeating-linear-gradient(45deg,#eee 0 3px,#fafafa 3px 6px);
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:7pt;
+    color:#999;
+    text-align:center;
+  }
+  .bank-info{flex:1;font-size:9.5pt;line-height:1.6}
+  .bank-info .ref{
+    font-weight:700;
+    margin-top:5pt;
+    padding-top:5pt;
+    border-top:.5pt dashed #ccc;
+  }
+  
+  /* INFO BOXEN */
+  .info-box{
+    background:#faf8f3;
+    border-left:3pt solid #c5b896;
+    padding:8pt 12pt;
+    margin:8pt 0;
+    font-size:9.5pt;
+    line-height:1.5;
+  }
+  .highlight-box{
+    background:#fff;
+    border:1pt solid #1a1a1a;
+    padding:10pt 14pt;
+    margin:10pt 0;
+    text-align:center;
+    font-weight:700;
+    font-size:10.5pt;
+  }
+  
+  /* LISTEN */
+  ul{margin:5pt 0 8pt 18pt;padding:0}
+  li{margin-bottom:3pt;line-height:1.5}
+  .indent-list{margin:6pt 0 6pt 18pt}
+  .indent-list div{margin-bottom:3pt;line-height:1.5}
+  
+  /* CLOSING */
+  .closing{margin-top:18pt}
+  .closing p{margin-bottom:8pt;text-align:justify}
+  .closing .signoff{
+    margin-top:10pt;
+    font-style:italic;
+    color:#444;
+  }
+  
+  /* SIGNATURES */
+  .signatures{
+    margin-top:24pt;
+    display:flex;
+    gap:30pt;
+    page-break-inside:avoid;
+  }
+  .sig-block{
+    flex:1;
+    border-top:.5pt solid #1a1a1a;
+    padding-top:6pt;
+  }
+  .sig-block .role{
+    font-size:8pt;
+    color:#888;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    font-weight:600;
+    margin-bottom:3pt;
+  }
+  .sig-block .name{
+    font-size:11pt;
+    font-weight:600;
+    margin-bottom:24pt;
+  }
+  .sig-block .sig-row{
+    display:flex;
+    gap:14pt;
+    margin-bottom:6pt;
+    font-size:9pt;
+  }
+  .sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:55pt}
+  .sig-block .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
+  
+  .page-break{page-break-after:always}
+  .avoid-break{page-break-inside:avoid}
+</style>
+</head>
+<body>
+
+<div class="print-banner">
+  Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-Dialog
+  <button onclick="window.print()">📄 Drucken / PDF speichern</button>
+  <button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
+</div>
+
+<!-- HEADER -->
+<div class="doc-header">
+  <div class="left">
+    <div class="label">Vertrag</div>
+    <div class="doc-title">Untermietvertrag</div>
+  </div>
+  <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+</div>
+
+<!-- PERSON CARD -->
+<div class="person-card">
+  <div class="ph">Untermieter*in</div>
+  <div class="person-grid">
+    <span class="pl">Vorname:</span><span class="pv">${b.vorname||"—"}</span>
+    <span class="pl">Nachname:</span><span class="pv">${b.nachname||"—"}</span>
+    <span class="pl">Strasse:</span><span class="pv">${b.adresse||"—"}</span>
+    <span class="pl">PLZ / Ort:</span><span class="pv">${b.plz||""} ${b.ort||""}</span>
+    <span class="pl">E-Mail:</span><span class="pv">${b.email||"—"}</span>
+    <span class="pl">Telefon:</span><span class="pv">${b.phone||"—"}</span>
+    <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"—"}</span>
+    <span class="pl">Nationalität:</span><span class="pv">${b.nat||"—"}</span>
+  </div>
+</div>
+
+<!-- GREETING -->
+<div class="greeting">
+  <p class="welcome">Guten Tag ${fullName},</p>
+  <p class="welcome">Herzlich willkommen bei D&amp;T Homes!</p>
+  <p>Nachfolgend findest du alle Details und Regelungen zur Miete. Der vorliegende Untermietvertrag wird zwischen der <strong>D&amp;T Partners GmbH</strong> als Hauptmieterin und dir als Untermieter*in abgeschlossen. Bitte nimm dir einen Moment Zeit, den Vertrag sorgfältig zu lesen, und unterzeichne ihn, wenn du mit den Bedingungen einverstanden bist.</p>
+</div>
+
+<!-- §1 MIETOBJEKT -->
+<div class="section">
+  <h2>1. Mietobjekt</h2>
+  <p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
+  <p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>
+</div>
+
+<!-- §2 MIETDAUER -->
+<div class="section">
+  <h2>2. Mietdauer</h2>
+  <p>Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist unbefristet, beträgt jedoch mindestens sechs Monate. Bitte beachte, dass der Mietvertrag im befristeten Verhältnis automatisch zum vereinbarten Enddatum endet, sofern keine schriftliche Verlängerung vereinbart wird.</p>
+</div>
+
+<!-- §3 MIETZINS -->
+<div class="section">
+  <h2>3. Mietzins</h2>
+  <p>Der monatliche Mietzins für das Zimmer ${v.zimmerId} beträgt:</p>
+  <div class="miet-wrap avoid-break">
+    <table class="miet-table">
+      <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
+      <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+      <tr class="brutto"><td>Bruttomiete in CHF</td><td class="amt">${chf2(v.bruttomiete)}</td></tr>
+      <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
+      ${v.aufschlag>0?`<tr class="aufschlag"><td>Kautions-Aufschlag in CHF</td><td class="amt">+ ${chf2(v.aufschlag)}</td></tr>`:""}
+      <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2(v.total)}</td></tr>
+    </table>
+  </div>
+  <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser und weitere Nebenkosten bereits inbegriffen.</p>
+  <p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
+  <p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
+  <p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>
+  <p>Nicht enthalten sind allfällige Serafe-Gebühren, diese sind von den Bewohnern selbst zu tragen.</p>
+  <p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
+  <div class="bank-block avoid-break">
+    <div class="qr-box">QR-Rechnung</div>
+    <div class="bank-info">
+      <strong>Graubündner Kantonalbank</strong><br>
+      D&amp;T Partners GmbH<br>
+      Via Campeun 40, 7403 Rhäzüns<br>
+      IBAN: CH80 0077 4010 5279 2690 0
+      <div class="ref">Referenz: Miete ${refStr}</div>
+    </div>
+  </div>
+</div>
+
+<!-- §4 KAUTION -->
+<div class="section allow-break">
+  <h2>4. Kaution</h2>
+  <p>Wünscht der Untermieter, eine reduzierte oder keine Kaution zu leisten, kann dies wie folgt geregelt werden:</p>
+  <div class="indent-list">
+    <div${v.kautionMonate===3?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===3?'☑':'☐'} 3 Monatsmieten Kaution = keine Anpassung des monatlichen Mietzinses (Standard)</div>
+    <div${v.kautionMonate===2?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===2?'☑':'☐'} 2 Monatsmieten Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 50</strong></div>
+    <div${v.kautionMonate===1?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===1?'☑':'☐'} 1 Monatsmiete Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 100</strong></div>
+    <div${v.kautionMonate===0?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===0?'☑':'☐'} Keine Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 150</strong></div>
+  </div>
+
+  <div class="highlight-box" style="text-align:left;font-weight:400;font-size:10pt;line-height:1.6">
+    <div style="font-size:8pt;color:#888;letter-spacing:.25em;text-transform:uppercase;font-weight:700;margin-bottom:6pt">Gewählte Variante</div>
+    ${v.kautionMonate===3?`<strong style="font-size:11pt">3 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*3)} &middot; kein Aufschlag`:""}
+    ${v.kautionMonate===2?`<strong style="font-size:11pt">2 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*2)} &middot; Aufschlag CHF 50/Mt.`:""}
+    ${v.kautionMonate===1?`<strong style="font-size:11pt">1 Monatsmiete Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25)))} &middot; Aufschlag CHF 100/Mt.`:""}
+    ${v.kautionMonate===0?`<strong style="font-size:11pt">Keine Kaution</strong> &middot; Aufschlag CHF 150/Mt.`:""}
+  </div>
+
+  ${v.kautionMonate>0
+    ? `<p>Der Untermieter verpflichtet sich, vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""} – <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> – über die Plattform <strong>de.evorest.ch</strong> zu leisten. Die Kaution wird dort auf ein separates, auf den Namen des Untermieters lautendes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>`
+    : `<p>Der Untermieter hat sich für die Variante <strong>ohne Kaution</strong> entschieden. Anstelle der Kaution wird der monatliche Mietzins um <strong>CHF 150</strong> erhöht. Dieser Aufschlag ist bereits im totalen Mietzins (siehe §3) enthalten.</p>`
+  }
+  <p>Die Rückerstattung ${v.kautionMonate>0?"der Kaution ":""}erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden.${v.kautionMonate>0?" Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.":""}</p>
+</div>
+
+<!-- §5 -->
+<div class="section allow-break">
+  <h2>5. Weiteres und Verantwortlichkeiten des Untermieters</h2>
+  <p class="clause"><span class="clause-num">5.1</span>Der Untermieter verpflichtet sich, die Wohnung sowie das Inventar sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. Wohnung und Inventar sind in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
+  <p class="clause"><span class="clause-num">5.2</span>Der Untermieter ist für die regelmässige Reinigung der Wohnung sowie für die ordnungsgemässe Entsorgung von Abfällen verantwortlich.</p>
+  <p class="clause"><span class="clause-num">5.3</span>Eine Untervermietung oder Weitergabe der Wohnung an Dritte ist ohne ausdrückliche schriftliche Zustimmung des Hauptmieters nicht gestattet.</p>
+  <p class="clause"><span class="clause-num">5.4</span>Bauliche Veränderungen an der Wohnung oder das Streichen von Wänden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig.</p>
+  <p class="clause"><span class="clause-num">5.5</span>Bei längerer Abwesenheit hat der Untermieter sicherzustellen, dass der Zugang zur Wohnung für Notfälle gewährleistet ist (z. B. durch Hinterlegung eines Schlüssels bei einer Vertrauensperson).</p>
+  <p class="clause"><span class="clause-num">5.6</span>Der Untermieter ist verpflichtet, sich innert acht Tagen nach Einzug bei der zuständigen Einwohnerkontrolle anzumelden.</p>
+  <p class="clause"><span class="clause-num">5.7</span>Der Untermieter darf die Suche nach Mitbewohnern durch die D&amp;T Partners GmbH nicht behindern. Diese schlägt geeignete Mitbewohner vor und ermöglicht ein vorgängiges Kennenlernen. Im Zweifelsfall behält sich die D&amp;T Partners GmbH das Recht vor, einen Untermietvertrag mit einem Interessenten abzuschliessen, ohne Mitspracherecht der aktuellen Bewohner.</p>
+  <p class="clause"><span class="clause-num">5.8</span>In der Schweiz wohnhafte Personen, die Radio- oder Fernsehprogramme empfangen, sind gesetzlich verpflichtet, entsprechende Empfangsgebühren zu entrichten. Diese Verpflichtung liegt beim jeweiligen Haushalt und damit bei den Untermietern. Die D&amp;T Partners GmbH organisiert keine Kostenaufteilung innerhalb der Untermieterschaft.</p>
+  <p class="clause"><span class="clause-num">5.9</span>Die Kontaktdaten des Untermieters dürfen – sofern keine ausdrückliche Verweigerung erfolgt – an potenzielle Mitbewohner weitergegeben werden, um ein gegenseitiges Kennenlernen zu ermöglichen.</p>
+  <p class="clause"><span class="clause-num">5.10</span>Interne Angelegenheiten zwischen den Mitbewohnern fallen nicht in den Zuständigkeitsbereich des Hauptmieters. Dieser bemüht sich jedoch, bei Bedarf zu unterstützen und ein harmonisches Zusammenleben zu fördern.</p>
+</div>
+
+<!-- §6 -->
+<div class="section">
+  <h2>6. Datenschutz</h2>
+  <p>Der Untermieter erklärt sich damit einverstanden, dass seine personenbezogenen Daten zum Zweck der Vertragsabwicklung sowie zur Koordination mit (potenziellen) Mitbewohnern gespeichert, verarbeitet und im erforderlichen Umfang weitergegeben werden dürfen. Eine Weitergabe an Dritte erfolgt ausschliesslich, soweit dies für die Durchführung des Mietverhältnisses notwendig ist.</p>
+</div>
+
+<!-- §7 -->
+<div class="section allow-break">
+  <h2>7. Inventar &amp; Möblierung</h2>
+  <p>In den Gemeinschaftsräumen der Wohnung befindet sich ein vollständiges Inventar mit Gegenständen des täglichen Bedarfs. Das Inventar umfasst insbesondere:</p>
+  <ul>
+    <li>Tisch, Stühle, Besteck, Kochgeschirr, Tellerset, Bratpfanne, Küchenutensilien, Weingläser, Messerset, WC-Bürste, Abfalleimer, Schüsseln, Glas, Badematte, Seifenspender, Kanne, Zahnbürstenhalter, Duschvorhang und Topflappen.</li>
+  </ul>
+  <p class="clause"><span class="clause-num">7.1</span>Für eine einmalige zusätzliche Gebühr von <strong>CHF 990</strong> kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
+  <ul>
+    <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
+  </ul>
+  <p>Die Möbel werden für die Dauer der Untermiete zur Nutzung überlassen. Der Bewohner verpflichtet sich zu einem sorgfältigen Gebrauch. Die Möbel bleiben im Eigentum der D&amp;T Partners GmbH. Das Nutzungsrecht endet mit Beendigung des Untermietvertrages.</p>
+  <div class="highlight-box">Die Möblierung des Zimmers wird dazu gemietet: ${v.moebliert?"Ja":"Nein"}</div>
+  <p class="clause"><span class="clause-num">7.2</span>Zum Zeitpunkt der Zimmerübergabe kann die Wohnung je nach Datum noch nicht vollständig möbliert sein. Die Möblierung erfolgt in der Regel innerhalb der ersten Tage nach Schlüsselübergabe oder nach vorgängiger Absprache.</p>
+</div>
+
+<!-- §8 -->
+<div class="section allow-break">
+  <h2>8. Schlüsselübergabe</h2>
+  <p>Die Schlüsselübergabe erfolgt zum vereinbarten Datum und zur vereinbarten Uhrzeit (± 3 Arbeitstage). Der Hauptmieter verpflichtet sich, dem Untermieter sämtliche für den Zugang zur Wohnung erforderlichen Schlüssel und Zugangscodes zu übergeben. Erfolgt die Übergabe mit mehr als drei Tagen Verspätung, hat der Untermieter ab dem vierten Tag Anspruch auf eine anteilsmässige Rückerstattung der ersten Mietperiode. Die Schlüssel- und Wohnungsübergabe erfolgt gegen ein schriftliches Übergabeprotokoll bei Ein- und Auszug, welches von beiden Parteien unterzeichnet wird.</p>
+  <p class="clause"><span class="clause-num">8.1</span>Der Untermieter bestätigt den Erhalt der Schlüssel und Zugangscodes und verpflichtet sich, diese sorgfältig aufzubewahren und vor unbefugtem Zugriff zu schützen.</p>
+  <p class="clause"><span class="clause-num">8.2</span>Bei Beendigung des Mietverhältnisses sind sämtliche Schlüssel und Zugangscodes zurückzugeben.</p>
+  <p class="clause"><span class="clause-num">8.3</span>Das Anfertigen zusätzlicher Schlüssel ist ohne Zustimmung des Hauptmieters untersagt. Bei Verlust ist der Hauptmieter berechtigt, betroffene Schlösser auf Kosten des Untermieters zu ersetzen.</p>
+</div>
+
+<!-- §9 -->
+<div class="section">
+  <h2>9. Reparaturen und Instandhaltung</h2>
+  <p>Der Hauptmieter ist für die Instandhaltung der Wohnung verantwortlich, einschliesslich notwendiger Reparaturen an sanitären Anlagen, Heizung, Elektrik und baulichen Elementen. Der Untermieter hat Mängel oder Reparaturbedarf unverzüglich zu melden.</p>
+</div>
+
+<!-- §10 -->
+<div class="section">
+  <h2>10. Haftung und Versicherung</h2>
+  <p>Der Untermieter haftet für Schäden oder Verluste an Wohnung oder Inventar, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung zu erbringen.</p>
+  <p>Für Schäden in gemeinsam genutzten Bereichen haften die Bewohner anteilig (Solidarhaftung), sofern kein Verursacher festgestellt werden kann.</p>
+</div>
+
+<!-- §11 -->
+<div class="section allow-break">
+  <h2>11. Kündigung</h2>
+  <p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt drei Monate auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
+  <p class="clause"><span class="clause-num">11.1</span>Im Rahmen eines befristeten Untermietvertrages ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
+  <p>Gleiches gilt bei einer allfälligen Kündigung des Mietverhältnisses durch den Eigentümer oder die Verwaltung aufgrund von Renovation, Umnutzung oder anderweitiger Pläne: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
+  <p class="clause"><span class="clause-num">11.2</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
+  <p class="clause"><span class="clause-num">11.3</span>Bei Kündigung innerhalb der Kündigungsfrist ist der Untermieter verpflichtet, einen geeigneten Nachmieter zu stellen, der zu gleichen Konditionen eintritt und von den Mitbewohnern akzeptiert wird. Erfolgt nachweislich keine aktive Suche, kann der Hauptmieter eine Monatsmiete von der Kaution einbehalten.</p>
+  <p class="clause"><span class="clause-num">11.4</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
+</div>
+
+<!-- §12 -->
+<div class="section">
+  <h2>12. Vertragsänderungen</h2>
+  <p>Änderungen oder Ergänzungen dieses Vertrags bedürfen der Schriftform und der Zustimmung beider Parteien.</p>
+</div>
+
+<!-- §13 -->
+<div class="section">
+  <h2>13. Rücktrittsrecht</h2>
+  <p>Der Mieter erhält ein ausserordentliches Rücktrittsrecht vom unterzeichneten Mietvertrag bis und mit der persönlichen Besichtigung vor Ort. Dieses Rücktrittsrecht gilt ausschliesslich für den Fall, dass die Wohnung wesentlich von der vorgängig zur Verfügung gestellten virtuellen Tour (VR Tour) abweicht. Im Falle eines solchen Rücktritts entstehen dem Mieter keinerlei Kosten oder Verpflichtungen aus dem Mietvertrag. Bereits geleistete Zahlungen werden vollständig zurückerstattet.</p>
+</div>
+
+<!-- §14 -->
+<div class="section">
+  <h2>14. Gerichtsstand</h2>
+  <p>Gerichtsstand für alle Streitigkeiten aus diesem Vertrag ist <strong>Chur</strong>.</p>
+</div>
+
+<!-- §15 -->
+<div class="section">
+  <h2>15. Zusätzliche Bestimmungen</h2>
+  <p class="clause"><span class="clause-num">15.1</span>Haustiere sind in der Wohnung nicht gestattet.</p>
+  <p class="clause"><span class="clause-num">15.2</span>Rauchen ist in der Wohnung nicht gestattet.</p>
+  <p class="clause"><span class="clause-num">15.3</span>Der Untermieter verpflichtet sich, die geltenden Hausordnungen und gesetzlichen Bestimmungen einzuhalten.</p>
+  <p class="clause"><span class="clause-num">15.4</span>Die WG-Zimmer sind ausschliesslich für Wohnzwecke der im Vertrag eingetragenen Person bestimmt. Eine Belegung durch mehrere Personen ist unzulässig.</p>
+  <p class="clause"><span class="clause-num">15.5</span>Bei Zahlungsverzug kann der Hauptmieter Mahngebühren von <strong>CHF 20 pro Mahnung</strong> sowie Verzugszinsen von <strong>5 % p. a.</strong> erheben.</p>
+  <p class="clause"><span class="clause-num">15.6</span>Der Hauptmieter ist berechtigt, das Zimmer nach angemessener Vorankündigung zur Kontrolle, Instandhaltung, Besichtigung mit Interessenten oder bei Vertragsverletzungen zu betreten.</p>
+</div>
+
+<!-- CLOSING -->
+<div class="closing avoid-break">
+  <p>Bitte unterzeichne diesen Untermietvertrag digital und sende uns eine Kopie zurück. Digitale Unterschriften sind rechtsverbindlich. Bewahre den unterzeichneten Vertrag in deinen Unterlagen auf. Mit seiner Unterschrift bestätigt der Untermieter, sämtliche Vertragsbestimmungen gelesen, verstanden und akzeptiert zu haben.</p>
+  <p class="signoff">Wir wünschen dir viel Spass in deiner neuen Wohnung.<br>Dein D&amp;T Homes Team</p>
+</div>
+
+<!-- SIGNATURES -->
+<div class="signatures">
+  <div class="sig-block">
+    <div class="role">Untermieter*in</div>
+    <div class="name">${fullName}</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+  <div class="sig-block">
+    <div class="role">Hauptmieter</div>
+    <div class="name">D&amp;T Partners GmbH</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+</div>
+
+</body></html>`;
+  }
+
   return(
     <div>
       <div className="pt">Bewerber</div>
       <div className="ps">{bewerber.length} Bewerbungen · {freeRooms.length} freie Zimmer</div>
       <div className="card" style={{marginBottom:20}}>
         <div className="ct">📋 Bewerbungsformular-Link</div>
-        <div style={{fontSize:12.5,color:"#5e6273",marginBottom:10}}>Diesen Link an potenzielle Mieter senden — Bewerbungen erscheinen automatisch hier.</div>
+        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden — Bewerbungen erscheinen automatisch hier.</div>
         <div className="link-box">
           <span className="link-text">{formLink}</span>
           <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
@@ -355,8 +1189,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
               <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}>
                 <Av name={bw.vorname} size={30}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,fontSize:12.5,color:sel===bw.id?"#4f8cff":"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{bw.vorname} {bw.nachname}</div>
-                  <div style={{fontSize:10.5,color:"#5e6273"}}>{bw.eingereichtAm}</div>
+                  <div style={{fontWeight:600,fontSize:12.5,color:sel===bw.id?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{bw.vorname} {bw.nachname}</div>
+                  <div style={{fontSize:10.5,color:"#8a8478"}}>{bw.eingereichtAm}</div>
                 </div>
                 <StatusBdg status={bw.status}/>
               </div>
@@ -374,14 +1208,16 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
               <div style={{display:"flex",alignItems:"center",gap:11}}>
                 <Av name={b.vorname} size={40}/>
                 <div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#fff"}}>{b.vorname} {b.nachname}</div>
-                  <div style={{fontSize:11,color:"#5e6273",marginTop:2}}>Eingereicht: {b.eingereichtAm} · <StatusBdg status={b.status}/></div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18"}}>{b.vorname} {b.nachname}</div>
+                  <div style={{fontSize:11,color:"#8a8478",marginTop:2}}>Eingereicht: {b.eingereichtAm} · <StatusBdg status={b.status}/></div>
                 </div>
               </div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
+                <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Untermietvertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
-                {b.status==="Neu"&&<button className="btn btn-sm" style={{background:"#2a1e08",color:"#fbbf24"}} onClick={()=>setStatus(b.id,"In Prüfung")}>◐ In Prüfung</button>}
-                {(b.status==="Neu"||b.status==="In Prüfung")&&<button className="btn btn-sm" style={{background:"#0d2820",color:"#34d399"}} onClick={()=>setStatus(b.id,"Bestätigt")}>✓ Bestätigen</button>}
+                {b.status==="Neu"&&<button className="btn btn-sm" style={{background:"#f6ecd8",color:"#c89653"}} onClick={()=>setStatus(b.id,"In Prüfung")}>◐ In Prüfung</button>}
+                {(b.status==="Neu"||b.status==="In Prüfung")&&<button className="btn btn-sm" style={{background:"#eaeee2",color:"#5a7c5e"}} onClick={()=>setStatus(b.id,"Bestätigt")}>✓ Bestätigen</button>}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
               </div>
             </div>
@@ -391,15 +1227,15 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
               const wApt=wRoom?apts.find(a=>a.id===wRoom.aptId):null;
               const stillFree=wRoom&&!wRoom.occupied;
               return(
-                <div style={{background:stillFree?"#1a2540":"#2a1e08",border:`1px solid ${stillFree?"rgba(79,140,255,.3)":"rgba(251,191,36,.3)"}`,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
-                  <div style={{fontSize:9.5,color:"#5e6273",textTransform:"uppercase",letterSpacing:".4px",marginBottom:8,fontWeight:700}}>💭 Wunschzimmer</div>
+                <div style={{background:stillFree?"#f5efe4":"#f6ecd8",border:`1px solid ${stillFree?"rgba(160,136,100,.4)":"rgba(200,150,83,.4)"}`,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+                  <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",marginBottom:8,fontWeight:700}}>💭 Wunschzimmer</div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:stillFree?"#4f8cff":"#fbbf24"}}>{b.zimmerWunsch}</div>
-                      <div style={{fontSize:11.5,color:"#5e6273",marginTop:2}}>{wApt?.adresse||"—"}{wRoom?.balkon?" · 🌿":""}</div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:stillFree?"#a08864":"#c89653"}}>{b.zimmerWunsch}</div>
+                      <div style={{fontSize:11.5,color:"#8a8478",marginTop:2}}>{wApt?.adresse||"—"}{wRoom?.balkon?" · 🌿":""}</div>
                     </div>
                     <div style={{textAlign:"right"}}>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"#34d399",fontSize:14}}>{wRoom?chf(wRoom.miete):"—"}/Mt.</div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"#5a7c5e",fontSize:14}}>{wRoom?chf(wRoom.miete):"—"}/Mt.</div>
                       <div style={{fontSize:10.5,marginTop:3}}>{stillFree?<Bdg label="○ noch frei" color="g"/>:<Bdg label="● belegt" color="y"/>}</div>
                     </div>
                   </div>
@@ -425,50 +1261,50 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}
             </div>
 
-            <div style={{background:"#1a1d27",border:"1px solid #2a2d3e",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
-              <div style={{fontSize:9.5,color:"#5e6273",textTransform:"uppercase",letterSpacing:".4px",marginBottom:9,fontWeight:700}}>💰 Gewählte Konditionen</div>
+            <div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+              <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",marginBottom:9,fontWeight:700}}>💰 Gewählte Konditionen</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                 <div>
-                  <div style={{fontSize:10,color:"#5e6273",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
-                  <div style={{fontSize:12.5,color:"#e2e4ed",fontWeight:500}}>{b.kautionType||"—"}</div>
-                  {b.kautionAufschlag>0&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>+ CHF {b.kautionAufschlag}.– / Monat</div>}
-                  {b.kautionAufschlag===0&&<div style={{fontSize:11,color:"#34d399",marginTop:2}}>Kein Aufschlag</div>}
+                  <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
+                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.kautionType||"—"}</div>
+                  {b.kautionAufschlag>0&&<div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {b.kautionAufschlag}.– / Monat</div>}
+                  {b.kautionAufschlag===0&&<div style={{fontSize:11,color:"#5a7c5e",marginTop:2}}>Kein Aufschlag</div>}
                 </div>
                 <div>
-                  <div style={{fontSize:10,color:"#5e6273",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
-                  <div style={{fontSize:12.5,color:"#e2e4ed",fontWeight:500}}>{b.moebliert==="ja"?"🛋 Möbliert":b.moebliert==="nein"?"📦 Unmöbliert":"—"}</div>
+                  <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
+                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.moebliert==="ja"?"🛋 Möbliert":b.moebliert==="nein"?"📦 Unmöbliert":"—"}</div>
                   {b.moeblierungPauschale>0&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>CHF {b.moeblierungPauschale}.– einmalig</div>}
                 </div>
               </div>
             </div>
 
-            {b.bemerkung&&(<div style={{background:"#1a1d27",border:"1px solid #2a2d3e",borderRadius:7,padding:"10px 13px",marginBottom:12}}><div style={{fontSize:9.5,color:"#5e6273",textTransform:"uppercase",marginBottom:5}}>Bemerkung</div><div style={{fontSize:12.5,lineHeight:1.6}}>{b.bemerkung}</div></div>)}
+            {b.bemerkung&&(<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"10px 13px",marginBottom:12}}><div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",marginBottom:5}}>Bemerkung</div><div style={{fontSize:12.5,lineHeight:1.6}}>{b.bemerkung}</div></div>)}
 
-            {b.zugeteiltes_zimmer&&(<div style={{background:"#0d2820",border:"1px solid rgba(52,211,153,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#34d399"}}>✓ Zugeteilt zu Zimmer <strong>{b.zugeteiltes_zimmer}</strong></div></div>)}
+            {b.zugeteiltes_zimmer&&(<div style={{background:"#eaeee2",border:"1px solid rgba(90,124,94,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#5a7c5e"}}>✓ Zugeteilt zu Zimmer <strong>{b.zugeteiltes_zimmer}</strong></div></div>)}
           </div>
-        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#5e6273",fontSize:12}}>← Bewerber wählen</span></div>}
+        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
       </div>
 
       {zuteilModal&&b&&(
         <div className="ov" onClick={e=>e.target===e.currentTarget&&setZuteilModal(false)}>
           <div className="modal">
             <div className="mt">🏠 Zimmer zuteilen</div>
-            <div style={{background:"#1a2540",border:"1px solid #2a2d3e",borderRadius:8,padding:"10px 13px",marginBottom:16,fontSize:12.5}}>
-              <strong style={{color:"#fff"}}>{b.vorname} {b.nachname}</strong>
+            <div style={{background:"#f5efe4",border:"1px solid #2a2d3e",borderRadius:8,padding:"10px 13px",marginBottom:16,fontSize:12.5}}>
+              <strong style={{color:"#1f1d18"}}>{b.vorname} {b.nachname}</strong>
             </div>
-            <div style={{fontSize:10,color:"#5e6273",textTransform:"uppercase",marginBottom:10}}>Freie Zimmer ({freeRooms.length})</div>
+            <div style={{fontSize:10,color:"#8a8478",textTransform:"uppercase",marginBottom:10}}>Freie Zimmer ({freeRooms.length})</div>
             {freeRooms.length===0?<div className="empty">Aktuell keine freien Zimmer</div>:[...freeRooms].sort((a,c)=>{if(a.id===b.zimmerWunsch)return -1;if(c.id===b.zimmerWunsch)return 1;return 0;}).map(r=>{
               const apt=apts.find(a=>a.id===r.aptId);
               const isWunsch=r.id===b.zimmerWunsch;
               return(
-                <div key={r.id} className={`zimmer-option${selZimmer===r.id?" sel":""}`} onClick={()=>setSelZimmer(r.id)} style={isWunsch?{borderColor:"#4f8cff",background:selZimmer===r.id?"#0d2820":"#1a2540"}:undefined}>
+                <div key={r.id} className={`zimmer-option${selZimmer===r.id?" sel":""}`} onClick={()=>setSelZimmer(r.id)} style={isWunsch?{borderColor:"#a08864",background:selZimmer===r.id?"#eaeee2":"#f5efe4"}:undefined}>
                   <div>
-                    <div style={{fontWeight:600,fontSize:13,color:selZimmer===r.id?"#34d399":isWunsch?"#4f8cff":"#fff",display:"flex",alignItems:"center",gap:7}}>{r.id}{isWunsch&&<Bdg label="💭 Wunsch" color="b"/>}</div>
-                    <div style={{fontSize:11,color:"#5e6273",marginTop:2}}>{apt?.adresse}</div>
+                    <div style={{fontWeight:600,fontSize:13,color:selZimmer===r.id?"#5a7c5e":isWunsch?"#a08864":"#1f1d18",display:"flex",alignItems:"center",gap:7}}>{r.id}{isWunsch&&<Bdg label="💭 Wunsch" color="b"/>}</div>
+                    <div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt?.adresse}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontWeight:600,color:"#34d399",fontSize:13}}>{chf(r.miete)}/Mt.</div>
-                    <div style={{fontSize:10.5,color:"#5e6273"}}>{r.balkon?"🌿 Balkon":""}</div>
+                    <div style={{fontWeight:600,color:"#5a7c5e",fontSize:13}}>{chf(r.miete)}/Mt.</div>
+                    <div style={{fontSize:10.5,color:"#8a8478"}}>{r.balkon?"🌿 Balkon":""}</div>
                   </div>
                 </div>
               );
@@ -481,40 +1317,304 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
           </div>
         </div>
       )}
+
+      {editModal&&b&&(
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&setEditModal(false)}>
+          <div className="modal" style={{width:620}}>
+            <div className="mt">✏ Bewerber bearbeiten</div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
+            <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={editForm.vorname||""} onChange={EF("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={editForm.nachname||""} onChange={EF("nachname")}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={editForm.geburt?editForm.geburt.split("T")[0]:""} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">—</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
+            <div className="fg"><label className="fl">Nationalität</label><input className="fi" value={editForm.nat||""} onChange={EF("nat")}/></div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kontakt</div>
+            <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={editForm.email||""} onChange={EF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={editForm.phone||""} onChange={EF("phone")}/></div></div>
+            <div className="fg"><label className="fl">Adresse</label><input className="fi" value={editForm.adresse||""} onChange={EF("adresse")}/></div>
+            <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={editForm.plz||""} onChange={EF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={editForm.ort||""} onChange={EF("ort")}/></div></div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Finanzen</div>
+            <div className="frow"><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={editForm.type||""} onChange={EF("type")}><option value="">—</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div><div className="fg"><label className="fl">Beruf</label><input className="fi" value={editForm.job||""} onChange={EF("job")}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={editForm.arbeitgeber||""} onChange={EF("arbeitgeber")}/></div><div className="fg"><label className="fl">Nettoeinkommen / Mt.</label><input className="fi" type="number" value={editForm.einkommen||""} onChange={EF("einkommen")}/></div></div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
+            <div className="frow"><div className="fg"><label className="fl">Wunsch-Zimmer</label><select className="fi" value={editForm.zimmerWunsch||""} onChange={EF("zimmerWunsch")}><option value="">—</option>{rooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} — {a?.adresse||""} ({chf(r.miete)})</option>;})}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Aufenthaltsdauer</label><select className="fi" value={editForm.aufenthalt||""} onChange={EF("aufenthalt")}><option value="">—</option><option value="6–12 Monate">6–12 Monate</option><option value="1–2 Jahre">1–2 Jahre</option><option value="2+ Jahre">2+ Jahre</option><option value="Unbefristet">Unbefristet</option></select></div><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">—</option><option value="ja">Möbliert (CHF 990)</option><option value="nein">Unmöbliert</option></select></div></div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kaution</div>
+            <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">—</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Status & Bemerkung</div>
+            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="In Prüfung">In Prüfung</option><option value="Bestätigt">Bestätigt</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl" style={{visibility:"hidden"}}>—</label><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine Betreibung bestätigt</label></div></div>
+            <div className="fg"><label className="fl">Bemerkung</label><textarea className="fi" rows={3} value={editForm.bemerkung||""} onChange={EF("bemerkung")} style={{resize:"vertical",fontFamily:"inherit"}}/></div>
+
+            <div className="ma">
+              <button className="btn btn-g" onClick={()=>setEditModal(false)}>Abbrechen</button>
+              <button className="btn btn-p" onClick={saveEdit}>✓ Speichern</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vertragModal&&b&&vertragData&&(
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&setVertragModal(false)}>
+          <div className="modal" style={{width:600}}>
+            <div className="mt">📄 Untermietvertrag erstellen</div>
+
+            <div style={{background:"#f5efe4",border:"1px solid #ddd0b8",borderRadius:8,padding:"12px 16px",marginBottom:18,fontSize:12.5}}>
+              <strong style={{color:"#1a1814"}}>{b.vorname} {b.nachname}</strong>
+              <div style={{color:"#8a8174",fontSize:11.5,marginTop:3}}>{b.email} · {b.phone}</div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietobjekt</div>
+            <div className="frow" style={{marginBottom:14}}>
+              <div className="fg"><label className="fl">Zimmer</label><input className="fi" value={vertragData.zimmerId} onChange={e=>setVertragData(p=>({...p,zimmerId:e.target.value}))}/></div>
+              <div className="fg"><label className="fl">Adresse</label><input className="fi" value={vertragData.adresse} onChange={e=>setVertragData(p=>({...p,adresse:e.target.value}))}/></div>
+            </div>
+            <div className="frow" style={{marginBottom:18}}>
+              <div className="fg"><label className="fl">PLZ</label><input className="fi" value={vertragData.plz} onChange={e=>setVertragData(p=>({...p,plz:e.target.value}))}/></div>
+              <div className="fg"><label className="fl">Ort</label><input className="fi" value={vertragData.ort} onChange={e=>setVertragData(p=>({...p,ort:e.target.value}))}/></div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietdauer</div>
+            <div className="fg" style={{marginBottom:18}}>
+              <label className="fl">Einzugsdatum</label>
+              <input className="fi" type="date" value={vertragData.einzug?vertragData.einzug.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,einzug:e.target.value}))}/>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietzins-Aufstellung</div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:8,alignItems:"center",fontSize:12.5}}>
+                <span>Nettomiete</span><input className="fi" type="number" value={vertragData.nettomiete} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,nettomiete:v,bruttomiete:v+p.nebenkosten,total:v+p.nebenkosten+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span>Nebenkosten</span><input className="fi" type="number" value={vertragData.nebenkosten} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,nebenkosten:v,bruttomiete:p.nettomiete+v,total:p.nettomiete+v+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
+                <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {vertragData.bruttomiete.toLocaleString('de-CH')}</span>
+                <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                {vertragData.aufschlag>0&&(<>
+                  <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
+                  <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {vertragData.aufschlag}</span>
+                </>)}
+                <span style={{fontWeight:700,borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14}}>Total / Mt.</span>
+                <span style={{fontWeight:700,textAlign:"right",borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14,color:"#1a1814"}}>CHF {vertragData.total.toLocaleString('de-CH')}</span>
+              </div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Kaution-Variante</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              {[
+                {monate:3,aufschlag:0,label:"3× Monatsmiete",note:"Standard, keine Erhöhung"},
+                {monate:2,aufschlag:50,label:"2× Monatsmiete",note:"+ CHF 50 / Monat"},
+                {monate:1,aufschlag:100,label:"1× Monatsmiete",note:"+ CHF 100 / Monat"},
+                {monate:0,aufschlag:150,label:"Keine Kaution",note:"+ CHF 150 / Monat"},
+              ].map(opt=>{
+                const sel=vertragData.kautionMonate===opt.monate;
+                return (
+                  <label key={opt.monate} style={{padding:"12px 14px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"block"}} onClick={()=>{
+                    const brutto = +vertragData.bruttomiete || 0;
+                    const strom = +vertragData.strom || 25;
+                    const newBetrag = (brutto + strom) * opt.monate;
+                    setVertragData(p=>({
+                      ...p,
+                      kautionMonate:opt.monate,
+                      kautionBetrag:newBetrag,
+                      aufschlag:opt.aufschlag,
+                      total: brutto + strom + opt.aufschlag,
+                    }));
+                  }}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                      <input type="radio" name="kaution" checked={sel} readOnly/>
+                      <span style={{fontWeight:600}}>{opt.label}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"#8a8174",marginLeft:24}}>{opt.note}</div>
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:600}}>
+              <span>Kautionsbetrag</span>
+              <span style={{color:"#1a1814"}}>{vertragData.kautionMonate>0?`CHF ${vertragData.kautionBetrag.toLocaleString('de-CH')}`:"—"}</span>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
+            <div style={{display:"flex",gap:10,marginBottom:18}}>
+              <label style={{flex:1,padding:"10px 14px",background:vertragData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${vertragData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
+                <input type="radio" checked={vertragData.moebliert} onChange={()=>setVertragData(p=>({...p,moebliert:true}))}/> Möbliert (CHF 990 einmalig)
+              </label>
+              <label style={{flex:1,padding:"10px 14px",background:!vertragData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!vertragData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
+                <input type="radio" checked={!vertragData.moebliert} onChange={()=>setVertragData(p=>({...p,moebliert:false}))}/> Unmöbliert
+              </label>
+            </div>
+
+            <div className="ma">
+              <button className="btn btn-g" onClick={()=>setVertragModal(false)}>Abbrechen</button>
+              <button className="btn btn-p" onClick={generateContract}>📄 PDF herunterladen</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function Wohnungen({apts,rooms,tenants,updateApt}){
+function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
+  const [filter,setFilter]=useState("alle");
+  const [adding,setAdding]=useState(false);
+  const [newForm,setNewForm]=useState({type:"WG",ort:"Zürich"});
   const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id):[];
+  const wgApts=apts.filter(a=>a.type==="WG");
+  const airbnbApts=apts.filter(a=>a.type==="Airbnb");
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
+  function NF(k){return e=>setNewForm(p=>({...p,[k]:e.target.value}));}
   async function save(){await updateApt(form.id,{adresse:form.adresse,miete:+form.miete,kaution:+form.kaution,mietbeginn:form.mietbeginn,mietende:form.mietende,vertrag:form.vertrag,extra:form.extra});setEditing(false);}
+  function nextAptId(){
+    let n=1;
+    while(apts.find(a=>a.id===`A${n}`)) n++;
+    return `A${n}`;
+  }
+  async function saveNew(){
+    if (!newForm.adresse) { alert("Bitte Adresse angeben."); return; }
+    const id = newForm.id || nextAptId();
+    if (apts.find(a=>a.id===id)) { alert(`Wohnungs-ID "${id}" existiert bereits.`); return; }
+    const apt = {
+      id,
+      adresse: newForm.adresse,
+      plz: newForm.plz || "",
+      ort: newForm.ort || "Zürich",
+      type: newForm.type || "WG",
+      zimmer: newForm.zimmer || "",
+      units: newForm.type === "WG" ? (+newForm.units||0) : null,
+      mietbeginn: newForm.mietbeginn || "",
+      mietende: newForm.mietende || "",
+      stockwerk: newForm.stockwerk || "",
+      miete: +newForm.miete || 0,
+      kaution: +newForm.kaution || 0,
+      kautionType: newForm.kautionType || "",
+      verwaltung: newForm.verwaltung || "",
+      eigentuemer: newForm.eigentuemer || "",
+      refzins: newForm.refzins || "",
+      refnr: newForm.refnr || "",
+      vertrag: newForm.vertrag || "",
+    };
+    await insertApt(apt);
+    setAdding(false);
+    setNewForm({type:"WG",ort:"Zürich"});
+    setSel(id);
+  }
+  async function handleDelete(){
+    if (!apt) return;
+    if (!confirm(`Wohnung ${apt.id} (${apt.adresse}) wirklich löschen?\n\nAlle zugehörigen Zimmer werden ebenfalls entfernt.`)) return;
+    await deleteApt(apt.id);
+    setSel(null);
+  }
+  function renderAptCard(a){
+    const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;const on=sel===a.id;
+    return(
+      <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}</span><TypeBadge type={a.type}/></div>
+        <div style={{fontSize:11,color:"#8a8478"}}>{a.adresse}</div>
+        {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
+      </div>
+    );
+  }
   return(
     <div>
-      <div className="pt">Wohnungen</div><div className="ps">{apts.length} Objekte</div>
-      <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16}}>
-        <div>{apts.map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;const on=sel===a.id;return(
-          <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#1a2540":"#1e2130",border:`1px solid ${on?"#4f8cff":"#2a2d3e"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#4f8cff":"#fff"}}>{a.id}</span><TypeBadge type={a.type}/></div>
-            <div style={{fontSize:11,color:"#5e6273"}}>{a.adresse}</div>
-            {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
-          </div>);})}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+        <div>
+          <div className="pt">Wohnungen</div>
+          <div className="ps">{wgApts.length} WG · {airbnbApts.length} Airbnb</div>
+        </div>
+        <button className="btn btn-p" onClick={()=>{setNewForm({type:"WG",ort:"Zürich",id:nextAptId()});setAdding(true);}}>+ Neue Wohnung</button>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {[["alle",`Alle (${apts.length})`],["WG",`WG (${wgApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`]].map(([k,l])=>(
+          <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+        <div>
+          {(filter==="alle"||filter==="WG")&&wgApts.length>0&&(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>WG-Wohnungen</div>
+              {wgApts.map(renderAptCard)}
+            </div>
+          )}
+          {(filter==="alle"||filter==="Airbnb")&&airbnbApts.length>0&&(
+            <div>
+              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>Airbnb-Wohnungen</div>
+              {airbnbApts.map(renderAptCard)}
+            </div>
+          )}
         </div>
         {apt?(
           <div className="card" style={{margin:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-              <div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:"#fff"}}>{apt.id} — {apt.adresse}</div><div style={{fontSize:11,color:"#5e6273",marginTop:2}}>{apt.plz} {apt.ort} · OG {apt.stockwerk}</div></div>
-              <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
+              <div><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18"}}>{apt.id} — {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort} · OG {apt.stockwerk}</div></div>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
+                <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
+              </div>
             </div>
             <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["vertrag","Vertrag"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
-            {tab==="info"&&<div className="igrid">{[["Typ",<TypeBadge type={apt.type}/>],["Zimmer",apt.zimmer+" Zi."],["Miete",<strong style={{color:"#34d399"}}>{chf(apt.miete)}</strong>],["Kaution",chf(apt.kaution)],["Kautionstyp",apt.kautionType||apt.kaution_type],["Mietbeginn",apt.mietbeginn],["Mietende",apt.mietende||"—"],["Verwaltung",apt.verwaltung],["Eigentümer",apt.eigentuemer]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>}
-            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#34d399"}}>{chf(r.miete)}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}</tbody></table>)}
+            {tab==="info"&&<div className="igrid">{[["Typ",<TypeBadge type={apt.type}/>],["Zimmer",apt.zimmer+" Zi."],["Miete",<strong style={{color:"#5a6e4a"}}>{chf(apt.miete)}</strong>],["Kaution",chf(apt.kaution)],["Kautionstyp",apt.kautionType||apt.kaution_type],["Mietbeginn",apt.mietbeginn],["Mietende",apt.mietende||"—"],["Verwaltung",apt.verwaltung],["Eigentümer",apt.eigentuemer]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>}
+            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}</tbody></table>)}
             {tab==="vertrag"&&<div>{apt.vertrag&&<a href={apt.vertrag} target="_blank" rel="noreferrer" className="btn btn-p" style={{display:"inline-flex"}}>📄 Vertrag öffnen</a>}</div>}
           </div>
-        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#5e6273"}}>← Wohnung wählen</span></div>}
+        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
       </div>
+
+      {adding&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAdding(false)}><div className="modal" style={{width:620}}>
+        <div className="mt">+ Neue Wohnung erfassen</div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">ID *</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. A9"/></div>
+          <div className="fg"><label className="fl">Typ *</label><select className="fi" value={newForm.type||"WG"} onChange={NF("type")}><option value="WG">WG</option><option value="Airbnb">Airbnb</option></select></div>
+        </div>
+        <div className="fg"><label className="fl">Adresse *</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")} placeholder="Strasse 12"/></div>
+        <div className="frow">
+          <div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div>
+          <div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div>
+        </div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Stockwerk</label><input className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")} placeholder="EG, 1, 2…"/></div>
+          <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={newForm.zimmer||""} onChange={NF("zimmer")} placeholder="z.B. 3.5"/></div>
+        </div>
+        {newForm.type==="WG"&&(
+          <div className="fg"><label className="fl">Anzahl WG-Units (vermietbare Zimmer) *</label><input className="fi" type="number" value={newForm.units||""} onChange={NF("units")} placeholder="z.B. 3"/><div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Es werden automatisch leere Zimmer angelegt (z.B. {newForm.id||"A9"}-1, {newForm.id||"A9"}-2 …)</div></div>
+        )}
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Mietbeginn</label><input className="fi" value={newForm.mietbeginn||""} onChange={NF("mietbeginn")} placeholder="DD.MM.YYYY"/></div>
+          <div className="fg"><label className="fl">Mietende</label><input className="fi" value={newForm.mietende||""} onChange={NF("mietende")} placeholder="DD.MM.YYYY oder leer"/></div>
+        </div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Miete (an Eigentümer) / Mt.</label><input className="fi" type="number" value={newForm.miete||""} onChange={NF("miete")}/></div>
+          <div className="fg"><label className="fl">Kaution</label><input className="fi" type="number" value={newForm.kaution||""} onChange={NF("kaution")}/></div>
+        </div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">—</option><option value="Evorest">Evorest</option><option value="Firstcaution">Firstcaution</option><option value="GoCaution">GoCaution</option><option value="Bankkaution">Bankkaution</option></select></div>
+          <div className="fg"><label className="fl">Referenzzins</label><input className="fi" value={newForm.refzins||""} onChange={NF("refzins")} placeholder="z.B. 1.25"/></div>
+        </div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermieter / Verwaltung</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Verwaltung</label><input className="fi" value={newForm.verwaltung||""} onChange={NF("verwaltung")}/></div>
+          <div className="fg"><label className="fl">Eigentümer</label><input className="fi" value={newForm.eigentuemer||""} onChange={NF("eigentuemer")}/></div>
+        </div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
+          <div className="fg"><label className="fl">Vertrags-Link</label><input className="fi" value={newForm.vertrag||""} onChange={NF("vertrag")} placeholder="https://…"/></div>
+        </div>
+
+        <div className="ma">
+          <button className="btn btn-g" onClick={()=>setAdding(false)}>Abbrechen</button>
+          <button className="btn btn-p" onClick={saveNew}>✓ Wohnung anlegen</button>
+        </div>
+      </div></div>}
+
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal">
         <div className="mt">Wohnung bearbeiten — {form.id}</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
@@ -540,7 +1640,7 @@ function Zimmer({rooms,tenants,apts}){
         <div key={apt.id} className="card">
           <div className="ct">{apt.id} — {apt.adresse}</div>
           <table><thead><tr><th>Zimmer</th><th>Miete</th><th>Balkon</th><th>Status</th><th>Mieter</th></tr></thead><tbody>
-            {rs.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#34d399"}}>{chf(r.miete)}</td><td>{r.balkon?"🌿":"—"}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}
+            {rs.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#5a7c5e"}}>{chf(r.miete)}</td><td>{r.balkon?"🌿":"—"}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}
           </tbody></table>
         </div>
       ))}
@@ -563,21 +1663,21 @@ function Mieter({tenants,rooms,apts,updateTenant}){
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
             {filtered.map(t=>{const on=sel===t.id;return(
-              <div key={t.id} onClick={()=>setSel(t.id)} style={{background:on?"#1a2540":"#1e2130",border:`1px solid ${on?"#4f8cff":"#2a2d3e"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={t.vorname} size={28}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:500,fontSize:12.5,color:on?"#4f8cff":"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.vorname} {t.nachname}</div>{t.type&&<TypeBadge type={t.type}/>}</div></div>
+              <div key={t.id} onClick={()=>setSel(t.id)} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={t.vorname} size={28}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:500,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.vorname} {t.nachname}</div>{t.type&&<TypeBadge type={t.type}/>}</div></div>
               </div>);})}
           </div>
         </div>
         {tenant?(
           <div className="card" style={{margin:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-              <div style={{display:"flex",alignItems:"center",gap:11}}><Av name={tenant.vorname} size={40}/><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#fff"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#5e6273",marginTop:2}}>{tenant.id}</div></div></div>
+              <div style={{display:"flex",alignItems:"center",gap:11}}><Av name={tenant.vorname} size={40}/><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{tenant.id}</div></div></div>
               <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant});setEditing(true);}}>✏ Bearbeiten</button>
             </div>
-            {room&&<div style={{background:"#1a1d27",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12}}>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>}
+            {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12}}>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>}
             <div className="igrid">{[["E-Mail",tenant.email||"—"],["Telefon",tenant.phone||"—"],["Geburt",tenant.geburt||"—"],["Nationalität",tenant.nat||"—"],["Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz} ${tenant.ort}`:"—"],["Einzug",tenant.einzug||"—"],["Auszug",tenant.auszug||"—"]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
           </div>
-        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#5e6273"}}>← Mieter wählen</span></div>}
+        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal">
         <div className="mt">Mieter bearbeiten</div>
@@ -586,7 +1686,7 @@ function Mieter({tenants,rooms,apts,updateTenant}){
         <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")}/></div><div className="fg"><label className="fl">Nationalität</label><input className="fi" value={form.nat||""} onChange={F("nat")}/></div></div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={form.einzug||""} onChange={F("einzug")}/></div><div className="fg"><label className="fl">Auszug</label><input className="fi" value={form.auszug||""} onChange={F("auszug")}/></div></div>
-        <div style={{display:"flex",gap:16,margin:"10px 0",fontSize:12.5,flexWrap:"wrap"}}>{[["deposit","Kaution"],["schluessel","Schlüssel"],["furnished","Möbliert"],["betreibung","Betreibung"]].map(([k,l])=>(<label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form[k]} onChange={FB(k)}/> {l}</label>))}</div>
+        <div style={{display:"flex",gap:16,margin:"10px 0",fontSize:12.5,flexWrap:"wrap"}}>{[["deposit","Kaution"],["schluessel","Schlüssel"],["furnished","Möbliert"],["betreibung","Betreibungsauszug erhalten"]].map(([k,l])=>(<label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form[k]} onChange={FB(k)}/> {l}</label>))}</div>
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
       </div></div>}
     </div>
@@ -603,15 +1703,15 @@ function Finanzen({apts,rooms}){
     <div>
       <div className="pt">Finanzen</div>
       <div className="sg">
-        <div className="sc"><div className="sl">Ist-Miete</div><div className="sv" style={{fontSize:20,color:"#34d399"}}>{Math.round(soll/1000)}k</div><div className="sn">CHF/Mt.</div></div>
+        <div className="sc"><div className="sl">Ist-Miete</div><div className="sv" style={{fontSize:20,color:"#5a7c5e"}}>{Math.round(soll/1000)}k</div><div className="sn">CHF/Mt.</div></div>
         <div className="sc"><div className="sl">Potenzial</div><div className="sv" style={{fontSize:20}}>{Math.round(pot/1000)}k</div><div className="sn">CHF/Mt.</div></div>
-        <div className="sc"><div className="sl">Ausfall</div><div className="sv" style={{fontSize:20,color:"#fbbf24"}}>{chf(pot-soll)}</div></div>
+        <div className="sc"><div className="sl">Ausfall</div><div className="sv" style={{fontSize:20,color:"#c89653"}}>{chf(pot-soll)}</div></div>
         <div className="sc"><div className="sl">Auslastung</div><div className="sv" style={{fontSize:20}}>{pot?Math.round(soll/pot*100):0}%</div></div>
       </div>
       <div className="card">
         <div className="ct">Pro Wohnung</div>
         <table><thead><tr><th>WG</th><th>Adresse</th><th>Ist</th><th>Pot.</th><th>Auslastung</th></tr></thead><tbody>
-          {byApt.map(a=>{const p=a.pot?Math.round(a.soll/a.pot*100):0;return(<tr key={a.id}><td style={{fontWeight:700}}>{a.id}</td><td style={{fontSize:11.5,color:"#5e6273"}}>{a.adresse}</td><td style={{color:"#34d399"}}>{chf(a.soll)}</td><td style={{color:"#5e6273"}}>{chf(a.pot)}</td><td style={{minWidth:130}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1}}><Prog val={a.soll} max={a.pot}/></div><span style={{fontSize:10.5}}>{p}%</span></div></td></tr>);})}
+          {byApt.map(a=>{const p=a.pot?Math.round(a.soll/a.pot*100):0;return(<tr key={a.id}><td style={{fontWeight:700}}>{a.id}</td><td style={{fontSize:11.5,color:"#8a8478"}}>{a.adresse}</td><td style={{color:"#5a7c5e"}}>{chf(a.soll)}</td><td style={{color:"#8a8478"}}>{chf(a.pot)}</td><td style={{minWidth:130}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1}}><Prog val={a.soll} max={a.pot}/></div><span style={{fontSize:10.5}}>{p}%</span></div></td></tr>);})}
         </tbody></table>
       </div>
     </div>
@@ -641,8 +1741,6 @@ const PAGES=[
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
   {id:"mieter",icon:"👤",label:"Mieter"},
-  {id:"finanzen",icon:"💰",label:"Finanzen"},
-  {id:"fristen",icon:"📅",label:"Fristen"},
 ];
 
 function MainApp({user}) {
@@ -651,7 +1749,7 @@ function MainApp({user}) {
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
-  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,finanzen:Finanzen,fristen:Fristen}[page];
+  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung").length;
 
@@ -667,8 +1765,8 @@ function MainApp({user}) {
         <div className="nav">
           {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>setPage(p.id)}>
             <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
-            {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#1a2540",color:"#4f8cff",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
-            {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#2a1e08",color:"#fbbf24",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
+            {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
+            {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
           </button>))}
         </div>
         <div className="user-info">
