@@ -2747,11 +2747,98 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant,documents,uploadDocument,getDocumentUrl,deleteDocument}){
-  const [search,setSearch]=useState("");const [sel,setSel]=useState(null);const [editing,setEditing]=useState(false);const [form,setForm]=useState({});const [tab,setTab]=useState("info");
+function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument}){
+  const [search,setSearch]=useState("");
+  const [sel,setSel]=useState(null);
+  const [editing,setEditing]=useState(false);
+  const [form,setForm]=useState({});
+  const [tab,setTab]=useState("info");
+  const [adding,setAdding]=useState(false);
+  const [newForm,setNewForm]=useState({});
   const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase()));
   const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
+  function NF(k){return e=>setNewForm(p=>({...p,[k]:e.target.value}));}function NFB(k){return e=>setNewForm(p=>({...p,[k]:e.target.checked}));}
+  
+  // Find free rooms for assignment dropdown
+  const freeRooms = rooms.filter(r => !r.occupied);
+  
+  function nextTenantId(){
+    let n=1;
+    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    return `T${String(n).padStart(2,"0")}`;
+  }
+  
+  async function saveNew(){
+    if (!newForm.vorname || !newForm.nachname) {
+      alert("Bitte mindestens Vorname und Nachname angeben.");
+      return;
+    }
+    const id = newForm.id || nextTenantId();
+    if (tenants.find(t=>t.id===id)) {
+      alert(`Mieter-ID "${id}" existiert bereits.`);
+      return;
+    }
+    
+    // Calculate kaution if room selected
+    let kautionMonate = 0;
+    let kautionAufschlag = 0;
+    let kautionBetrag = 0;
+    if (newForm.kautionOpt) {
+      kautionMonate = newForm.kautionOpt==="3x"?3:newForm.kautionOpt==="2x"?2:newForm.kautionOpt==="1x"?1:0;
+      kautionAufschlag = newForm.kautionOpt==="0x"?150:newForm.kautionOpt==="1x"?100:newForm.kautionOpt==="2x"?50:0;
+      const room = rooms.find(r => r.id === newForm.roomId);
+      const bm = room?.miete || 0;
+      kautionBetrag = (bm + 25) * kautionMonate;
+    }
+    
+    const newTenant = {
+      id,
+      vorname: newForm.vorname || "",
+      nachname: newForm.nachname || "",
+      email: newForm.email || "",
+      phone: newForm.phone || "",
+      geburt: newForm.geburt || "",
+      nat: newForm.nat || "",
+      adresse: newForm.adresse || "",
+      plz: newForm.plz || "",
+      ort: newForm.ort || "",
+      beruf: newForm.beruf || "",
+      arbeitgeber: newForm.arbeitgeber || "",
+      einkommen: newForm.einkommen || "",
+      anstellung: newForm.anstellung || "",
+      einzug: newForm.einzug || "",
+      auszug: "",
+      aptId: newForm.roomId ? rooms.find(r=>r.id===newForm.roomId)?.aptId : null,
+      roomId: newForm.roomId || null,
+      kautionOpt: newForm.kautionOpt || "",
+      kautionMonate,
+      kautionAufschlag,
+      kautionBetrag,
+      kautionType: newForm.kautionType || "",
+      moebliert: !!newForm.moebliert,
+      rauchen: !!newForm.rauchen,
+      haustiere: !!newForm.haustiere,
+      noDebt: !!newForm.noDebt,
+      betreibung: !!newForm.betreibung,
+      schluesselNr: newForm.schluesselNr || "",
+      bemerkung: newForm.bemerkung || "",
+    };
+    
+    try {
+      await insertTenant(newTenant);
+      // If room was assigned, mark it as occupied
+      if (newForm.roomId) {
+        await updateRoom(newForm.roomId, {occupied:true, tenantId:id});
+      }
+      setAdding(false);
+      setNewForm({});
+      setSel(id);
+    } catch (err) {
+      alert("Mieter konnte nicht angelegt werden: " + (err.message||err));
+    }
+  }
+  
   async function save(){
     await updateTenant(form.id,{
       vorname:form.vorname,nachname:form.nachname,
@@ -2773,7 +2860,13 @@ function Mieter({tenants,rooms,apts,updateTenant,documents,uploadDocument,getDoc
   }
   return(
     <div>
-      <div className="pt">Mieter</div><div className="ps">{tenants.length} Personen</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+        <div>
+          <div className="pt">Mieter</div>
+          <div className="ps">{tenants.length} Personen</div>
+        </div>
+        <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -2873,6 +2966,47 @@ function Mieter({tenants,rooms,apts,updateTenant,documents,uploadDocument,getDoc
         <div className="fg"><textarea className="fi" rows={3} value={form.bemerkung||""} onChange={F("bemerkung")} placeholder="Interne Notizen..."/></div>
 
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
+      </div></div>}
+
+      {adding&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAdding(false)}><div className="modal" style={{width:640,maxHeight:"90vh",overflowY:"auto"}}>
+        <div className="mt">+ Neuer Mieter manuell anlegen</div>
+        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic",lineHeight:1.5}}>Für Direkt-Vermietungen ohne vorherige Bewerbung. Du kannst auch nur Pflichtfelder ausfüllen und den Rest später ergänzen.</div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
+        <div className="frow"><div className="fg"><label className="fl">ID</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. T18"/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Vorname *</label><input className="fi" value={newForm.vorname||""} onChange={NF("vorname")}/></div><div className="fg"><label className="fl">Nachname *</label><input className="fi" value={newForm.nachname||""} onChange={NF("nachname")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={newForm.email||""} onChange={NF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={newForm.phone||""} onChange={NF("phone")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={newForm.geburt||""} onChange={NF("geburt")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Nationalität</label><input className="fi" value={newForm.nat||""} onChange={NF("nat")}/></div></div>
+        <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")}/></div>
+        <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div></div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Einkommen</div>
+        <div className="frow"><div className="fg"><label className="fl">Beruf</label><input className="fi" value={newForm.beruf||""} onChange={NF("beruf")}/></div><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={newForm.arbeitgeber||""} onChange={NF("arbeitgeber")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={newForm.einkommen||""} onChange={NF("einkommen")}/></div><div className="fg"><label className="fl">Anstellung</label><select className="fi" value={newForm.anstellung||""} onChange={NF("anstellung")}><option value="">—</option><option>Festanstellung unbefristet</option><option>Festanstellung befristet</option><option>Selbstständig</option><option>Studium</option><option>Lehre / Praktikum</option><option>Andere</option></select></div></div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
+        <div className="fg">
+          <label className="fl">Zimmer zuteilen (optional)</label>
+          <select className="fi" value={newForm.roomId||""} onChange={NF("roomId")}>
+            <option value="">— Kein Zimmer (später zuweisen) —</option>
+            {freeRooms.length===0?<option disabled>Keine freien Zimmer verfügbar</option>:freeRooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} — {a?.adresse} ({chf(r.miete)}/Mt.)</option>;})}
+          </select>
+        </div>
+        <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Schlüssel-Nr.</label><input className="fi" value={newForm.schluesselNr||""} onChange={NF("schluesselNr")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={newForm.kautionOpt||""} onChange={NF("kautionOpt")}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Wohnen & Status</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
+          {[["moebliert","Möbliert"],["rauchen","Raucher"],["haustiere","Haustiere"],["noDebt","Keine Schulden (selbstdekl.)"],["betreibung","Betreibungsauszug erhalten"]].map(([k,l])=>(<label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!newForm[k]} onChange={NFB(k)}/> {l}</label>))}
+        </div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
+        <div className="fg"><textarea className="fi" rows={3} value={newForm.bemerkung||""} onChange={NF("bemerkung")} placeholder="Interne Notizen..."/></div>
+
+        <div className="ma">
+          <button className="btn btn-g" onClick={()=>{setAdding(false);setNewForm({});}}>Abbrechen</button>
+          <button className="btn btn-p" onClick={saveNew}>✓ Mieter anlegen</button>
+        </div>
       </div></div>}
     </div>
   );
