@@ -897,33 +897,72 @@
 
 <script>
 // ─── VERFÜGBARE ZIMMER ───────────────────────────────────────────────────
-// Diese Liste wird vom Vermieter aktualisiert je nach freien Zimmern
-// wgGroesse = Wohnungs-Zimmeranzahl total (z.B. 3-Zimmer-WG)
-const FREIE_ZIMMER = [
-  {id:"A5-3", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1090, balkon:true,  qm:null, etage:"EG",    wgGroesse:"3-Zimmer-WG"},
-  {id:"A6-2", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1490, balkon:true,  qm:null, etage:"EG",    wgGroesse:"4.5-Zimmer-WG"},
-  {id:"A7-2", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1190, balkon:true,  qm:null, etage:"2. OG", wgGroesse:"3-Zimmer-WG"},
-  {id:"A7-3", adresse:"Engimattstrasse 31, 8002 Zürich", miete:1290, balkon:true,  qm:null, etage:"2. OG", wgGroesse:"3-Zimmer-WG"},
-  {id:"A8-2", adresse:"Engimattstrasse 33, 8002 Zürich", miete:1490, balkon:true,  qm:null, etage:"1. OG", wgGroesse:"4.5-Zimmer-WG"},
-];
+// Diese Liste wird LIVE aus Supabase geladen (nur freie Zimmer in WG-Wohnungen)
+let FREIE_ZIMMER = [];
 
-// Render rooms
-function renderRooms() {
+const SB_URL_FORM = 'https://aohcqrxpsqronlcwssrk.supabase.co';
+const SB_KEY_FORM = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvaGNxcnhwc3Fyb25sY3dzc3JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODM0MjEsImV4cCI6MjA5MzU1OTQyMX0.izqvV2CPiOyVXoCsFTq_k8KRzBgfomp8LXwwAx22XP4';
+const sbForm = window.supabase.createClient(SB_URL_FORM, SB_KEY_FORM);
+
+async function loadFreieZimmer() {
+  try {
+    // Get free rooms (occupied=false)
+    const {data: rooms, error: rErr} = await sbForm.from('rooms').select('*').eq('occupied', false);
+    if (rErr) throw rErr;
+    // Get apartments to enrich with address info
+    const {data: apts, error: aErr} = await sbForm.from('apartments').select('*').eq('type', 'WG');
+    if (aErr) throw aErr;
+    
+    const aptMap = {};
+    apts.forEach(a => { aptMap[a.id] = a; });
+    
+    // Combine
+    FREIE_ZIMMER = rooms
+      .filter(r => aptMap[r.apt_id]) // Only rooms in WG apartments
+      .map(r => {
+        const a = aptMap[r.apt_id];
+        return {
+          id: r.id,
+          adresse: `${a.adresse}, ${a.plz||""} ${a.ort||""}`.trim(),
+          miete: r.miete || 0,
+          balkon: !!r.balkon,
+          qm: r.groesse || null,
+          etage: a.stockwerk ? (a.stockwerk + ". OG") : "",
+          wgGroesse: a.zimmer ? `${a.zimmer}-Zimmer-WG` : "WG",
+        };
+      })
+      .sort((x,y) => x.id.localeCompare(y.id));
+  } catch (err) {
+    console.error("Fehler beim Laden der freien Zimmer:", err);
+    FREIE_ZIMMER = [];
+  }
+}
+
+// Render rooms (live aus DB)
+async function renderRooms() {
   const grid = document.getElementById('roomGrid');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px">⏳ Verfügbare Zimmer werden geladen...</div>';
+  
+  await loadFreieZimmer();
+  
   if (FREIE_ZIMMER.length === 0) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px">Aktuell sind keine Zimmer verfügbar</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px">Aktuell sind keine Zimmer verfügbar.<br><br>Du kannst dich trotzdem als Interessent registrieren und wir melden uns bei dir, sobald wieder etwas frei wird.</div>';
     return;
   }
+  
+  // Save current selection if any
+  const currentSel = document.querySelector('input[name="zimmerWunsch"]:checked')?.value;
+  
   grid.innerHTML = FREIE_ZIMMER.map(r => `
     <label class="room-card" data-room="${r.id}">
-      <input type="radio" name="zimmerWunsch" value="${r.id}" required>
+      <input type="radio" name="zimmerWunsch" value="${r.id}" required ${currentSel===r.id?'checked':''}>
       <div class="check-mark"></div>
       <div class="room-id">${r.id}</div>
-      <div class="room-addr">${r.adresse}<br>${r.etage}</div>
+      <div class="room-addr">${r.adresse}${r.etage?'<br>'+r.etage:''}</div>
       <div class="room-meta">
         <span class="meta-pill wg">${r.wgGroesse}</span>
         ${r.balkon ? '<span class="meta-pill balcony">Balkon</span>' : ''}
-        ${r.qm ? `<span class="meta-pill">${r.qm} m²</span>` : ''}
+        ${r.qm ? `<span class="meta-pill">${r.qm}</span>` : ''}
       </div>
       <div class="room-price">CHF ${r.miete.toLocaleString('de-CH')}.– / Mt.</div>
     </label>
@@ -939,8 +978,19 @@ function renderRooms() {
       updateProgress();
     });
   });
+  
+  // Restore visual selection
+  if (currentSel) {
+    grid.querySelectorAll('.room-card').forEach(c => {
+      c.classList.toggle('checked', c.querySelector('input').checked);
+    });
+  }
 }
+
 renderRooms();
+
+// Refresh free rooms every 60 seconds (in case admin adds new ones while form is open)
+setInterval(() => renderRooms(), 60000);
 
 
 function updateCheck(el, id) {

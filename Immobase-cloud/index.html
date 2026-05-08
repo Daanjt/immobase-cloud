@@ -280,11 +280,15 @@ function useSupabaseData() {
     const dbFields = {...fields};
     if(dbFields.kautionType !== undefined){dbFields.kaution_type=dbFields.kautionType;delete dbFields.kautionType;}
     await supabase.from("apartments").update(dbFields).eq("id", id);
+    setApts(p => p.map(a => a.id === id ? {...a, ...fields} : a));
   }
   async function insertApt(a, roomDetails) {
     const dbA = {...a};
     if(dbA.kautionType !== undefined){dbA.kaution_type=dbA.kautionType;delete dbA.kautionType;}
-    await supabase.from("apartments").insert([dbA]);
+    const {error: aptErr} = await supabase.from("apartments").insert([dbA]);
+    if (aptErr) { console.error(aptErr); throw aptErr; }
+    // Update local apartments state immediately
+    setApts(p => [...p, a]);
     // Auto-create rooms for WG type
     if (a.type === "WG" && a.units > 0) {
       const newRooms = [];
@@ -299,30 +303,46 @@ function useSupabaseData() {
           balkon: !!detail.balkon,
         });
       }
-      await supabase.from("rooms").insert(newRooms);
+      const {error: roomErr} = await supabase.from("rooms").insert(newRooms);
+      if (roomErr) { console.error(roomErr); throw roomErr; }
+      // Update local rooms state with camelCase keys (matching app convention)
+      setRooms(p => [...p, ...newRooms.map(r => ({
+        id: r.id, aptId: r.apt_id, occupied: r.occupied,
+        miete: r.miete, groesse: r.groesse, balkon: r.balkon,
+        tenantId: null,
+      }))]);
     }
   }
   async function deleteApt(id) {
     await supabase.from("rooms").delete().eq("apt_id", id);
     await supabase.from("apartments").delete().eq("id", id);
+    setApts(p => p.filter(a => a.id !== id));
+    setRooms(p => p.filter(r => r.aptId !== id));
   }
   async function updateTenant(id, fields) {
     const dbFields = {...fields};
     if(dbFields.kautionArt !== undefined){dbFields.kaution_art=dbFields.kautionArt;delete dbFields.kautionArt;}
     if(dbFields.schluesselNr !== undefined){dbFields.schluessel_nr=dbFields.schluesselNr;delete dbFields.schluesselNr;}
+    if(dbFields.aptId !== undefined){dbFields.apt_id=dbFields.aptId;delete dbFields.aptId;}
+    if(dbFields.roomId !== undefined){dbFields.room_id=dbFields.roomId;delete dbFields.roomId;}
     await supabase.from("tenants").update(dbFields).eq("id", id);
+    setTenants(p => p.map(t => t.id === id ? {...t, ...fields} : t));
   }
   async function insertTenant(t) {
     const dbT = {...t};
     if(dbT.kautionArt !== undefined){dbT.kaution_art=dbT.kautionArt;delete dbT.kautionArt;}
     if(dbT.schluesselNr !== undefined){dbT.schluessel_nr=dbT.schluesselNr;delete dbT.schluesselNr;}
+    if(dbT.aptId !== undefined){dbT.apt_id=dbT.aptId;delete dbT.aptId;}
+    if(dbT.roomId !== undefined){dbT.room_id=dbT.roomId;delete dbT.roomId;}
     await supabase.from("tenants").insert([dbT]);
+    setTenants(p => [...p, t]);
   }
   async function updateRoom(id, fields) {
     const dbFields = {...fields};
     if(dbFields.tenantId !== undefined){dbFields.tenant_id=dbFields.tenantId;delete dbFields.tenantId;}
     if(dbFields.aptId !== undefined){dbFields.apt_id=dbFields.aptId;delete dbFields.aptId;}
     await supabase.from("rooms").update(dbFields).eq("id", id);
+    setRooms(p => p.map(r => r.id === id ? {...r, ...fields} : r));
   }
   async function updateBewerber(id, fields) {
     const dbFields = {};
@@ -496,14 +516,14 @@ function fileIcon(mime, filename) {
 function DocumentsManager({entityType, entityId, documents, uploadDocument, getDocumentUrl, deleteDocument}){
   const [uploading, setUploading] = useState(false);
   const [selCategory, setSelCategory] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = React.useRef(null);
   const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
   const categories = entityType === "apartment" ? APT_CATEGORIES : TENANT_CATEGORIES;
   
-  async function handleFileSelect(e) {
-    const file = e.target.files[0];
+  async function uploadFile(file) {
     if (!file) return;
-    if (!selCategory) { alert("Bitte zuerst eine Kategorie wählen."); e.target.value = ""; return; }
+    if (!selCategory) { alert("Bitte zuerst eine Kategorie wählen."); return; }
     setUploading(true);
     try {
       await uploadDocument(entityType, entityId, selCategory, file);
@@ -513,7 +533,43 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
       console.error(err);
     } finally {
       setUploading(false);
-      e.target.value = "";
+    }
+  }
+  
+  async function handleFileSelect(e) {
+    const files = [...e.target.files];
+    if (files.length === 0) return;
+    if (!selCategory) { alert("Bitte zuerst eine Kategorie wählen."); e.target.value = ""; return; }
+    for (const file of files) {
+      await uploadFile(file);
+    }
+    e.target.value = "";
+  }
+  
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selCategory) return;
+    setDragOver(true);
+  }
+  
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }
+  
+  async function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (!selCategory) {
+      alert("Bitte zuerst eine Kategorie wählen.");
+      return;
+    }
+    const files = [...e.dataTransfer.files];
+    for (const file of files) {
+      await uploadFile(file);
     }
   }
   
@@ -545,19 +601,50 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
   
   return (
     <div>
-      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+      <div 
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          background: dragOver ? "#f5efe4" : "#fefcf7",
+          border: dragOver ? "2px dashed #1a1a1a" : "1px solid #e1d8c5",
+          borderRadius: 8,
+          padding: "14px 16px",
+          marginBottom: 14,
+          transition: "all .15s ease"
+        }}>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Neues Dokument hochladen</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <select className="fi" style={{flex:1,margin:0}} value={selCategory} onChange={e=>setSelCategory(e.target.value)}>
             <option value="">— Kategorie wählen —</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading||!selCategory} style={{display:"none"}}/>
+          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading||!selCategory} multiple style={{display:"none"}}/>
           <button className="btn btn-p btn-sm" disabled={uploading||!selCategory} onClick={()=>fileInputRef.current?.click()}>
             {uploading ? "⏳ Lädt…" : "📎 Datei wählen"}
           </button>
         </div>
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:6,fontStyle:"italic"}}>Max. 25 MB · PDF, Bilder, Word, Excel</div>
+        <div style={{
+          marginTop:10,
+          padding:"12px 14px",
+          background: dragOver ? "rgba(26,24,20,.06)" : "transparent",
+          border: dragOver ? "1px dashed #1a1a1a" : "1px dashed #c5b896",
+          borderRadius:6,
+          textAlign:"center",
+          fontSize:11.5,
+          color: dragOver ? "#1a1a1a" : "#8a8174",
+          fontStyle:"italic",
+          transition:"all .15s ease",
+          pointerEvents:"none"
+        }}>
+          {dragOver 
+            ? `🎯 Datei${" jetzt loslassen"}` 
+            : selCategory 
+              ? `↓ Oder Datei(en) hierher ziehen — Kategorie: ${selCategory}` 
+              : "Erst Kategorie wählen, dann Datei(en) per Drag & Drop ablegen"}
+        </div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:6,fontStyle:"italic",textAlign:"center"}}>Max. 25 MB pro Datei · PDF, Bilder, Word, Excel</div>
+      </div>
       </div>
       
       {docs.length === 0 ? (
