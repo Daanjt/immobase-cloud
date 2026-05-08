@@ -441,9 +441,16 @@ function useSupabaseData() {
   const [documents, setDocuments] = useState([]);
   
   async function loadDocuments() {
-    const {data, error} = await supabase.from("documents").select("*").order("uploaded_at", {ascending:false});
-    if (error) { console.error(error); return; }
-    setDocuments(data || []);
+    try {
+      const {data, error} = await supabase.from("documents").select("*").order("uploaded_at", {ascending:false});
+      if (error) {
+        console.warn("Documents-Tabelle noch nicht eingerichtet (SQL-Setup ausführen):", error.message);
+        return;
+      }
+      setDocuments(data || []);
+    } catch (e) {
+      console.warn("loadDocuments failed:", e);
+    }
   }
   
   async function uploadDocument(entityType, entityId, category, file) {
@@ -2812,7 +2819,34 @@ function App() {
   return <MainApp user={session.user}/>;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = {error: null, info: null}; }
+  static getDerivedStateFromError(error) { return {error}; }
+  componentDidCatch(error, info) { console.error("React error:", error, info); this.setState({info}); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{padding:"40px 32px",maxWidth:800,margin:"40px auto",fontFamily:"Manrope,sans-serif",background:"#fff",border:"1px solid #e1d8c5",borderRadius:8}}>
+          <h2 style={{fontWeight:600,fontSize:20,marginBottom:14,color:"#9b4a3e"}}>⚠️ Ein Fehler ist aufgetreten</h2>
+          <p style={{fontSize:13,color:"#4a4439",lineHeight:1.6,marginBottom:14}}>Die Anwendung konnte nicht geladen werden. Mögliche Ursachen:</p>
+          <ul style={{fontSize:13,color:"#4a4439",lineHeight:1.7,marginLeft:20,marginBottom:18}}>
+            <li>Supabase-Setup unvollständig (z.B. Documents-Tabelle fehlt)</li>
+            <li>Browser-Cache veraltet → mit Strg+F5 neu laden</li>
+            <li>Datenbankspalten passen nicht — schick uns den Fehler</li>
+          </ul>
+          <details style={{marginBottom:14}}>
+            <summary style={{cursor:"pointer",fontWeight:600,fontSize:13,color:"#1a1814"}}>Technische Details (zum Kopieren)</summary>
+            <pre style={{marginTop:10,padding:12,background:"#fafaf7",borderRadius:6,fontSize:11,whiteSpace:"pre-wrap",overflow:"auto"}}>{String(this.state.error)}{"\n\n"}{this.state.info?.componentStack||""}</pre>
+          </details>
+          <button onClick={() => location.reload()} style={{padding:"10px 20px",background:"#1a1814",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:500}}>↻ Seite neu laden</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/></ErrorBoundary>);
 </script>
 </body>
 </html>
