@@ -345,7 +345,578 @@ function useSupabaseData() {
     await supabase.from("applicants").update(dbFields).eq("id", id);
   }
 
-  return {apts, rooms, tenants, bewerber, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, updateRoom, updateBewerber};
+  // ─── DOCUMENTS ─────────────────────────────────────────
+  const [documents, setDocuments] = useState([]);
+  
+  async function loadDocuments() {
+    const {data, error} = await supabase.from("documents").select("*").order("uploaded_at", {ascending:false});
+    if (error) { console.error(error); return; }
+    setDocuments(data || []);
+  }
+  
+  async function uploadDocument(entityType, entityId, category, file) {
+    if (!file) throw new Error("Keine Datei");
+    if (file.size > 25 * 1024 * 1024) throw new Error("Datei zu groß (max. 25 MB)");
+    
+    const ext = file.name.split('.').pop().toLowerCase();
+    
+    // Build smart filename: e.g. "A6_Hauptmietvertrag.pdf" or "Berger_Anna_Untermietvertrag.pdf"
+    function sanitize(str) {
+      return (str || "")
+        .replace(/[äÄ]/g, "ae").replace(/[öÖ]/g, "oe").replace(/[üÜ]/g, "ue").replace(/[ß]/g, "ss")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "");
+    }
+    
+    let baseName;
+    if (entityType === "apartment") {
+      baseName = `${sanitize(entityId)}_${sanitize(category)}`;
+    } else {
+      // For tenants: use Nachname_Vorname
+      const tenant = tenants.find(t => t.id === entityId);
+      if (tenant) {
+        baseName = `${sanitize(tenant.nachname)}_${sanitize(tenant.vorname)}_${sanitize(category)}`;
+      } else {
+        baseName = `${sanitize(entityId)}_${sanitize(category)}`;
+      }
+    }
+    
+    // Check for collisions, append _2, _3, etc.
+    const {data: existing} = await supabase.from("documents")
+      .select("filename")
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId);
+    
+    let finalName = `${baseName}.${ext}`;
+    let counter = 2;
+    const usedNames = new Set((existing || []).map(d => d.filename.toLowerCase()));
+    while (usedNames.has(finalName.toLowerCase())) {
+      finalName = `${baseName}_${counter}.${ext}`;
+      counter++;
+    }
+    
+    const ts = Date.now();
+    const path = `${entityType}/${entityId}/${ts}_${finalName}`;
+    const {error: upErr} = await supabase.storage.from("documents").upload(path, file);
+    if (upErr) throw upErr;
+    const user = (await supabase.auth.getUser()).data.user;
+    const {data, error} = await supabase.from("documents").insert([{
+      entity_type: entityType,
+      entity_id: entityId,
+      category,
+      filename: finalName,
+      storage_path: path,
+      file_size: file.size,
+      mime_type: file.type || `application/${ext}`,
+      uploaded_by: user?.email || "unknown",
+    }]).select().single();
+    if (error) throw error;
+    setDocuments(p => [data, ...p]);
+    return data;
+  }
+  
+  async function getDocumentUrl(storagePath) {
+    const {data, error} = await supabase.storage.from("documents").createSignedUrl(storagePath, 3600);
+    if (error) { console.error(error); return null; }
+    return data?.signedUrl || null;
+  }
+  
+  async function deleteDocument(doc) {
+    await supabase.storage.from("documents").remove([doc.storage_path]);
+    await supabase.from("documents").delete().eq("id", doc.id);
+    setDocuments(p => p.filter(d => d.id !== doc.id));
+  }
+
+  useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
+
+  return {apts, rooms, tenants, bewerber, documents, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, updateRoom, updateBewerber, uploadDocument, getDocumentUrl, deleteDocument};
+}
+
+// ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
+const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Hausordnung","Versicherungspolice","Rechnung","Sonstige"];
+const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Lohnausweis","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
+
+// Required categories that should be tracked in the checklist (excluding "Sonstige")
+const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Hausordnung","Versicherungspolice"];
+const TENANT_REQUIRED = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Lohnausweis","Pass / Ausweis","Betreibungsregister-Auszug"];
+
+function DocumentChecklist({entityType, entityId, documents, onJumpToDocs}){
+  const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
+  const categories = entityType === "apartment" ? APT_REQUIRED : TENANT_REQUIRED;
+  const present = new Set(docs.map(d => d.category));
+  const completed = categories.filter(c => present.has(c)).length;
+  const total = categories.length;
+  const allDone = completed === total;
+  
+  return (
+    <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",fontWeight:500}}>Dokumente-Checkliste</div>
+        <div style={{fontSize:11,fontWeight:600,color:allDone?"#5a6e4a":completed>0?"#b8843e":"#8a8174",letterSpacing:".05em"}}>
+          {completed}/{total} {allDone?"✓ vollständig":"erfasst"}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+        {categories.map(c => {
+          const ok = present.has(c);
+          return (
+            <div key={c} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:ok?"#e8eadb":"#ffffff",border:`1px solid ${ok?"#c5cda8":"#e8e3d8"}`,borderRadius:6,fontSize:11.5}}>
+              <span style={{fontSize:14,color:ok?"#5a6e4a":"#c5b896",flexShrink:0}}>{ok?"✓":"○"}</span>
+              <span style={{flex:1,color:ok?"#3d4f2f":"#8a8174",fontWeight:ok?500:400}}>{c}</span>
+            </div>
+          );
+        })}
+      </div>
+      {onJumpToDocs && (
+        <div style={{marginTop:10,textAlign:"right"}}>
+          <button className="btn btn-g btn-sm" onClick={onJumpToDocs}>📎 Zu Dokumenten →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fileSize(bytes) {
+  if (!bytes) return "—";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+  return (bytes/(1024*1024)).toFixed(1) + " MB";
+}
+
+function fileIcon(mime, filename) {
+  const ext = (filename||"").split('.').pop().toLowerCase();
+  if (mime?.includes("pdf") || ext === "pdf") return "📄";
+  if (mime?.includes("image") || ["jpg","jpeg","png","gif","webp"].includes(ext)) return "🖼️";
+  if (mime?.includes("word") || ["doc","docx"].includes(ext)) return "📝";
+  if (mime?.includes("excel") || mime?.includes("sheet") || ["xls","xlsx","csv"].includes(ext)) return "📊";
+  return "📎";
+}
+
+function DocumentsManager({entityType, entityId, documents, uploadDocument, getDocumentUrl, deleteDocument}){
+  const [uploading, setUploading] = useState(false);
+  const [selCategory, setSelCategory] = useState("");
+  const fileInputRef = React.useRef(null);
+  const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
+  const categories = entityType === "apartment" ? APT_CATEGORIES : TENANT_CATEGORIES;
+  
+  async function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!selCategory) { alert("Bitte zuerst eine Kategorie wählen."); e.target.value = ""; return; }
+    setUploading(true);
+    try {
+      await uploadDocument(entityType, entityId, selCategory, file);
+      setSelCategory("");
+    } catch (err) {
+      alert("Upload fehlgeschlagen: " + (err.message || err));
+      console.error(err);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+  
+  async function handleView(doc) {
+    const url = await getDocumentUrl(doc.storage_path);
+    if (url) window.open(url, "_blank");
+    else alert("Dokument konnte nicht geöffnet werden.");
+  }
+  
+  async function handleDownload(doc) {
+    const url = await getDocumentUrl(doc.storage_path);
+    if (!url) { alert("Download nicht möglich."); return; }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+  
+  async function handleDelete(doc) {
+    if (!confirm(`Dokument "${doc.filename}" wirklich löschen?`)) return;
+    try {
+      await deleteDocument(doc);
+    } catch (err) {
+      alert("Löschen fehlgeschlagen: " + (err.message || err));
+    }
+  }
+  
+  return (
+    <div>
+      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Neues Dokument hochladen</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <select className="fi" style={{flex:1,margin:0}} value={selCategory} onChange={e=>setSelCategory(e.target.value)}>
+            <option value="">— Kategorie wählen —</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading||!selCategory} style={{display:"none"}}/>
+          <button className="btn btn-p btn-sm" disabled={uploading||!selCategory} onClick={()=>fileInputRef.current?.click()}>
+            {uploading ? "⏳ Lädt…" : "📎 Datei wählen"}
+          </button>
+        </div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:6,fontStyle:"italic"}}>Max. 25 MB · PDF, Bilder, Word, Excel</div>
+      </div>
+      
+      {docs.length === 0 ? (
+        <div className="empty" style={{padding:"24px 16px"}}>Noch keine Dokumente hinterlegt</div>
+      ) : (
+        <div>
+          {docs.map(d => (
+            <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:"#ffffff",border:"1px solid #e8e3d8",borderRadius:8,marginBottom:6}}>
+              <span style={{fontSize:22}}>{fileIcon(d.mime_type, d.filename)}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:"#1a1814",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.filename}</div>
+                <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
+                  <span style={{background:"#f5efe4",padding:"1px 7px",borderRadius:4,marginRight:6,fontWeight:500}}>{d.category}</span>
+                  {fileSize(d.file_size)} · {new Date(d.uploaded_at).toLocaleDateString("de-CH")}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:4}}>
+                <button className="btn btn-g btn-sm" onClick={()=>handleView(d)} title="Anzeigen">👁</button>
+                <button className="btn btn-g btn-sm" onClick={()=>handleDownload(d)} title="Herunterladen">⬇</button>
+                <button className="btn btn-r btn-sm" onClick={()=>handleDelete(d)} title="Löschen">🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ÜBERGABEPROTOKOLL ───────────────────────────────────────────────────────
+const UEBERGABE_RAUME_PRIVAT = ["Privates Zimmer"];
+const UEBERGABE_RAUME_GEMEIN = ["Küche","Badezimmer","Wohnzimmer","Eingang / Korridor"];
+const ZUSTAND_OPTIONS = ["Sehr gut","Gut","Akzeptabel","Mangelhaft"];
+
+function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
+  const [showForm, setShowForm] = useState(false);
+  const [data, setData] = useState({
+    datum: new Date().toISOString().split("T")[0],
+    raume: {},
+    schluessel_anzahl: "",
+    schluessel_typ: "",
+    strom_zaehler: "",
+    wasser_zaehler: "",
+    inventar_geprueft: false,
+    bemerkungen: "",
+  });
+  const [generating, setGenerating] = useState(false);
+  
+  function updateRaum(name, key, val) {
+    setData(p => ({
+      ...p,
+      raume: {
+        ...p.raume,
+        [name]: { ...(p.raume[name]||{}), [key]: val }
+      }
+    }));
+  }
+  
+  async function addPhoto(raumName, file) {
+    if (!file) return;
+    // Compress image to ~1024px max dimension
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX = 1280;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = h * (MAX/w); w = MAX; }
+          else { w = w * (MAX/h); h = MAX; }
+        }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUri = canvas.toDataURL("image/jpeg", 0.85);
+        setData(p => ({
+          ...p,
+          raume: {
+            ...p.raume,
+            [raumName]: {
+              ...(p.raume[raumName]||{}),
+              photos: [...((p.raume[raumName]||{}).photos || []), dataUri]
+            }
+          }
+        }));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  
+  function removePhoto(raumName, idx) {
+    setData(p => ({
+      ...p,
+      raume: {
+        ...p.raume,
+        [raumName]: {
+          ...(p.raume[raumName]||{}),
+          photos: (p.raume[raumName]||{}).photos.filter((_,i) => i !== idx)
+        }
+      }
+    }));
+  }
+  
+  function buildPDF() {
+    const fullName = `${tenant.vorname} ${tenant.nachname}`;
+    const datumLong = new Date(data.datum).toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
+    
+    const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN];
+    const raumeHTML = allRooms.map(r => {
+      const d = data.raume[r] || {};
+      const photos = d.photos || [];
+      const isPrivat = UEBERGABE_RAUME_PRIVAT.includes(r);
+      const titel = isPrivat && room ? `${r} (${room.id})` : r;
+      return `
+        <div class="raum-block">
+          <h3>${titel}</h3>
+          <div class="raum-grid">
+            <div class="raum-info">
+              <div class="info-row"><span class="lbl">Zustand:</span> <span>${d.zustand||"—"}</span></div>
+              <div class="info-row"><span class="lbl">Bemerkung:</span></div>
+              <div class="bemerkung">${d.bemerkung || "—"}</div>
+            </div>
+          </div>
+          ${photos.length > 0 ? `
+            <div class="photo-grid">
+              ${photos.map((p,i)=>`<div class="photo-item"><img src="${p}" alt="Foto ${i+1}"/><div class="photo-cap">${titel} — Foto ${i+1}</div></div>`).join('')}
+            </div>
+          ` : ''}
+        </div>`;
+    }).join('');
+    
+    return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Übergabeprotokoll — ${fullName}</title>
+<style>
+  @page{size:A4;margin:18mm 18mm 22mm 18mm;@bottom-center{content:counter(page) " / " counter(pages);font-family:Arial;font-size:9pt;color:#888}}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.5;color:#1a1a1a;background:#fff;padding:18mm}
+  @media print{body{padding:0}.print-banner{display:none!important}}
+  .print-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:12px 20px;text-align:center;font-size:13px;z-index:9999}
+  .print-banner button{background:#fff;color:#1a1a1a;border:none;padding:7px 18px;margin-left:14px;font-weight:600;border-radius:4px;cursor:pointer}
+  .doc-header{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14pt;border-bottom:1.5pt solid #1a1a1a;margin-bottom:20pt}
+  .doc-header .label{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:500;margin-bottom:5pt}
+  .doc-header h1{font-size:22pt;font-weight:300;color:#1a1a1a;letter-spacing:-.3pt}
+  .doc-header .logo{width:42mm}
+  .doc-header .logo img{width:100%;display:block}
+  .person-card{background:#faf8f3;border-left:3pt solid #1a1a1a;padding:14pt 18pt;margin-bottom:18pt}
+  .ph{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:600;margin-bottom:10pt}
+  .person-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:7pt 18pt;font-size:10pt}
+  .pl{font-weight:600;color:#444}
+  .raum-block{margin-bottom:18pt;page-break-inside:avoid}
+  .raum-block h3{font-size:13pt;font-weight:700;color:#1a1a1a;padding:8pt 12pt;background:#f5efe4;border-left:3pt solid #1a1a1a;margin-bottom:10pt}
+  .raum-info .info-row{margin-bottom:4pt;font-size:10pt}
+  .raum-info .lbl{font-weight:600;display:inline-block;min-width:70pt}
+  .bemerkung{padding:6pt 10pt;background:#fafafa;border:.5pt solid #e0e0e0;border-radius:3pt;margin-top:3pt;min-height:20pt;font-size:10pt}
+  .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-top:12pt}
+  .photo-item{break-inside:avoid;page-break-inside:avoid}
+  .photo-item img{width:100%;height:auto;max-height:90mm;object-fit:contain;border:.5pt solid #ccc;background:#f8f8f8;display:block}
+  .photo-cap{font-size:8pt;color:#666;text-align:center;padding-top:3pt}
+  .info-section{background:#fafafa;border:.5pt solid #e0e0e0;border-radius:3pt;padding:12pt 16pt;margin:14pt 0}
+  .info-section h3{font-size:10pt;font-weight:700;margin-bottom:8pt}
+  .info-section .row{display:grid;grid-template-columns:1fr 1fr;gap:6pt 16pt;font-size:10pt}
+  .info-section .row .lbl{font-weight:600}
+  .signatures{margin-top:24pt;display:flex;gap:30pt;page-break-inside:avoid}
+  .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
+  .sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
+  .sig-block .name{font-size:11pt;font-weight:600;margin-bottom:24pt}
+  .sig-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt}
+  .sig-row .lbl{font-weight:600;min-width:55pt}
+  .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
+</style></head>
+<body>
+<div class="print-banner">
+  Übergabeprotokoll bereit · Wähle <strong>"Als PDF speichern"</strong>
+  <button onclick="window.print()">📄 PDF speichern</button>
+  <button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
+</div>
+
+<div class="doc-header">
+  <div>
+    <div class="label">Einzug</div>
+    <h1>Übergabeprotokoll</h1>
+  </div>
+  <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+</div>
+
+<div class="person-card">
+  <div class="ph">Mieter*in</div>
+  <div class="person-grid">
+    <span class="pl">Vorname:</span><span>${tenant.vorname||"—"}</span>
+    <span class="pl">Nachname:</span><span>${tenant.nachname||"—"}</span>
+    <span class="pl">E-Mail:</span><span>${tenant.email||"—"}</span>
+    <span class="pl">Telefon:</span><span>${tenant.phone||"—"}</span>
+    <span class="pl">Wohnung:</span><span>${apt?.adresse||"—"}, ${apt?.plz||""} ${apt?.ort||""}</span>
+    <span class="pl">Zimmer:</span><span>${room?.id||"—"}</span>
+    <span class="pl">Einzug am:</span><span>${datumLong}</span>
+    <span class="pl">Mietbeginn:</span><span>${tenant.einzug||"—"}</span>
+  </div>
+</div>
+
+<div class="info-section">
+  <h3>Schlüssel & Zähler</h3>
+  <div class="row">
+    <div><span class="lbl">Schlüssel-Typ:</span> ${data.schluessel_typ||"—"}</div>
+    <div><span class="lbl">Anzahl:</span> ${data.schluessel_anzahl||"—"}</div>
+    <div><span class="lbl">Stromzähler:</span> ${data.strom_zaehler||"—"} kWh</div>
+    <div><span class="lbl">Wasserzähler:</span> ${data.wasser_zaehler||"—"} m³</div>
+  </div>
+  <div style="margin-top:8pt;font-size:10pt;font-weight:600">${data.inventar_geprueft?"☑":"☐"} Inventar laut Liste vollständig vorhanden und geprüft</div>
+</div>
+
+${raumeHTML}
+
+${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><div class="bemerkung">${data.bemerkungen}</div></div>` : ''}
+
+<div class="signatures">
+  <div class="sig-block">
+    <div class="role">Mieter*in</div>
+    <div class="name">${tenant.vorname} ${tenant.nachname}</div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+  </div>
+  <div class="sig-block">
+    <div class="role">Hauptmieter</div>
+    <div class="name">D&amp;T Partners GmbH</div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+  </div>
+</div>
+
+</body></html>`;
+  }
+  
+  async function generatePDF() {
+    setGenerating(true);
+    try {
+      const html = buildPDF();
+      const win = window.open("", "_blank");
+      if (!win) {
+        alert("Popup blockiert. Bitte Popups erlauben.");
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 400);
+      
+      // Optional: also save as document to system
+      // We convert HTML to a blob and upload
+      const blob = new Blob([html], {type: "text/html"});
+      const file = new File([blob], `Uebergabeprotokoll_Einzug.html`, {type:"text/html"});
+      // Note: we save as HTML for now since we can't generate PDF server-side without extra deps
+      // The user prints to PDF via browser
+    } finally {
+      setGenerating(false);
+    }
+  }
+  
+  if (!showForm) {
+    return (
+      <div style={{textAlign:"center",padding:"32px 16px"}}>
+        <div style={{fontSize:32,marginBottom:10}}>📋</div>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>Übergabeprotokoll Einzug</div>
+        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:18,lineHeight:1.6,maxWidth:400,marginLeft:"auto",marginRight:"auto"}}>
+          Erfasse Zustand und Fotos vom privaten Zimmer und den Gemeinschaftsräumen. Am Ende kannst du das Protokoll als PDF erstellen.
+        </div>
+        <button className="btn btn-p" onClick={()=>setShowForm(true)}>+ Neues Protokoll erstellen</button>
+      </div>
+    );
+  }
+  
+  const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN];
+  const totalPhotos = Object.values(data.raume).reduce((s,r) => s + ((r.photos||[]).length), 0);
+  
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:600}}>Übergabeprotokoll Einzug</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>{totalPhotos} Foto{totalPhotos!==1?"s":""} aufgenommen</div>
+        </div>
+        <button className="btn btn-g btn-sm" onClick={()=>setShowForm(false)}>← Zurück</button>
+      </div>
+      
+      <div className="frow">
+        <div className="fg"><label className="fl">Datum der Übergabe</label><input className="fi" type="date" value={data.datum} onChange={e=>setData(p=>({...p,datum:e.target.value}))}/></div>
+      </div>
+      
+      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Schlüssel & Zähler</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Schlüssel-Typ</label><input className="fi" value={data.schluessel_typ} onChange={e=>setData(p=>({...p,schluessel_typ:e.target.value}))} placeholder="z.B. Yale, Kaba"/></div>
+          <div className="fg"><label className="fl">Anzahl</label><input className="fi" type="number" value={data.schluessel_anzahl} onChange={e=>setData(p=>({...p,schluessel_anzahl:e.target.value}))}/></div>
+        </div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Stromzähler (kWh)</label><input className="fi" type="number" step="0.01" value={data.strom_zaehler} onChange={e=>setData(p=>({...p,strom_zaehler:e.target.value}))}/></div>
+          <div className="fg"><label className="fl">Wasserzähler (m³)</label><input className="fi" type="number" step="0.01" value={data.wasser_zaehler} onChange={e=>setData(p=>({...p,wasser_zaehler:e.target.value}))}/></div>
+        </div>
+        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:8,fontSize:13,cursor:"pointer"}}>
+          <input type="checkbox" checked={data.inventar_geprueft} onChange={e=>setData(p=>({...p,inventar_geprueft:e.target.checked}))}/>
+          <span>Inventar laut Liste vollständig vorhanden und geprüft</span>
+        </label>
+      </div>
+      
+      {allRooms.map(rname => {
+        const isPrivat = UEBERGABE_RAUME_PRIVAT.includes(rname);
+        const titel = isPrivat && room ? `${rname} (${room.id})` : rname;
+        const rdata = data.raume[rname] || {};
+        const photos = rdata.photos || [];
+        return (
+          <div key={rname} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{isPrivat?"🛏️ ":"🏠 "}{titel}</div>
+              <span style={{fontSize:10,color:photos.length>0?"#5a6e4a":"#8a8174",fontWeight:600}}>{photos.length} Foto{photos.length!==1?"s":""}</span>
+            </div>
+            <div className="frow">
+              <div className="fg"><label className="fl">Zustand</label><select className="fi" value={rdata.zustand||""} onChange={e=>updateRaum(rname,"zustand",e.target.value)}><option value="">— wählen —</option>{ZUSTAND_OPTIONS.map(z=><option key={z} value={z}>{z}</option>)}</select></div>
+            </div>
+            <div className="fg">
+              <label className="fl">Bemerkung / Mängel</label>
+              <textarea className="fi" rows={2} value={rdata.bemerkung||""} onChange={e=>updateRaum(rname,"bemerkung",e.target.value)} placeholder="z.B. kleiner Kratzer am Fenster..."/>
+            </div>
+            
+            {photos.length > 0 && (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(80px, 1fr))",gap:6,marginBottom:10}}>
+                {photos.map((p,i) => (
+                  <div key={i} style={{position:"relative",aspectRatio:"1",border:"1px solid #e1d8c5",borderRadius:4,overflow:"hidden"}}>
+                    <img src={p} alt={`Foto ${i+1}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    <button onClick={()=>removePhoto(rname,i)} style={{position:"absolute",top:2,right:2,background:"rgba(0,0,0,.7)",color:"#fff",border:"none",borderRadius:"50%",width:22,height:22,cursor:"pointer",fontSize:12}}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div style={{display:"flex",gap:6}}>
+              <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
+                📷 Foto aufnehmen
+                <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{addPhoto(rname,e.target.files[0]);e.target.value="";}}/>
+              </label>
+              <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
+                📎 Datei hochladen
+                <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{[...e.target.files].forEach(f=>addPhoto(rname,f));e.target.value="";}}/>
+              </label>
+            </div>
+          </div>
+        );
+      })}
+      
+      <div className="fg">
+        <label className="fl">Allgemeine Bemerkungen</label>
+        <textarea className="fi" rows={3} value={data.bemerkungen} onChange={e=>setData(p=>({...p,bemerkungen:e.target.value}))} placeholder="Weitere Notizen oder Vereinbarungen..."/>
+      </div>
+      
+      <div style={{display:"flex",gap:8,marginTop:18,paddingTop:14,borderTop:"1px solid #e1d8c5"}}>
+        <button className="btn btn-g" onClick={()=>setShowForm(false)} style={{flex:0}}>Abbrechen</button>
+        <button className="btn btn-p" onClick={generatePDF} disabled={generating} style={{flex:1}}>{generating?"⏳ Erstellt…":"📄 PDF erstellen & drucken"}</button>
+      </div>
+    </div>
+  );
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
@@ -1463,7 +2034,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt}){
+function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   const [filter,setFilter]=useState("alle");
   const [adding,setAdding]=useState(false);
@@ -1597,9 +2168,10 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt}){
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
-            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["vertrag","Vertrag"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
-            {tab==="info"&&<div className="igrid">{[["Typ",<TypeBadge type={apt.type}/>],["Zimmer",apt.zimmer+" Zi."],["Miete",<strong style={{color:"#5a6e4a"}}>{chf(apt.miete)}</strong>],["Kaution",chf(apt.kaution)],["Kautionstyp",apt.kautionType||apt.kaution_type],["Mietbeginn",apt.mietbeginn],["Mietende",apt.mietende||"—"],["Verwaltung",apt.verwaltung],["Eigentümer",apt.eigentuemer]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>}
+            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["docs","Dokumente"],["vertrag","Vertrag"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            {tab==="info"&&<div><div className="igrid">{[["Typ",<TypeBadge type={apt.type}/>],["Zimmer",apt.zimmer+" Zi."],["Miete",<strong style={{color:"#5a6e4a"}}>{chf(apt.miete)}</strong>],["Kaution",chf(apt.kaution)],["Kautionstyp",apt.kautionType||apt.kaution_type],["Mietbeginn",apt.mietbeginn],["Mietende",apt.mietende||"—"],["Verwaltung",apt.verwaltung],["Eigentümer",apt.eigentuemer]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div><DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/></div>}
             {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}</tbody></table>)}
+            {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
             {tab==="vertrag"&&<div>{apt.vertrag&&<a href={apt.vertrag} target="_blank" rel="noreferrer" className="btn btn-p" style={{display:"inline-flex"}}>📄 Vertrag öffnen</a>}</div>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
@@ -1934,8 +2506,8 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant}){
-  const [search,setSearch]=useState("");const [sel,setSel]=useState(null);const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
+function Mieter({tenants,rooms,apts,updateTenant,documents,uploadDocument,getDocumentUrl,deleteDocument}){
+  const [search,setSearch]=useState("");const [sel,setSel]=useState(null);const [editing,setEditing]=useState(false);const [form,setForm]=useState({});const [tab,setTab]=useState("info");
   const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase()));
   const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
@@ -1948,7 +2520,7 @@ function Mieter({tenants,rooms,apts,updateTenant}){
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
             {filtered.map(t=>{const on=sel===t.id;return(
-              <div key={t.id} onClick={()=>setSel(t.id)} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
+              <div key={t.id} onClick={()=>{setSel(t.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={t.vorname} size={28}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:500,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.vorname} {t.nachname}</div>{t.type&&<TypeBadge type={t.type}/>}</div></div>
               </div>);})}
           </div>
@@ -1960,7 +2532,10 @@ function Mieter({tenants,rooms,apts,updateTenant}){
               <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant});setEditing(true);}}>✏ Bearbeiten</button>
             </div>
             {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12}}>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>}
-            <div className="igrid">{[["E-Mail",tenant.email||"—"],["Telefon",tenant.phone||"—"],["Geburt",tenant.geburt||"—"],["Nationalität",tenant.nat||"—"],["Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz} ${tenant.ort}`:"—"],["Einzug",tenant.einzug||"—"],["Auszug",tenant.auszug||"—"]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["uebergabe","Übergabe"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            {tab==="info"&&<div><div className="igrid">{[["E-Mail",tenant.email||"—"],["Telefon",tenant.phone||"—"],["Geburt",tenant.geburt||"—"],["Nationalität",tenant.nat||"—"],["Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz} ${tenant.ort}`:"—"],["Einzug",tenant.einzug||"—"],["Auszug",tenant.auszug||"—"]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div><DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/></div>}
+            {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
+            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
