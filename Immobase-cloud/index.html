@@ -276,20 +276,79 @@ function useSupabaseData() {
   },[]);
 
   // Update functions
+  // Helper: convert camelCase keys to snake_case + strip non-DB fields
+  function toDbApt(fields) {
+    const map = {
+      kautionType: "kaution_type",
+    };
+    const strip = ["kaution_type"]; // some db schemas may differ; we'll use map below only
+    const dbFields = {};
+    for (const k of Object.keys(fields)) {
+      if (fields[k] === undefined) continue;
+      const dbKey = map[k] || k;
+      dbFields[dbKey] = fields[k];
+    }
+    // Strip fields not in DB
+    delete dbFields.created_at;
+    delete dbFields.updated_at;
+    return dbFields;
+  }
+  
+  function toDbTenant(fields) {
+    const map = {
+      kautionArt: "kaution_art",
+      schluesselNr: "schluessel_nr",
+      aptId: "apt_id",
+      roomId: "room_id",
+      kautionMonate: "kaution_monate",
+      kautionBetrag: "kaution_betrag",
+    };
+    const dbFields = {};
+    for (const k of Object.keys(fields)) {
+      if (fields[k] === undefined) continue;
+      const dbKey = map[k] || k;
+      dbFields[dbKey] = fields[k];
+    }
+    delete dbFields.created_at;
+    delete dbFields.updated_at;
+    return dbFields;
+  }
+  
+  function toDbRoom(fields) {
+    const map = {
+      tenantId: "tenant_id",
+      aptId: "apt_id",
+    };
+    const dbFields = {};
+    for (const k of Object.keys(fields)) {
+      if (fields[k] === undefined) continue;
+      const dbKey = map[k] || k;
+      dbFields[dbKey] = fields[k];
+    }
+    delete dbFields.created_at;
+    delete dbFields.updated_at;
+    return dbFields;
+  }
+  
   async function updateApt(id, fields) {
-    const dbFields = {...fields};
-    if(dbFields.kautionType !== undefined){dbFields.kaution_type=dbFields.kautionType;delete dbFields.kautionType;}
-    await supabase.from("apartments").update(dbFields).eq("id", id);
+    const dbFields = toDbApt(fields);
+    const {error} = await supabase.from("apartments").update(dbFields).eq("id", id);
+    if (error) {
+      console.error("updateApt error:", error);
+      alert("Speichern fehlgeschlagen: " + error.message);
+      return;
+    }
     setApts(p => p.map(a => a.id === id ? {...a, ...fields} : a));
   }
   async function insertApt(a, roomDetails) {
-    const dbA = {...a};
-    if(dbA.kautionType !== undefined){dbA.kaution_type=dbA.kautionType;delete dbA.kautionType;}
+    const dbA = toDbApt(a);
     const {error: aptErr} = await supabase.from("apartments").insert([dbA]);
-    if (aptErr) { console.error(aptErr); throw aptErr; }
-    // Update local apartments state immediately
+    if (aptErr) {
+      console.error("insertApt error:", aptErr);
+      alert("Wohnung konnte nicht angelegt werden: " + aptErr.message);
+      throw aptErr;
+    }
     setApts(p => [...p, a]);
-    // Auto-create rooms for WG type
     if (a.type === "WG" && a.units > 0) {
       const newRooms = [];
       for (let i=1; i<=a.units; i++) {
@@ -304,8 +363,11 @@ function useSupabaseData() {
         });
       }
       const {error: roomErr} = await supabase.from("rooms").insert(newRooms);
-      if (roomErr) { console.error(roomErr); throw roomErr; }
-      // Update local rooms state with camelCase keys (matching app convention)
+      if (roomErr) {
+        console.error("insertApt rooms error:", roomErr);
+        alert("Zimmer konnten nicht angelegt werden: " + roomErr.message);
+        throw roomErr;
+      }
       setRooms(p => [...p, ...newRooms.map(r => ({
         id: r.id, aptId: r.apt_id, occupied: r.occupied,
         miete: r.miete, groesse: r.groesse, balkon: r.balkon,
@@ -314,34 +376,44 @@ function useSupabaseData() {
     }
   }
   async function deleteApt(id) {
-    await supabase.from("rooms").delete().eq("apt_id", id);
-    await supabase.from("apartments").delete().eq("id", id);
+    const {error: e1} = await supabase.from("rooms").delete().eq("apt_id", id);
+    const {error: e2} = await supabase.from("apartments").delete().eq("id", id);
+    if (e1 || e2) {
+      console.error("deleteApt errors:", e1, e2);
+      alert("Löschen fehlgeschlagen: " + ((e1||e2).message));
+      return;
+    }
     setApts(p => p.filter(a => a.id !== id));
     setRooms(p => p.filter(r => r.aptId !== id));
   }
   async function updateTenant(id, fields) {
-    const dbFields = {...fields};
-    if(dbFields.kautionArt !== undefined){dbFields.kaution_art=dbFields.kautionArt;delete dbFields.kautionArt;}
-    if(dbFields.schluesselNr !== undefined){dbFields.schluessel_nr=dbFields.schluesselNr;delete dbFields.schluesselNr;}
-    if(dbFields.aptId !== undefined){dbFields.apt_id=dbFields.aptId;delete dbFields.aptId;}
-    if(dbFields.roomId !== undefined){dbFields.room_id=dbFields.roomId;delete dbFields.roomId;}
-    await supabase.from("tenants").update(dbFields).eq("id", id);
+    const dbFields = toDbTenant(fields);
+    const {error} = await supabase.from("tenants").update(dbFields).eq("id", id);
+    if (error) {
+      console.error("updateTenant error:", error);
+      alert("Speichern fehlgeschlagen: " + error.message);
+      return;
+    }
     setTenants(p => p.map(t => t.id === id ? {...t, ...fields} : t));
   }
   async function insertTenant(t) {
-    const dbT = {...t};
-    if(dbT.kautionArt !== undefined){dbT.kaution_art=dbT.kautionArt;delete dbT.kautionArt;}
-    if(dbT.schluesselNr !== undefined){dbT.schluessel_nr=dbT.schluesselNr;delete dbT.schluesselNr;}
-    if(dbT.aptId !== undefined){dbT.apt_id=dbT.aptId;delete dbT.aptId;}
-    if(dbT.roomId !== undefined){dbT.room_id=dbT.roomId;delete dbT.roomId;}
-    await supabase.from("tenants").insert([dbT]);
+    const dbT = toDbTenant(t);
+    const {error} = await supabase.from("tenants").insert([dbT]);
+    if (error) {
+      console.error("insertTenant error:", error);
+      alert("Mieter konnte nicht angelegt werden: " + error.message);
+      throw error;
+    }
     setTenants(p => [...p, t]);
   }
   async function updateRoom(id, fields) {
-    const dbFields = {...fields};
-    if(dbFields.tenantId !== undefined){dbFields.tenant_id=dbFields.tenantId;delete dbFields.tenantId;}
-    if(dbFields.aptId !== undefined){dbFields.apt_id=dbFields.aptId;delete dbFields.aptId;}
-    await supabase.from("rooms").update(dbFields).eq("id", id);
+    const dbFields = toDbRoom(fields);
+    const {error} = await supabase.from("rooms").update(dbFields).eq("id", id);
+    if (error) {
+      console.error("updateRoom error:", error);
+      alert("Speichern fehlgeschlagen: " + error.message);
+      return;
+    }
     setRooms(p => p.map(r => r.id === id ? {...r, ...fields} : r));
   }
   async function updateBewerber(id, fields) {
