@@ -567,6 +567,8 @@ function useSupabaseData() {
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
+const STOCKWERK_OPTIONS = ["EG","1. OG","2. OG","3. OG","4. OG","5. OG","6. OG"];
+
 const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Hausordnung","Versicherungspolice","Rechnung","Sonstige"];
 const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Lohnausweis","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
 
@@ -1359,6 +1361,47 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
   function EF(k){return e=>setEditForm(p=>({...p,[k]:e.target.value}));}
   function EFB(k){return e=>setEditForm(p=>({...p,[k]:e.target.checked}));}
 
+  function quickGenerateAnfangsmietzins(){
+    if(!b) return;
+    // Build vertragData on-the-fly (without opening modal)
+    const targetRoomId = b.zugeteiltes_zimmer || b.zimmerWunsch;
+    const room = targetRoomId ? rooms.find(r=>r.id===targetRoomId) : null;
+    const apt = room ? apts.find(a=>a.id===room.aptId) : null;
+    const bruttomiete = room ? +room.miete : 1000;
+    const nebenkosten = 100;
+    const nettomiete = bruttomiete - nebenkosten;
+    const strom = 25; // Fix CHF 25 Stromkostenpauschale
+    // Kein Kautions-Aufschlag im Anfangsmietzins (gehört zum Untermietvertrag)
+    const total = nettomiete + nebenkosten + strom;
+    const tempData = {
+      zimmerId: targetRoomId || "",
+      apt: apt || null,
+      room: room || null,
+      adresse: apt?.adresse || "",
+      plz: apt?.plz || "",
+      ort: apt?.ort || "Zürich",
+      nettomiete,
+      nebenkosten,
+      bruttomiete,
+      strom,
+      total,
+      einzug: b.einzug || "",
+    };
+    const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
+    const html = buildAnfangsmietzinsHTML(b, tempData, fullName, formatDateLong);
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup wurde blockiert. Bitte Popups erlauben und erneut versuchen.");
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => {
+      setTimeout(() => { win.focus(); win.print(); }, 300);
+    };
+  }
+
   function openVertragModal(){
     if(!b) return;
     // Determine the room: assigned > wish > first free
@@ -1429,13 +1472,322 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
     win.document.open();
     win.document.write(html);
     win.document.close();
-    // Wait for content + images to load, then trigger print dialog
     win.onload = () => {
       setTimeout(() => {
         win.focus();
         win.print();
       }, 300);
     };
+  }
+
+  function generateAnfangsmietzins(){
+    if (!vertragData || !b) return;
+    // Override strom to 25 + total ohne Aufschlag (Anfangsmietzins zeigt nur amtlichen Mietzins)
+    const strom = 25;
+    const v = {
+      ...vertragData,
+      strom,
+      total: vertragData.nettomiete + vertragData.nebenkosten + strom,
+    };
+    const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
+    const html = buildAnfangsmietzinsHTML(b, v, fullName, formatDateLong);
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup wurde blockiert. Bitte Popups erlauben.");
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => {
+      setTimeout(() => { win.focus(); win.print(); }, 300);
+    };
+  }
+
+  function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
+    const chf2 = n => Number(n||0).toLocaleString("de-CH");
+    const adresseLiegenschaft = `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
+    const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
+    const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
+    // Defensive recalculation — Strom fix 25 für dieses Formular
+    // Kautions-Aufschlag wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
+    const stromFix = 25;
+    const nettomiete = +v.nettomiete || 0;
+    const nebenkosten = +v.nebenkosten || 100;
+    const totalCalc = nettomiete + nebenkosten + stromFix;
+    // Override v so the template below uses the corrected values
+    v = {...v, strom: stromFix, total: totalCalc};
+    
+    return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Anfangsmietzins — ${fullName}</title>
+<style>
+  @page{size:A4;margin:15mm 18mm}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;line-height:1.45;color:#000;background:#fff}
+  @media print{body{padding:0}.print-banner{display:none!important}}
+  .print-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:12px 20px;text-align:center;font-size:13px;z-index:9999;font-family:Helvetica,Arial,sans-serif}
+  .print-banner button{background:#fff;color:#1a1a1a;border:none;padding:7px 18px;margin-left:14px;font-weight:600;border-radius:4px;cursor:pointer;font-size:13px}
+  
+  /* HEADER mit Logo */
+  .doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14pt}
+  .doc-top .logo{width:36mm}
+  .doc-top .logo img{width:100%;display:block}
+  .doc-top .title{flex:1;text-align:center}
+  .doc-top h1{font-size:14pt;font-weight:700;margin-bottom:3pt}
+  .doc-top .subtitle{font-size:9.5pt;color:#444;font-style:italic}
+  
+  /* Window-fields (für Fenstercouvert) */
+  .window-row{display:grid;grid-template-columns:1fr 1fr;gap:24pt;margin-bottom:18pt}
+  .window-box{border:.4pt solid #ccc;padding:10pt 12pt;background:#fafafa;min-height:50pt;font-size:9pt}
+  .window-box .lbl{font-size:7.5pt;color:#888;text-transform:uppercase;letter-spacing:.15em;margin-bottom:4pt;font-weight:600}
+  .window-box .content{line-height:1.55}
+  
+  /* Intro paragraph */
+  .intro{font-size:9pt;line-height:1.5;text-align:justify;margin-bottom:14pt;padding:9pt 12pt;background:#f5efe4;border-left:3pt solid #1a1a1a}
+  
+  /* Section blocks */
+  .section{margin-bottom:12pt}
+  .section h2{font-size:10pt;font-weight:700;margin-bottom:6pt;padding-bottom:3pt;border-bottom:.4pt solid #1a1a1a}
+  
+  .field-row{display:flex;align-items:baseline;gap:6pt;margin-bottom:4pt;font-size:9pt}
+  .field-row .lbl{min-width:55%;color:#333}
+  .field-row .val{flex:1;border-bottom:.3pt dotted #999;padding:1pt 4pt;font-weight:500}
+  
+  /* Address line */
+  .addr-row{margin-bottom:8pt;font-size:9pt}
+  .addr-row .lbl{font-weight:600;margin-right:8pt}
+  .addr-row .val{display:inline-block;border-bottom:.3pt solid #999;padding:1pt 4pt;min-width:300pt;font-weight:500}
+  
+  /* Mietzins-Tabelle */
+  table.mietzins{width:100%;border-collapse:collapse;margin-top:4pt;font-size:9pt}
+  table.mietzins th{background:#f0ebe0;border:.5pt solid #888;padding:5pt 7pt;font-weight:700;text-align:left;font-size:8.5pt}
+  table.mietzins th.amt{text-align:right;width:90pt}
+  table.mietzins td{border:.4pt solid #aaa;padding:5pt 7pt}
+  table.mietzins td.amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+  table.mietzins tr.total td{font-weight:700;background:#fafaf3}
+  
+  /* Subindexes */
+  .indent{margin-left:14pt;font-size:8.5pt;color:#444}
+  
+  /* YN options */
+  .yn-row{display:flex;gap:18pt;align-items:center;font-size:9pt}
+  .yn-box{display:inline-block;width:11pt;height:11pt;border:.5pt solid #000;text-align:center;line-height:11pt;font-weight:700;margin-right:4pt}
+  
+  /* Signatures */
+  .sig-section{margin-top:20pt;padding-top:14pt;border-top:.5pt solid #1a1a1a}
+  .sig-section .confirm{font-size:9pt;margin-bottom:14pt;font-style:italic}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30pt;margin-top:14pt}
+  .sig-block .lbl{font-size:8pt;color:#888;text-transform:uppercase;letter-spacing:.15em;margin-bottom:3pt;font-weight:600}
+  .sig-block .name{font-size:9pt;font-weight:600;margin-bottom:18pt}
+  .sig-row-inner{display:flex;gap:10pt;margin-bottom:5pt;font-size:8.5pt}
+  .sig-row-inner .label{font-weight:600;min-width:40pt}
+  .sig-row-inner .line{flex:1;border-bottom:.4pt solid #888;min-height:12pt}
+  
+  /* Page 2-3 (Auszug OR) */
+  .or-page{page-break-before:always}
+  .or-page h1{font-size:11pt;font-weight:700;margin-bottom:6pt}
+  .or-page h2{font-size:9.5pt;font-weight:700;margin:8pt 0 3pt}
+  .or-page p{font-size:7.5pt;line-height:1.5;margin-bottom:5pt;text-align:justify}
+  .or-page .small-title{font-size:8pt;font-weight:700;margin:10pt 0 4pt;color:#444}
+  .or-cols{column-count:2;column-gap:14pt}
+  
+  .footer{margin-top:18pt;padding-top:8pt;border-top:.3pt solid #ccc;text-align:center;font-size:7.5pt;color:#888;font-style:italic}
+</style>
+</head>
+<body>
+
+<div class="print-banner">
+  Anfangsmietzins-Formular bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-Dialog
+  <button onclick="window.print()">📄 Drucken / PDF speichern</button>
+  <button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
+</div>
+
+<!-- HEADER -->
+<div class="doc-top">
+  <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+  <div class="title">
+    <h1>Mitteilung des Anfangsmietzinses</h1>
+    <div class="subtitle">gemäss Art. 270 Abs. 2 OR und § 229 b EG ZGB</div>
+  </div>
+  <div style="width:36mm"></div>
+</div>
+
+<div class="intro">
+  Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einführungsgesetzes zum Schweizerischen Zivilgesetzbuch (EG ZGB) geben wir Ihnen im Zusammenhang mit dem Abschluss des neuen Mietvertrags folgenden früheren Mietzins und Anfangsmietzins bekannt:
+</div>
+
+<!-- WINDOW (für Fenstercouvert links/rechts) -->
+<div class="window-row">
+  <div class="window-box">
+    <div class="lbl">Vermieterin</div>
+    <div class="content">
+      D&amp;T Partners GmbH<br>
+      Via Campeun 40<br>
+      7403 Rhäzüns
+    </div>
+  </div>
+  <div class="window-box">
+    <div class="lbl">Mieter*in</div>
+    <div class="content">
+      ${fullName}<br>
+      ${adresseMieter ? adresseMieter.replace(/, /g, '<br>') : '—'}
+    </div>
+  </div>
+</div>
+
+<!-- Adresse Liegenschaft -->
+<div class="addr-row">
+  <span class="lbl">Adresse Liegenschaft/en:</span>
+  <span class="val">${adresseLiegenschaft}</span>
+</div>
+
+<!-- MIETZINS TABELLE -->
+<div class="section">
+  <table class="mietzins">
+    <thead>
+      <tr>
+        <th>Mietzins</th>
+        <th class="amt">Früherer Mietzins</th>
+        <th class="amt">Anfangsmietzins (neu)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
+      <tr><td>Nebenkosten</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
+      <tr><td>Stromkosten (pauschal)</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
+      <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
+    </tbody>
+  </table>
+  <div class="indent" style="margin-top:6pt">(seit: —)</div>
+</div>
+
+<!-- 1. Berechnungsgrundlagen -->
+<div class="section">
+  <h2>1. Berechnungsgrundlagen des bisherigen Mietzinses</h2>
+  <div class="field-row">
+    <span class="lbl">Referenzzinssatz für hypothekarische Bauobjekte:</span>
+    <span class="val">— %</span>
+  </div>
+  <div class="field-row">
+    <span class="lbl">Landesindex der Konsumentenpreise (Basis Dez. 2020 = 100):</span>
+    <span class="val">— Pkte</span>
+  </div>
+</div>
+
+<!-- 2. Vorbehalte -->
+<div class="section">
+  <h2>2. Vorbehalte für allfällige spätere Mietzinserhöhungen</h2>
+  <div style="font-size:8.5pt;color:#666;font-style:italic">Keine Vorbehalte gemäss vorherigem Mietvertrag oder letzter Mietzinsanpassung.</div>
+</div>
+
+<!-- 3. Beginn -->
+<div class="section">
+  <h2>3. Beginn des neuen Mietvertrags</h2>
+  <div class="field-row">
+    <span class="lbl">Mietbeginn:</span>
+    <span class="val">${fmtDate(v.einzug)}</span>
+  </div>
+</div>
+
+<!-- 4. Begründung -->
+<div class="section">
+  <h2>4. Klare Begründung der (eventuellen) Erhöhung des Anfangsmietzinses</h2>
+  <div style="font-size:8.5pt;line-height:1.5">
+    Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR). Eine Erhöhung gegenüber dem früheren Mietzins liegt nicht vor, da das Objekt erstmalig untervermietet wird bzw. ein Mieterwechsel ohne Mietzinserhöhung erfolgt.
+  </div>
+</div>
+
+<!-- 5. Förderbeiträge -->
+<div class="section">
+  <h2>5. Bei Erhöhung wegen Mehrleistungen: Erhalt von Förderbeiträgen für wertvermehrende Verbesserungen</h2>
+  <div class="yn-row">
+    <span><span class="yn-box">☐</span>Ja</span>
+    <span><span class="yn-box">☒</span>Nein</span>
+  </div>
+</div>
+
+<!-- HINWEIS Anfechtung -->
+<div style="margin-top:14pt;padding:9pt 12pt;background:#fafafa;border:.4pt solid #ccc;font-size:8.5pt;line-height:1.5">
+  <strong>Hinweis zur Anfechtung:</strong> Der/die Mieter*in kann den Anfangsmietzins gemäss Art. 270 Abs. 1 OR innert 30 Tagen nach der Übernahme des Mietobjekts bei der Paritätischen Schlichtungsbehörde des Bezirks, in dem sich das Mietobjekt befindet (zuständiges Bezirksgericht), als missbräuchlich anfechten und dessen Herabsetzung verlangen. Wenn keine Anfechtung erfolgt, gilt der Anfangsmietzins als angenommen.
+</div>
+
+<!-- UNTERSCHRIFTEN -->
+<div class="sig-section">
+  <div class="confirm">Der/die Mieter*in bestätigt, ein Doppel dieses Formulars erhalten zu haben.</div>
+  <div class="sig-grid">
+    <div class="sig-block">
+      <div class="lbl">Vermieter*in</div>
+      <div class="name">D&amp;T Partners GmbH</div>
+      <div class="sig-row-inner"><span class="label">Datum:</span><span class="line"></span></div>
+      <div class="sig-row-inner"><span class="label">Unterschrift:</span><span class="line"></span></div>
+    </div>
+    <div class="sig-block">
+      <div class="lbl">Mieter*in</div>
+      <div class="name">${fullName}</div>
+      <div class="sig-row-inner"><span class="label">Datum:</span><span class="line"></span></div>
+      <div class="sig-row-inner"><span class="label">Unterschrift:</span><span class="line"></span></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Formular bereitgestellt durch die Direktion der Justiz und des Innern des Kantons Zürich · 1/3</div>
+
+<!-- SEITE 2-3: Auszug OR -->
+<div class="or-page">
+  <h1>Auszug aus den massgeblichen Bestimmungen des Schweizerischen Obligationenrechts</h1>
+  <div style="font-size:8pt;color:#444;margin-bottom:6pt;font-style:italic">Achter Titel: Die Miete · Zweiter Abschnitt: Schutz vor missbräuchlichen Mietzinsen und anderen missbräuchlichen Forderungen des Vermieters bei der Miete von Wohn- und Geschäftsräumen</div>
+  
+  <div class="or-cols">
+    <h2>Art. 269 (A. Missbräuchliche Mietzinse. I. Regel)</h2>
+    <p>Mietzinse sind missbräuchlich, wenn damit ein übersetzter Ertrag aus der Mietsache erzielt wird oder wenn sie auf einem offensichtlich übersetzten Kaufpreis beruhen.</p>
+    
+    <h2>Art. 269a (II. Ausnahmen)</h2>
+    <p>Mietzinse sind in der Regel nicht missbräuchlich, wenn sie insbesondere:</p>
+    <p>a. im Rahmen der orts- oder quartierüblichen Mietzinse liegen;<br>
+    b. durch Kostensteigerungen oder Mehrleistungen des Vermieters begründet sind;<br>
+    c. bei neueren Bauten im Rahmen der kostendeckenden Bruttorendite liegen;<br>
+    d. lediglich dem Ausgleich einer Mietzinsverbilligung dienen, die zuvor durch Umlagerung marktüblicher Finanzierungskosten gewährt wurde, und in einem dem Mieter im voraus bekanntgegebenen Zahlungsplan festgelegt sind;<br>
+    e. lediglich die Teuerung auf dem risikotragenden Kapital ausgleichen;<br>
+    f. das Ausmass nicht überschreiten, das Vermieter- und Mieterverbände oder Organisationen, die ähnliche Interessen wahrnehmen, in ihren Rahmenverträgen empfehlen.</p>
+    
+    <h2>Art. 269b (B. Indexierte Mietzinse)</h2>
+    <p>Die Vereinbarung, dass der Mietzins einem Index folgt, ist nur gültig, wenn der Mietvertrag für mindestens fünf Jahre abgeschlossen und als Index der Landesindex der Konsumentenpreise vorgesehen wird.</p>
+    
+    <h2>Art. 269c (C. Gestaffelte Mietzinse)</h2>
+    <p>Die Vereinbarung, dass sich der Mietzins periodisch um einen bestimmten Betrag erhöht, ist nur gültig, wenn:<br>
+    a. der Mietvertrag für mindestens drei Jahre abgeschlossen wird;<br>
+    b. der Mietzins höchstens einmal jährlich erhöht wird; und<br>
+    c. der Betrag der Erhöhung in Franken festgelegt wird.</p>
+    
+    <h2>Art. 269d (D. Mietzinserhöhungen)</h2>
+    <p><strong>1</strong> Der Vermieter kann den Mietzins jederzeit auf den nächstmöglichen Kündigungstermin erhöhen. Er muss dem Mieter die Mietzinserhöhung mindestens zehn Tage vor Beginn der Kündigungsfrist auf einem vom Kanton genehmigten Formular mitteilen und begründen.</p>
+    <p><strong>2</strong> Die Mietzinserhöhung ist nichtig, wenn der Vermieter:<br>
+    a. sie nicht mit dem vorgeschriebenen Formular mitteilt;<br>
+    b. sie nicht begründet;<br>
+    c. mit der Mitteilung die Kündigung androht oder ausspricht.</p>
+    <p><strong>3</strong> Die Absätze 1 und 2 gelten auch, wenn der Vermieter beabsichtigt, sonstwie den Mietvertrag einseitig zu Lasten des Mieters zu ändern.</p>
+    
+    <h2>Art. 270 (E. Anfechtung des Mietzinses I.)</h2>
+    <p><strong>1</strong> Der Mieter kann den Anfangsmietzins innert 30 Tagen nach Übernahme der Sache bei der Schlichtungsbehörde als missbräuchlich im Sinne der Artikel 269 und 269a anfechten und dessen Herabsetzung verlangen, wenn:<br>
+    a. er sich wegen einer persönlichen oder familiären Notlage oder wegen der Verhältnisse auf dem örtlichen Markt für Wohn- und Geschäftsräume zum Vertragsabschluss gezwungen sah; oder<br>
+    b. der Vermieter den Anfangsmietzins gegenüber dem früheren Mietzins für dieselbe Sache erheblich erhöht hat.</p>
+    
+    <h2>Art. 270a (2. Während der Mietdauer)</h2>
+    <p><strong>1</strong> Der Mieter kann den Mietzins als missbräuchlich anfechten und die Herabsetzung auf den nächstmöglichen Kündigungstermin verlangen, wenn er Grund zur Annahme hat, dass der Vermieter wegen einer wesentlichen Änderung der Berechnungsgrundlagen einen übersetzten Ertrag aus der Mietsache erzielt.</p>
+    
+    <h2>Art. 270b (II. Anfechtung von Mietzinserhöhungen)</h2>
+    <p><strong>1</strong> Der Mieter kann eine Mietzinserhöhung innert 30 Tagen, nachdem sie ihm mitgeteilt worden ist, bei der Schlichtungsbehörde als missbräuchlich anfechten.</p>
+    
+    <h2>Art. 270e (F. Weitergeltung des Mietvertrags)</h2>
+    <p>Der bestehende Mietvertrag gilt unverändert weiter:<br>
+    a. während des Schlichtungsverfahrens, wenn zwischen den Parteien keine Einigung zustandekommt, und<br>
+    b. während des Gerichtsverfahrens, unter Vorbehalt vorsorglicher Massnahmen des Richters.</p>
+  </div>
+  
+  <div class="footer">Formular bereitgestellt durch die Direktion der Justiz und des Innern des Kantons Zürich · 2/2</div>
+</div>
+
+</body></html>`;
   }
 
   function buildContractHTML(b, v, fullName, fmtDate){
@@ -1991,9 +2343,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
               <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Untermietvertrag</button>
+                <button className="btn btn-p btn-sm" onClick={quickGenerateAnfangsmietzins} style={{background:"#6b5e44"}}>📋 Anfangsmietzins</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
-                {b.status==="Neu"&&<button className="btn btn-sm" style={{background:"#f6ecd8",color:"#c89653"}} onClick={()=>setStatus(b.id,"In Prüfung")}>◐ In Prüfung</button>}
-                {(b.status==="Neu"||b.status==="In Prüfung")&&<button className="btn btn-sm" style={{background:"#eaeee2",color:"#5a7c5e"}} onClick={()=>setStatus(b.id,"Bestätigt")}>✓ Bestätigen</button>}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
               </div>
             </div>
@@ -2223,7 +2574,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 
             <div className="ma">
               <button className="btn btn-g" onClick={()=>setVertragModal(false)}>Abbrechen</button>
-              <button className="btn btn-p" onClick={generateContract}>📄 PDF herunterladen</button>
+              <button className="btn btn-p" onClick={generateContract}>📄 Untermietvertrag erstellen</button>
             </div>
           </div>
         </div>
@@ -2361,7 +2712,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         {apt?(
           <div className="card" style={{margin:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-              <div><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18"}}>{apt.id} — {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort} · OG {apt.stockwerk}</div></div>
+              <div><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18"}}>{apt.id} — {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div></div>
               <div style={{display:"flex",gap:6}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
@@ -2390,7 +2741,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Stockwerk</label><input className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")} placeholder="EG, 1, 2…"/></div>
+          <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")}><option value="">— wählen —</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={newForm.zimmer||""} onChange={NF("zimmer")} placeholder="z.B. 3.5"/></div>
         </div>
         {newForm.type==="WG"&&(
@@ -2464,7 +2815,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Stockwerk</label><input className="fi" value={form.stockwerk||""} onChange={F("stockwerk")}/></div>
+          <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={form.stockwerk||""} onChange={F("stockwerk")}><option value="">— wählen —</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={form.zimmer||""} onChange={F("zimmer")}/></div>
         </div>
 

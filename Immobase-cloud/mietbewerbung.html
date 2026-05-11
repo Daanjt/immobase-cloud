@@ -916,6 +916,16 @@ async function loadFreieZimmer() {
     const aptMap = {};
     apts.forEach(a => { aptMap[a.id] = a; });
     
+    // Helper: normalize room size for display (e.g. "14" → "14 m²", "14m2" → "14 m²")
+    function normGroesse(s) {
+      if (!s) return null;
+      const str = String(s).trim();
+      if (!str) return null;
+      const match = str.match(/^(\d+(?:[.,]\d+)?)/);
+      if (!match) return str;
+      return `${match[1].replace(",", ".")} m²`;
+    }
+    
     // Combine
     FREIE_ZIMMER = rooms
       .filter(r => aptMap[r.apt_id]) // Only rooms in WG apartments
@@ -926,8 +936,8 @@ async function loadFreieZimmer() {
           adresse: `${a.adresse}, ${a.plz||""} ${a.ort||""}`.trim(),
           miete: r.miete || 0,
           balkon: !!r.balkon,
-          qm: r.groesse || null,
-          etage: a.stockwerk ? (a.stockwerk + ". OG") : "",
+          qm: normGroesse(r.groesse),
+          etage: a.stockwerk || "",
           wgGroesse: a.zimmer ? `${a.zimmer}-Zimmer-WG` : "WG",
         };
       })
@@ -1043,7 +1053,7 @@ function updateCostSummary() {
       bruttomiete = room.miete;
       document.getElementById('zimmerLabel').textContent = room.id;
       document.getElementById('adresseLabel').textContent = room.adresse;
-      document.getElementById('wgLabel').textContent = room.wgGroesse + (room.balkon ? ' · 🌿 Balkon' : '');
+      document.getElementById('wgLabel').textContent = room.wgGroesse + (room.qm ? ' · ' + room.qm : '') + (room.balkon ? ' · 🌿 Balkon' : '');
       document.getElementById('mieteLabel').textContent = 'CHF ' + bruttomiete.toLocaleString('de-CH') + '.–';
     }
   } else {
