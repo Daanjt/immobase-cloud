@@ -1306,7 +1306,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
   const [zuteilModal,setZuteilModal]=useState(false);
   const [selZimmer,setSelZimmer]=useState(null);
   const [einzugDate,setEinzugDate]=useState("");
-  const [filterStatus,setFilterStatus]=useState("alle");
+  const [filterStatus,setFilterStatus]=useState("Neu");
   const [copied,setCopied]=useState(false);
   const [vertragModal,setVertragModal]=useState(false);
   const [editModal,setEditModal]=useState(false);
@@ -1318,7 +1318,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
-  const shown=filterStatus==="alle"?bewerber:bewerber.filter(x=>x.status===filterStatus);
+  const shown=bewerber.filter(x=>x.status===filterStatus);
 
   async function setStatus(id,status){await updateBewerber(id,{status});}
 
@@ -1697,8 +1697,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
   </div>
 </div>
 
-<!-- 5. Förderbeiträge -->
-<div class="section">
+<!-- 5. Förderbeiträge — auf neuer Seite -->
+<div class="section" style="page-break-before:always">
   <h2>5. Bei Erhöhung wegen Mehrleistungen: Erhalt von Förderbeiträgen für wertvermehrende Verbesserungen</h2>
   <div class="yn-row">
     <span><span class="yn-box">☐</span>Ja</span>
@@ -2310,7 +2310,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
       <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
         <div>
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
-            {["alle","Neu","In Prüfung","Bestätigt","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
+            {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
           </div>
           {shown.length===0?<div className="empty">Keine Bewerbungen</div>:shown.map(bw=>(
             <div key={bw.id} className={`bewerber-card${sel===bw.id?" selected":""}`} onClick={()=>setSel(bw.id)}>
@@ -2472,7 +2472,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
             <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">—</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Status & Bemerkung</div>
-            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="In Prüfung">In Prüfung</option><option value="Bestätigt">Bestätigt</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl" style={{visibility:"hidden"}}>—</label><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine Betreibung bestätigt</label></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl" style={{visibility:"hidden"}}>—</label><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine Betreibung bestätigt</label></div></div>
             <div className="fg"><label className="fl">Bemerkung</label><textarea className="fi" rows={3} value={editForm.bemerkung||""} onChange={EF("bemerkung")} style={{resize:"vertical",fontFamily:"inherit"}}/></div>
 
             <div className="ma">
@@ -2861,7 +2861,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   const shown=filter==="frei"?rooms.filter(r=>!r.occupied):filter==="belegt"?rooms.filter(r=>r.occupied):rooms;
   const free=rooms.filter(r=>!r.occupied);
   const grouped=apts.filter(a=>a.type==="WG").map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id)})).filter(g=>g.rs.length>0);
-  const eligibleBewerber=bewerber?bewerber.filter(b=>b.status==="Bestätigt"||b.status==="In Prüfung"||b.status==="Neu"):[];
+  const eligibleBewerber=bewerber?bewerber.filter(b=>b.status==="Neu"):[];
 
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
   function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
@@ -3421,7 +3421,7 @@ function MainApp({user}) {
 
   const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
-  const neueBewerber=data.bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung").length;
+  const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
 
   async function logout() {
     await supabase.auth.signOut();
