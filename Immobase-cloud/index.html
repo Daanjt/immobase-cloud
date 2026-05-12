@@ -1308,7 +1308,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function Dashboard({apts,rooms,tenants,bewerber}){
+function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
   const heute=new Date();
   
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
@@ -1369,17 +1369,17 @@ function Dashboard({apts,rooms,tenants,bewerber}){
 
       {/* TOTAL OVERVIEW — 3-column hero */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
-        <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px"}}>
+        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Total Ausgaben / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:300,color:"#1a1814",lineHeight:1,marginBottom:6}}>{chf(totalAusgaben)}</div>
           <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.length} WG + {airbnbApts.length} Airbnb</div>
         </div>
-        <div style={{background:wgMargeIst>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${wgMargeIst>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px"}}>
+        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:wgMargeIst>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${wgMargeIst>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>WG-Marge aktuell / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:wgMargeIst>=0?"#3d4f2f":"#9b4a3e",lineHeight:1,marginBottom:6}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</div>
           <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WG-Einnahmen − WG-Ausgaben</div>
         </div>
-        <div style={{background:"#1a1814",borderRadius:8,padding:"24px 26px",color:"#fefcf7"}}>
+        <div onClick={()=>navigateTo&&navigateTo("zimmer",null)} style={{background:"#1a1814",borderRadius:8,padding:"24px 26px",color:"#fefcf7",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.2)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>WG-Marge maximal / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:"#fefcf7",lineHeight:1,marginBottom:6}}>+{chf(wgMargeMax)}</div>
           <div style={{fontSize:11,color:"#b8af9f",letterSpacing:".05em"}}>Bei 100% Belegung</div>
@@ -1410,17 +1410,17 @@ function Dashboard({apts,rooms,tenants,bewerber}){
             </thead>
             <tbody>
               {aufschlagMieter.map(({tenant:t,room,apt,aufschlag}) => (
-                <tr key={t.id} style={{borderTop:"1px solid #f0e9d8"}}>
+                <tr key={t.id} onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{borderTop:"1px solid #f0e9d8",cursor:"pointer"}}>
                   <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}>{t.vorname} {t.nachname}</td>
-                  <td style={{padding:"8px",color:"#4a4439"}}>{apt?.adresse||"—"}</td>
-                  <td style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
-                  <td style={{padding:"8px"}}>
+                  <td data-label="Wohnung" style={{padding:"8px",color:"#4a4439"}}>{apt?.adresse||"—"}</td>
+                  <td data-label="Zimmer" style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
+                  <td data-label="Variante" style={{padding:"8px"}}>
                     <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500}}>
                       {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"—"}
                     </span>
                   </td>
-                  <td style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
-                  <td style={{padding:"8px",textAlign:"right",color:"#8a8174",fontSize:11.5}}>{chf(aufschlag*12)}</td>
+                  <td data-label="Aufschlag/Mt." style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
+                  <td data-label="pro Jahr" style={{padding:"8px",textAlign:"right",color:"#8a8174",fontSize:11.5}}>{chf(aufschlag*12)}</td>
                 </tr>
               ))}
               <tr style={{borderTop:"2px solid #1a1814",background:"#f5efe4"}}>
@@ -1470,15 +1470,15 @@ function Dashboard({apts,rooms,tenants,bewerber}){
               const aMargeIst=aIst-(+a.miete||0);
               const aMargeMax=aMax-(+a.miete||0);
               return (
-                <tr key={a.id}>
+                <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                   <td style={{fontWeight:600}}>{a.id}</td>
                   <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
-                  <td style={{textAlign:"right"}}>{chf(a.miete)}</td>
-                  <td style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
-                  <td style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
-                  <td style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
-                  <td style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
-                  <td style={{minWidth:120}}>
+                  <td data-label="Kosten" style={{textAlign:"right"}}>{chf(a.miete)}</td>
+                  <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
+                  <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
+                  <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
+                  <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                  <td data-label="Belegung" style={{minWidth:120}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <div style={{flex:1}}><Prog val={aOcc} max={rs.length}/></div>
                       <span style={{fontSize:10.5,color:"#8a8174"}}>{aOcc}/{rs.length}</span>
@@ -1515,12 +1515,12 @@ function Dashboard({apts,rooms,tenants,bewerber}){
           </thead>
           <tbody>
             {airbnbApts.map(a=>(
-              <tr key={a.id}>
+              <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                 <td style={{fontWeight:600}}>{a.id}</td>
                 <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
-                <td>{a.zimmer} Zi.</td>
-                <td style={{textAlign:"right"}}>{chf(a.miete)}</td>
-                <td style={{fontSize:11.5,color:"#8a8174"}}>{a.mietende||"unbefristet"}</td>
+                <td data-label="Zimmer">{a.zimmer} Zi.</td>
+                <td data-label="Miete" style={{textAlign:"right"}}>{chf(a.miete)}</td>
+                <td data-label="Mietende" style={{fontSize:11.5,color:"#8a8174"}}>{a.mietende||"unbefristet"}</td>
               </tr>
             ))}
           </tbody>
@@ -1537,12 +1537,15 @@ function Dashboard({apts,rooms,tenants,bewerber}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
         <div className="card">
           <div className="ct">Zimmerbelegung pro WG</div>
-          {wgApts.map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;return(<div key={a.id} style={{marginBottom:11}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span>{a.id} — {a.adresse}</span><span style={{color:"#8a8478",fontSize:11}}>{o}/{rs.length}</span></div><Prog val={o} max={rs.length}/></div>);})}
+          {wgApts.map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;return(<div key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{marginBottom:11,cursor:"pointer",padding:"6px 8px",margin:"-6px -8px 5px",borderRadius:6,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#f5efe4"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span>{a.id} — {a.adresse}</span><span style={{color:"#8a8478",fontSize:11}}>{o}/{rs.length}</span></div><Prog val={o} max={rs.length}/></div>);})}
         </div>
         <div className="card">
-          <div className="ct">Neueste Bewerber</div>
+          <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>Neueste Bewerber</span>
+            {bewerber.length>0&&<button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("bewerber",null)} style={{fontSize:9}}>Alle ansehen →</button>}
+          </div>
           {bewerber.length===0?<div className="empty">Noch keine Bewerbungen</div>:bewerber.slice(0,5).map(b=>(
-            <div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div key={b.id} onClick={()=>navigateTo&&navigateTo("bewerber",b.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,cursor:"pointer",padding:"6px 8px",margin:"-6px -8px 5px",borderRadius:6,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#f5efe4"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#8a8478"}}>{b.eingereichtAm} · {b.type||"—"}</div></div></div>
               <StatusBdg status={b.status}/>
             </div>
