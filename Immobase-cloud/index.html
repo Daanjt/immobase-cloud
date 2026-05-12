@@ -59,6 +59,11 @@ body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;fo
 /* APP LAYOUT */
 .app{display:flex;height:100vh;overflow:hidden;background:var(--bg)}
 .sidebar{width:230px;min-width:230px;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column}
+
+/* Mobile-only: Hamburger button + overlay (hidden on desktop) */
+.mobile-menu-btn { display: none; }
+.sidebar-overlay { display: none; }
+
 .logo{padding:30px 24px 24px;border-bottom:1px solid var(--line-soft)}
 .logo h1{font-family:'Manrope', sans-serif;font-size:22px;font-weight:400;color:var(--ink);letter-spacing:.04em}
 .logo p{font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.4em;text-transform:uppercase;font-weight:400}
@@ -172,9 +177,74 @@ a:hover{border-bottom-color:var(--gold)}
    📱 MOBILE OPTIMIZATIONS (iPhone, iPad portrait, Android phones)
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+  /* ════════════════════════════════════════
+     🍔 SIDEBAR → SLIDE-OUT DRAWER
+     ════════════════════════════════════════ */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px !important;
+    min-width: 260px !important;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.15);
+  }
+  
+  /* Mobile menu button (hamburger) — visible only on mobile */
+  .mobile-menu-btn {
+    display: flex !important;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 999;
+    width: 42px;
+    height: 42px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    color: var(--ink);
+    font-size: 18px;
+  }
+  
+  /* Sidebar overlay (darkens content when sidebar open) */
+  .sidebar-overlay {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  /* Main content gets full width on mobile */
+  .main {
+    width: 100% !important;
+    padding-top: 64px !important; /* room for hamburger button */
+  }
+  
+  /* Show sidebar close X on mobile */
+  .sidebar-close { display: block !important; }
+  
   /* Body padding & layout */
   body { font-size: 14px; }
-  .main { padding: 14px 12px !important; }
+  .main { padding: 64px 12px 14px !important; }
   
   /* Navigation: tighter */
   .nav-wrap { padding: 10px 12px !important; gap: 4px !important; flex-wrap: wrap; }
@@ -1386,53 +1456,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
         </div>
       </div>
 
-      {/* KAUTIONS-AUFSCHLÄGE */}
-      {aufschlagMieter.length > 0 && (
-        <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"22px 24px",marginBottom:24}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
-            <div>
-              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:6}}>Kautions-Aufschläge / Mt.</div>
-              <div style={{fontFamily:"'Manrope',sans-serif",fontSize:28,fontWeight:300,color:"#1a1814",lineHeight:1}}>+{chf(totalAufschlagMonat)}</div>
-              <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>von {aufschlagMieter.length} Mieter{aufschlagMieter.length!==1?"n":""} · {chf(totalAufschlagJahr)} / Jahr</div>
-            </div>
-            <div style={{fontSize:10.5,color:"#8a8174",fontStyle:"italic",textAlign:"right",maxWidth:260,lineHeight:1.5}}>Zusatzeinnahmen durch Mieter mit reduzierter Kautionssumme (Variante 0×/1×/2×)</div>
-          </div>
-          <table style={{width:"100%",fontSize:12}}>
-            <thead>
-              <tr style={{textAlign:"left",fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",fontWeight:500}}>
-                <th style={{padding:"6px 8px"}}>Mieter</th>
-                <th style={{padding:"6px 8px"}}>Wohnung</th>
-                <th style={{padding:"6px 8px"}}>Zimmer</th>
-                <th style={{padding:"6px 8px"}}>Variante</th>
-                <th style={{padding:"6px 8px",textAlign:"right"}}>Aufschlag / Mt.</th>
-                <th style={{padding:"6px 8px",textAlign:"right"}}>Pro Jahr</th>
-              </tr>
-            </thead>
-            <tbody>
-              {aufschlagMieter.map(({tenant:t,room,apt,aufschlag}) => (
-                <tr key={t.id} onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{borderTop:"1px solid #f0e9d8",cursor:"pointer"}}>
-                  <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}>{t.vorname} {t.nachname}</td>
-                  <td data-label="Wohnung" style={{padding:"8px",color:"#4a4439"}}>{apt?.adresse||"—"}</td>
-                  <td data-label="Zimmer" style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
-                  <td data-label="Variante" style={{padding:"8px"}}>
-                    <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500}}>
-                      {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"—"}
-                    </span>
-                  </td>
-                  <td data-label="Aufschlag/Mt." style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
-                  <td data-label="pro Jahr" style={{padding:"8px",textAlign:"right",color:"#8a8174",fontSize:11.5}}>{chf(aufschlag*12)}</td>
-                </tr>
-              ))}
-              <tr style={{borderTop:"2px solid #1a1814",background:"#f5efe4"}}>
-                <td colSpan={4} style={{padding:"10px 8px",fontWeight:700,textTransform:"uppercase",fontSize:10.5,letterSpacing:".15em",color:"#1a1814"}}>Total Aufschläge</td>
-                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"#5a6e4a",fontSize:13}}>+{chf(totalAufschlagMonat)}</td>
-                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"#5a6e4a"}}>{chf(totalAufschlagJahr)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-
       {/* WG SECTION */}
       <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WG-Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
@@ -1552,6 +1575,53 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
           ))}
         </div>
       </div>
+
+      {/* KAUTIONS-AUFSCHLÄGE */}
+      {aufschlagMieter.length > 0 && (
+        <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"22px 24px",marginBottom:24}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
+            <div>
+              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:6}}>Kautions-Aufschläge / Mt.</div>
+              <div style={{fontFamily:"'Manrope',sans-serif",fontSize:28,fontWeight:300,color:"#1a1814",lineHeight:1}}>+{chf(totalAufschlagMonat)}</div>
+              <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>von {aufschlagMieter.length} Mieter{aufschlagMieter.length!==1?"n":""} · {chf(totalAufschlagJahr)} / Jahr</div>
+            </div>
+            <div style={{fontSize:10.5,color:"#8a8174",fontStyle:"italic",textAlign:"right",maxWidth:260,lineHeight:1.5}}>Zusatzeinnahmen durch Mieter mit reduzierter Kautionssumme (Variante 0×/1×/2×)</div>
+          </div>
+          <table style={{width:"100%",fontSize:12}}>
+            <thead>
+              <tr style={{textAlign:"left",fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",fontWeight:500}}>
+                <th style={{padding:"6px 8px"}}>Mieter</th>
+                <th style={{padding:"6px 8px"}}>Wohnung</th>
+                <th style={{padding:"6px 8px"}}>Zimmer</th>
+                <th style={{padding:"6px 8px"}}>Variante</th>
+                <th style={{padding:"6px 8px",textAlign:"right"}}>Aufschlag / Mt.</th>
+                <th style={{padding:"6px 8px",textAlign:"right"}}>Pro Jahr</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aufschlagMieter.map(({tenant:t,room,apt,aufschlag}) => (
+                <tr key={t.id} onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{borderTop:"1px solid #f0e9d8",cursor:"pointer"}}>
+                  <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}>{t.vorname} {t.nachname}</td>
+                  <td data-label="Wohnung" style={{padding:"8px",color:"#4a4439"}}>{apt?.adresse||"—"}</td>
+                  <td data-label="Zimmer" style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
+                  <td data-label="Variante" style={{padding:"8px"}}>
+                    <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500}}>
+                      {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"—"}
+                    </span>
+                  </td>
+                  <td data-label="Aufschlag/Mt." style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
+                  <td data-label="pro Jahr" style={{padding:"8px",textAlign:"right",color:"#8a8174",fontSize:11.5}}>{chf(aufschlag*12)}</td>
+                </tr>
+              ))}
+              <tr style={{borderTop:"2px solid #1a1814",background:"#f5efe4"}}>
+                <td colSpan={4} style={{padding:"10px 8px",fontWeight:700,textTransform:"uppercase",fontSize:10.5,letterSpacing:".15em",color:"#1a1814"}}>Total Aufschläge</td>
+                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"#5a6e4a",fontSize:13}}>+{chf(totalAufschlagMonat)}</td>
+                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"#5a6e4a"}}>{chf(totalAufschlagJahr)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -3778,7 +3848,8 @@ const PAGES=[
 
 function MainApp({user}) {
   const [page, setPage] = useState("dashboard");
-  const [navTarget, setNavTarget] = useState(null);  // {id, type} for cross-page links
+  const [navTarget, setNavTarget] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const data = useSupabaseData();
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
@@ -3790,6 +3861,7 @@ function MainApp({user}) {
   function navigateTo(targetPage, targetId) {
     setPage(targetPage);
     setNavTarget({id: targetId, type: targetPage});
+    setSidebarOpen(false); // close sidebar after navigation on mobile
   }
 
   async function logout() {
@@ -3799,10 +3871,18 @@ function MainApp({user}) {
 
   return (
     <div className="app">
-      <div className="sidebar">
-        <div className="logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
+      <button className="mobile-menu-btn" onClick={()=>setSidebarOpen(true)} aria-label="Menü öffnen">☰</button>
+      <div className={`sidebar-overlay${sidebarOpen?" open":""}`} onClick={()=>setSidebarOpen(false)}></div>
+      <div className={`sidebar${sidebarOpen?" open":""}`}>
+        <div className="logo" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <h1>ImmoBase</h1>
+            <p>D&T HOMES</p>
+          </div>
+          <button onClick={()=>setSidebarOpen(false)} style={{display:"none",background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",padding:"0 4px"}} className="sidebar-close" aria-label="Menü schliessen">✕</button>
+        </div>
         <div className="nav">
-          {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);}}>
+          {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);setSidebarOpen(false);}}>
             <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
             {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
