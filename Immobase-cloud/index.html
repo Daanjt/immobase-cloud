@@ -167,6 +167,182 @@ a:hover{border-bottom-color:var(--gold)}
 /* Number badge in nav */
 .nav-badge{background:var(--ink);color:var(--surface);font-size:9px;padding:2px 7px;border-radius:8px;font-weight:500;letter-spacing:.05em}
 .nav-badge.warn{background:var(--warn)}
+
+/* ═══════════════════════════════════════════════════════════════
+   📱 MOBILE OPTIMIZATIONS (iPhone, iPad portrait, Android phones)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Body padding & layout */
+  body { font-size: 14px; }
+  .main { padding: 14px 12px !important; }
+  
+  /* Navigation: tighter */
+  .nav-wrap { padding: 10px 12px !important; gap: 4px !important; flex-wrap: wrap; }
+  .nav-item { padding: 7px 10px !important; font-size: 10.5px !important; letter-spacing: .15em !important; }
+  
+  /* Cards: less padding, more breathing room between */
+  .card { padding: 18px 16px !important; margin-bottom: 14px !important; border-radius: 10px !important; }
+  .ct { font-size: 15px !important; margin-bottom: 12px !important; padding-bottom: 10px !important; }
+  .pt { font-size: 22px !important; }
+  .ps { font-size: 11px !important; }
+  
+  /* Buttons: bigger touch targets (Apple minimum 44px) */
+  .btn { padding: 11px 14px !important; font-size: 11px !important; min-height: 40px; }
+  .btn-sm { padding: 8px 12px !important; font-size: 10px !important; min-height: 36px; }
+  
+  /* ════════════════════════════════════════
+     🔑 TABELLEN → KARTEN-LAYOUT auf Mobile
+     ════════════════════════════════════════ */
+  table, thead, tbody, tr, th, td { display: block; }
+  thead { 
+    position: absolute; 
+    left: -9999px; 
+    width: 1px; 
+    height: 1px; 
+    overflow: hidden;
+  }
+  tr {
+    background: #fefcf7;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+  }
+  tr:hover td { background: transparent; }
+  td {
+    border: none !important;
+    padding: 4px 0 !important;
+    font-size: 13px !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: right;
+  }
+  td:before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin-right: 12px;
+    text-align: left;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+  /* Hide pseudo when no data-label is set */
+  td:not([data-label]):before { content: ''; display: none; }
+  /* First cell is the "header" of the card → full width, no flex */
+  tr td:first-child {
+    font-weight: 600;
+    font-size: 14px !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--line-soft) !important;
+    display: block;
+    text-align: left;
+  }
+  tr td:first-child:before { display: none; }
+  
+  /* ════════════════════════════════════════
+     📊 GRID LAYOUTS gestapelt
+     ════════════════════════════════════════ */
+  /* Mieter-Liste + Detail: gestapelt */
+  div[style*="grid-template-columns:240px 1fr"],
+  div[style*="grid-template-columns: 240px 1fr"] {
+    display: block !important;
+  }
+  div[style*="grid-template-columns:240px 1fr"] > div:first-child,
+  div[style*="grid-template-columns: 240px 1fr"] > div:first-child {
+    margin-bottom: 14px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  
+  /* Bewerber-Liste + Detail: gestapelt */
+  div[style*="grid-template-columns:280px 1fr"],
+  div[style*="grid-template-columns: 280px 1fr"] {
+    display: block !important;
+  }
+  div[style*="grid-template-columns:280px 1fr"] > div:first-child {
+    margin-bottom: 14px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  
+  /* Dashboard-Karten: 1 spaltig */
+  div[style*="grid-template-columns:repeat(3, 1fr)"],
+  div[style*="grid-template-columns:repeat(2, 1fr)"],
+  div[style*="grid-template-columns: repeat(3, 1fr)"],
+  div[style*="grid-template-columns: repeat(2, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Form-Rows: 1 spaltig */
+  .frow { display: block !important; }
+  .frow .fg { margin-bottom: 12px; }
+  
+  /* Info-Grid: 1 spaltig */
+  .igrid { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .ig { padding: 8px 0 !important; border-bottom: 1px solid var(--line-soft); }
+  .ig label { font-size: 10px !important; }
+  .ig span { font-size: 13px !important; }
+  
+  /* ════════════════════════════════════════
+     🎨 MODALS auf Mobile = Full-Screen
+     ════════════════════════════════════════ */
+  .ov { padding: 0 !important; align-items: flex-start !important; }
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    padding: 20px 16px !important;
+    overflow-y: auto !important;
+  }
+  .mt { font-size: 17px !important; margin-bottom: 16px !important; }
+  .ma { flex-direction: column-reverse; gap: 8px; margin-top: 16px !important; }
+  .ma .btn { width: 100% !important; justify-content: center; }
+  
+  /* Inputs: groesser, besser tippbar */
+  .fi { padding: 12px 14px !important; font-size: 16px !important; min-height: 44px; }
+  /* (16px Schriftgröße verhindert Auto-Zoom auf iOS) */
+  .fl { font-size: 10px !important; margin-bottom: 4px !important; }
+  
+  /* ════════════════════════════════════════
+     📑 TABS scrollbar machen
+     ════════════════════════════════════════ */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { white-space: nowrap; flex-shrink: 0; padding: 9px 14px !important; font-size: 10.5px !important; }
+  
+  /* Bewerber-Card kompakter */
+  .bewerber-card { padding: 12px 14px !important; }
+  
+  /* Bdg ein bisschen kleiner */
+  .bx { font-size: 9px !important; padding: 2px 7px !important; }
+  
+  /* Login-Card responsiv */
+  .login-card { padding: 32px 24px !important; }
+  
+  /* Filter-Buttons immer mit Wrap */
+  .row { flex-wrap: wrap; }
+}
+
+/* Extra small phones (iPhone SE etc.) */
+@media (max-width: 380px) {
+  body { font-size: 13px; }
+  .main { padding: 10px 8px !important; }
+  .card { padding: 14px 12px !important; }
+  .pt { font-size: 19px !important; }
+  .modal { padding: 16px 12px !important; }
+}
 </style>
 </head>
 <body>
@@ -471,7 +647,15 @@ function useSupabaseData() {
     // Strip non-DB fields
     delete dbFields.created_at;
     delete dbFields.updated_at;
-    await supabase.from("applicants").update(dbFields).eq("id", id);
+    delete dbFields.beruf;       // legacy, not always in DB
+    delete dbFields.anstellung;  // legacy, not always in DB
+    const {error} = await supabase.from("applicants").update(dbFields).eq("id", id);
+    if (error) {
+      console.error("updateBewerber error:", error);
+      alert("Speichern fehlgeschlagen: " + error.message);
+      return;
+    }
+    setBewerber(p => p.map(b => b.id === id ? {...b, ...fields} : b));
   }
 
   // ─── DOCUMENTS ─────────────────────────────────────────
@@ -1389,7 +1573,10 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
   const freeRooms=rooms.filter(r=>!r.occupied);
   const shown=bewerber.filter(x=>x.status===filterStatus);
 
-  async function setStatus(id,status){await updateBewerber(id,{status});}
+  async function setStatus(id,status){
+    await updateBewerber(id,{status});
+    setFilterStatus(status);  // Auto-switch filter so user sees the result
+  }
 
   async function confirmZuteilung(){
     if(!selZimmer||!b)return;
@@ -2653,8 +2840,16 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument}){
+function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
+  
+  // Auto-select target apartment when navigated from another tab
+  useEffect(() => {
+    if (navTarget && navTarget.type === "wohnungen" && navTarget.id) {
+      setSel(navTarget.id);
+      setTab("info");
+    }
+  }, [navTarget]);
   const [filter,setFilter]=useState("alle");
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({type:"WG",ort:"Zürich"});
@@ -2787,11 +2982,85 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
-            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["docs","Dokumente"],["vertrag","Vertrag"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
-            {tab==="info"&&<div><div className="igrid">{[["Typ",<TypeBadge type={apt.type}/>],["Zimmer",apt.zimmer+" Zi."],["Miete",<strong style={{color:"#5a6e4a"}}>{chf(apt.miete)}</strong>],["Kaution",chf(apt.kaution)],["Kautionstyp",apt.kautionType||apt.kaution_type],["Mietbeginn",apt.mietbeginn],["Mietende",apt.mietende||"—"],["Verwaltung",apt.verwaltung],["Eigentümer",apt.eigentuemer]].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div><DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/></div>}
-            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}>{r.id}</td><td style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td>{t?`${t.vorname} ${t.nachname}`:"—"}</td></tr>);})}</tbody></table>)}
+            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            {tab==="info"&&(() => {
+              const isWG = apt.type === "WG";
+              const aptRooms = rooms.filter(r => r.aptId === apt.id);
+              const belegt = aptRooms.filter(r => r.occupied);
+              const zimmerEinnahmen = belegt.reduce((s,r) => s + (+r.miete || 0), 0);
+              const stromEinnahmen = belegt.length * 25;  // 25 CHF pro belegtem Zimmer
+              const einnahmen = isWG ? zimmerEinnahmen + stromEinnahmen : 0;
+              const kosten = +apt.miete || 0;
+              const marge = einnahmen - kosten;
+              const margePct = einnahmen > 0 ? Math.round((marge/einnahmen)*100) : 0;
+              const auslastung = aptRooms.length > 0 ? Math.round((belegt.length/aptRooms.length)*100) : 0;
+              
+              // Max marge (if all rooms occupied)
+              const maxZimmerEinnahmen = aptRooms.reduce((s,r) => s + (+r.miete || 0), 0);
+              const maxStromEinnahmen = aptRooms.length * 25;
+              const maxEinnahmen = maxZimmerEinnahmen + maxStromEinnahmen;
+              const maxMarge = maxEinnahmen - kosten;
+              
+              return (<div>
+                <div className="igrid">{[
+                  ["Typ",<TypeBadge type={apt.type}/>],
+                  ["Zimmer",apt.zimmer+" Zi."],
+                  ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
+                  ["Kaution",chf(apt.kaution)],
+                  ["Kautionstyp",apt.kautionType||apt.kaution_type],
+                  ["Mietbeginn",apt.mietbeginn],
+                  ["Mietende",apt.mietende||"—"],
+                  ["Verwaltung",apt.verwaltung],
+                  ["Eigentümer",apt.eigentuemer]
+                ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+                
+                {isWG && (
+                  <div style={{marginTop:18,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"16px 18px"}}>
+                    <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:12,fontWeight:500,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span>Finanz-Übersicht</span>
+                      <span style={{textTransform:"none",letterSpacing:"normal",fontSize:11,color:auslastung===100?"#5a6e4a":auslastung>=50?"#b8843e":"#9b4a3e"}}>{belegt.length}/{aptRooms.length} belegt · {auslastung}%</span>
+                    </div>
+                    
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                      <div style={{background:"#fff",border:"1px solid #e8e3d8",borderRadius:6,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",marginBottom:4,fontWeight:500}}>Einnahmen</div>
+                        <div style={{fontSize:18,fontWeight:600,color:"#5a6e4a"}}>{chf(einnahmen)}</div>
+                        <div style={{fontSize:10,color:"#8a8174",marginTop:2}}>aktuell / Mt.</div>
+                      </div>
+                      <div style={{background:"#fff",border:"1px solid #e8e3d8",borderRadius:6,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",marginBottom:4,fontWeight:500}}>Kosten</div>
+                        <div style={{fontSize:18,fontWeight:600,color:"#9b4a3e"}}>{chf(kosten)}</div>
+                        <div style={{fontSize:10,color:"#8a8174",marginTop:2}}>Miete an Vermieter</div>
+                      </div>
+                      <div style={{background:marge>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${marge>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:6,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,color:marge>=0?"#3d4f2f":"#9b4a3e",textTransform:"uppercase",letterSpacing:".15em",marginBottom:4,fontWeight:500}}>Marge</div>
+                        <div style={{fontSize:18,fontWeight:700,color:marge>=0?"#3d4f2f":"#9b4a3e"}}>{marge>=0?"+":""}{chf(marge)}</div>
+                        <div style={{fontSize:10,color:marge>=0?"#3d4f2f":"#9b4a3e",marginTop:2,opacity:.8}}>{margePct}% · max. {chf(maxMarge)}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,fontStyle:"italic",lineHeight:1.5}}>Einnahmen aus belegten Zimmern (Miete + CHF 25 Strompauschale). Bei Vollvermietung max. {chf(maxEinnahmen)}/Mt.</div>
+                  </div>
+                )}
+                
+                {!isWG && (
+                  <div style={{marginTop:18,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"16px 18px"}}>
+                    <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:12,fontWeight:500}}>Finanz-Übersicht (Airbnb)</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+                      <div style={{background:"#fff",border:"1px solid #e8e3d8",borderRadius:6,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",marginBottom:4,fontWeight:500}}>Kosten (Miete an Vermieter)</div>
+                        <div style={{fontSize:18,fontWeight:600,color:"#9b4a3e"}}>{chf(kosten)}/Mt.</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,fontStyle:"italic",lineHeight:1.5}}>Airbnb-Einnahmen werden monatlich variieren. Tracking-Feature kommt später.</div>
+                  </div>
+                )}
+                
+                <DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
+              </div>);
+            })()}
+            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"—"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>)}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="vertrag"&&<div>{apt.vertrag&&<a href={apt.vertrag} target="_blank" rel="noreferrer" className="btn btn-p" style={{display:"inline-flex"}}>📄 Vertrag öffnen</a>}</div>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
       </div>
@@ -2865,7 +3134,6 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         </div>
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
-          <div className="fg"><label className="fl">Vertrags-Link</label><input className="fi" value={newForm.vertrag||""} onChange={NF("vertrag")} placeholder="https://…"/></div>
         </div>
 
         <div className="ma">
@@ -2909,7 +3177,6 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         </div>
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
-          <div className="fg"><label className="fl">Vertrags-Link</label><input className="fi" value={form.vertrag||""} onChange={F("vertrag")}/></div>
         </div>
 
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
@@ -2919,7 +3186,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
 }
 
 // ─── ZIMMER ──────────────────────────────────────────────────────────────────
-function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant}){
+function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant,navigateTo,navTarget}){
   const [filter,setFilter]=useState("alle");
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
@@ -2927,6 +3194,20 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   const [assignMode,setAssignMode]=useState("bewerber"); // "bewerber" | "manual" | "remove"
   const [selBewerberId,setSelBewerberId]=useState("");
   const [manualForm,setManualForm]=useState({vorname:"",nachname:"",email:"",phone:""});
+  const [highlightId,setHighlightId]=useState(null);
+  
+  // Auto-scroll & highlight when navigated here
+  useEffect(() => {
+    if (navTarget && navTarget.type === "zimmer" && navTarget.id) {
+      setFilter("alle");
+      setHighlightId(navTarget.id);
+      setTimeout(() => {
+        const el = document.getElementById(`zimmer-${navTarget.id}`);
+        if (el) el.scrollIntoView({behavior:"smooth", block:"center"});
+      }, 150);
+      setTimeout(() => setHighlightId(null), 3500);
+    }
+  }, [navTarget]);
   const shown=filter==="frei"?rooms.filter(r=>!r.occupied):filter==="belegt"?rooms.filter(r=>r.occupied):rooms;
   const free=rooms.filter(r=>!r.occupied);
   const grouped=apts.filter(a=>a.type==="WG").map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id)})).filter(g=>g.rs.length>0);
@@ -3043,20 +3324,24 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       <div className="row"><div style={{display:"flex",gap:6}}>{[["alle","Alle"],["frei","Nur freie"],["belegt","Belegt"]].map(([k,l])=>(<button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>))}</div></div>
       {grouped.map(({apt,rs})=>(
         <div key={apt.id} className="card">
-          <div className="ct">{apt.id} — {apt.adresse}</div>
+          <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>{apt.id} — {apt.adresse}</span>
+            <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>
+          </div>
           <table>
             <thead><tr><th>Zimmer</th><th>Größe</th><th>Miete</th><th>Balkon</th><th>Status</th><th>Mieter</th><th style={{textAlign:"right"}}>Aktionen</th></tr></thead>
             <tbody>
               {rs.map(r=>{
                 const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;
+                const isHighlight = highlightId === r.id;
                 return(
-                  <tr key={r.id}>
+                  <tr key={r.id} id={`zimmer-${r.id}`} style={isHighlight?{background:"#f5efe4",boxShadow:"0 0 0 2px #a08864",transition:"all .3s"}:{}}>
                     <td style={{fontWeight:600}}>{r.id}</td>
-                    <td style={{color:"#8a8174",fontSize:12}}>{r.groesse||"—"}</td>
-                    <td style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"—"}</td>
-                    <td>{r.balkon?"🌿":"—"}</td>
-                    <td>{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td>
-                    <td>{t?`${t.vorname} ${t.nachname}`:"—"}</td>
+                    <td data-label="Größe" style={{color:"#8a8174",fontSize:12}}>{r.groesse||"—"}</td>
+                    <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"—"}</td>
+                    <td data-label="Balkon">{r.balkon?"🌿":"—"}</td>
+                    <td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td>
+                    <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"—"}</td>
                     <td style={{textAlign:"right",whiteSpace:"nowrap"}}>
                       {!r.occupied&&<button className="btn btn-p btn-sm" onClick={()=>openAssign(r)} style={{marginRight:4}}>+ Zuteilen</button>}
                       <button className="btn btn-g btn-sm" onClick={()=>openEdit(r)}>✏ Bearbeiten</button>
@@ -3167,7 +3452,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument}){
+function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -3175,6 +3460,14 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
   const [tab,setTab]=useState("info");
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({});
+  
+  // Auto-select target tenant when navigated from another tab
+  useEffect(() => {
+    if (navTarget && navTarget.type === "mieter" && navTarget.id) {
+      setSel(navTarget.id);
+      setTab("info");
+    }
+  }, [navTarget]);
   const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase()));
   const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
@@ -3303,7 +3596,13 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
               <div style={{display:"flex",alignItems:"center",gap:11}}><Av name={tenant.vorname} size={40}/><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{tenant.id}</div></div></div>
               <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant});setEditing(true);}}>✏ Bearbeiten</button>
             </div>
-            {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12}}>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>}
+            {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+              <div>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>
+              <div style={{display:"flex",gap:4}}>
+                {apt&&<button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>}
+                <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",room.id)} style={{fontSize:9}}>→ Zimmer</button>
+              </div>
+            </div>}
             <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["uebergabe","Übergabe"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>Persönliche Daten</div>
@@ -3476,6 +3775,7 @@ const PAGES=[
 
 function MainApp({user}) {
   const [page, setPage] = useState("dashboard");
+  const [navTarget, setNavTarget] = useState(null);  // {id, type} for cross-page links
   const data = useSupabaseData();
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
@@ -3483,6 +3783,11 @@ function MainApp({user}) {
   const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
+
+  function navigateTo(targetPage, targetId) {
+    setPage(targetPage);
+    setNavTarget({id: targetId, type: targetPage});
+  }
 
   async function logout() {
     await supabase.auth.signOut();
@@ -3494,7 +3799,7 @@ function MainApp({user}) {
       <div className="sidebar">
         <div className="logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
         <div className="nav">
-          {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>setPage(p.id)}>
+          {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);}}>
             <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
             {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
@@ -3505,7 +3810,7 @@ function MainApp({user}) {
           <button className="logout-btn" onClick={logout}>Abmelden</button>
         </div>
       </div>
-      <div className="main"><Page {...data}/></div>
+      <div className="main"><Page {...data} navigateTo={navigateTo} navTarget={navTarget}/></div>
     </div>
   );
 }
