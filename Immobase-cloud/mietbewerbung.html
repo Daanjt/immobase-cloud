@@ -1344,13 +1344,47 @@ document.getElementById('mainForm').addEventListener('submit', async function(e)
     eingereicht_am: data.eingereichtAm,
   };
 
-  const { error } = await sb.from('applicants').insert([dbRow]);
+  let { error } = await sb.from('applicants').insert([dbRow]);
+
+  // Retry without potentially-missing columns if first attempt fails
+  if (error && (error.message.includes('column') || error.code === 'PGRST204' || error.code === '42703')) {
+    console.warn('First insert failed, retrying with minimal columns:', error.message);
+    const minimalRow = {
+      id: dbRow.id,
+      vorname: dbRow.vorname,
+      nachname: dbRow.nachname,
+      email: dbRow.email,
+      phone: dbRow.phone,
+      geburt: dbRow.geburt,
+      nat: dbRow.nat,
+      adresse: dbRow.adresse,
+      plz: dbRow.plz,
+      ort: dbRow.ort,
+      type: dbRow.type,
+      job: dbRow.job,
+      einkommen: dbRow.einkommen,
+      arbeitgeber: dbRow.arbeitgeber,
+      einzug: dbRow.einzug,
+      zimmer_wunsch: dbRow.zimmer_wunsch,
+      kaution_opt: dbRow.kaution_opt,
+      kaution_type: dbRow.kaution_type,
+      kaution_aufschlag: dbRow.kaution_aufschlag,
+      moebliert: dbRow.moebliert,
+      moeblierung_pauschale: dbRow.moeblierung_pauschale,
+      bemerkung: dbRow.bemerkung,
+      no_debt: dbRow.no_debt,
+      status: dbRow.status,
+      eingereicht_am: dbRow.eingereicht_am,
+    };
+    const retry = await sb.from('applicants').insert([minimalRow]);
+    error = retry.error;
+  }
 
   if (error) {
     console.error('Supabase error:', error);
     btn.textContent = 'Fehler — bitte erneut versuchen';
     btn.disabled = false;
-    alert('Bewerbung konnte nicht gespeichert werden. Bitte versuche es noch einmal.\n\nFehler: ' + error.message);
+    alert('Bewerbung konnte nicht gespeichert werden.\n\nFehler: ' + (error.message || error.hint || 'Unbekannt') + '\n\nCode: ' + (error.code || '—'));
     return;
   }
 
