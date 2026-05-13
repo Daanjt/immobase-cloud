@@ -3925,11 +3925,9 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       kautionBetrag,
       kautionType: newForm.kautionType || "",
       moebliert: !!newForm.moebliert,
-      rauchen: !!newForm.rauchen,
-      haustiere: !!newForm.haustiere,
       noDebt: !!newForm.noDebt,
-      betreibung: !!newForm.betreibung,
-      schluesselNr: newForm.schluesselNr || "",
+      schluesselAnzahl: newForm.schluesselAnzahl || "",
+      extraSchluessel: newForm.extraSchluessel || "",
       bemerkung: newForm.bemerkung || "",
     };
     
@@ -3959,9 +3957,10 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       kautionOpt:form.kautionOpt,kautionMonate:+form.kautionMonate||0,
       kautionAufschlag:+form.kautionAufschlag||0,kautionBetrag:+form.kautionBetrag||0,
       kautionType:form.kautionType,
-      schluesselNr:form.schluesselNr,
-      moebliert:!!form.moebliert,rauchen:!!form.rauchen,haustiere:!!form.haustiere,
-      noDebt:!!form.noDebt,betreibung:!!form.betreibung,
+      schluesselAnzahl:form.schluesselAnzahl,
+      extraSchluessel:form.extraSchluessel,
+      moebliert:!!form.moebliert,
+      noDebt:!!form.noDebt,
       bemerkung:form.bemerkung,
     });
     setEditing(false);
@@ -4061,7 +4060,19 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={form.einzug||""} onChange={F("einzug")}/></div><div className="fg"><label className="fl">Auszug</label><input className="fi" value={form.auszug||""} onChange={F("auszug")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={form.kautionOpt||""} onChange={e=>{const opt=e.target.value;const monate=opt==="3x"?3:opt==="2x"?2:opt==="1x"?1:0;const auf=opt==="0x"?150:opt==="1x"?100:opt==="2x"?50:0;const room=rooms.find(r=>r.id===form.roomId);const bm=room?.miete||0;const betrag=(bm+25)*monate;setForm(p=>({...p,kautionOpt:opt,kautionMonate:monate,kautionAufschlag:auf,kautionBetrag:betrag}));}}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={form.kautionOpt||""} onChange={e=>{
+          const opt=e.target.value;
+          const monate=opt==="3x"?3:opt==="2x"?2:opt==="1x"?1:0;
+          const auf=opt==="0x"?150:opt==="1x"?100:opt==="2x"?50:0;
+          // Try to find room mietzins via roomId first, then via tenantId backref
+          let room = form.roomId ? rooms.find(r=>r.id===form.roomId) : null;
+          if (!room && form.id) room = rooms.find(r=>r.tenantId===form.id);
+          const bm = +room?.miete || 0;
+          const strom = 25;
+          // If no room mietzins available, don't overwrite kautionBetrag (keep user-entered value)
+          const betrag = bm > 0 ? (bm + strom) * monate : (form.kautionBetrag || 0);
+          setForm(p=>({...p,kautionOpt:opt,kautionMonate:monate,kautionAufschlag:auf,kautionBetrag:betrag}));
+        }}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Aufschlag CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
         <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
