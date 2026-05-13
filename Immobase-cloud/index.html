@@ -1774,6 +1774,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
       kautionBetrag,
       moebliert: b.moebliert === "ja",
       einzug: b.einzug || "",
+      auszug: b.auszug || "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
     });
@@ -2428,7 +2429,19 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 <!-- §2 MIETDAUER -->
 <div class="section">
   <h2>2. Mietdauer</h2>
-  <p>Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist unbefristet, beträgt jedoch mindestens sechs Monate. Bitte beachte, dass der Mietvertrag im befristeten Verhältnis automatisch zum vereinbarten Enddatum endet, sofern keine schriftliche Verlängerung vereinbart wird.</p>
+  <p>${(() => {
+    const beginn = v.einzug;
+    const mietende = v.apt?.mietende;
+    if (beginn && mietende) {
+      const dStart = new Date(beginn);
+      const dEnd = new Date(mietende);
+      const months = (dEnd - dStart) / (1000*60*60*24*30.44);
+      if (months > 0 && months < 12) {
+        return `Das Mietverhältnis beginnt am <strong>${fmtDate(beginn)}</strong> und ist <strong>befristet bis ${fmtDate(mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.`;
+      }
+    }
+    return `Das Mietverhältnis beginnt am <strong>${fmtDate(beginn)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
+  })()}</p>
 </div>
 
 <!-- §3 MIETZINS -->
@@ -2833,9 +2846,19 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietdauer</div>
-            <div className="fg" style={{marginBottom:18}}>
+            <div className="fg" style={{marginBottom:8}}>
               <label className="fl">Einzugsdatum</label>
               <input className="fi" type="date" value={vertragData.einzug?vertragData.einzug.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,einzug:e.target.value}))}/>
+            </div>
+            <div style={{marginBottom:18,padding:"10px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,fontSize:11.5,color:"#4a4439"}}>
+              {(() => {
+                const mietende = vertragData.apt?.mietende;
+                if (!vertragData.einzug) return "ℹ Bitte Einzugsdatum setzen";
+                if (!mietende) return "→ Vertrag ist UNBEFRISTET (Wohnung hat kein Mietende)";
+                const m = (new Date(mietende) - new Date(vertragData.einzug)) / (1000*60*60*24*30.44);
+                if (m > 0 && m < 12) return `→ Vertrag ist BEFRISTET bis ${new Date(mietende).toLocaleDateString("de-CH")} (${Math.round(m)} Monate)`;
+                return `→ Vertrag ist UNBEFRISTET (Restlaufzeit ${Math.round(m)} Monate ≥ 12)`;
+              })()}
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietzins-Aufstellung</div>

@@ -276,6 +276,16 @@
     border-color: var(--beige-line);
     color: var(--gold);
   }
+  .room-card .meta-pill.unbefristet {
+    border-color: #c5cda8;
+    color: #5a6e4a;
+    background: #f4f6ed;
+  }
+  .room-card .meta-pill.befristet {
+    border-color: #e0bcb0;
+    color: #9b5a2e;
+    background: #fdf4ec;
+  }
   .room-card .room-price {
     font-family: 'Manrope', sans-serif;
     font-weight: 400;
@@ -739,7 +749,7 @@
         <div class="field-row">
           <div class="field">
             <label>Gewünschter Einzug <span class="req">*</span></label>
-            <input type="date" name="einzug" required>
+            <input type="date" name="einzug" required id="einzugInput">
           </div>
         </div>
 
@@ -926,11 +936,29 @@ async function loadFreieZimmer() {
       return `${match[1].replace(",", ".")} m²`;
     }
     
+    // Compute befristung from apartment.mietende
+    function computeBefristung(mietende) {
+      if (!mietende) return { type: "unbefristet", label: "Unbefristet", endDate: null };
+      const d = new Date(mietende);
+      if (isNaN(d.getTime())) return { type: "unbefristet", label: "Unbefristet", endDate: null };
+      const now = new Date();
+      const months = (d - now) / (1000*60*60*24*30.44);
+      if (months < 12 && months > 0) {
+        return { 
+          type: "befristet", 
+          label: `Befristet bis ${d.toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit', year:'numeric'})}`,
+          endDate: d
+        };
+      }
+      return { type: "unbefristet", label: "Unbefristet", endDate: null };
+    }
+    
     // Combine
     FREIE_ZIMMER = rooms
       .filter(r => aptMap[r.apt_id]) // Only rooms in WG apartments
       .map(r => {
         const a = aptMap[r.apt_id];
+        const bef = computeBefristung(a.mietende);
         return {
           id: r.id,
           adresse: `${a.adresse}, ${a.plz||""} ${a.ort||""}`.trim(),
@@ -939,6 +967,7 @@ async function loadFreieZimmer() {
           qm: normGroesse(r.groesse),
           etage: a.stockwerk || "",
           wgGroesse: a.zimmer ? `${a.zimmer}-Zimmer-WG` : "WG",
+          befristung: bef,
         };
       })
       .sort((x,y) => x.id.localeCompare(y.id));
@@ -973,6 +1002,7 @@ async function renderRooms() {
         <span class="meta-pill wg">${r.wgGroesse}</span>
         ${r.balkon ? '<span class="meta-pill balcony">Balkon</span>' : ''}
         ${r.qm ? `<span class="meta-pill">${r.qm}</span>` : ''}
+        <span class="meta-pill ${r.befristung.type}">${r.befristung.label}</span>
       </div>
       <div class="room-price">CHF ${r.miete.toLocaleString('de-CH')}.– / Mt.</div>
     </label>
@@ -1193,7 +1223,9 @@ document.getElementById('mainForm').addEventListener('submit', async function(e)
     plz: data.plz || '',
     ort: data.ort || '',
     type: data.type || '',
+    anstellung: data.type || '',  // also write as anstellung
     job: data.job || '',
+    beruf: data.job || '',  // also write as beruf
     einkommen: data.einkommen || '',
     arbeitgeber: data.arbeitgeber || '',
     einzug: data.einzug || '',
