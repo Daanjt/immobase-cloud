@@ -236,7 +236,7 @@ a:hover{border-bottom-color:var(--gold)}
   /* Main content gets full width on mobile */
   .main {
     width: 100% !important;
-    padding-top: 64px !important; /* room for hamburger button */
+    padding-top: 70px !important; /* room for hamburger button */
   }
   
   /* Show sidebar close X on mobile */
@@ -244,7 +244,7 @@ a:hover{border-bottom-color:var(--gold)}
   
   /* Body padding & layout */
   body { font-size: 14px; }
-  .main { padding: 64px 12px 14px !important; }
+  .main { padding: 70px 12px 20px !important; }
   
   /* Navigation: tighter */
   .nav-wrap { padding: 10px 12px !important; gap: 4px !important; flex-wrap: wrap; }
@@ -519,23 +519,20 @@ a:hover{border-bottom-color:var(--gold)}
   .sc .sl { font-size: 9px !important; }
   .sc .sn { font-size: 10px !important; }
   
-  /* Liste + Detail (Bewerber, Mieter, Wohnungen) — force stack */
-  div[style*="grid-template-columns:240px"],
-  div[style*="grid-template-columns: 240px"],
-  div[style*="grid-template-columns:280px"],
-  div[style*="grid-template-columns: 280px"] {
+  /* List + Detail grids: stack on mobile */
+  .list-detail {
     display: block !important;
+    grid-template-columns: none !important;
   }
-  
-  /* List sidebar above detail: limit height */
-  div[style*="grid-template-columns:240px"] > div:first-child,
-  div[style*="grid-template-columns: 240px"] > div:first-child,
-  div[style*="grid-template-columns:280px"] > div:first-child,
-  div[style*="grid-template-columns: 280px"] > div:first-child {
+  .list-detail > div:first-child {
     max-height: 320px !important;
     overflow-y: auto !important;
     margin-bottom: 16px !important;
     width: 100% !important;
+  }
+  .list-detail > div:nth-child(2) {
+    width: 100% !important;
+    min-width: 0 !important;
   }
   
   /* ════════════════════════════════════════
@@ -554,21 +551,43 @@ a:hover{border-bottom-color:var(--gold)}
     width: 100% !important;
     justify-content: flex-start !important;
     gap: 6px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
   }
   .detail-actions .btn,
   .detail-actions .btn-sm {
-    flex: 1 1 calc(50% - 4px);
     min-width: 0;
     justify-content: center;
     font-size: 10.5px !important;
+    white-space: normal;
+    line-height: 1.2;
+    text-align: center;
+    padding: 10px 8px !important;
   }
   
   /* Cards: no horizontal overflow */
-  .card { overflow-x: hidden; }
+  .card { 
+    overflow-x: hidden;
+    max-width: 100%;
+  }
   
   /* Prevent any element from breaking layout */
   * { max-width: 100%; }
-  .main { overflow-x: hidden; }
+  .main { 
+    overflow-x: hidden;
+    padding-top: 70px !important; /* more space for hamburger */
+  }
+  
+  /* All info-grid columns to stack */
+  .igrid {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+  
+  /* Document checklist: stack columns */
+  .card div[style*="repeat(2"] {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Extra small phones (iPhone SE etc.) */
@@ -763,8 +782,19 @@ function useSupabaseData() {
       const dbKey = map[k] || k;
       dbFields[dbKey] = fields[k];
     }
+    // Strip system fields
     delete dbFields.created_at;
     delete dbFields.updated_at;
+    // Strip bewerber-only fields that don't exist on tenants table
+    delete dbFields.status;
+    delete dbFields.eingereicht_am;
+    delete dbFields.eingereichtAm;
+    delete dbFields.zugeteiltes_zimmer;
+    delete dbFields.truthful;
+    // Strip removed-feature fields (lifestyle)
+    delete dbFields.rauchen;
+    delete dbFields.haustiere;
+    delete dbFields.betreibung;
     return dbFields;
   }
   
@@ -2841,7 +2871,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
           <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
+      <div className="list-detail" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
         <div>
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
             {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
@@ -2924,7 +2954,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
                 ["Arbeitgeber",b.arbeitgeber||"—"],
                 ["Gewünschter Einzug",b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):"—"],
                 ["Aufenthaltsdauer",b.aufenthalt||"—"],
-                ["Keine Betreibung",b.noDebt?<Bdg label="✓ Bestätigt" color="g"/>:<Bdg label="— Nicht bestätigt" color="y"/>],
+                ["Keine offenen Betreibungen",b.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>— Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}
             </div>
 
@@ -3012,7 +3042,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
             <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">—</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Status & Bemerkung</div>
-            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl" style={{visibility:"hidden"}}>—</label><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine Betreibung bestätigt</label></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl" style={{visibility:"hidden"}}>—</label><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine offenen Betreibungen</label></div></div>
             <div className="fg"><label className="fl">Bemerkung</label><textarea className="fi" rows={3} value={editForm.bemerkung||""} onChange={EF("bemerkung")} style={{resize:"vertical",fontFamily:"inherit"}}/></div>
 
             <div className="ma">
@@ -3262,7 +3292,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
         ))}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+      <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           {(filter==="alle"||filter==="WG")&&wgApts.length>0&&(
             <div style={{marginBottom:14}}>
@@ -3547,48 +3577,38 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     const strom = 25;
     const kautionBetrag = (bruttomiete + strom) * kautionMonate;
     
+    // Copy ALL bewerber fields, then override tenant-specific ones
     const newTenant = {
+      ...b,  // Spread ALL applicant fields (vorname, nachname, email, phone, geburt, gender, nat, adresse, plz, ort, beruf, anstellung, arbeitgeber, einkommen, rauchen, haustiere, bemerkung, einzug, kautionOpt, kautionType, kautionAufschlag, moebliert, moeblierungPauschale, zimmerWunsch, noDebt, ...)
+      // Now override tenant-specific fields:
       id: newId,
       bewerberId: b.id,
-      // Personal
-      vorname: b.vorname || "",
-      nachname: b.nachname || "",
-      email: b.email || "",
-      phone: b.phone || "",
-      geburt: b.geburt || "",
-      nat: b.nat || "",
-      adresse: b.adresse || "",
-      plz: b.plz || "",
-      ort: b.ort || "",
-      // Profession
-      beruf: b.beruf || "",
-      arbeitgeber: b.arbeitgeber || "",
-      einkommen: b.einkommen || "",
-      anstellung: b.anstellung || "",
-      // Tenancy
       aptId: assigning.aptId,
       roomId: assigning.id,
-      einzug: b.einzug || "",
-      // Kaution (full data)
-      kautionOpt: b.kautionOpt || "3x",
+      // Recompute kaution to be tenant-specific
       kautionMonate: kautionMonate,
-      kautionAufschlag: b.kautionAufschlag || 0,
       kautionBetrag: kautionBetrag,
-      kautionType: b.kautionType || "",
-      // Moeblierung
-      moebliert: !!b.moebliert,
-      moeblierungPauschale: b.moeblierungPauschale || 0,
-      // Living
-      rauchen: !!b.rauchen,
-      haustiere: !!b.haustiere,
-      // Status from form
+      // Tenant-specific default fields
+      betreibung: false,
+      schluesselNr: "",
+      auszug: "",
+      // Normalize types (form sends "ja"/"nein" strings, DB wants boolean)
+      moebliert: b.moebliert === "ja" || b.moebliert === true,
       noDebt: !!b.noDebt,
-      betreibung: false, // Will be set later when Betreibungsregister received
-      // Bemerkung
-      bemerkung: b.bemerkung || "",
-      // Wunsch (for traceability)
-      zimmerWunsch: b.zimmerWunsch || assigning.id,
     };
+    
+    // Strip fields that don't belong on a tenant
+    delete newTenant.status;          // Bewerber-status
+    delete newTenant.eingereichtAm;   // Bewerber-only
+    delete newTenant.eingereicht_am;  // DB snake_case version
+    delete newTenant.zugeteiltes_zimmer; // Bewerber-only
+    delete newTenant.truthful;        // Form only
+    delete newTenant.rauchen;         // Removed feature
+    delete newTenant.haustiere;       // Removed feature
+    delete newTenant.betreibung;      // Removed feature
+    delete newTenant.created_at;
+    delete newTenant.updated_at;
+    
     try {
       await insertTenant(newTenant);
       await updateRoom(assigning.id,{occupied:true,tenantId:newId});
@@ -3884,7 +3904,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         </div>
         <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+      <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
@@ -3936,6 +3956,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
                 ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"—"],
                 ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
                 ["Schlüssel-Nr.",tenant.schluesselNr||"—"],
+                ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>— Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               {tenant.bemerkung&&<div style={{marginTop:18}}>
@@ -3972,9 +3993,10 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         <div className="frow"><div className="fg"><label className="fl">Aufschlag CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
         <div className="fg"><label className="fl">Schlüssel-Nr.</label><input className="fi" value={form.schluesselNr||""} onChange={F("schluesselNr")}/></div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Wohnen & Status</div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
-          {[["moebliert","Möbliert"],["rauchen","Raucher"],["haustiere","Haustiere"],["noDebt","Keine Schulden (selbstdekl.)"],["betreibung","Betreibungsauszug erhalten"]].map(([k,l])=>(<label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!form[k]} onChange={FB(k)}/> {l}</label>))}
+          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!form.moebliert} onChange={FB("moebliert")}/> Möbliert</label>
+          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!form.noDebt} onChange={FB("noDebt")}/> Keine offenen Betreibungen</label>
         </div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
@@ -4010,9 +4032,10 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Schlüssel-Nr.</label><input className="fi" value={newForm.schluesselNr||""} onChange={NF("schluesselNr")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={newForm.kautionOpt||""} onChange={NF("kautionOpt")}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Wohnen & Status</div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
-          {[["moebliert","Möbliert"],["rauchen","Raucher"],["haustiere","Haustiere"],["noDebt","Keine Schulden (selbstdekl.)"],["betreibung","Betreibungsauszug erhalten"]].map(([k,l])=>(<label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!newForm[k]} onChange={NFB(k)}/> {l}</label>))}
+          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!newForm.moebliert} onChange={NFB("moebliert")}/> Möbliert</label>
+          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!newForm.noDebt} onChange={NFB("noDebt")}/> Keine offenen Betreibungen</label>
         </div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
