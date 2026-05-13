@@ -598,6 +598,69 @@ a:hover{border-bottom-color:var(--gold)}
   .pt { font-size: 19px !important; }
   .modal { padding: 16px 12px !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   💻 TABLET / NARROW DESKTOP (half-screen laptop, iPad portrait)
+   ═══════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1100px) {
+  /* Tighter padding everywhere */
+  .main { padding: 28px 24px !important; }
+  .card { padding: 22px 20px !important; }
+  
+  /* Tables: smaller text, less padding so all columns fit */
+  table { font-size: 11.5px !important; }
+  table th { 
+    font-size: 9px !important; 
+    padding: 8px 5px !important; 
+    letter-spacing: .08em !important;
+  }
+  table td { 
+    padding: 9px 5px !important; 
+    font-size: 11.5px !important;
+    white-space: nowrap;
+  }
+  /* Allow tables to scroll horizontally if still too wide */
+  .card { overflow-x: auto; }
+  
+  /* Hero cards: smaller numbers so 3 fit */
+  .dash-hero { gap: 10px !important; }
+  .dash-hero > div { padding: 18px 18px !important; }
+  .dash-hero > div > div:nth-child(2) {
+    font-size: 22px !important;
+  }
+  .dash-hero > div > div:first-child {
+    font-size: 8px !important;
+    letter-spacing: .2em !important;
+  }
+  
+  /* WG-Stats: smaller text */
+  .sc { padding: 18px 16px !important; }
+  .sc .sv { font-size: 20px !important; }
+  
+  /* List+Detail grid: less sidebar width */
+  div[style*="grid-template-columns:240px"],
+  div[style*="grid-template-columns: 240px"] {
+    grid-template-columns: 200px 1fr !important;
+  }
+  div[style*="grid-template-columns:280px"],
+  div[style*="grid-template-columns: 280px"] {
+    grid-template-columns: 220px 1fr !important;
+  }
+  
+  /* Detail headers: smaller buttons */
+  .detail-actions .btn-sm {
+    font-size: 9.5px !important;
+    padding: 7px 9px !important;
+  }
+  
+  /* Finance-grid: 3 cols but tighter */
+  .finance-grid { gap: 6px !important; }
+  .finance-grid > div { padding: 12px 14px !important; }
+  .finance-grid > div > div:nth-child(2) { font-size: 16px !important; }
+  
+  /* Nav: smaller padding */
+  .nav-wrap { padding: 12px 18px !important; gap: 8px !important; }
+}
 </style>
 </head>
 <body>
@@ -1037,11 +1100,11 @@ function useSupabaseData() {
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
 const STOCKWERK_OPTIONS = ["EG","1. OG","2. OG","3. OG","4. OG","5. OG","6. OG"];
 
-const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Hausordnung","Versicherungspolice","Rechnung","Sonstige"];
+const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Sonstige"];
 const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Lohnausweis","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
 
 // Required categories that should be tracked in the checklist (excluding "Sonstige")
-const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Hausordnung","Versicherungspolice"];
+const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"];
 const TENANT_REQUIRED = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Lohnausweis","Pass / Ausweis","Betreibungsregister-Auszug"];
 
 function DocumentChecklist({entityType, entityId, documents, onJumpToDocs}){
@@ -3270,10 +3333,12 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
   }
   function renderAptCard(a){
     const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;const on=sel===a.id;
+    const meta=[a.zimmer?`${a.zimmer} Zi.`:null,a.stockwerk||null].filter(Boolean).join(" · ");
     return(
       <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}</span><TypeBadge type={a.type}/></div>
         <div style={{fontSize:11,color:"#8a8478"}}>{a.adresse}</div>
+        {meta&&<div style={{fontSize:10.5,color:"#a89e8b",marginTop:2,letterSpacing:".05em"}}>{meta}</div>}
         {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
       </div>
     );
