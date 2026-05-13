@@ -2430,17 +2430,24 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
 <div class="section">
   <h2>2. Mietdauer</h2>
   <p>${(() => {
-    const beginn = v.einzug;
-    const mietende = v.apt?.mietende;
+    function parseD(s) {
+      if (!s) return null;
+      const str = String(s).trim();
+      if (!str) return null;
+      if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d=new Date(str); return isNaN(d.getTime())?null:d; }
+      const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      if (m) { const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime())?null:d; }
+      const d = new Date(str); return isNaN(d.getTime())?null:d;
+    }
+    const beginn = parseD(v.einzug);
+    const mietende = parseD(v.apt?.mietende);
     if (beginn && mietende) {
-      const dStart = new Date(beginn);
-      const dEnd = new Date(mietende);
-      const months = (dEnd - dStart) / (1000*60*60*24*30.44);
+      const months = (mietende - beginn) / (1000*60*60*24*30.44);
       if (months > 0 && months < 12) {
-        return `Das Mietverhältnis beginnt am <strong>${fmtDate(beginn)}</strong> und ist <strong>befristet bis ${fmtDate(mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.`;
+        return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.`;
       }
     }
-    return `Das Mietverhältnis beginnt am <strong>${fmtDate(beginn)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
+    return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
   })()}</p>
 </div>
 
@@ -2852,11 +2859,21 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,updateRoom,insertT
             </div>
             <div style={{marginBottom:18,padding:"10px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,fontSize:11.5,color:"#4a4439"}}>
               {(() => {
-                const mietende = vertragData.apt?.mietende;
-                if (!vertragData.einzug) return "ℹ Bitte Einzugsdatum setzen";
+                function parseD(s) {
+                  if (!s) return null;
+                  const str = String(s).trim();
+                  if (!str) return null;
+                  if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d=new Date(str); return isNaN(d.getTime())?null:d; }
+                  const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+                  if (m) { const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime())?null:d; }
+                  const d = new Date(str); return isNaN(d.getTime())?null:d;
+                }
+                const mietende = parseD(vertragData.apt?.mietende);
+                const einzug = parseD(vertragData.einzug);
+                if (!einzug) return "ℹ Bitte Einzugsdatum setzen";
                 if (!mietende) return "→ Vertrag ist UNBEFRISTET (Wohnung hat kein Mietende)";
-                const m = (new Date(mietende) - new Date(vertragData.einzug)) / (1000*60*60*24*30.44);
-                if (m > 0 && m < 12) return `→ Vertrag ist BEFRISTET bis ${new Date(mietende).toLocaleDateString("de-CH")} (${Math.round(m)} Monate)`;
+                const m = (mietende - einzug) / (1000*60*60*24*30.44);
+                if (m > 0 && m < 12) return `→ Vertrag ist BEFRISTET bis ${mietende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate)`;
                 return `→ Vertrag ist UNBEFRISTET (Restlaufzeit ${Math.round(m)} Monate ≥ 12)`;
               })()}
             </div>
