@@ -452,6 +452,11 @@ function formatGroesse(input) {
   const num = match[1].replace(",", ".");
   return `${num} m²`;
 }
+
+// Natural sort comparator (A1, A2, A10 instead of A1, A10, A2)
+function natSort(a, b) {
+  return String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'});
+}
 function StatusBdg({status}){
   const m={"Neu":["b","● Neu"],"In Prüfung":["y","◐ In Prüfung"],"Bestätigt":["g","✓ Bestätigt"],"Abgelehnt":["r","✗ Abgelehnt"],"Zugeteilt":["g","🏠 Zugeteilt"]};
   const [c,l]=m[status]||["x",status];return <span className={`bx b-${c}`}>{l}</span>;
@@ -1382,8 +1387,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
   const heute=new Date();
   
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
-  const wgApts = apts.filter(a=>a.type==="WG");
-  const airbnbApts = apts.filter(a=>a.type==="Airbnb");
+  const wgApts = apts.filter(a=>a.type==="WG").sort((a,b)=>natSort(a.id, b.id));
+  const airbnbApts = apts.filter(a=>a.type==="Airbnb").sort((a,b)=>natSort(a.id, b.id));
   const wgIds = wgApts.map(a=>a.id);
   const airbnbIds = airbnbApts.map(a=>a.id);
   const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
@@ -2967,9 +2972,9 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({type:"WG",ort:"Zürich"});
   const [roomList,setRoomList]=useState([]);
-  const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id):[];
-  const wgApts=apts.filter(a=>a.type==="WG");
-  const airbnbApts=apts.filter(a=>a.type==="Airbnb");
+  const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id).sort((a,b)=>natSort(a.id, b.id)):[];
+  const wgApts=apts.filter(a=>a.type==="WG").sort((a,b)=>natSort(a.id, b.id));
+  const airbnbApts=apts.filter(a=>a.type==="Airbnb").sort((a,b)=>natSort(a.id, b.id));
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
   function NF(k){
     return e => {
@@ -3323,7 +3328,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   }, [navTarget]);
   const shown=filter==="frei"?rooms.filter(r=>!r.occupied):filter==="belegt"?rooms.filter(r=>r.occupied):rooms;
   const free=rooms.filter(r=>!r.occupied);
-  const grouped=apts.filter(a=>a.type==="WG").map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id)})).filter(g=>g.rs.length>0);
+  const grouped=apts.filter(a=>a.type==="WG").sort((a,b)=>natSort(a.id, b.id)).map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id, y.id))})).filter(g=>g.rs.length>0);
   const eligibleBewerber=bewerber?bewerber.filter(b=>b.status==="Neu"):[];
 
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
@@ -3581,7 +3586,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       setTab("info");
     }
   }, [navTarget]);
-  const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>natSort(a.id, b.id));
   const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
   function NF(k){return e=>setNewForm(p=>({...p,[k]:e.target.value}));}function NFB(k){return e=>setNewForm(p=>({...p,[k]:e.target.checked}));}
