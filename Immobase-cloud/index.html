@@ -711,21 +711,28 @@ function StatusBdg({status}){
 }
 
 // ─── LOGIN ───────────────────────────────────────────────────────────────────
-function Login() {
-  const [email, setEmail] = useState("");
+// Geteiltes Passwort für D&T Homes Team
+const APP_PASSWORD = "Massivecock69";
+
+function Login({onLogin}) {
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  async function sendLink(e) {
+  async function handleLogin(e) {
     e.preventDefault();
     setLoading(true); setMsg(null);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: window.location.origin }
-    });
+    // Kurze Verzögerung gegen Brute-Force
+    await new Promise(r => setTimeout(r, 400));
+    if (password === APP_PASSWORD) {
+      localStorage.setItem("immobase_auth", "ok");
+      localStorage.setItem("immobase_auth_time", String(Date.now()));
+      onLogin();
+    } else {
+      setMsg({type:"error", text:"Falsches Passwort. Bitte erneut versuchen."});
+      setPassword("");
+    }
     setLoading(false);
-    if (error) setMsg({type:"error", text:"Login nicht möglich. Diese E-Mail ist nicht freigeschaltet oder es gab einen Fehler."});
-    else setMsg({type:"success", text:"Wir haben dir einen Login-Link an "+email+" geschickt. Schau in deine E-Mails (auch Spam-Ordner)."});
   }
 
   return (
@@ -733,15 +740,15 @@ function Login() {
       <div className="login-card">
         <div className="login-logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
         <h2>Anmelden</h2>
-        <p className="desc">Gib deine E-Mail-Adresse ein. Du bekommst einen sicheren Login-Link per E-Mail — kein Passwort nötig.</p>
-        <form onSubmit={sendLink}>
-          <input className="login-input" type="email" required placeholder="deine@email.ch" value={email} onChange={e=>setEmail(e.target.value)} disabled={loading}/>
-          <button className="login-btn" type="submit" disabled={loading||!email}>
-            {loading?"Sende Link…":"Login-Link senden →"}
+        <p className="desc">Gib das Passwort ein um auf das System zuzugreifen.</p>
+        <form onSubmit={handleLogin}>
+          <input className="login-input" type="password" required placeholder="Passwort" autoFocus value={password} onChange={e=>setPassword(e.target.value)} disabled={loading}/>
+          <button className="login-btn" type="submit" disabled={loading||!password}>
+            {loading?"Prüfe…":"Anmelden →"}
           </button>
         </form>
         {msg && <div className={`login-msg ${msg.type}`}>{msg.text}</div>}
-        <div className="login-foot">Nur freigeschaltete E-Mails haben Zugriff.</div>
+        <div className="login-foot">D&T Homes Verwaltungs-System</div>
       </div>
     </div>
   );
@@ -4212,7 +4219,7 @@ const PAGES=[
   {id:"mieter",icon:"👤",label:"Mieter"},
 ];
 
-function MainApp({user}) {
+function MainApp() {
   const [page, setPage] = useState("dashboard");
   const [navTarget, setNavTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -4231,7 +4238,8 @@ function MainApp({user}) {
   }
 
   async function logout() {
-    await supabase.auth.signOut();
+    localStorage.removeItem("immobase_auth");
+    localStorage.removeItem("immobase_auth_time");
     window.location.reload();
   }
 
@@ -4255,7 +4263,7 @@ function MainApp({user}) {
           </button>))}
         </div>
         <div className="user-info">
-          <div className="uemail">{user.email}</div>
+          <div className="uemail">D&T Homes</div>
           <button className="logout-btn" onClick={logout}>Abmelden</button>
         </div>
       </div>
@@ -4265,17 +4273,25 @@ function MainApp({user}) {
 }
 
 function App() {
-  const [session, setSession] = useState(undefined);
+  const [authed, setAuthed] = useState(undefined);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({data}) => setSession(data.session));
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_, s) => setSession(s));
-    return () => subscription.unsubscribe();
+    // Check if user is logged in (and session not older than 30 days)
+    const ok = localStorage.getItem("immobase_auth");
+    const t = +localStorage.getItem("immobase_auth_time") || 0;
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    if (ok === "ok" && (Date.now() - t) < thirtyDays) {
+      setAuthed(true);
+    } else {
+      localStorage.removeItem("immobase_auth");
+      localStorage.removeItem("immobase_auth_time");
+      setAuthed(false);
+    }
   }, []);
 
-  if (session === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
-  if (!session) return <Login/>;
-  return <MainApp user={session.user}/>;
+  if (authed === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
+  if (!authed) return <Login onLogin={()=>setAuthed(true)}/>;
+  return <MainApp/>;
 }
 
 class ErrorBoundary extends React.Component {
