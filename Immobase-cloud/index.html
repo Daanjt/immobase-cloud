@@ -763,7 +763,7 @@ function useSupabaseData() {
       supabase.from("tenants").select("*").order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
     ]);
-    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr})));
+    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
     setTenants((t.data||[]).map(x=>({
       ...x,
@@ -771,6 +771,7 @@ function useSupabaseData() {
       schluesselNr: x.schluessel_nr,
       schluesselAnzahl: x.schluessel_anzahl,
       extraSchluessel: x.extra_schluessel,
+      schluesselUebergeben: x.schluessel_uebergeben,
       aptId: x.apt_id,
       roomId: x.room_id,
       kautionMonate: x.kaution_monate,
@@ -811,6 +812,8 @@ function useSupabaseData() {
   function toDbApt(fields) {
     const map = {
       kautionType: "kaution_type",
+      schluesselAnzahl: "schluessel_anzahl",
+      extraSchluessel: "extra_schluessel",
     };
     const strip = ["kaution_type"]; // some db schemas may differ; we'll use map below only
     const dbFields = {};
@@ -831,6 +834,7 @@ function useSupabaseData() {
       schluesselNr: "schluessel_nr",
       schluesselAnzahl: "schluessel_anzahl",
       extraSchluessel: "extra_schluessel",
+      schluesselUebergeben: "schluessel_uebergeben",
       aptId: "apt_id",
       roomId: "room_id",
       kautionMonate: "kaution_monate",
@@ -3290,6 +3294,8 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       mietbeginn:form.mietbeginn,mietende:form.mietende,
       verwaltung:form.verwaltung,eigentuemer:form.eigentuemer,
       refnr:form.refnr,vertrag:form.vertrag,
+      schluesselAnzahl:form.schluesselAnzahl,
+      extraSchluessel:form.extraSchluessel,
     });
     setEditing(false);
   }
@@ -3321,6 +3327,8 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       refzins: newForm.refzins || "",
       refnr: newForm.refnr || "",
       vertrag: newForm.vertrag || "",
+      schluesselAnzahl: newForm.schluesselAnzahl || "",
+      extraSchluessel: newForm.extraSchluessel || "",
     };
     await insertApt(apt, newForm.type === "WG" ? roomList : null);
     setAdding(false);
@@ -3413,6 +3421,8 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
                   ["Kautionstyp",apt.kautionType||apt.kaution_type],
                   ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"—"],
                   ["Referenz-Nr.",apt.refnr||"—"],
+                  ["Wohnungsschlüssel",apt.schluesselAnzahl?`${apt.schluesselAnzahl}×`:"—"],
+                  ["Extra-Schlüssel",apt.extraSchluessel||"—"],
                   ["Mietbeginn",apt.mietbeginn],
                   ["Mietende",apt.mietende||"—"],
                   ["Verwaltung",apt.verwaltung],
@@ -3541,6 +3551,12 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
         </div>
 
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Anzahl Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={newForm.schluesselAnzahl||""} onChange={NF("schluesselAnzahl")} placeholder="z.B. 3"/></div>
+          <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={newForm.extraSchluessel||""} onChange={NF("extraSchluessel")} placeholder="z.B. 2× Briefkasten, 1× Keller, 1× Garage"/></div>
+        </div>
+
         <div className="ma">
           <button className="btn btn-g" onClick={()=>{setAdding(false);setRoomList([]);}}>Abbrechen</button>
           <button className="btn btn-p" onClick={saveNew}>✓ Wohnung anlegen</button>
@@ -3582,6 +3598,12 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         </div>
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
+        </div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Anzahl Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. 3"/></div>
+          <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 2× Briefkasten, 1× Keller, 1× Garage"/></div>
         </div>
 
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
@@ -3928,6 +3950,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       noDebt: !!newForm.noDebt,
       schluesselAnzahl: newForm.schluesselAnzahl || "",
       extraSchluessel: newForm.extraSchluessel || "",
+      schluesselUebergeben: !!newForm.schluesselUebergeben,
       bemerkung: newForm.bemerkung || "",
     };
     
@@ -3959,6 +3982,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       kautionType:form.kautionType,
       schluesselAnzahl:form.schluesselAnzahl,
       extraSchluessel:form.extraSchluessel,
+      schluesselUebergeben:!!form.schluesselUebergeben,
       moebliert:!!form.moebliert,
       noDebt:!!form.noDebt,
       bemerkung:form.bemerkung,
@@ -4027,6 +4051,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
                 ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
                 ["Schlüsselnummer",tenant.schluesselAnzahl||"—"],
                 ["Extra-Schlüssel",tenant.extraSchluessel||"—"],
+                ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>— Nein</span>],
                 ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>— Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
@@ -4076,6 +4101,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         <div className="frow"><div className="fg"><label className="fl">Aufschlag CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
         <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
+        <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!form.schluesselUebergeben} onChange={FB("schluesselUebergeben")}/> Schlüssel übergeben</label>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
@@ -4115,6 +4141,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         </div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={newForm.schluesselAnzahl||""} onChange={NF("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div></div>
         <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={newForm.extraSchluessel||""} onChange={NF("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div>
+        <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!newForm.schluesselUebergeben} onChange={NFB("schluesselUebergeben")}/> Schlüssel bereits übergeben</label>
         <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={newForm.kautionOpt||""} onChange={NF("kautionOpt")}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
