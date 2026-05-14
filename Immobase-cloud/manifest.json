@@ -1,0 +1,43 @@
+{
+  "name": "ImmoBase — D&T Homes",
+  "short_name": "ImmoBase",
+  "description": "D&T Homes Verwaltungs-System für Wohnungen, Zimmer, Mieter und Bewerber",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fdfaf2",
+  "theme_color": "#1a1814",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "de-CH",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

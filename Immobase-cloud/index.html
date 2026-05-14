@@ -2,13 +2,41 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>ImmoBase — D&T Homes</title>
+
+<!-- PWA Manifest + Theme -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1a1814">
+<meta name="description" content="D&T Homes Verwaltungs-System für Wohnungen, Mieter und Bewerber">
+
+<!-- iOS specific -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ImmoBase">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+<!-- Standard favicons -->
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- PWA Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => 
+      console.warn('SW registration failed:', err)
+    );
+  });
+}
+</script>
 
 <style>
 :root{
@@ -33,7 +61,17 @@
   --error-soft: #f0dcd5;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;font-size:13.5px;font-weight:400;letter-spacing:.005em;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;font-size:13.5px;font-weight:400;letter-spacing:.005em;min-height:100vh;min-height:-webkit-fill-available}
+/* PWA: handle iOS safe area (notch, dynamic island, home indicator) */
+@supports (padding: env(safe-area-inset-top)) {
+  body { 
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    background: var(--bg);
+  }
+}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--beige-line);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--beige)}
 
 /* LOGIN */
@@ -1933,8 +1971,10 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [vertragData,setVertragData]=useState(null);
   const [emailMenu,setEmailMenu]=useState(false);
 
-  // Form link assumes form is hosted at same origin under /mietbewerbung.html
-  const formLink = window.location.origin + "/mietbewerbung.html";
+  // Form link: use bewerbung.dthomes.ch on production, otherwise same origin
+  const formLink = (window.location.hostname === "app.dthomes.ch") 
+    ? "https://bewerbung.dthomes.ch" 
+    : window.location.origin + "/mietbewerbung.html";
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
