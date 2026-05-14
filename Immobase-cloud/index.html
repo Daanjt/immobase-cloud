@@ -1931,6 +1931,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [editModal,setEditModal]=useState(false);
   const [editForm,setEditForm]=useState({});
   const [vertragData,setVertragData]=useState(null);
+  const [emailMenu,setEmailMenu]=useState(false);
 
   // Form link assumes form is hosted at same origin under /mietbewerbung.html
   const formLink = window.location.origin + "/mietbewerbung.html";
@@ -1982,6 +1983,103 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   }
   function EF(k){return e=>setEditForm(p=>({...p,[k]:e.target.value}));}
   function EFB(k){return e=>setEditForm(p=>({...p,[k]:e.target.checked}));}
+
+  // ─── EMAIL VERSAND ──────────────────────────────────────────────────────────
+  function sendEmail(type) {
+    if (!b || !b.email) {
+      alert("Keine Email-Adresse für diesen Bewerber hinterlegt.");
+      return;
+    }
+    const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
+    const targetRoomId = b.zugeteiltes_zimmer || b.zimmerWunsch;
+    const room = targetRoomId ? rooms.find(r=>r.id===targetRoomId) : null;
+    const apt = room ? apts.find(a=>a.id===room.aptId) : null;
+    const adresse = apt ? `${apt.adresse}, ${apt.plz||""} ${apt.ort||""}`.trim() : "";
+    const zimmerId = targetRoomId || "";
+    
+    let subject, body;
+    
+    if (type === "vertrag") {
+      subject = `Untermietvertrag — ${adresse} (${zimmerId}) | D&T Homes`;
+      body = `Liebe/r ${b.vorname || fullName}
+
+Vielen Dank für dein Interesse an unserer Wohnung an der ${adresse}.
+
+Im Anhang findest du den Untermietvertrag für Zimmer ${zimmerId}. Bitte gehe wie folgt vor:
+
+1. Überprüfe alle Angaben im Vertrag sorgfältig
+2. Unterzeichne beide Exemplare
+3. Sende ein unterzeichnetes Exemplar per E-Mail zurück an info@dthomes.ch oder per Post
+
+Bitte stelle ausserdem die folgenden Dokumente bereit:
+- Kopie deines Passes / Ausweises
+- Aktueller Betreibungsregister-Auszug (nicht älter als 3 Monate)
+- Kautionsbestätigung (gemäss gewählter Variante)
+
+Bei Fragen stehe ich dir gerne zur Verfügung.
+
+Beste Grüsse
+
+Daan Theijse
+D&T Homes
+info@dthomes.ch
+www.dthomes.ch`;
+    } else if (type === "anfangsmietzins") {
+      subject = `Anfangsmietzinsformular — ${adresse} (${zimmerId}) | D&T Homes`;
+      body = `Liebe/r ${b.vorname || fullName}
+
+Im Anhang findest du das amtliche Anfangsmietzinsformular für das Zimmer ${zimmerId} an der ${adresse}.
+
+Dieses Formular ist gesetzlich vorgeschrieben (Art. 270 OR) und informiert dich über:
+- Den vorherigen Mietzins
+- Den aktuellen Mietzins
+- Den geltenden Referenzzinssatz
+
+Bitte bewahre dieses Dokument zusammen mit dem Untermietvertrag auf.
+
+Bei Fragen stehe ich dir gerne zur Verfügung.
+
+Beste Grüsse
+
+Daan Theijse
+D&T Homes
+info@dthomes.ch
+www.dthomes.ch`;
+    } else if (type === "beides") {
+      subject = `Vertragsunterlagen — ${adresse} (${zimmerId}) | D&T Homes`;
+      body = `Liebe/r ${b.vorname || fullName}
+
+Vielen Dank für dein Interesse an unserer Wohnung an der ${adresse}.
+
+Im Anhang findest du zwei wichtige Dokumente für das Zimmer ${zimmerId}:
+
+1) UNTERMIETVERTRAG
+   - Bitte überprüfen, unterzeichnen und ein Exemplar zurücksenden
+
+2) ANFANGSMIETZINSFORMULAR (gesetzlich vorgeschrieben)
+   - Information über den vorherigen und aktuellen Mietzins
+   - Bitte zur Ablage aufbewahren
+
+Bitte stelle uns ausserdem die folgenden Dokumente bereit:
+- Kopie deines Passes / Ausweises
+- Aktueller Betreibungsregister-Auszug (nicht älter als 3 Monate)
+- Kautionsbestätigung (gemäss gewählter Variante)
+
+Bei Fragen stehe ich dir gerne zur Verfügung.
+
+Beste Grüsse
+
+Daan Theijse
+D&T Homes
+info@dthomes.ch
+www.dthomes.ch`;
+    }
+    
+    // Outlook Web Compose URL — öffnet neue Email direkt in OWA mit info@dthomes.ch als Absender
+    // (sofern Nutzer im selben Browser bei Microsoft 365 eingeloggt ist)
+    const owaUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(b.email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(owaUrl, "_blank");
+  }
 
   function quickGenerateAnfangsmietzins(){
     if(!b) return;
@@ -2737,7 +2835,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     if (beginn && mietende) {
       const months = (mietende - beginn) / (1000*60*60*24*30.44);
       if (months > 0 && months < 12) {
-        return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.`;
+        return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
       }
     }
     return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
@@ -2864,11 +2962,13 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
 <div class="section allow-break">
   <h2>11. Kündigung</h2>
   <p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt drei Monate auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
-  <p class="clause"><span class="clause-num">11.1</span>Im Rahmen eines befristeten Untermietvertrages ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
-  <p>Gleiches gilt bei einer allfälligen Kündigung des Mietverhältnisses durch den Eigentümer oder die Verwaltung aufgrund von Renovation, Umnutzung oder anderweitiger Pläne: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
-  <p class="clause"><span class="clause-num">11.2</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
-  <p class="clause"><span class="clause-num">11.3</span>Bei Kündigung innerhalb der Kündigungsfrist ist der Untermieter verpflichtet, einen geeigneten Nachmieter zu stellen, der zu gleichen Konditionen eintritt und von den Mitbewohnern akzeptiert wird. Erfolgt nachweislich keine aktive Suche, kann der Hauptmieter eine Monatsmiete von der Kaution einbehalten.</p>
-  <p class="clause"><span class="clause-num">11.4</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
+  <p class="clause"><span class="clause-num">11.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter das Zimmer vorzeitig verlässt. Eine vorzeitige Vertragsauflösung ist nur möglich, sofern der Untermieter einen geeigneten Nachmieter gemäss Ziffer 11.4 stellt.</p>
+  <p class="clause"><span class="clause-num">11.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
+  <p class="clause"><span class="clause-num">11.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.</p>
+  <p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
+  <p class="clause"><span class="clause-num">11.4</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
+  <p class="clause"><span class="clause-num">11.5</span>Bei Kündigung innerhalb der Kündigungsfrist ist der Untermieter verpflichtet, einen geeigneten Nachmieter zu stellen, der zu gleichen Konditionen eintritt und von den Mitbewohnern akzeptiert wird. Erfolgt nachweislich keine aktive Suche, kann der Hauptmieter eine Monatsmiete von der Kaution einbehalten.</p>
+  <p class="clause"><span class="clause-num">11.6</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
 </div>
 
 <!-- §12 -->
@@ -2986,6 +3086,16 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Untermietvertrag</button>
                 <button className="btn btn-p btn-sm" onClick={quickGenerateAnfangsmietzins} style={{background:"#6b5e44"}}>📋 Anfangsmietzins</button>
+                <div style={{position:"relative",display:"inline-block"}} onMouseLeave={()=>setEmailMenu(false)}>
+                  <button className="btn btn-p btn-sm" style={{background:"#3a5a7a"}} onClick={()=>setEmailMenu(v=>!v)}>📧 Per Email ▾</button>
+                  {emailMenu && (
+                    <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#ffffff",border:"1px solid #e8e3d8",borderRadius:8,boxShadow:"0 4px 16px rgba(26,24,20,.12)",zIndex:50,minWidth:240,overflow:"hidden"}}>
+                      <button onClick={()=>{setEmailMenu(false);sendEmail("vertrag");}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",fontSize:12,background:"transparent",border:"none",cursor:"pointer",color:"#1f1d18",borderBottom:"1px solid #f0eadd"}}>📄 Untermietvertrag senden</button>
+                      <button onClick={()=>{setEmailMenu(false);sendEmail("anfangsmietzins");}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",fontSize:12,background:"transparent",border:"none",cursor:"pointer",color:"#1f1d18",borderBottom:"1px solid #f0eadd"}}>📋 Anfangsmietzins senden</button>
+                      <button onClick={()=>{setEmailMenu(false);sendEmail("beides");}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",fontSize:12,background:"transparent",border:"none",cursor:"pointer",color:"#1f1d18",fontWeight:600}}>📦 Beide Dokumente senden</button>
+                    </div>
+                  )}
+                </div>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
                 <button className="btn btn-sm" onClick={()=>{
