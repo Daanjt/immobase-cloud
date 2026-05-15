@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>ImmoBase — D&T Homes</title>
+<title>Stayli — D&T Homes</title>
 
 <!-- PWA Manifest + Theme -->
 <link rel="manifest" href="/manifest.json">
@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="ImmoBase">
+<meta name="apple-mobile-web-app-title" content="Stayli">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
 <!-- Standard favicons (alle Größen für Laptop-Browser) -->
@@ -754,6 +754,138 @@ function StatusBdg({status}){
   const [c,l]=m[status]||["x",status];return <span className={`bx b-${c}`}>{l}</span>;
 }
 
+// ─── VALIDIERUNG ─────────────────────────────────────────────────────────────
+// Email-Validierung (RFC-5322 vereinfacht)
+function validateEmail(v) {
+  if (!v) return { ok: true, value: "" };
+  const trimmed = String(v).trim().toLowerCase();
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if (!re.test(trimmed)) return { ok: false, value: trimmed, error: "Ungültige E-Mail-Adresse" };
+  return { ok: true, value: trimmed };
+}
+
+// Telefon-Validierung (CH/international)
+function validatePhone(v) {
+  if (!v) return { ok: true, value: "" };
+  // Nur Zahlen, +, Leerzeichen erlauben
+  const cleaned = String(v).replace(/[^\d+\s]/g, "").trim();
+  // Mindestens 9 Ziffern (CH Mobile: 7891234567 = 10 Ziffern, ohne 0: 9)
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 9) return { ok: false, value: cleaned, error: "Telefonnummer zu kurz (mind. 9 Ziffern)" };
+  if (digits.length > 15) return { ok: false, value: cleaned, error: "Telefonnummer zu lang" };
+  return { ok: true, value: cleaned };
+}
+
+// Format Schweizer Telefonnummer schön: 0781234567 → 078 123 45 67
+function formatPhoneCH(v) {
+  if (!v) return "";
+  const digits = String(v).replace(/\D/g, "");
+  // CH mobile/landline ohne Vorwahl: 0781234567 (10 Ziffern, beginnt mit 0)
+  if (digits.length === 10 && digits[0] === "0") {
+    return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,8)} ${digits.slice(8,10)}`;
+  }
+  // CH mit Landesvorwahl: +41781234567 oder 41781234567 (11-12 Ziffern)
+  if (digits.length === 11 && digits.startsWith("41")) {
+    return `+41 ${digits.slice(2,4)} ${digits.slice(4,7)} ${digits.slice(7,9)} ${digits.slice(9,11)}`;
+  }
+  // Sonst: original mit + falls vorhanden
+  return String(v).replace(/[^\d+\s]/g, "").trim();
+}
+
+// Datum-Validierung (DD.MM.YYYY)
+function validateDate(v, opts = {}) {
+  if (!v) return { ok: true, value: "" };
+  const trimmed = String(v).trim();
+  // Akzeptiere DD.MM.YYYY oder YYYY-MM-DD
+  let day, month, year;
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(trimmed)) {
+    const [d, m, y] = trimmed.split(".").map(n => parseInt(n, 10));
+    day = d; month = m; year = y;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split("-").map(n => parseInt(n, 10));
+    day = d; month = m; year = y;
+  } else {
+    return { ok: false, value: trimmed, error: "Format: TT.MM.JJJJ" };
+  }
+  
+  if (month < 1 || month > 12) return { ok: false, value: trimmed, error: "Monat ungültig (1-12)" };
+  if (day < 1 || day > 31) return { ok: false, value: trimmed, error: "Tag ungültig (1-31)" };
+  if (year < 1900 || year > 2100) return { ok: false, value: trimmed, error: "Jahr ungültig" };
+  
+  // Tatsächlich gültiges Datum prüfen (z.B. 31.02. wäre invalid)
+  const dt = new Date(year, month - 1, day);
+  if (dt.getDate() !== day || dt.getMonth() !== month - 1 || dt.getFullYear() !== year) {
+    return { ok: false, value: trimmed, error: "Datum existiert nicht" };
+  }
+  
+  // Geburtstag-spezifische Checks
+  if (opts.type === "birthday") {
+    const today = new Date();
+    const age = (today - dt) / (1000 * 60 * 60 * 24 * 365.25);
+    if (age < 0) return { ok: false, value: trimmed, error: "Geburtstag in der Zukunft?" };
+    if (age < 16) return { ok: false, value: trimmed, error: "Mindestalter 16 Jahre" };
+    if (age > 120) return { ok: false, value: trimmed, error: "Alter unrealistisch (>120)" };
+  }
+  
+  // Auf DD.MM.YYYY normalisieren
+  const normalized = `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}.${year}`;
+  return { ok: true, value: normalized };
+}
+
+// PLZ-Validierung
+function validatePLZ(v) {
+  if (!v) return { ok: true, value: "" };
+  const trimmed = String(v).trim();
+  // CH: 4 Ziffern (1000-9999)
+  if (/^\d{4}$/.test(trimmed)) {
+    const n = parseInt(trimmed, 10);
+    if (n >= 1000 && n <= 9999) return { ok: true, value: trimmed };
+  }
+  // International: erlaubt 3-10 alphanumerisch
+  if (/^[A-Z0-9 -]{3,10}$/i.test(trimmed)) return { ok: true, value: trimmed.toUpperCase() };
+  return { ok: false, value: trimmed, error: "PLZ ungültig (4 Ziffern für CH)" };
+}
+
+// Nicht-negative Zahl
+function validateNumber(v, opts = {}) {
+  if (v === "" || v === null || v === undefined) return { ok: true, value: "" };
+  const n = Number(String(v).replace(",", "."));
+  if (isNaN(n)) return { ok: false, value: v, error: "Keine gültige Zahl" };
+  if (opts.min !== undefined && n < opts.min) return { ok: false, value: v, error: `Mindestwert: ${opts.min}` };
+  if (opts.max !== undefined && n > opts.max) return { ok: false, value: v, error: `Höchstwert: ${opts.max}` };
+  if (opts.integer && !Number.isInteger(n)) return { ok: false, value: v, error: "Nur ganze Zahlen" };
+  return { ok: true, value: n };
+}
+
+// Nationalitäten-Liste (CH/DE/IT/AT zuerst, dann alphabetisch)
+const NATIONALITAETEN_TOP = ["Schweiz", "Deutschland", "Italien", "Österreich"];
+const NATIONALITAETEN_REST = [
+  "Afghanistan", "Albanien", "Algerien", "Argentinien", "Australien", "Ägypten", "Äthiopien",
+  "Bangladesch", "Belarus", "Belgien", "Bosnien und Herzegowina", "Brasilien", "Bulgarien",
+  "Chile", "China",
+  "Dänemark",
+  "Eritrea", "Estland",
+  "Finnland", "Frankreich",
+  "Ghana", "Griechenland",
+  "Indien", "Indonesien", "Irak", "Iran", "Irland", "Island", "Israel",
+  "Japan", "Jordanien",
+  "Kanada", "Katar", "Kenia", "Kolumbien", "Kosovo", "Kroatien", "Kuwait",
+  "Lettland", "Libanon", "Libyen", "Litauen", "Luxemburg",
+  "Malaysia", "Malta", "Marokko", "Mexiko", "Moldau",
+  "Neuseeland", "Niederlande", "Nigeria", "Nordkorea", "Nordmazedonien", "Norwegen",
+  "Oman",
+  "Pakistan", "Peru", "Philippinen", "Polen", "Portugal",
+  "Rumänien", "Russland",
+  "Saudi-Arabien", "Schweden", "Senegal", "Serbien", "Singapur", "Slowakei", "Slowenien", "Somalia",
+  "Spanien", "Sri Lanka", "Südafrika", "Südkorea", "Syrien",
+  "Thailand", "Tschechien", "Tunesien", "Türkei",
+  "Ukraine", "Ungarn", "USA",
+  "Vereinigte Arabische Emirate", "Vereinigtes Königreich", "Vietnam",
+  "Zypern",
+  "Andere"
+];
+const NATIONALITAETEN = [...NATIONALITAETEN_TOP, ...NATIONALITAETEN_REST];
+
 // ─── LOGIN ───────────────────────────────────────────────────────────────────
 // Geteiltes Passwort für D&T Homes Team
 const APP_PASSWORD = "Massivecock69";
@@ -782,7 +914,7 @@ function Login({onLogin}) {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="login-logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
+        <div className="login-logo"><h1>Stayli</h1><p>D&T HOMES</p></div>
         <h2>Anmelden</h2>
         <p className="desc">Gib das Passwort ein um auf das System zuzugreifen.</p>
         <form onSubmit={handleLogin}>
@@ -1740,6 +1872,48 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
   const totalAufschlagMonat = aufschlagMieter.reduce((s,x) => s + x.aufschlag, 0);
   const totalAufschlagJahr = totalAufschlagMonat * 12;
   
+  // ─── AUSZUGS-REMINDER ──────────────────────────────────────────
+  // Mieter die in den nächsten 3 Monaten ausziehen (sortiert nach Datum)
+  const reminders = tenants
+    .filter(t => t.auszug && t.auszug.trim())
+    .map(t => {
+      const dt = parseD(t.auszug);
+      if (!dt) return null;
+      const daysLeft = Math.ceil((dt - heute) / (1000*60*60*24));
+      const room = rooms.find(r => r.id === t.roomId);
+      const apt = room ? apts.find(a => a.id === room.aptId) : null;
+      // Check: läuft auch der Hauptmietvertrag aus (selbes Datum oder nah dran)?
+      let aptEndsToo = false;
+      if (apt && apt.mietende) {
+        const aptEnd = parseD(apt.mietende);
+        if (aptEnd) {
+          const diff = Math.abs((aptEnd - dt) / (1000*60*60*24));
+          // Wenn Apt-Mietende innerhalb von 14 Tagen vom Mieter-Auszug → ganze Wohnung läuft aus
+          aptEndsToo = diff <= 14;
+        }
+      }
+      return { tenant: t, room, apt, dt, daysLeft, aptEndsToo };
+    })
+    .filter(x => x && x.daysLeft >= -7 && x.daysLeft <= 90) // -7 = grace period nach Auszug, 90 = 3 Monate vorher
+    .sort((a,b) => a.daysLeft - b.daysLeft);
+  
+  // Reminder-Kategorie (für Farbe + Aktions-Empfehlung)
+  function reminderCat(daysLeft, aptEndsToo) {
+    if (aptEndsToo) {
+      // Spezialfall: Wohnung läuft auch aus → andere Aktion
+      if (daysLeft < 0) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Wohnung geräumt", icon:"📦", action:"Übergabe an Eigentümer · Schlüssel zurück" };
+      if (daysLeft <= 7) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Räumung diese Woche", icon:"📦", action:"Wohnung räumen · Übergabe an Eigentümer/Verwaltung" };
+      if (daysLeft <= 30) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Räumung in 1 Monat", icon:"📦", action:"Räumungstermin koordinieren · Hauptmieter-Übergabe planen" };
+      return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Wohnung läuft aus", icon:"📦", action:"Ganze Wohnung wird abgegeben — kein Nachmieter nötig" };
+    }
+    // Standard: Nachmieter nötig
+    if (daysLeft < 0) return { color:"#9b4a3e", bg:"#fdebe5", border:"#e0bcb0", label:"Auszug überfällig", icon:"⚠️", action:"Übergabe + Schlüsselübergabe!" };
+    if (daysLeft <= 7) return { color:"#9b4a3e", bg:"#fdebe5", border:"#e0bcb0", label:"Auszug diese Woche", icon:"🔴", action:"Übergabeprotokoll vorbereiten · Schlüssel-Termin" };
+    if (daysLeft <= 30) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Auszug in 1 Monat", icon:"🟠", action:"Nachmieter zuteilen · Übergabetermin vereinbaren" };
+    if (daysLeft <= 60) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Auszug in 2 Monaten", icon:"🟡", action:"Inserat schalten · Bewerber suchen" };
+    return { color:"#5a6e4a", bg:"#e8eadb", border:"#c5cda8", label:"Auszug in ~3 Monaten", icon:"🟢", action:"Verlängerung anbieten oder Nachmieter suchen" };
+  }
+  
   // WG calculations
   const wgAusgaben = wgApts.reduce((s,a)=>s+(+a.miete||0),0);
   const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
@@ -1789,7 +1963,76 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
         </div>
       </div>
 
-      {/* WG SECTION */}
+      {/* AUSZUGS-REMINDER */}
+      {reminders.length > 0 && (
+        <div style={{marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:600,color:"#1a1814",letterSpacing:".02em"}}>📅 Anstehende Auszüge</div>
+            <div style={{fontSize:11,color:"#8a8174"}}>{reminders.length} {reminders.length===1?"Mieter":"Mieter"} in den nächsten 3 Monaten</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
+            {reminders.map(r => {
+              const cat = reminderCat(r.daysLeft, r.aptEndsToo);
+              return (
+                <div 
+                  key={r.tenant.id} 
+                  style={{
+                    background:cat.bg,
+                    border:`1px solid ${cat.border}`,
+                    borderRadius:8,
+                    padding:"12px 14px",
+                    transition:"all .15s"
+                  }}
+                >
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{cat.icon} {cat.label}</div>
+                    <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{r.daysLeft < 0 ? `${Math.abs(r.daysLeft)} T. überfällig` : `in ${r.daysLeft} Tagen`}</div>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{r.tenant.vorname} {r.tenant.nachname}</div>
+                  <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}>{r.room?.id||"—"} · {r.apt?.adresse||"—"} · {r.tenant.auszug}</div>
+                  {r.aptEndsToo && (
+                    <div style={{fontSize:10,color:"#5a5a5a",background:"rgba(0,0,0,.05)",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block",fontWeight:600,letterSpacing:".02em"}}>
+                      📅 Hauptmietvertrag endet {r.apt?.mietende}
+                    </div>
+                  )}
+                  <div style={{fontSize:10,color:cat.color,fontStyle:"italic",lineHeight:1.4,marginBottom:10}}>→ {cat.action}</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {!r.aptEndsToo && (
+                      <button 
+                        onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("bewerber",{nachmieterFor:r.room?.id});}}
+                        style={{
+                          flex:1,minWidth:0,
+                          background:"#1a1814",color:"#fefcf7",
+                          border:"none",borderRadius:6,
+                          padding:"7px 10px",
+                          fontSize:11,fontWeight:600,
+                          cursor:"pointer",
+                          letterSpacing:".02em",
+                          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
+                        }}
+                        title={`Nachmieter für ${r.room?.id} suchen/zuteilen`}
+                      >🏠 Nachmieter zuteilen</button>
+                    )}
+                    <button
+                      onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",r.tenant.id);}}
+                      style={{
+                        flex: r.aptEndsToo ? 1 : 0,
+                        background:"transparent",color:cat.color,
+                        border:`1px solid ${cat.border}`,borderRadius:6,
+                        padding:"7px 10px",
+                        fontSize:11,fontWeight:600,
+                        cursor:"pointer",
+                        letterSpacing:".02em"
+                      }}
+                      title="Mieter-Details öffnen"
+                    >Details</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WG-Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
         <div className="sc"><div className="sl">Auslastung</div><div className="sv">{wgAuslastung}%</div><div className="sn" style={{color:wgAuslastung>=80?"#5a6e4a":wgAuslastung>=50?"#b8843e":"#9b4a3e"}}>{wgOcc}/{wgRooms.length} Zimmer</div></div>
@@ -1964,18 +2207,31 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
 }
 
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
-function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant}){
+function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget}){
   const [sel,setSel]=useState(null);
   const [zuteilModal,setZuteilModal]=useState(false);
   const [selZimmer,setSelZimmer]=useState(null);
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("Neu");
+  const [nachmieterFor,setNachmieterFor]=useState(null); // wenn aus Dashboard "Nachmieter zuteilen" geklickt
   const [copied,setCopied]=useState(false);
   const [vertragModal,setVertragModal]=useState(false);
   const [editModal,setEditModal]=useState(false);
   const [editForm,setEditForm]=useState({});
   const [vertragData,setVertragData]=useState(null);
   const [emailMenu,setEmailMenu]=useState(false);
+
+  // Wenn vom Dashboard "Nachmieter zuteilen" aufgerufen wurde
+  useEffect(() => {
+    if (navTarget && navTarget.type === "bewerber" && navTarget.id && typeof navTarget.id === "object" && navTarget.id.nachmieterFor) {
+      setNachmieterFor(navTarget.id.nachmieterFor);
+      setFilterStatus("Neu"); // sicher dass wir auf "Neu" Tab sind
+      setSel(null);
+    } else if (navTarget && navTarget.type === "bewerber" && typeof navTarget.id === "string") {
+      // Single bewerber selection
+      setSel(navTarget.id);
+    }
+  }, [navTarget]);
 
   // Form link: use bewerbung.dthomes.ch on production, otherwise same origin
   const formLink = (window.location.hostname === "admin.dthomes.ch") 
@@ -1984,7 +2240,21 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
-  const shown=bewerber.filter(x=>x.status===filterStatus);
+  // Filter: Status + ggf. Wohnungs-Match wenn Nachmieter gesucht wird
+  let shown=bewerber.filter(x=>x.status===filterStatus);
+  if (nachmieterFor) {
+    // Bewerber die das Ziel-Zimmer als Wunsch haben oder keine Präferenz
+    const targetRoom = rooms.find(r => r.id === nachmieterFor);
+    const targetApt = targetRoom ? apts.find(a => a.id === targetRoom.aptId) : null;
+    const aptRoomIds = targetApt ? rooms.filter(r => r.aptId === targetApt.id).map(r => r.id) : [];
+    shown = shown.filter(x => {
+      // Match: kein Wunsch, oder Wunsch = Ziel-Zimmer, oder Wunsch = anderes Zimmer in selber Wohnung
+      if (!x.zimmerWunsch) return true;
+      if (x.zimmerWunsch === nachmieterFor) return true;
+      if (aptRoomIds.includes(x.zimmerWunsch)) return true;
+      return false;
+    });
+  }
 
   async function setStatus(id,status){
     await updateBewerber(id,{status});
@@ -2023,6 +2293,43 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     setEditModal(true);
   }
   async function saveEdit(){
+    // ─── VALIDIERUNG ───────────────────────────────────────────────
+    const errors = [];
+    
+    if (editForm.email) {
+      const r = validateEmail(editForm.email);
+      if (!r.ok) errors.push(`E-Mail: ${r.error}`);
+      else editForm.email = r.value;
+    }
+    
+    if (editForm.phone) {
+      const r = validatePhone(editForm.phone);
+      if (!r.ok) errors.push(`Telefon: ${r.error}`);
+      else editForm.phone = formatPhoneCH(r.value);
+    }
+    
+    if (editForm.geb) {
+      const r = validateDate(editForm.geb, {type: "birthday"});
+      if (!r.ok) errors.push(`Geburtstag: ${r.error}`);
+      else editForm.geb = r.value;
+    }
+    
+    if (editForm.plz) {
+      const r = validatePLZ(editForm.plz);
+      if (!r.ok) errors.push(`PLZ: ${r.error}`);
+      else editForm.plz = r.value;
+    }
+    
+    if (editForm.einkommen) {
+      const r = validateNumber(editForm.einkommen, {min: 0, max: 1000000});
+      if (!r.ok) errors.push(`Einkommen: ${r.error}`);
+    }
+    
+    if (errors.length > 0) {
+      alert("Bitte korrigiere folgende Felder:\n\n• " + errors.join("\n• "));
+      return;
+    }
+    
     const {id,...fields}=editForm;
     await updateBewerber(id,fields);
     setEditModal(false);
@@ -3095,6 +3402,23 @@ www.dthomes.ch`;
     <div>
       <div className="pt">Bewerber</div>
       <div className="ps">{bewerber.length} Bewerbungen · {freeRooms.length} freie Zimmer</div>
+      
+      {/* NACHMIETER-SUCHE-BANNER */}
+      {nachmieterFor && (() => {
+        const targetRoom = rooms.find(r => r.id === nachmieterFor);
+        const targetApt = targetRoom ? apts.find(a => a.id === targetRoom.aptId) : null;
+        return (
+          <div style={{background:"#1a1814",color:"#fefcf7",borderRadius:8,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+            <div>
+              <div style={{fontSize:10,letterSpacing:".25em",textTransform:"uppercase",color:"#b8af9f",marginBottom:4,fontWeight:600}}>🏠 Nachmieter-Suche</div>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Zeige passende Bewerber für {nachmieterFor}</div>
+              <div style={{fontSize:11,color:"#b8af9f"}}>{targetApt?.adresse||"—"} {targetRoom?.miete?`· CHF ${targetRoom.miete}/Mt.`:""} · {shown.length} passende{shown.length===1?"r":""} Bewerber</div>
+            </div>
+            <button onClick={()=>setNachmieterFor(null)} style={{background:"transparent",color:"#fefcf7",border:"1px solid #b8af9f",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em"}}>✕ Filter aufheben</button>
+          </div>
+        );
+      })()}
+      
       <div className="card" style={{marginBottom:20}}>
         <div className="ct">📋 Bewerbungsformular-Link</div>
         <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden — Bewerbungen erscheinen automatisch hier.</div>
@@ -3264,7 +3588,7 @@ www.dthomes.ch`;
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
             <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={editForm.vorname||""} onChange={EF("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={editForm.nachname||""} onChange={EF("nachname")}/></div></div>
             <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={editForm.geburt?editForm.geburt.split("T")[0]:""} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">—</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
-            <div className="fg"><label className="fl">Nationalität</label><input className="fi" value={editForm.nat||""} onChange={EF("nat")}/></div>
+            <div className="fg"><label className="fl">Nationalität</label><select className="fi" value={editForm.nat||""} onChange={EF("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kontakt</div>
             <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={editForm.email||""} onChange={EF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={editForm.phone||""} onChange={EF("phone")}/></div></div>
@@ -4075,6 +4399,43 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       alert("Bitte mindestens Vorname und Nachname angeben.");
       return;
     }
+    
+    // Validierung
+    const errors = [];
+    if (newForm.email) {
+      const r = validateEmail(newForm.email);
+      if (!r.ok) errors.push(`E-Mail: ${r.error}`);
+      else newForm.email = r.value;
+    }
+    if (newForm.phone) {
+      const r = validatePhone(newForm.phone);
+      if (!r.ok) errors.push(`Telefon: ${r.error}`);
+      else newForm.phone = formatPhoneCH(r.value);
+    }
+    if (newForm.geburt) {
+      const r = validateDate(newForm.geburt, {type: "birthday"});
+      if (!r.ok) errors.push(`Geburtstag: ${r.error}`);
+      else newForm.geburt = r.value;
+    }
+    if (newForm.einzug) {
+      const r = validateDate(newForm.einzug);
+      if (!r.ok) errors.push(`Einzug: ${r.error}`);
+      else newForm.einzug = r.value;
+    }
+    if (newForm.plz) {
+      const r = validatePLZ(newForm.plz);
+      if (!r.ok) errors.push(`PLZ: ${r.error}`);
+      else newForm.plz = r.value;
+    }
+    if (newForm.einkommen) {
+      const r = validateNumber(newForm.einkommen, {min: 0, max: 1000000});
+      if (!r.ok) errors.push(`Einkommen: ${r.error}`);
+    }
+    if (errors.length > 0) {
+      alert("Bitte korrigiere folgende Felder:\n\n• " + errors.join("\n• "));
+      return;
+    }
+    
     const id = newForm.id || nextTenantId();
     if (tenants.find(t=>t.id===id)) {
       alert(`Mieter-ID "${id}" existiert bereits.`);
@@ -4107,7 +4468,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       beruf: newForm.beruf || "",
       arbeitgeber: newForm.arbeitgeber || "",
       einkommen: newForm.einkommen || "",
-      anstellung: newForm.anstellung || "",
+      type: newForm.type || "",
       einzug: newForm.einzug || "",
       auszug: "",
       aptId: newForm.roomId ? rooms.find(r=>r.id===newForm.roomId)?.aptId : null,
@@ -4139,7 +4500,52 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
     }
   }
   
+  // ─── VALIDIERUNG ─────────────────────────────────────────────
+  function validateForm() {
+    const errors = [];
+    if (form.email) {
+      const r = validateEmail(form.email);
+      if (!r.ok) errors.push(`E-Mail: ${r.error}`);
+      else form.email = r.value;
+    }
+    if (form.phone) {
+      const r = validatePhone(form.phone);
+      if (!r.ok) errors.push(`Telefon: ${r.error}`);
+      else form.phone = formatPhoneCH(r.value);
+    }
+    if (form.geburt) {
+      const r = validateDate(form.geburt, {type: "birthday"});
+      if (!r.ok) errors.push(`Geburtstag: ${r.error}`);
+      else form.geburt = r.value;
+    }
+    if (form.einzug) {
+      const r = validateDate(form.einzug);
+      if (!r.ok) errors.push(`Einzug: ${r.error}`);
+      else form.einzug = r.value;
+    }
+    if (form.auszug) {
+      const r = validateDate(form.auszug);
+      if (!r.ok) errors.push(`Auszug: ${r.error}`);
+      else form.auszug = r.value;
+    }
+    if (form.plz) {
+      const r = validatePLZ(form.plz);
+      if (!r.ok) errors.push(`PLZ: ${r.error}`);
+      else form.plz = r.value;
+    }
+    if (form.einkommen) {
+      const r = validateNumber(form.einkommen, {min: 0, max: 1000000});
+      if (!r.ok) errors.push(`Einkommen: ${r.error}`);
+    }
+    if (errors.length > 0) {
+      alert("Bitte korrigiere folgende Felder:\n\n• " + errors.join("\n• "));
+      return false;
+    }
+    return true;
+  }
+  
   async function save(){
+    if (!validateForm()) return;
     await updateTenant(form.id,{
       vorname:form.vorname,nachname:form.nachname,
       email:form.email,phone:form.phone,
@@ -4147,7 +4553,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       adresse:form.adresse,plz:form.plz,ort:form.ort,
       einzug:form.einzug,auszug:form.auszug,
       beruf:form.beruf,arbeitgeber:form.arbeitgeber,
-      einkommen:form.einkommen,anstellung:form.anstellung,
+      einkommen:form.einkommen,type:form.type,
       kautionOpt:form.kautionOpt,kautionMonate:+form.kautionMonate||0,
       kautionAufschlag:+form.kautionAufschlag||0,kautionBetrag:+form.kautionBetrag||0,
       kautionType:form.kautionType,
@@ -4208,7 +4614,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
                 ["Beruf",tenant.beruf||"—"],
                 ["Arbeitgeber",tenant.arbeitgeber||"—"],
                 ["Einkommen",tenant.einkommen?`CHF ${tenant.einkommen}`:"—"],
-                ["Anstellung",tenant.anstellung||"—"],
+                ["Beschäftigung",tenant.type||"—"],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Mietverhältnis</div>
@@ -4246,13 +4652,13 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
         <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={form.vorname||""} onChange={F("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={form.nachname||""} onChange={F("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={form.email||""} onChange={F("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={form.phone||""} onChange={F("phone")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")}/></div><div className="fg"><label className="fl">Nationalität</label><input className="fi" value={form.nat||""} onChange={F("nat")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Einkommen</div>
         <div className="frow"><div className="fg"><label className="fl">Beruf</label><input className="fi" value={form.beruf||""} onChange={F("beruf")}/></div><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={form.arbeitgeber||""} onChange={F("arbeitgeber")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={form.einkommen||""} onChange={F("einkommen")}/></div><div className="fg"><label className="fl">Anstellung</label><select className="fi" value={form.anstellung||""} onChange={F("anstellung")}><option value="">—</option><option>Festanstellung unbefristet</option><option>Festanstellung befristet</option><option>Selbstständig</option><option>Studium</option><option>Lehre / Praktikum</option><option>Andere</option></select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={form.einkommen||""} onChange={F("einkommen")}/></div><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={form.type||""} onChange={F("type")}><option value="">—</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={form.einzug||""} onChange={F("einzug")}/></div><div className="fg"><label className="fl">Auszug</label><input className="fi" value={form.auszug||""} onChange={F("auszug")}/></div></div>
@@ -4294,13 +4700,13 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         <div className="frow"><div className="fg"><label className="fl">ID</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. T18"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Vorname *</label><input className="fi" value={newForm.vorname||""} onChange={NF("vorname")}/></div><div className="fg"><label className="fl">Nachname *</label><input className="fi" value={newForm.nachname||""} onChange={NF("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={newForm.email||""} onChange={NF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={newForm.phone||""} onChange={NF("phone")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={newForm.geburt||""} onChange={NF("geburt")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Nationalität</label><input className="fi" value={newForm.nat||""} onChange={NF("nat")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={newForm.geburt||""} onChange={NF("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={newForm.nat||""} onChange={NF("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Einkommen</div>
         <div className="frow"><div className="fg"><label className="fl">Beruf</label><input className="fi" value={newForm.beruf||""} onChange={NF("beruf")}/></div><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={newForm.arbeitgeber||""} onChange={NF("arbeitgeber")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={newForm.einkommen||""} onChange={NF("einkommen")}/></div><div className="fg"><label className="fl">Anstellung</label><select className="fi" value={newForm.anstellung||""} onChange={NF("anstellung")}><option value="">—</option><option>Festanstellung unbefristet</option><option>Festanstellung befristet</option><option>Selbstständig</option><option>Studium</option><option>Lehre / Praktikum</option><option>Andere</option></select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={newForm.einkommen||""} onChange={NF("einkommen")}/></div><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={newForm.type||""} onChange={NF("type")}><option value="">—</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
         <div className="fg">
@@ -4414,7 +4820,7 @@ function MainApp() {
       <div className={`sidebar${sidebarOpen?" open":""}`}>
         <div className="logo" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <h1>ImmoBase</h1>
+            <h1>Stayli</h1>
             <p>D&T HOMES</p>
           </div>
           <button onClick={()=>setSidebarOpen(false)} style={{display:"none",background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",padding:"0 4px"}} className="sidebar-close" aria-label="Menü schliessen">✕</button>
