@@ -732,6 +732,21 @@ function TypeBadge({type}){
 }
 function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
 function parseDMY(s){if(!s)return null;const parts=s.split(".");if(parts.length===3)return new Date(+parts[2],+parts[1]-1,+parts[0]);return new Date(s);}
+// parseD: parses DD.MM.YYYY or YYYY-MM-DD, returns Date or null
+function parseD(s) {
+  if (!s) return null;
+  const t = String(s).trim();
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(t)) {
+    const [d,m,y] = t.split('.').map(n => parseInt(n,10));
+    const dt = new Date(y, m-1, d);
+    return isNaN(dt) ? null : dt;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const dt = new Date(t);
+    return isNaN(dt) ? null : dt;
+  }
+  return null;
+}
 
 // Normalize room size input: "14" → "14 m²", "14m2" → "14 m²", "14 qm" → "14 m²", "" → ""
 function formatGroesse(input) {
