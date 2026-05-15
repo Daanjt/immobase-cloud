@@ -1,0 +1,14 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/mietbewerbung.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "bewerbung.dthomes.ch"
+        }
+      ]
+    }
+  ]
+}

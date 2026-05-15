@@ -1978,7 +1978,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [emailMenu,setEmailMenu]=useState(false);
 
   // Form link: use bewerbung.dthomes.ch on production, otherwise same origin
-  const formLink = (window.location.hostname === "app.dthomes.ch") 
+  const formLink = (window.location.hostname === "admin.dthomes.ch") 
     ? "https://bewerbung.dthomes.ch" 
     : window.location.origin + "/mietbewerbung.html";
 
