@@ -1241,6 +1241,47 @@ function useSupabaseData() {
     }
     setTenants(p => p.map(t => t.id === id ? {...t, ...fields} : t));
   }
+  
+  // Ändere Mieter-ID inkl. allen Foreign-Key-Bezügen (rooms.tenant_id)
+  async function renameTenantId(oldId, newId) {
+    if (oldId === newId) return true;
+    // 1. Prüfen ob neue ID existiert
+    const existing = tenants.find(t => t.id === newId);
+    if (existing) {
+      alert(`Mieter-ID "${newId}" existiert bereits (${existing.vorname} ${existing.nachname}).`);
+      return false;
+    }
+    // 2. Format prüfen
+    if (!/^T\d{2,}$/.test(newId)) {
+      alert(`Mieter-ID muss Format T01, T02, … haben (gross-T + Zahl).`);
+      return false;
+    }
+    // 3. Rooms: tenant_id auf NULL setzen (FK-Constraint umgehen)
+    const linkedRoomsBefore = rooms.filter(r => r.tenantId === oldId).map(r => r.id);
+    if (linkedRoomsBefore.length > 0) {
+      const {error: e1} = await supabase.from("rooms").update({tenant_id: null}).eq("tenant_id", oldId);
+      if (e1) { alert("Schritt 1 fehlgeschlagen: " + e1.message); return false; }
+    }
+    // 4. Tenant-ID ändern
+    const {error: e2} = await supabase.from("tenants").update({id: newId}).eq("id", oldId);
+    if (e2) {
+      // Rollback: rooms re-link versuchen
+      for (const rid of linkedRoomsBefore) {
+        await supabase.from("rooms").update({tenant_id: oldId}).eq("id", rid);
+      }
+      alert("ID-Änderung fehlgeschlagen: " + e2.message);
+      return false;
+    }
+    // 5. Rooms: tenant_id auf neue ID setzen
+    for (const rid of linkedRoomsBefore) {
+      const {error: e3} = await supabase.from("rooms").update({tenant_id: newId}).eq("id", rid);
+      if (e3) console.error("Re-link room failed:", e3);
+    }
+    // 6. Local state aktualisieren
+    setTenants(p => p.map(t => t.id === oldId ? {...t, id: newId} : t));
+    setRooms(p => p.map(r => r.tenantId === oldId ? {...r, tenantId: newId} : r));
+    return true;
+  }
   async function insertTenant(t) {
     const dbT = toDbTenant(t);
     const {error} = await supabase.from("tenants").insert([dbT]);
@@ -1392,7 +1433,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument};
+  return {apts, rooms, tenants, bewerber, documents, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -2379,7 +2420,10 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   async function confirmZuteilung(){
     if(!selZimmer||!b)return;
     const room=rooms.find(r=>r.id===selZimmer);
-    const newId="T"+Date.now().toString().slice(-6);
+    // Sequenzielle ID: T01, T02, ... (nicht random!)
+    let n=1;
+    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    const newId=`T${String(n).padStart(2,"0")}`;
     const newTenant={
       id:newId,
       vorname:b.vorname,nachname:b.nachname,
@@ -4272,7 +4316,10 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     if (!selBewerberId) { alert("Bitte einen Bewerber auswählen."); return; }
     const b = bewerber.find(x=>x.id===selBewerberId);
     if (!b) return;
-    const newId = `T${Date.now().toString().slice(-5)}`;
+    // Sequenzielle ID: T01, T02, ... (nicht random!)
+    let n=1;
+    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    const newId = `T${String(n).padStart(2,"0")}`;
     // Compute kaution data from bewerber selection
     const kautionMonate = b.kautionOpt==="3x"?3:b.kautionOpt==="2x"?2:b.kautionOpt==="1x"?1:0;
     const room = rooms.find(r => r.id === assigning.id);
@@ -4323,7 +4370,10 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   }
   async function assignManual(){
     if (!manualForm.vorname || !manualForm.nachname) { alert("Bitte mindestens Vorname und Nachname angeben."); return; }
-    const newId = `T${Date.now().toString().slice(-5)}`;
+    // Sequenzielle ID: T01, T02, ... (nicht random!)
+    let n=1;
+    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    const newId = `T${String(n).padStart(2,"0")}`;
     const newTenant = {
       id: newId,
       vorname: manualForm.vorname, nachname: manualForm.nachname,
@@ -4479,7 +4529,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
+function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -4661,6 +4711,15 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
   
   async function save(){
     if (!validateForm()) return;
+    // ID-Änderung erkennen und ggf. durchführen
+    const originalId = form._originalId || form.id;
+    if (form.id && form.id !== originalId) {
+      const ok = window.confirm(`Mieter-ID von ${originalId} auf ${form.id} ändern?\n\nDies aktualisiert auch die Zimmer-Zuordnung.`);
+      if (!ok) return;
+      const success = await renameTenantId(originalId, form.id);
+      if (!success) return; // Fehler wurde schon angezeigt
+    }
+    // Restliche Felder speichern (mit ggf. neuer ID)
     await updateTenant(form.id,{
       vorname:form.vorname,nachname:form.nachname,
       email:form.email,phone:form.phone,
@@ -4679,6 +4738,10 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       noDebt:!!form.noDebt,
       bemerkung:form.bemerkung,
     });
+    // Selection auf neue ID setzen falls geändert
+    if (form.id !== originalId) {
+      setSel(form.id);
+    }
     setEditing(false);
   }
   return(
@@ -4721,7 +4784,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
           <div className="card" style={{margin:0}}>
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:12,flexWrap:"wrap"}}>
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{tenant.id}</div></div></div>
-              <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant});setEditing(true);}}>✏ Bearbeiten</button>
+              <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
             </div>
             {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
               <div>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>
@@ -4781,7 +4844,18 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal" style={{width:640,maxHeight:"90vh",overflowY:"auto"}}>
         <div className="mt">Mieter bearbeiten</div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mieter-ID</div>
+        <div className="frow">
+          <div className="fg">
+            <label className="fl">ID <span style={{fontWeight:400,color:"#bab2a0",fontSize:10}}>(Format: T01, T02, …)</span></label>
+            <input className="fi" value={form.id||""} onChange={F("id")} style={{fontFamily:"'JetBrains Mono',monospace",fontWeight:600}}/>
+            <div style={{fontSize:10,color:"#bab2a0",marginTop:4,lineHeight:1.4}}>
+              ⚠️ Achtung: ID-Änderung wirkt sich auf verknüpfte Datensätze aus (Zimmer-Zuordnung, Dokumente).
+            </div>
+          </div>
+        </div>
+
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
         <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={form.vorname||""} onChange={F("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={form.nachname||""} onChange={F("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={form.email||""} onChange={F("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={form.phone||""} onChange={F("phone")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
