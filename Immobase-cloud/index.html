@@ -359,6 +359,98 @@ a:hover{border-bottom-color:var(--gold)}
   tr td:first-child:before { display: none; }
   
   /* ════════════════════════════════════════
+     💰 FINANZ-TABELLE: horizontal scrollen (NICHT als Karten)
+     ════════════════════════════════════════ */
+  .finance-scroll-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    /* visueller Hinweis für horizontales Scrollen */
+    background: linear-gradient(to right, transparent 90%, rgba(26,24,20,0.05) 100%);
+    border-radius: 8px;
+    margin: 0 -2px;
+  }
+  .finance-scroll-table table { display: table !important; min-width: 720px !important; width: 720px !important; }
+  .finance-scroll-table thead { 
+    position: static !important; 
+    left: auto !important; 
+    width: auto !important; 
+    height: auto !important; 
+    overflow: visible !important; 
+    display: table-header-group !important; 
+  }
+  .finance-scroll-table thead th {
+    display: table-cell !important;
+    background: #f6f1e8 !important;
+    border-bottom: 2px solid var(--line) !important;
+    padding: 10px 8px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: .08em !important;
+    text-transform: uppercase !important;
+    color: #4a4439 !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+  }
+  .finance-scroll-table tbody { display: table-row-group !important; }
+  .finance-scroll-table tfoot { display: table-footer-group !important; }
+  .finance-scroll-table tr {
+    display: table-row !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-bottom: 1px solid var(--line-soft) !important;
+  }
+  .finance-scroll-table td {
+    display: table-cell !important;
+    padding: 10px 8px !important;
+    border: none !important;
+    font-size: 11.5px !important;
+    text-align: left !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+  }
+  .finance-scroll-table td:before {
+    display: none !important;
+    content: '' !important;
+  }
+  .finance-scroll-table tr td:first-child {
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 0 !important;
+    border-bottom: none !important;
+    display: table-cell !important;
+    text-align: left !important;
+  }
+  /* Rechtsbündige Zahlen-Spalten */
+  .finance-scroll-table th[style*="right"],
+  .finance-scroll-table td[style*="text-align:right"],
+  .finance-scroll-table td[style*="text-align: right"] {
+    text-align: right !important;
+  }
+  /* Scroll-Hint: kleiner Pfeil rechts */
+  .finance-scroll-table-wrap {
+    position: relative;
+  }
+  .finance-scroll-table-wrap::after {
+    content: '→ scroll';
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    font-size: 9px;
+    color: #8a8174;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    pointer-events: none;
+    background: rgba(255,255,255,0.9);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  
+  /* ════════════════════════════════════════
      📊 GRID LAYOUTS gestapelt
      ════════════════════════════════════════ */
   /* Mieter-Liste + Detail: gestapelt */
@@ -2063,6 +2155,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
       {/* PER-APARTMENT FINANCE BREAKDOWN — separated WG / Airbnb */}
       <div className="card" style={{marginBottom:24}}>
         <div className="ct">Finanzübersicht — WG-Wohnungen</div>
+        <div className="finance-scroll-table-wrap">
+        <div className="finance-scroll-table">
         <table>
           <thead>
             <tr>
@@ -2118,11 +2212,15 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
             </tr>
           </tfoot>
         </table>
+        </div>
+        </div>
       </div>
 
       <div className="card" style={{marginBottom:24}}>
         <div className="ct">Finanzübersicht — Airbnb-Wohnungen</div>
         <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>Einnahmen aus Buchungen werden nicht im System getrackt — nur Kosten zur Eigentümerin.</div>
+        <div className="finance-scroll-table-wrap">
+        <div className="finance-scroll-table">
         <table>
           <thead>
             <tr>
@@ -2150,6 +2248,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
             </tr>
           </tfoot>
         </table>
+        </div>
+        </div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
@@ -4594,9 +4694,26 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,updateRoom,documen
         <div>
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
-            {filtered.map(t=>{const on=sel===t.id;return(
+            {filtered.map(t=>{
+              const on=sel===t.id;
+              const tRoom = rooms.find(r=>r.tenantId===t.id);
+              const tApt = tRoom ? apts.find(a=>a.id===tRoom.aptId) : null;
+              return(
               <div key={t.id} onClick={()=>{setSel(t.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={t.vorname} size={28}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:500,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.vorname} {t.nachname}</div>{t.type&&<TypeBadge type={t.type}/>}</div></div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:3}}>
+                  <div style={{fontWeight:600,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0}}>{t.vorname} {t.nachname}</div>
+                  <div style={{fontSize:9.5,fontWeight:700,color:on?"#a08864":"#8a8478",letterSpacing:".05em",whiteSpace:"nowrap",fontFamily:"'JetBrains Mono',monospace"}}>{t.id}</div>
+                </div>
+                <div style={{fontSize:10.5,color:"#8a8478",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                  {tRoom ? (
+                    <>
+                      🏠 <strong style={{color:"#5a5249"}}>{tRoom.id}</strong>
+                      {tApt && tApt.zimmer && <> · {tApt.zimmer} Zi.</>}
+                      {tApt && tApt.stockwerk && <> · {tApt.stockwerk}</>}
+                      {tApt && <> · {tApt.adresse}</>}
+                    </>
+                  ) : <span style={{fontStyle:"italic",color:"#bab2a0"}}>Kein Zimmer zugeteilt</span>}
+                </div>
               </div>);})}
           </div>
         </div>
