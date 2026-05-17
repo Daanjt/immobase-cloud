@@ -359,6 +359,20 @@ a:hover{border-bottom-color:var(--gold)}
   tr td:first-child:before { display: none; }
   
   /* ════════════════════════════════════════
+     💰 FINANZ-TABELLE: kompaktere Zeilen
+     ════════════════════════════════════════ */
+  .finance-card-compact table td,
+  .finance-card-compact table th {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    font-size: 11.5px !important;
+  }
+  .finance-card-compact table th {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  
+  /* ════════════════════════════════════════
      💰 FINANZ-TABELLE: horizontal scrollen (NICHT als Karten)
      ════════════════════════════════════════ */
   .finance-scroll-table {
@@ -369,7 +383,7 @@ a:hover{border-bottom-color:var(--gold)}
     border-radius: 8px;
     margin: 0 -2px;
   }
-  .finance-scroll-table table { display: table !important; min-width: 720px !important; width: 720px !important; }
+  .finance-scroll-table table { display: table !important; min-width: 820px !important; width: 820px !important; }
   .finance-scroll-table thead { 
     position: static !important; 
     left: auto !important; 
@@ -1736,22 +1750,140 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
 
 // ─── ÜBERGABEPROTOKOLL ───────────────────────────────────────────────────────
 const UEBERGABE_RAUME_PRIVAT = ["Privates Zimmer"];
-const UEBERGABE_RAUME_GEMEIN = ["Küche","Badezimmer","Wohnzimmer","Eingang / Korridor"];
+const UEBERGABE_RAUME_GEMEIN = ["Küche","Badezimmer","Eingang / Korridor"];
 const ZUSTAND_OPTIONS = ["Sehr gut","Gut","Akzeptabel","Mangelhaft"];
+
+// ─── SIGNATURE PAD ────────────────────────────────────────────────
+// Canvas-basiertes Unterschriften-Pad — funktioniert mit Maus + Touch
+function SignaturePad({value, onChange, placeholder}) {
+  const canvasRef = React.useRef(null);
+  const [isDrawing, setIsDrawing] = React.useState(false);
+  const lastPos = React.useRef({x:0,y:0});
+  const [hasDrawn, setHasDrawn] = React.useState(!!value);
+  
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // Set canvas internal size (for HD displays)
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#1a1814";
+    ctx.lineWidth = 2.5;
+    // Wenn wir einen Wert haben, zeichne ihn
+    if (value) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.src = value;
+    }
+  }, []);
+  
+  function getPos(e) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    if (e.touches && e.touches[0]) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  
+  function start(e) {
+    e.preventDefault();
+    setIsDrawing(true);
+    setHasDrawn(true);
+    lastPos.current = getPos(e);
+  }
+  
+  function draw(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current.getContext("2d");
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    lastPos.current = pos;
+  }
+  
+  function end() {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    // Konvertiere Canvas zu PNG Data-URL
+    const dataUrl = canvasRef.current.toDataURL("image/png");
+    onChange(dataUrl);
+  }
+  
+  function clear() {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    setHasDrawn(false);
+    onChange("");
+  }
+  
+  return (
+    <div style={{position:"relative",marginTop:6}}>
+      <canvas
+        ref={canvasRef}
+        style={{
+          width:"100%",
+          height:140,
+          border:"1.5px dashed #c5b89e",
+          borderRadius:8,
+          background:"#fff",
+          cursor:"crosshair",
+          touchAction:"none",
+          display:"block"
+        }}
+        onMouseDown={start}
+        onMouseMove={draw}
+        onMouseUp={end}
+        onMouseLeave={end}
+        onTouchStart={start}
+        onTouchMove={draw}
+        onTouchEnd={end}
+      />
+      {!hasDrawn && (
+        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontSize:12,color:"#bab2a0",pointerEvents:"none",fontStyle:"italic"}}>
+          {placeholder || "Mit dem Finger oder Maus unterschreiben"}
+        </div>
+      )}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
+        <span style={{fontSize:11,color:hasDrawn?"#5a6e4a":"#bab2a0"}}>
+          {hasDrawn ? "✓ Unterschrift erfasst" : "Noch keine Unterschrift"}
+        </span>
+        {hasDrawn && (
+          <button onClick={clear} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"3px 8px",cursor:"pointer",color:"#9b4a3e"}}>
+            ✕ Löschen
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
   const [showForm, setShowForm] = useState(false);
   const [data, setData] = useState({
     datum: new Date().toISOString().split("T")[0],
     raume: {},
-    schluessel_anzahl: "",
-    schluessel_typ: "",
-    strom_zaehler: "",
-    wasser_zaehler: "",
-    inventar_geprueft: false,
+    customRaume: [], // zusätzliche Räume die der User hinzufügt
     bemerkungen: "",
+    signature_mieter: "", // Data-URL der Unterschrift
+    signature_vermieter: "",
   });
   const [generating, setGenerating] = useState(false);
+  
+  // Schlüssel-Daten vom Mieter automatisch übernehmen
+  const schluesselNr = tenant?.schluesselAnzahl || tenant?.schluessel_nr || "";
+  const extraSchluessel = tenant?.extraSchluessel || tenant?.extra_schluessel || "";
   
   function updateRaum(name, key, val) {
     setData(p => ({
@@ -1813,7 +1945,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
     const fullName = `${tenant.vorname} ${tenant.nachname}`;
     const datumLong = new Date(data.datum).toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
     
-    const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN];
+    const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN, ...(data.customRaume||[])];
     const raumeHTML = allRooms.map(r => {
       const d = data.raume[r] || {};
       const photos = d.photos || [];
@@ -1824,9 +1956,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
           <h3>${titel}</h3>
           <div class="raum-grid">
             <div class="raum-info">
-              <div class="info-row"><span class="lbl">Zustand:</span> <span>${d.zustand||"—"}</span></div>
-              <div class="info-row"><span class="lbl">Bemerkung:</span></div>
-              <div class="bemerkung">${d.bemerkung || "—"}</div>
+              ${d.bemerkung ? `<div class="info-row"><span class="lbl">Bemerkung:</span></div><div class="bemerkung">${d.bemerkung}</div>` : ''}
             </div>
           </div>
           ${photos.length > 0 ? `
@@ -1875,6 +2005,10 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
   .sig-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt}
   .sig-row .lbl{font-weight:600;min-width:55pt}
   .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
+  .sig-image-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt;align-items:flex-end}
+  .sig-image-row .lbl{font-weight:600;min-width:55pt}
+  .sig-image-row .line{flex:1;border-bottom:.5pt solid #888;min-height:36pt}
+  .sig-image{flex:1;max-width:160pt;height:auto;max-height:50pt;object-fit:contain;border-bottom:.5pt solid #888;padding-bottom:2pt}
 </style></head>
 <body>
 <div class="print-banner">
@@ -1906,14 +2040,11 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
 </div>
 
 <div class="info-section">
-  <h3>Schlüssel & Zähler</h3>
+  <h3>Schlüsselübergabe</h3>
   <div class="row">
-    <div><span class="lbl">Schlüssel-Typ:</span> ${data.schluessel_typ||"—"}</div>
-    <div><span class="lbl">Anzahl:</span> ${data.schluessel_anzahl||"—"}</div>
-    <div><span class="lbl">Stromzähler:</span> ${data.strom_zaehler||"—"} kWh</div>
-    <div><span class="lbl">Wasserzähler:</span> ${data.wasser_zaehler||"—"} m³</div>
+    <div><span class="lbl">Anzahl Schlüssel:</span> ${schluesselNr||"—"}</div>
+    <div><span class="lbl">Extra-Schlüssel:</span> ${extraSchluessel||"—"}</div>
   </div>
-  <div style="margin-top:8pt;font-size:10pt;font-weight:600">${data.inventar_geprueft?"☑":"☐"} Inventar laut Liste vollständig vorhanden und geprüft</div>
 </div>
 
 ${raumeHTML}
@@ -1924,14 +2055,24 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
   <div class="sig-block">
     <div class="role">Mieter*in</div>
     <div class="name">${tenant.vorname} ${tenant.nachname}</div>
-    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
-    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line">${data.signature_mieter ? `Zürich, ${datumLong}` : ''}</span></div>
+    <div class="sig-image-row">
+      <span class="lbl">Unterschrift:</span>
+      ${data.signature_mieter 
+        ? `<img src="${data.signature_mieter}" alt="Unterschrift Mieter" class="sig-image"/>` 
+        : `<span class="line"></span>`}
+    </div>
   </div>
   <div class="sig-block">
     <div class="role">Hauptmieter</div>
     <div class="name">D&amp;T Partners GmbH</div>
-    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
-    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line">${data.signature_vermieter ? `Zürich, ${datumLong}` : ''}</span></div>
+    <div class="sig-image-row">
+      <span class="lbl">Unterschrift:</span>
+      ${data.signature_vermieter 
+        ? `<img src="${data.signature_vermieter}" alt="Unterschrift Vermieter" class="sig-image"/>` 
+        : `<span class="line"></span>`}
+    </div>
   </div>
 </div>
 
@@ -1976,7 +2117,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     );
   }
   
-  const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN];
+  const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN, ...(data.customRaume||[])];
   const totalPhotos = Object.values(data.raume).reduce((s,r) => s + ((r.photos||[]).length), 0);
   
   return (
@@ -1994,37 +2135,35 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       </div>
       
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Schlüssel & Zähler</div>
-        <div className="frow">
-          <div className="fg"><label className="fl">Schlüssel-Typ</label><input className="fi" value={data.schluessel_typ} onChange={e=>setData(p=>({...p,schluessel_typ:e.target.value}))} placeholder="z.B. Yale, Kaba"/></div>
-          <div className="fg"><label className="fl">Anzahl</label><input className="fi" type="number" value={data.schluessel_anzahl} onChange={e=>setData(p=>({...p,schluessel_anzahl:e.target.value}))}/></div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Schlüsselübergabe</div>
+        <div style={{fontSize:12,color:"#4a4439",lineHeight:1.7}}>
+          <div><strong style={{minWidth:130,display:"inline-block"}}>Anzahl Schlüssel:</strong> {schluesselNr || <span style={{color:"#bab2a0",fontStyle:"italic"}}>nicht erfasst</span>}</div>
+          <div><strong style={{minWidth:130,display:"inline-block"}}>Extra-Schlüssel:</strong> {extraSchluessel || <span style={{color:"#bab2a0",fontStyle:"italic"}}>keine</span>}</div>
         </div>
-        <div className="frow">
-          <div className="fg"><label className="fl">Stromzähler (kWh)</label><input className="fi" type="number" step="0.01" value={data.strom_zaehler} onChange={e=>setData(p=>({...p,strom_zaehler:e.target.value}))}/></div>
-          <div className="fg"><label className="fl">Wasserzähler (m³)</label><input className="fi" type="number" step="0.01" value={data.wasser_zaehler} onChange={e=>setData(p=>({...p,wasser_zaehler:e.target.value}))}/></div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>
+          Diese Daten kommen aus den Mieter-Stammdaten. Falls leer, bitte erst beim Mieter erfassen.
         </div>
-        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:8,fontSize:13,cursor:"pointer"}}>
-          <input type="checkbox" checked={data.inventar_geprueft} onChange={e=>setData(p=>({...p,inventar_geprueft:e.target.checked}))}/>
-          <span>Inventar laut Liste vollständig vorhanden und geprüft</span>
-        </label>
       </div>
       
-      {allRooms.map(rname => {
+      {allRooms.map((rname, idx) => {
         const isPrivat = UEBERGABE_RAUME_PRIVAT.includes(rname);
+        const isCustom = (data.customRaume||[]).includes(rname);
         const titel = isPrivat && room ? `${rname} (${room.id})` : rname;
         const rdata = data.raume[rname] || {};
         const photos = rdata.photos || [];
         return (
           <div key={rname} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{isPrivat?"🛏️ ":"🏠 "}{titel}</div>
-              <span style={{fontSize:10,color:photos.length>0?"#5a6e4a":"#8a8174",fontWeight:600}}>{photos.length} Foto{photos.length!==1?"s":""}</span>
-            </div>
-            <div className="frow">
-              <div className="fg"><label className="fl">Zustand</label><select className="fi" value={rdata.zustand||""} onChange={e=>updateRaum(rname,"zustand",e.target.value)}><option value="">— wählen —</option>{ZUSTAND_OPTIONS.map(z=><option key={z} value={z}>{z}</option>)}</select></div>
+              <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{isPrivat?"🛏️ ":isCustom?"➕ ":"🏠 "}{titel}</div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <span style={{fontSize:10,color:photos.length>0?"#5a6e4a":"#8a8174",fontWeight:600}}>{photos.length} Foto{photos.length!==1?"s":""}</span>
+                {isCustom && (
+                  <button onClick={()=>setData(p=>({...p,customRaume:p.customRaume.filter(r=>r!==rname),raume:Object.fromEntries(Object.entries(p.raume).filter(([k])=>k!==rname))}))} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"2px 6px",cursor:"pointer",color:"#9b4a3e"}}>✕ Entfernen</button>
+                )}
+              </div>
             </div>
             <div className="fg">
-              <label className="fl">Bemerkung / Mängel</label>
+              <label className="fl">Bemerkung / Mängel <span style={{fontWeight:400,color:"#bab2a0"}}>(optional)</span></label>
               <textarea className="fi" rows={2} value={rdata.bemerkung||""} onChange={e=>updateRaum(rname,"bemerkung",e.target.value)} placeholder="z.B. kleiner Kratzer am Fenster..."/>
             </div>
             
@@ -2039,13 +2178,13 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
               </div>
             )}
             
-            <div style={{display:"flex",gap:6}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
                 📷 Foto aufnehmen
                 <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{addPhoto(rname,e.target.files[0]);e.target.value="";}}/>
               </label>
               <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
-                📎 Datei hochladen
+                📎 Mehrere Bilder
                 <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{[...e.target.files].forEach(f=>addPhoto(rname,f));e.target.value="";}}/>
               </label>
             </div>
@@ -2053,9 +2192,47 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         );
       })}
       
+      {/* Custom-Raum hinzufügen */}
+      <button 
+        onClick={()=>{
+          const name = prompt("Name des zusätzlichen Raums:", "");
+          if (!name || !name.trim()) return;
+          const trimmed = name.trim();
+          if (allRooms.includes(trimmed)) { alert("Raum existiert bereits."); return; }
+          setData(p=>({...p,customRaume:[...(p.customRaume||[]),trimmed]}));
+        }}
+        className="btn btn-g btn-sm" 
+        style={{width:"100%",marginBottom:14,padding:"10px",borderStyle:"dashed"}}
+      >
+        ➕ Weiteren Raum hinzufügen (z.B. Balkon, Estrich)
+      </button>
+      
       <div className="fg">
         <label className="fl">Allgemeine Bemerkungen</label>
         <textarea className="fi" rows={3} value={data.bemerkungen} onChange={e=>setData(p=>({...p,bemerkungen:e.target.value}))} placeholder="Weitere Notizen oder Vereinbarungen..."/>
+      </div>
+      
+      {/* UNTERSCHRIFTEN */}
+      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,marginTop:14}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:14,fontWeight:500}}>✍️ Unterschriften</div>
+        
+        <div style={{marginBottom:18}}>
+          <label className="fl">Mieter: {tenant.vorname} {tenant.nachname}</label>
+          <SignaturePad 
+            value={data.signature_mieter} 
+            onChange={(v)=>setData(p=>({...p,signature_mieter:v}))}
+            placeholder="Hier mit dem Finger unterschreiben"
+          />
+        </div>
+        
+        <div>
+          <label className="fl">Hauptmieter: D&T Partners GmbH</label>
+          <SignaturePad 
+            value={data.signature_vermieter} 
+            onChange={(v)=>setData(p=>({...p,signature_vermieter:v}))}
+            placeholder="Hier mit dem Finger unterschreiben"
+          />
+        </div>
       </div>
       
       <div style={{display:"flex",gap:8,marginTop:18,paddingTop:14,borderTop:"1px solid #e1d8c5"}}>
@@ -2269,7 +2446,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;120 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
 
       {/* PER-APARTMENT FINANCE BREAKDOWN — separated WG / Airbnb */}
-      <div className="card" style={{marginBottom:24}}>
+      <div className="card finance-card-compact" style={{marginBottom:24}}>
         <div className="ct">Finanzübersicht — WG-Wohnungen</div>
         <div className="finance-scroll-table-wrap">
         <div className="finance-scroll-table">
@@ -2282,6 +2459,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               <th style={{textAlign:"right"}}>Ausgabe</th>
               <th style={{textAlign:"right"}}>Einnahme Ist</th>
               <th style={{textAlign:"right"}}>Einnahme Max</th>
+              <th style={{textAlign:"right"}}>Aufschläge</th>
               <th style={{textAlign:"right"}}>Marge Ist</th>
               <th style={{textAlign:"right"}}>Marge Max</th>
               <th>Belegung</th>
@@ -2293,8 +2471,20 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               const aOcc=rs.filter(r=>r.occupied).length;
               const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
               const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0);
-              const aMargeIst=aIst-(+a.miete||0);
-              const aMargeMax=aMax-(+a.miete||0);
+              // Kautionsaufschläge pro Wohnung: alle Mieter der Wohnung
+              const aAufschlag = tenants
+                .filter(t => t.aptId === a.id)
+                .reduce((s, t) => {
+                  let auf = +t.kautionAufschlag || 0;
+                  if (!auf) {
+                    if (t.kautionOpt === "0x") auf = 150;
+                    else if (t.kautionOpt === "1x") auf = 100;
+                    else if (t.kautionOpt === "2x") auf = 50;
+                  }
+                  return s + auf;
+                }, 0);
+              const aMargeIst=aIst-(+a.miete||0)+aAufschlag;
+              const aMargeMax=aMax-(+a.miete||0)+aAufschlag;
               return (
                 <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                   <td style={{fontWeight:600}}>{a.id}</td>
@@ -2304,6 +2494,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                   <td data-label="Kosten" style={{textAlign:"right"}}>{chf(a.miete)}</td>
                   <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
+                  <td data-label="Aufschläge" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"—"}</td>
                   <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
                   <td data-label="Belegung" style={{minWidth:120}}>
@@ -2322,8 +2513,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:wgMargeIst>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>+{chf(totalAufschlagMonat)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst+totalAufschlagMonat)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst+totalAufschlagMonat)>=0?"+":""}{chf(wgMargeIst+totalAufschlagMonat)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax+totalAufschlagMonat)}</td>
               <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{wgAuslastung}%</span></td>
             </tr>
           </tfoot>
@@ -2332,7 +2524,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
         </div>
       </div>
 
-      <div className="card" style={{marginBottom:24}}>
+      <div className="card finance-card-compact" style={{marginBottom:24}}>
         <div className="ct">Finanzübersicht — Airbnb-Wohnungen</div>
         <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>Einnahmen aus Buchungen werden nicht im System getrackt — nur Kosten zur Eigentümerin.</div>
         <div className="finance-scroll-table-wrap">
