@@ -1434,6 +1434,84 @@ function useSupabaseData() {
   // ─── DOCUMENTS ─────────────────────────────────────────
   const [documents, setDocuments] = useState([]);
   
+  // ─── ÜBERGABE-PROTOKOLLE ──────────────────────────────────
+  const [protokolle, setProtokolle] = useState([]);
+  
+  async function loadProtokolle() {
+    try {
+      const {data, error} = await supabase.from("uebergabe_protokolle").select("*").order("created_at", {ascending: false});
+      if (error) {
+        console.warn("Protokolle-Tabelle nicht eingerichtet (SQL-Setup ausführen):", error.message);
+        return;
+      }
+      // Konvertiere snake_case → camelCase für JS
+      setProtokolle((data || []).map(p => ({
+        ...p,
+        tenantId: p.tenant_id,
+        aptId: p.apt_id,
+        roomId: p.room_id,
+        schluesselNr: p.schluessel_nr,
+        extraSchluessel: p.extra_schluessel,
+        customRaume: p.custom_raume || [],
+        signatureMieter: p.signature_mieter,
+        signatureVermieter: p.signature_vermieter,
+        signedAt: p.signed_at,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
+      })));
+    } catch (e) {
+      console.warn("loadProtokolle failed:", e);
+    }
+  }
+  
+  async function insertProtokoll(p) {
+    const dbRow = {
+      tenant_id: p.tenantId || null,
+      apt_id: p.aptId || null,
+      room_id: p.roomId || null,
+      datum: p.datum || null,
+      schluessel_nr: p.schluesselNr || "",
+      extra_schluessel: p.extraSchluessel || "",
+      bemerkungen: p.bemerkungen || "",
+      raume: p.raume || {},
+      custom_raume: p.customRaume || [],
+      signature_mieter: p.signatureMieter || null,
+      signature_vermieter: p.signatureVermieter || null,
+      signed_at: p.signedAt || null,
+      status: p.status || "entwurf",
+    };
+    const {data, error} = await supabase.from("uebergabe_protokolle").insert([dbRow]).select().single();
+    if (error) { console.error("insertProtokoll:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    await loadProtokolle();
+    return data;
+  }
+  
+  async function updateProtokoll(id, fields) {
+    const map = {
+      tenantId: "tenant_id", aptId: "apt_id", roomId: "room_id",
+      schluesselNr: "schluessel_nr", extraSchluessel: "extra_schluessel",
+      customRaume: "custom_raume",
+      signatureMieter: "signature_mieter", signatureVermieter: "signature_vermieter",
+      signedAt: "signed_at",
+    };
+    const dbFields = {};
+    for (const k of Object.keys(fields)) {
+      if (fields[k] === undefined) continue;
+      dbFields[map[k] || k] = fields[k];
+    }
+    const {error} = await supabase.from("uebergabe_protokolle").update(dbFields).eq("id", id);
+    if (error) { console.error("updateProtokoll:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    await loadProtokolle();
+  }
+  
+  async function deleteProtokoll(id) {
+    const {error} = await supabase.from("uebergabe_protokolle").delete().eq("id", id);
+    if (error) { console.error("deleteProtokoll:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
+    setProtokolle(p => p.filter(x => x.id !== id));
+  }
+  
+  useEffect(() => { loadProtokolle(); }, []);
+  
   async function loadDocuments() {
     try {
       const {data, error} = await supabase.from("documents").select("*").order("uploaded_at", {ascending:false});
@@ -1523,7 +1601,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, insertProtokoll, updateProtokoll, deleteProtokoll};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -1869,22 +1947,23 @@ function SignaturePad({value, onChange, placeholder}) {
   );
 }
 
-function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument}){
+function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll}){
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editingProtocolId, setEditingProtocolId] = useState(null); // ID of saved protocol being edited
+  const [editingId, setEditingId] = useState(null);
   
-  // localStorage-Key für Draft-Persistierung (pro Mieter)
+  // Protokolle für diesen Mieter
+  const myProtokolle = (protokolle || []).filter(p => p.tenantId === tenant?.id);
+  
+  // localStorage-Key für Draft (nur für unfertige neue Protokolle, vor erstem Speichern)
   const draftKey = tenant ? `uebergabe_draft_${tenant.id}` : null;
   
-  // Initial data: aus localStorage laden falls vorhanden, sonst defaults
   const loadDraft = () => {
     if (!draftKey) return null;
     try {
       const raw = localStorage.getItem(draftKey);
       if (raw) return JSON.parse(raw);
-    } catch (e) { console.warn("Draft-Load failed:", e); }
+    } catch (e) { console.warn(e); }
     return null;
   };
   
@@ -1892,39 +1971,18 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
     const draft = loadDraft();
     return draft || {
       datum: new Date().toISOString().split("T")[0],
-      raume: {},
-      customRaume: [],
+      raume: {}, customRaume: [],
       bemerkungen: "",
-      signature_mieter: "",
-      signature_vermieter: "",
+      signature_mieter: "", signature_vermieter: "",
     };
   });
   
-  // Suche existierende gespeicherte Protokolle (JSON-Dateien)
-  const savedProtocols = (documents || []).filter(d => 
-    d.entity_type === "tenant" && 
-    d.entity_id === tenant?.id && 
-    d.category === "Übergabeprotokoll" &&
-    (d.filename || "").toLowerCase().endsWith(".json")
-  ).sort((a,b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
-  
-  // Existierende PDFs/HTMLs (separat für Anzeige)
-  const finalizedPDFs = (documents || []).filter(d => 
-    d.entity_type === "tenant" && 
-    d.entity_id === tenant?.id && 
-    d.category === "Übergabeprotokoll" &&
-    !(d.filename || "").toLowerCase().endsWith(".json")
-  ).sort((a,b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
-  
-  // Auto-Save: Draft in localStorage bei jeder Änderung (nicht für gespeicherte Protokolle)
+  // Auto-Save: Draft nur in localStorage solange nicht in DB gespeichert
   useEffect(() => {
-    if (!draftKey || !showForm || editingProtocolId) return;
-    try {
-      localStorage.setItem(draftKey, JSON.stringify(data));
-    } catch (e) {
-      console.warn("Draft-Save failed:", e);
-    }
-  }, [data, draftKey, showForm, editingProtocolId]);
+    if (!draftKey || !showForm || editingId) return;
+    try { localStorage.setItem(draftKey, JSON.stringify(data)); }
+    catch (e) { console.warn(e); }
+  }, [data, draftKey, showForm, editingId]);
   
   function resetData() {
     setData({
@@ -1939,67 +1997,64 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
     resetData();
   }
   
-  // Lade gespeichertes Protokoll
-  async function loadProtocol(protocolDoc) {
-    if (!getDocumentUrl) return;
-    setLoading(true);
-    try {
-      const url = await getDocumentUrl(protocolDoc);
-      const response = await fetch(url);
-      const json = await response.json();
-      setData(json);
-      setEditingProtocolId(protocolDoc.id);
-      setShowForm(true);
-    } catch (e) {
-      alert("Laden fehlgeschlagen: " + e.message);
-    }
-    setLoading(false);
+  // Lade existierenden Datensatz zum Bearbeiten
+  function loadRecord(p) {
+    setData({
+      datum: p.datum || new Date().toISOString().split("T")[0],
+      raume: p.raume || {},
+      customRaume: p.customRaume || [],
+      bemerkungen: p.bemerkungen || "",
+      signature_mieter: p.signatureMieter || "",
+      signature_vermieter: p.signatureVermieter || "",
+    });
+    setEditingId(p.id);
+    setShowForm(true);
   }
   
-  // Speichere Protokoll als JSON in DB
-  async function saveProtocol() {
-    if (!tenant || !uploadDocument) return;
+  // Speichern (Insert oder Update)
+  async function save() {
+    if (!tenant) return;
     setSaving(true);
     try {
-      // Falls wir gerade ein existierendes editieren: erst altes löschen
-      if (editingProtocolId && deleteDocument) {
-        const oldDoc = savedProtocols.find(p => p.id === editingProtocolId);
-        if (oldDoc) {
-          try { await deleteDocument(oldDoc); } catch (e) { console.warn(e); }
-        }
+      const payload = {
+        tenantId: tenant.id,
+        aptId: apt?.id || null,
+        roomId: room?.id || null,
+        datum: data.datum,
+        schluesselNr: schluesselNr,
+        extraSchluessel: extraSchluessel,
+        bemerkungen: data.bemerkungen,
+        raume: data.raume,
+        customRaume: data.customRaume,
+        signatureMieter: data.signature_mieter || null,
+        signatureVermieter: data.signature_vermieter || null,
+        signedAt: (data.signature_mieter && data.signature_vermieter) ? new Date().toISOString() : null,
+        status: (data.signature_mieter && data.signature_vermieter) ? "unterschrieben" : "entwurf",
+      };
+      
+      if (editingId) {
+        await updateProtokoll(editingId, payload);
+        alert("✓ Datensatz aktualisiert.");
+      } else {
+        const created = await insertProtokoll(payload);
+        alert("✓ Datensatz gespeichert! Du findest ihn jetzt in der Übersicht.");
+        if (created) setEditingId(created.id);
+        if (draftKey) localStorage.removeItem(draftKey);
       }
-      
-      const json = JSON.stringify(data);
-      const blob = new Blob([json], {type: "application/json"});
-      const datumStr = (data.datum || new Date().toISOString().slice(0,10)).replace(/-/g, "");
-      const filename = `Uebergabeprotokoll_${datumStr}.json`;
-      const file = new File([blob], filename, {type: "application/json"});
-      
-      await uploadDocument("tenant", tenant.id, "Übergabeprotokoll", file);
-      
-      // Draft löschen weil offiziell gespeichert
-      if (draftKey) localStorage.removeItem(draftKey);
-      
       // Zurück zur Übersicht
       setShowForm(false);
-      setEditingProtocolId(null);
+      setEditingId(null);
       resetData();
-      
-      alert("✓ Protokoll gespeichert! Du findest es jetzt in der Übersicht und kannst es vor Ort öffnen, um die Unterschriften zu ergänzen und das PDF zu erstellen.");
     } catch (e) {
-      alert("Speichern fehlgeschlagen: " + e.message);
+      // Fehler wurde bereits in CRUD-Funktion angezeigt
     }
     setSaving(false);
   }
   
-  async function deleteProtocol(protocolDoc) {
-    if (!confirm(`Protokoll "${protocolDoc.filename}" wirklich löschen?`)) return;
-    if (!deleteDocument) return;
-    try {
-      await deleteDocument(protocolDoc);
-    } catch (e) {
-      alert("Löschen fehlgeschlagen: " + e.message);
-    }
+  async function deleteRecord(p) {
+    if (!confirm(`Datensatz vom ${fmtDateDE(p.datum)} wirklich löschen?`)) return;
+    try { await deleteProtokoll(p.id); }
+    catch (e) {}
   }
   
   const [generating, setGenerating] = useState(false);
@@ -2248,8 +2303,6 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     setGenerating(true);
     try {
       const html = buildPDF();
-      
-      // 1. Druck-Fenster öffnen
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blockiert. Bitte Popups erlauben.");
@@ -2259,24 +2312,6 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       win.document.write(html);
       win.document.close();
       win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 400);
-      
-      // 2. HTML-Protokoll als Dokument im System speichern (mit allen Fotos inline)
-      // → bleibt im Dokumente-Tab sichtbar mit allen Bildern und Unterschriften
-      if (uploadDocument && tenant) {
-        try {
-          const blob = new Blob([html], {type: "text/html"});
-          const datumStr = (data.datum || new Date().toISOString().slice(0,10)).replace(/-/g, "");
-          const filename = `Uebergabeprotokoll_${tenant.vorname}_${tenant.nachname}_${datumStr}.html`;
-          const file = new File([blob], filename, {type:"text/html"});
-          await uploadDocument("tenant", tenant.id, "Übergabeprotokoll", file);
-          console.log("✓ Protokoll im Dokumente-Tab gespeichert");
-          // Draft löschen weil offiziell gespeichert
-          if (draftKey) localStorage.removeItem(draftKey);
-        } catch (e) {
-          console.error("Upload des Protokolls fehlgeschlagen:", e);
-          // Nicht blockierend — User hat trotzdem das PDF
-        }
-      }
     } finally {
       setGenerating(false);
     }
@@ -2284,85 +2319,74 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
   
   if (!showForm) {
     const hasDraft = !!loadDraft();
-    const hasSaved = savedProtocols.length > 0;
     
     return (
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
           <div>
-            <div style={{fontSize:14,fontWeight:600}}>📋 Übergabeprotokoll</div>
+            <div style={{fontSize:14,fontWeight:600}}>📋 Übergabe-Datensätze</div>
             <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
-              {hasSaved ? `${savedProtocols.length} gespeichert${savedProtocols.length>1?"e":"es"} Protokoll${savedProtocols.length>1?"e":""}` : "Noch keine Protokolle"}
+              {myProtokolle.length === 0 ? "Noch keine Datensätze" : `${myProtokolle.length} Datensatz${myProtokolle.length>1?"e":""}`}
             </div>
           </div>
           <button className="btn btn-p btn-sm" onClick={()=>{
-            if (hasDraft && !confirm("Es existiert noch ein unfertiger Entwurf. Neu beginnen und Entwurf verwerfen?")) {
-              setShowForm(true); // weiter mit draft
-              return;
-            }
             clearDraft();
-            setEditingProtocolId(null);
+            setEditingId(null);
             setShowForm(true);
-          }}>+ Neues Protokoll</button>
+          }}>+ Neuer Datensatz</button>
         </div>
         
         {hasDraft && (
           <div style={{background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#b8843e",lineHeight:1.5}}>
-            <div style={{fontWeight:600,marginBottom:4}}>💾 Unfertiger Entwurf vorhanden</div>
-            <div style={{fontSize:11,marginBottom:8}}>Du hast ein Protokoll begonnen aber noch nicht gespeichert.</div>
+            <div style={{fontWeight:600,marginBottom:4}}>💾 Unfertiger Entwurf</div>
+            <div style={{fontSize:11,marginBottom:8}}>Du hast einen Datensatz begonnen, aber noch nicht gespeichert.</div>
             <div style={{display:"flex",gap:6}}>
-              <button className="btn btn-g btn-sm" onClick={()=>{setEditingProtocolId(null);setShowForm(true);}}>✏️ Weiterarbeiten</button>
+              <button className="btn btn-g btn-sm" onClick={()=>{setEditingId(null);setShowForm(true);}}>✏️ Weiterarbeiten</button>
               <button className="btn btn-g btn-sm" onClick={()=>{if(confirm("Entwurf verwerfen?"))clearDraft();}}>🗑️ Verwerfen</button>
             </div>
           </div>
         )}
         
-        {/* Liste gespeicherter Protokolle */}
-        {savedProtocols.length === 0 && !hasDraft && (
+        {myProtokolle.length === 0 && !hasDraft && (
           <div style={{textAlign:"center",padding:"40px 20px",color:"#8a8174"}}>
             <div style={{fontSize:36,marginBottom:10,opacity:.5}}>📋</div>
-            <div style={{fontSize:13,marginBottom:6,fontWeight:500}}>Noch kein Protokoll erstellt</div>
+            <div style={{fontSize:13,marginBottom:6,fontWeight:500}}>Noch kein Datensatz erfasst</div>
             <div style={{fontSize:11.5,lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>
-              Klick oben auf <strong>"+ Neues Protokoll"</strong> um Räume zu erfassen und Fotos zu machen.
-              Die Unterschriften kannst du später vor Ort ergänzen.
+              Erfasse Räume, Fotos und Schlüssel vorab. Vor Ort werden die Unterschriften ergänzt und das Protokoll-PDF erstellt.
             </div>
           </div>
         )}
         
-        {savedProtocols.map(p => {
-          // Versuche Daten zu lesen (Status zeigen)
-          const isLoading = loading;
+        {myProtokolle.map(p => {
+          const signed = p.status === "unterschuieben" || (p.signatureMieter && p.signatureVermieter);
+          const photoCount = Object.values(p.raume || {}).reduce((s,r) => s + ((r.photos||[]).length), 0);
           return (
             <div key={p.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:3,wordBreak:"break-word"}}>📄 {p.filename}</div>
-                  <div style={{fontSize:10.5,color:"#8a8174"}}>Gespeichert: {fmtDateDE(p.uploaded_at)}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                    <span style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>📋 {fmtDateDE(p.datum) || "Kein Datum"}</span>
+                    {signed ? (
+                      <span style={{fontSize:9.5,padding:"2px 7px",background:"#e8f0e6",color:"#2a4a35",borderRadius:10,fontWeight:600,letterSpacing:".05em"}}>✓ UNTERSCHRIEBEN</span>
+                    ) : (
+                      <span style={{fontSize:9.5,padding:"2px 7px",background:"#fdf7e8",color:"#b8843e",borderRadius:10,fontWeight:600,letterSpacing:".05em"}}>ENTWURF</span>
+                    )}
+                  </div>
+                  <div style={{fontSize:10.5,color:"#8a8174",lineHeight:1.5}}>
+                    📷 {photoCount} Foto{photoCount!==1?"s":""} · 🔑 {p.schluesselNr || "—"} 
+                    {p.signedAt && <> · Unterschrieben: {fmtDateDE(p.signedAt)}</>}
+                  </div>
                 </div>
-                <button onClick={()=>deleteProtocol(p)} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"3px 8px",cursor:"pointer",color:"#9b4a3e",flexShrink:0}}>🗑️</button>
+                <button onClick={()=>deleteRecord(p)} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"3px 8px",cursor:"pointer",color:"#9b4a3e",flexShrink:0}}>🗑️</button>
               </div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                <button className="btn btn-p btn-sm" onClick={()=>loadProtocol(p)} disabled={isLoading} style={{flex:"1 1 auto"}}>
-                  {isLoading ? "⏳ Lädt…" : "✏️ Öffnen / Unterschreiben / PDF"}
+                <button className="btn btn-p btn-sm" onClick={()=>loadRecord(p)} style={{flex:"1 1 auto"}}>
+                  {signed ? "📄 Protokoll-PDF ansehen / neu erstellen" : "✏️ Öffnen & Unterschreiben → PDF"}
                 </button>
               </div>
             </div>
           );
         })}
-        
-        {/* Final-PDFs separate Sektion */}
-        {finalizedPDFs.length > 0 && (
-          <div style={{marginTop:20,paddingTop:14,borderTop:"1px dashed #e1d8c5"}}>
-            <div style={{fontSize:11,color:"#8a8174",marginBottom:8,textTransform:"uppercase",letterSpacing:".15em",fontWeight:600}}>📑 Finale PDFs / HTMLs</div>
-            {finalizedPDFs.map(p => (
-              <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f9f6ef",borderRadius:6,marginBottom:4,fontSize:11.5}}>
-                <span style={{flex:1,color:"#5a5249",wordBreak:"break-word"}}>📄 {p.filename}</span>
-                <span style={{fontSize:10,color:"#8a8174",flexShrink:0}}>{fmtDateDE(p.uploaded_at)}</span>
-              </div>
-            ))}
-            <div style={{fontSize:10.5,color:"#bab2a0",marginTop:6,fontStyle:"italic"}}>💡 Diese erscheinen auch im Dokumente-Tab</div>
-          </div>
-        )}
       </div>
     );
   }
@@ -2374,12 +2398,12 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
-          <div style={{fontSize:14,fontWeight:600}}>{editingProtocolId ? "✏️ Protokoll bearbeiten" : "📋 Neues Protokoll"}</div>
+          <div style={{fontSize:14,fontWeight:600}}>{editingId ? "✏️ Datensatz bearbeiten" : "📋 Neuer Datensatz"}</div>
           <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
-            {totalPhotos} Foto{totalPhotos!==1?"s":""} · {editingProtocolId ? "Gespeichert in DB" : "Noch nicht gespeichert"}
+            {totalPhotos} Foto{totalPhotos!==1?"s":""} · {editingId ? "Gespeichert in DB" : "Noch nicht gespeichert"}
           </div>
         </div>
-        <button className="btn btn-g btn-sm" onClick={()=>{setShowForm(false);setEditingProtocolId(null);}}>← Zurück</button>
+        <button className="btn btn-g btn-sm" onClick={()=>{setShowForm(false);setEditingId(null);}}>← Zurück</button>
       </div>
       
       <div className="frow">
@@ -2468,7 +2492,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       </div>
       
       {/* UNTERSCHRIFTEN — nur sichtbar wenn man ein gespeichertes Protokoll bearbeitet (vor Ort) */}
-      {editingProtocolId ? (
+      {editingId ? (
         <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,marginTop:14}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:14,fontWeight:500}}>✍️ Unterschriften (vor Ort)</div>
           
@@ -2492,32 +2516,32 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         </div>
       ) : (
         <div style={{background:"#f5f0e6",border:"1px dashed #d4c7a8",borderRadius:8,padding:"12px 14px",marginTop:14,fontSize:11.5,color:"#8a7e5e",lineHeight:1.5,textAlign:"center"}}>
-          ✍️ <strong>Unterschriften kommen später</strong> — speichere erst das Protokoll. Vor Ort kannst du es öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
+          ✍️ <strong>Unterschriften kommen später</strong> — speichere erst den Datensatz. Vor Ort kannst du ihn öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
         </div>
       )}
       
       <div style={{display:"flex",gap:8,marginTop:18,paddingTop:14,borderTop:"1px solid #e1d8c5",flexWrap:"wrap"}}>
-        <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditingProtocolId(null);}} style={{flex:"0 0 auto"}}>← Zurück</button>
-        {editingProtocolId ? (
+        <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditingId(null);}} style={{flex:"0 0 auto"}}>← Zurück</button>
+        {editingId ? (
           <>
-            <button className="btn btn-g" onClick={saveProtocol} disabled={saving} style={{flex:"1 1 140px",fontWeight:600}}>
+            <button className="btn btn-g" onClick={save} disabled={saving} style={{flex:"1 1 140px",fontWeight:600}}>
               {saving ? "⏳ Speichert…" : "💾 Änderungen speichern"}
             </button>
             <button className="btn btn-p" onClick={generatePDF} disabled={generating} style={{flex:"1 1 200px"}}>
-              {generating?"⏳ Erstellt…":"📄 PDF erstellen"}
+              {generating?"⏳ Erstellt…":"📄 Protokoll-PDF erstellen"}
             </button>
           </>
         ) : (
-          <button className="btn btn-p" onClick={saveProtocol} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
-            {saving ? "⏳ Speichert…" : "💾 Protokoll speichern"}
+          <button className="btn btn-p" onClick={save} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
+            {saving ? "⏳ Speichert…" : "💾 Datensatz speichern"}
           </button>
         )}
       </div>
       
       <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,lineHeight:1.5,fontStyle:"italic",textAlign:"center"}}>
-        {editingProtocolId 
-          ? "💡 Vor Ort: Unterschriften ergänzen und dann PDF erstellen. Bei Änderungen erst speichern."
-          : "💡 Speichern legt das Protokoll mit allen Daten und Fotos in der Übersicht ab. Vor Ort kannst du es öffnen und die Unterschriften ergänzen."}
+        {editingId 
+          ? "💡 Vor Ort: Unterschriften ergänzen, Änderungen speichern, dann Protokoll-PDF erstellen."
+          : "💡 Datensatz mit allen Daten und Fotos wird in der Datenbank gespeichert. Vor Ort kannst du ihn öffnen, Unterschriften ergänzen und das Protokoll-PDF erstellen."}
       </div>
     </div>
   );
@@ -5073,7 +5097,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
+function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -5381,7 +5405,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
               <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
+            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
