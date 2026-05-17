@@ -1871,6 +1871,9 @@ function SignaturePad({value, onChange, placeholder}) {
 
 function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument}){
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingProtocolId, setEditingProtocolId] = useState(null); // ID of saved protocol being edited
   
   // localStorage-Key für Draft-Persistierung (pro Mieter)
   const draftKey = tenant ? `uebergabe_draft_${tenant.id}` : null;
@@ -1897,31 +1900,106 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
     };
   });
   
-  // Auto-Save: Draft in localStorage speichern bei jeder Änderung (sofort)
-  useEffect(() => {
-    if (!draftKey || !showForm) return;
-    try {
-      localStorage.setItem(draftKey, JSON.stringify(data));
-    } catch (e) {
-      console.warn("Draft-Save failed (localStorage full?):", e);
-    }
-  }, [data, draftKey, showForm]);
-  
-  // Suche existierende gespeicherte Protokolle (zum Anzeigen in Liste)
+  // Suche existierende gespeicherte Protokolle (JSON-Dateien)
   const savedProtocols = (documents || []).filter(d => 
     d.entity_type === "tenant" && 
     d.entity_id === tenant?.id && 
-    d.category === "Übergabeprotokoll"
+    d.category === "Übergabeprotokoll" &&
+    (d.filename || "").toLowerCase().endsWith(".json")
   ).sort((a,b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
   
-  // Wenn Protokoll erstellt wurde, Draft löschen
-  function clearDraft() {
-    if (draftKey) localStorage.removeItem(draftKey);
+  // Existierende PDFs/HTMLs (separat für Anzeige)
+  const finalizedPDFs = (documents || []).filter(d => 
+    d.entity_type === "tenant" && 
+    d.entity_id === tenant?.id && 
+    d.category === "Übergabeprotokoll" &&
+    !(d.filename || "").toLowerCase().endsWith(".json")
+  ).sort((a,b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+  
+  // Auto-Save: Draft in localStorage bei jeder Änderung (nicht für gespeicherte Protokolle)
+  useEffect(() => {
+    if (!draftKey || !showForm || editingProtocolId) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Draft-Save failed:", e);
+    }
+  }, [data, draftKey, showForm, editingProtocolId]);
+  
+  function resetData() {
     setData({
       datum: new Date().toISOString().split("T")[0],
       raume: {}, customRaume: [], bemerkungen: "",
       signature_mieter: "", signature_vermieter: "",
     });
+  }
+  
+  function clearDraft() {
+    if (draftKey) localStorage.removeItem(draftKey);
+    resetData();
+  }
+  
+  // Lade gespeichertes Protokoll
+  async function loadProtocol(protocolDoc) {
+    if (!getDocumentUrl) return;
+    setLoading(true);
+    try {
+      const url = await getDocumentUrl(protocolDoc);
+      const response = await fetch(url);
+      const json = await response.json();
+      setData(json);
+      setEditingProtocolId(protocolDoc.id);
+      setShowForm(true);
+    } catch (e) {
+      alert("Laden fehlgeschlagen: " + e.message);
+    }
+    setLoading(false);
+  }
+  
+  // Speichere Protokoll als JSON in DB
+  async function saveProtocol() {
+    if (!tenant || !uploadDocument) return;
+    setSaving(true);
+    try {
+      // Falls wir gerade ein existierendes editieren: erst altes löschen
+      if (editingProtocolId && deleteDocument) {
+        const oldDoc = savedProtocols.find(p => p.id === editingProtocolId);
+        if (oldDoc) {
+          try { await deleteDocument(oldDoc); } catch (e) { console.warn(e); }
+        }
+      }
+      
+      const json = JSON.stringify(data);
+      const blob = new Blob([json], {type: "application/json"});
+      const datumStr = (data.datum || new Date().toISOString().slice(0,10)).replace(/-/g, "");
+      const filename = `Uebergabeprotokoll_${datumStr}.json`;
+      const file = new File([blob], filename, {type: "application/json"});
+      
+      await uploadDocument("tenant", tenant.id, "Übergabeprotokoll", file);
+      
+      // Draft löschen weil offiziell gespeichert
+      if (draftKey) localStorage.removeItem(draftKey);
+      
+      // Zurück zur Übersicht
+      setShowForm(false);
+      setEditingProtocolId(null);
+      resetData();
+      
+      alert("✓ Protokoll gespeichert! Du findest es jetzt in der Übersicht und kannst es vor Ort öffnen, um die Unterschriften zu ergänzen und das PDF zu erstellen.");
+    } catch (e) {
+      alert("Speichern fehlgeschlagen: " + e.message);
+    }
+    setSaving(false);
+  }
+  
+  async function deleteProtocol(protocolDoc) {
+    if (!confirm(`Protokoll "${protocolDoc.filename}" wirklich löschen?`)) return;
+    if (!deleteDocument) return;
+    try {
+      await deleteDocument(protocolDoc);
+    } catch (e) {
+      alert("Löschen fehlgeschlagen: " + e.message);
+    }
   }
   
   const [generating, setGenerating] = useState(false);
@@ -2206,47 +2284,85 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
   
   if (!showForm) {
     const hasDraft = !!loadDraft();
+    const hasSaved = savedProtocols.length > 0;
     
     return (
-      <div style={{textAlign:"center",padding:"32px 16px"}}>
-        <div style={{fontSize:32,marginBottom:10}}>📋</div>
-        <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>Übergabeprotokoll Einzug</div>
-        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:18,lineHeight:1.6,maxWidth:400,marginLeft:"auto",marginRight:"auto"}}>
-          Erfasse Zustand und Fotos vom privaten Zimmer und den Gemeinschaftsräumen. Am Ende kannst du das Protokoll als PDF erstellen.
-        </div>
-        
-        {savedProtocols.length > 0 && (
-          <div style={{background:"#e8f0e6",border:"1px solid #c5dccb",borderRadius:8,padding:"12px 16px",marginBottom:14,fontSize:12,color:"#2a4a35",maxWidth:480,margin:"0 auto 14px",lineHeight:1.5,textAlign:"left"}}>
-            <div style={{fontWeight:600,marginBottom:6}}>✓ {savedProtocols.length} gespeichertes Protokoll{savedProtocols.length>1?"e":""} im Dokumente-Tab</div>
-            {savedProtocols.slice(0,3).map(p => (
-              <div key={p.id} style={{fontSize:11,color:"#5a6e4a",marginTop:2}}>
-                📄 {p.filename} · {fmtDateDE(p.uploaded_at)}
-              </div>
-            ))}
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:600}}>📋 Übergabeprotokoll</div>
+            <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
+              {hasSaved ? `${savedProtocols.length} gespeichert${savedProtocols.length>1?"e":"es"} Protokoll${savedProtocols.length>1?"e":""}` : "Noch keine Protokolle"}
+            </div>
           </div>
-        )}
+          <button className="btn btn-p btn-sm" onClick={()=>{
+            if (hasDraft && !confirm("Es existiert noch ein unfertiger Entwurf. Neu beginnen und Entwurf verwerfen?")) {
+              setShowForm(true); // weiter mit draft
+              return;
+            }
+            clearDraft();
+            setEditingProtocolId(null);
+            setShowForm(true);
+          }}>+ Neues Protokoll</button>
+        </div>
         
         {hasDraft && (
-          <div style={{background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#b8843e",maxWidth:400,margin:"0 auto 14px",lineHeight:1.5}}>
-            💾 Es existiert ein unfertiger Entwurf — du kannst weiterarbeiten.
+          <div style={{background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#b8843e",lineHeight:1.5}}>
+            <div style={{fontWeight:600,marginBottom:4}}>💾 Unfertiger Entwurf vorhanden</div>
+            <div style={{fontSize:11,marginBottom:8}}>Du hast ein Protokoll begonnen aber noch nicht gespeichert.</div>
+            <div style={{display:"flex",gap:6}}>
+              <button className="btn btn-g btn-sm" onClick={()=>{setEditingProtocolId(null);setShowForm(true);}}>✏️ Weiterarbeiten</button>
+              <button className="btn btn-g btn-sm" onClick={()=>{if(confirm("Entwurf verwerfen?"))clearDraft();}}>🗑️ Verwerfen</button>
+            </div>
           </div>
         )}
         
-        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-          <button className="btn btn-p" onClick={()=>setShowForm(true)}>
-            {hasDraft ? "✏️ Entwurf fortsetzen" : "+ Neues Protokoll erstellen"}
-          </button>
-          {hasDraft && (
-            <button className="btn btn-g" onClick={()=>{
-              if (confirm("Aktuellen Entwurf verwerfen und neu beginnen?")) {
-                clearDraft();
-                setShowForm(true);
-              }
-            }}>
-              + Neu beginnen
-            </button>
-          )}
-        </div>
+        {/* Liste gespeicherter Protokolle */}
+        {savedProtocols.length === 0 && !hasDraft && (
+          <div style={{textAlign:"center",padding:"40px 20px",color:"#8a8174"}}>
+            <div style={{fontSize:36,marginBottom:10,opacity:.5}}>📋</div>
+            <div style={{fontSize:13,marginBottom:6,fontWeight:500}}>Noch kein Protokoll erstellt</div>
+            <div style={{fontSize:11.5,lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>
+              Klick oben auf <strong>"+ Neues Protokoll"</strong> um Räume zu erfassen und Fotos zu machen.
+              Die Unterschriften kannst du später vor Ort ergänzen.
+            </div>
+          </div>
+        )}
+        
+        {savedProtocols.map(p => {
+          // Versuche Daten zu lesen (Status zeigen)
+          const isLoading = loading;
+          return (
+            <div key={p.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:3,wordBreak:"break-word"}}>📄 {p.filename}</div>
+                  <div style={{fontSize:10.5,color:"#8a8174"}}>Gespeichert: {fmtDateDE(p.uploaded_at)}</div>
+                </div>
+                <button onClick={()=>deleteProtocol(p)} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"3px 8px",cursor:"pointer",color:"#9b4a3e",flexShrink:0}}>🗑️</button>
+              </div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <button className="btn btn-p btn-sm" onClick={()=>loadProtocol(p)} disabled={isLoading} style={{flex:"1 1 auto"}}>
+                  {isLoading ? "⏳ Lädt…" : "✏️ Öffnen / Unterschreiben / PDF"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        
+        {/* Final-PDFs separate Sektion */}
+        {finalizedPDFs.length > 0 && (
+          <div style={{marginTop:20,paddingTop:14,borderTop:"1px dashed #e1d8c5"}}>
+            <div style={{fontSize:11,color:"#8a8174",marginBottom:8,textTransform:"uppercase",letterSpacing:".15em",fontWeight:600}}>📑 Finale PDFs / HTMLs</div>
+            {finalizedPDFs.map(p => (
+              <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f9f6ef",borderRadius:6,marginBottom:4,fontSize:11.5}}>
+                <span style={{flex:1,color:"#5a5249",wordBreak:"break-word"}}>📄 {p.filename}</span>
+                <span style={{fontSize:10,color:"#8a8174",flexShrink:0}}>{fmtDateDE(p.uploaded_at)}</span>
+              </div>
+            ))}
+            <div style={{fontSize:10.5,color:"#bab2a0",marginTop:6,fontStyle:"italic"}}>💡 Diese erscheinen auch im Dokumente-Tab</div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2258,10 +2374,12 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
-          <div style={{fontSize:14,fontWeight:600}}>Übergabeprotokoll Einzug</div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>{totalPhotos} Foto{totalPhotos!==1?"s":""} aufgenommen</div>
+          <div style={{fontSize:14,fontWeight:600}}>{editingProtocolId ? "✏️ Protokoll bearbeiten" : "📋 Neues Protokoll"}</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
+            {totalPhotos} Foto{totalPhotos!==1?"s":""} · {editingProtocolId ? "Gespeichert in DB" : "Noch nicht gespeichert"}
+          </div>
         </div>
-        <button className="btn btn-g btn-sm" onClick={()=>setShowForm(false)}>← Zurück</button>
+        <button className="btn btn-g btn-sm" onClick={()=>{setShowForm(false);setEditingProtocolId(null);}}>← Zurück</button>
       </div>
       
       <div className="frow">
@@ -2349,36 +2467,57 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         <textarea className="fi" rows={3} value={data.bemerkungen} onChange={e=>setData(p=>({...p,bemerkungen:e.target.value}))} placeholder="Weitere Notizen oder Vereinbarungen..."/>
       </div>
       
-      {/* UNTERSCHRIFTEN */}
-      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,marginTop:14}}>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:14,fontWeight:500}}>✍️ Unterschriften</div>
-        
-        <div style={{marginBottom:18}}>
-          <label className="fl">Mieter: {tenant.vorname} {tenant.nachname}</label>
-          <SignaturePad 
-            value={data.signature_mieter} 
-            onChange={(v)=>setData(p=>({...p,signature_mieter:v}))}
-            placeholder="Hier mit dem Finger unterschreiben"
-          />
+      {/* UNTERSCHRIFTEN — nur sichtbar wenn man ein gespeichertes Protokoll bearbeitet (vor Ort) */}
+      {editingProtocolId ? (
+        <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,marginTop:14}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:14,fontWeight:500}}>✍️ Unterschriften (vor Ort)</div>
+          
+          <div style={{marginBottom:18}}>
+            <label className="fl">Mieter: {tenant.vorname} {tenant.nachname}</label>
+            <SignaturePad 
+              value={data.signature_mieter} 
+              onChange={(v)=>setData(p=>({...p,signature_mieter:v}))}
+              placeholder="Hier mit dem Finger unterschreiben"
+            />
+          </div>
+          
+          <div>
+            <label className="fl">Hauptmieter: D&T Partners GmbH</label>
+            <SignaturePad 
+              value={data.signature_vermieter} 
+              onChange={(v)=>setData(p=>({...p,signature_vermieter:v}))}
+              placeholder="Hier mit dem Finger unterschreiben"
+            />
+          </div>
         </div>
-        
-        <div>
-          <label className="fl">Hauptmieter: D&T Partners GmbH</label>
-          <SignaturePad 
-            value={data.signature_vermieter} 
-            onChange={(v)=>setData(p=>({...p,signature_vermieter:v}))}
-            placeholder="Hier mit dem Finger unterschreiben"
-          />
+      ) : (
+        <div style={{background:"#f5f0e6",border:"1px dashed #d4c7a8",borderRadius:8,padding:"12px 14px",marginTop:14,fontSize:11.5,color:"#8a7e5e",lineHeight:1.5,textAlign:"center"}}>
+          ✍️ <strong>Unterschriften kommen später</strong> — speichere erst das Protokoll. Vor Ort kannst du es öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
         </div>
-      </div>
+      )}
       
-      <div style={{display:"flex",gap:8,marginTop:18,paddingTop:14,borderTop:"1px solid #e1d8c5"}}>
-        <button className="btn btn-g" onClick={()=>setShowForm(false)} style={{flex:0}}>Abbrechen</button>
-        <button className="btn btn-p" onClick={generatePDF} disabled={generating} style={{flex:1}}>{generating?"⏳ Erstellt…":"📄 PDF erstellen & im System speichern"}</button>
+      <div style={{display:"flex",gap:8,marginTop:18,paddingTop:14,borderTop:"1px solid #e1d8c5",flexWrap:"wrap"}}>
+        <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditingProtocolId(null);}} style={{flex:"0 0 auto"}}>← Zurück</button>
+        {editingProtocolId ? (
+          <>
+            <button className="btn btn-g" onClick={saveProtocol} disabled={saving} style={{flex:"1 1 140px",fontWeight:600}}>
+              {saving ? "⏳ Speichert…" : "💾 Änderungen speichern"}
+            </button>
+            <button className="btn btn-p" onClick={generatePDF} disabled={generating} style={{flex:"1 1 200px"}}>
+              {generating?"⏳ Erstellt…":"📄 PDF erstellen"}
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-p" onClick={saveProtocol} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
+            {saving ? "⏳ Speichert…" : "💾 Protokoll speichern"}
+          </button>
+        )}
       </div>
       
       <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,lineHeight:1.5,fontStyle:"italic",textAlign:"center"}}>
-        💡 Das Protokoll wird automatisch im Dokumente-Tab gespeichert — mit allen Fotos und Unterschriften.
+        {editingProtocolId 
+          ? "💡 Vor Ort: Unterschriften ergänzen und dann PDF erstellen. Bei Änderungen erst speichern."
+          : "💡 Speichern legt das Protokoll mit allen Daten und Fotos in der Übersicht ab. Vor Ort kannst du es öffnen und die Unterschriften ergänzen."}
       </div>
     </div>
   );
