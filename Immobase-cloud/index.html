@@ -488,6 +488,56 @@ a:hover{border-bottom-color:var(--gold)}
   .frow { display: block !important; }
   .frow .fg { margin-bottom: 12px; }
   
+  /* ════════════════════════════════════════
+     📄 VERTRAG-MODAL: kompaktere Spacings
+     ════════════════════════════════════════ */
+  /* Section-Headers (uppercase Mini-Labels) auf Mobile kompakter */
+  .modal div[style*="textTransform:\"uppercase\""],
+  .modal div[style*="textTransform: uppercase"],
+  .modal div[style*="text-transform:uppercase"],
+  .modal div[style*="text-transform: uppercase"] {
+    margin-top: 14px !important;
+    margin-bottom: 6px !important;
+    font-size: 9px !important;
+    letter-spacing: .2em !important;
+  }
+  /* Erstes section-header in modal hat weniger top-margin */
+  .modal .mt + div[style*="text-transform"] {
+    margin-top: 0 !important;
+  }
+  /* Field-Labels enger an Inputs */
+  .modal .fl {
+    margin-bottom: 4px !important;
+    font-size: 9px !important;
+    letter-spacing: .2em !important;
+  }
+  .modal .fg {
+    margin-bottom: 10px !important;
+  }
+  /* Modal-Inputs nicht zu fett gepolstert */
+  .modal .fi {
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+  /* Spezialfall: 2-Spalten-Grid für Mietzins-Aufstellung bleibt erhalten,
+     aber kompakter */
+  .modal div[style*="grid-template-columns:1fr 110px"],
+  .modal div[style*="grid-template-columns: 1fr 110px"] {
+    grid-template-columns: 1fr 90px !important;
+    gap: 6px !important;
+    font-size: 13px !important;
+  }
+  /* Mietzins-Aufstellung Container: kompakter padding */
+  .modal div[style*="background:\"#fefcf7\""][style*="borderRadius:8"] {
+    padding: 12px 14px !important;
+  }
+  /* Info-Boxen (z.B. "Vertrag ist BEFRISTET...") auf Mobile lesbar */
+  .modal div[style*="background:\"#fefcf7\""][style*="border:\"1px solid"] {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+  
   /* Info-Grid: 1 spaltig */
   .igrid { grid-template-columns: 1fr !important; gap: 8px !important; }
   .ig { padding: 8px 0 !important; border-bottom: 1px solid var(--line-soft); }
@@ -838,6 +888,32 @@ function parseD(s) {
     return isNaN(dt) ? null : dt;
   }
   return null;
+}
+// fmtDateDE: zeigt Datum als TT.MM.JJJJ, akzeptiert beliebige Input-Formate
+function fmtDateDE(input) {
+  if (!input) return "";
+  const s = String(input).trim();
+  if (!s) return "";
+  // Bereits im TT.MM.JJJJ Format?
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(s)) {
+    const [d,m,y] = s.split(".").map(n => parseInt(n,10));
+    if (m>=1 && m<=12 && d>=1 && d<=31) {
+      return `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
+    }
+  }
+  // YYYY-MM-DD Format?
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [y,m,d] = s.substring(0,10).split("-").map(n => parseInt(n,10));
+    if (m>=1 && m<=12 && d>=1 && d<=31) {
+      return `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
+    }
+  }
+  // Fallback: versuche Date-Parsing
+  const dt = new Date(s);
+  if (!isNaN(dt) && dt.getFullYear() > 1900 && dt.getFullYear() < 2100) {
+    return dt.toLocaleDateString("de-CH");
+  }
+  return s; // wenn nichts geht, original String zurückgeben (statt "Invalid Date")
 }
 
 // Normalize room size input: "14" → "14 m²", "14m2" → "14 m²", "14 qm" → "14 m²", "" → ""
@@ -2018,7 +2094,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
     })
     .filter(x => x.aufschlag > 0);
   const totalAufschlagMonat = aufschlagMieter.reduce((s,x) => s + x.aufschlag, 0);
-  const totalAufschlagJahr = totalAufschlagMonat * 12;
   
   // ─── AUSZUGS-REMINDER ──────────────────────────────────────────
   // Mieter die in den nächsten 3 Monaten ausziehen (sortiert nach Datum)
@@ -2319,7 +2394,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
             <div>
               <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:6}}>Kautions-Aufschläge / Mt.</div>
               <div style={{fontFamily:"'Manrope',sans-serif",fontSize:28,fontWeight:300,color:"#1a1814",lineHeight:1}}>+{chf(totalAufschlagMonat)}</div>
-              <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>von {aufschlagMieter.length} Mieter{aufschlagMieter.length!==1?"n":""} · {chf(totalAufschlagJahr)} / Jahr</div>
+              <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>von {aufschlagMieter.length} Mieter{aufschlagMieter.length!==1?"n":""}</div>
             </div>
             <div style={{fontSize:10.5,color:"#8a8174",fontStyle:"italic",textAlign:"right",maxWidth:260,lineHeight:1.5}}>Zusatzeinnahmen durch Mieter mit reduzierter Kautionssumme (Variante 0×/1×/2×)</div>
           </div>
@@ -2331,7 +2406,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                 <th style={{padding:"6px 8px"}}>Zimmer</th>
                 <th style={{padding:"6px 8px"}}>Variante</th>
                 <th style={{padding:"6px 8px",textAlign:"right"}}>Aufschlag / Mt.</th>
-                <th style={{padding:"6px 8px",textAlign:"right"}}>Pro Jahr</th>
               </tr>
             </thead>
             <tbody>
@@ -2346,13 +2420,11 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                     </span>
                   </td>
                   <td data-label="Aufschlag/Mt." style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
-                  <td data-label="pro Jahr" style={{padding:"8px",textAlign:"right",color:"#8a8174",fontSize:11.5}}>{chf(aufschlag*12)}</td>
                 </tr>
               ))}
               <tr style={{borderTop:"2px solid #1a1814",background:"#f5efe4"}}>
                 <td colSpan={4} style={{padding:"10px 8px",fontWeight:700,textTransform:"uppercase",fontSize:10.5,letterSpacing:".15em",color:"#1a1814"}}>Total Aufschläge</td>
                 <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"#5a6e4a",fontSize:13}}>+{chf(totalAufschlagMonat)}</td>
-                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"#5a6e4a"}}>{chf(totalAufschlagJahr)}</td>
               </tr>
             </tbody>
           </table>
@@ -2428,7 +2500,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       id:newId,
       vorname:b.vorname,nachname:b.nachname,
       email:b.email,phone:b.phone,
-      geburt:b.geburt?new Date(b.geburt).toLocaleDateString("de-CH"):"",
+      geburt: fmtDateDE(b.geburt),
       gender:b.gender||"",nat:b.nat||"",
       adresse:b.adresse||"",plz:b.plz||"",ort:b.ort||"",
       type:b.type==="AOZ / Sozialhilfe"?"AOZ":b.type||"",
@@ -3669,7 +3741,7 @@ www.dthomes.ch`;
               {[
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"—"],
                 ["Telefon",b.phone?<a href={`tel:${b.phone}`}>{b.phone}</a>:"—"],
-                ["Geburtsdatum",b.geburt?new Date(b.geburt).toLocaleDateString("de-CH"):"—"],
+                ["Geburtsdatum", fmtDateDE(b.geburt) || "—"],
                 ["Geschlecht",b.gender||"—"],
                 ["Nationalität",b.nat||"—"],
                 ["Adresse",b.adresse?`${b.adresse}, ${b.plz} ${b.ort}`:"—"],
@@ -4799,7 +4871,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
               <div className="igrid">{[
                 ["E-Mail",tenant.email||"—"],
                 ["Telefon",tenant.phone||"—"],
-                ["Geburt",tenant.geburt||"—"],
+                ["Geburt", fmtDateDE(tenant.geburt) || "—"],
                 ["Nationalität",tenant.nat||"—"],
                 ["Vorherige Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz||""} ${tenant.ort||""}`.trim():"—"],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
