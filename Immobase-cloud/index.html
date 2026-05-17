@@ -867,7 +867,7 @@ a:hover{border-bottom-color:var(--gold)}
 <div id="root"></div>
 
 <script type="text/babel" data-type="module">
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useRef } = React;
 
 // ─── SUPABASE CONFIG ─────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://aohcqrxpsqronlcwssrk.supabase.co";
@@ -1869,7 +1869,7 @@ function SignaturePad({value, onChange, placeholder}) {
   );
 }
 
-function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
+function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant}){
   const [showForm, setShowForm] = useState(false);
   const [data, setData] = useState({
     datum: new Date().toISOString().split("T")[0],
@@ -1881,9 +1881,34 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
   });
   const [generating, setGenerating] = useState(false);
   
-  // Schlüssel-Daten vom Mieter automatisch übernehmen
-  const schluesselNr = tenant?.schluesselAnzahl || tenant?.schluessel_nr || "";
-  const extraSchluessel = tenant?.extraSchluessel || tenant?.extra_schluessel || "";
+  // Schlüssel-Daten: editable state, initialisiert aus Mieter-Stammdaten
+  const [schluesselNr, setSchluesselNr] = useState(tenant?.schluesselNr || tenant?.schluessel_nr || "");
+  const [extraSchluessel, setExtraSchluessel] = useState(tenant?.extraSchluessel || tenant?.extra_schluessel || "");
+  const [keysSaved, setKeysSaved] = useState(false);
+  const initialKeysRef = useRef({nr: tenant?.schluesselNr || tenant?.schluessel_nr || "", extra: tenant?.extraSchluessel || tenant?.extra_schluessel || ""});
+  
+  // Auto-Save: speichert Schlüssel-Daten automatisch 800ms nach letzter Änderung
+  useEffect(() => {
+    if (!tenant || !updateTenant) return;
+    // Skip wenn Werte gleich sind wie Initial
+    if (schluesselNr === initialKeysRef.current.nr && extraSchluessel === initialKeysRef.current.extra) return;
+    
+    const timer = setTimeout(async () => {
+      try {
+        await updateTenant(tenant.id, {
+          schluesselNr: schluesselNr,
+          extraSchluessel: extraSchluessel,
+        });
+        initialKeysRef.current = {nr: schluesselNr, extra: extraSchluessel};
+        setKeysSaved(true);
+        setTimeout(() => setKeysSaved(false), 2000);
+      } catch (e) {
+        console.error("Auto-save keys failed:", e);
+      }
+    }, 800);
+    
+    return () => clearTimeout(timer);
+  }, [schluesselNr, extraSchluessel]);
   
   function updateRaum(name, key, val) {
     setData(p => ({
@@ -2042,7 +2067,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument}){
 <div class="info-section">
   <h3>Schlüsselübergabe</h3>
   <div class="row">
-    <div><span class="lbl">Anzahl Schlüssel:</span> ${schluesselNr||"—"}</div>
+    <div><span class="lbl">Schlüsselnummer:</span> ${schluesselNr||"—"}</div>
     <div><span class="lbl">Extra-Schlüssel:</span> ${extraSchluessel||"—"}</div>
   </div>
 </div>
@@ -2135,13 +2160,16 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       </div>
       
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Schlüsselübergabe</div>
-        <div style={{fontSize:12,color:"#4a4439",lineHeight:1.7}}>
-          <div><strong style={{minWidth:130,display:"inline-block"}}>Anzahl Schlüssel:</strong> {schluesselNr || <span style={{color:"#bab2a0",fontStyle:"italic"}}>nicht erfasst</span>}</div>
-          <div><strong style={{minWidth:130,display:"inline-block"}}>Extra-Schlüssel:</strong> {extraSchluessel || <span style={{color:"#bab2a0",fontStyle:"italic"}}>keine</span>}</div>
-        </div>
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>
-          Diese Daten kommen aus den Mieter-Stammdaten. Falls leer, bitte erst beim Mieter erfassen.
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🔑 Schlüsselübergabe</div>
+        <div className="frow">
+          <div className="fg">
+            <label className="fl">Schlüsselnummer</label>
+            <input className="fi" type="text" value={schluesselNr} onChange={e=>setSchluesselNr(e.target.value)} placeholder="z.B. 4711-A, K12, oder 3"/>
+          </div>
+          <div className="fg">
+            <label className="fl">Extra-Schlüssel</label>
+            <input className="fi" type="text" value={extraSchluessel} onChange={e=>setExtraSchluessel(e.target.value)} placeholder="z.B. Briefkasten, Garage"/>
+          </div>
         </div>
       </div>
       
@@ -2180,11 +2208,11 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
             
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
-                📷 Foto aufnehmen
-                <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{addPhoto(rname,e.target.files[0]);e.target.value="";}}/>
+                📷 Fotos aufnehmen
+                <input type="file" accept="image/*" capture="environment" multiple style={{display:"none"}} onChange={e=>{[...e.target.files].forEach(f=>addPhoto(rname,f));e.target.value="";}}/>
               </label>
               <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
-                📎 Mehrere Bilder
+                📎 Aus Galerie wählen
                 <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{[...e.target.files].forEach(f=>addPhoto(rname,f));e.target.value="";}}/>
               </label>
             </div>
@@ -5101,7 +5129,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
               <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument}/>}
+            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
