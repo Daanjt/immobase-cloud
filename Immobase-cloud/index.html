@@ -1997,7 +1997,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
     resetData();
   }
   
-  // Lade existierenden Datensatz zum Bearbeiten
+  // Lade existierende Übergabe zum Bearbeiten
   function loadRecord(p) {
     setData({
       datum: p.datum || new Date().toISOString().split("T")[0],
@@ -2034,10 +2034,10 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
       
       if (editingId) {
         await updateProtokoll(editingId, payload);
-        alert("✓ Datensatz aktualisiert.");
+        alert("✓ Übergabe aktualisiert.");
       } else {
         const created = await insertProtokoll(payload);
-        alert("✓ Datensatz gespeichert! Du findest ihn jetzt in der Übersicht.");
+        alert("✓ Übergabe gespeichert! Du findest sie jetzt in der Übersicht.");
         if (created) setEditingId(created.id);
         if (draftKey) localStorage.removeItem(draftKey);
       }
@@ -2052,7 +2052,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   }
   
   async function deleteRecord(p) {
-    if (!confirm(`Datensatz vom ${fmtDateDE(p.datum)} wirklich löschen?`)) return;
+    if (!confirm(`Übergabe vom ${fmtDateDE(p.datum)} wirklich löschen?`)) return;
     try { await deleteProtokoll(p.id); }
     catch (e) {}
   }
@@ -2324,22 +2324,22 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
           <div>
-            <div style={{fontSize:14,fontWeight:600}}>📋 Übergabe-Datensätze</div>
+            <div style={{fontSize:14,fontWeight:600}}>📋 Übergaben</div>
             <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
-              {myProtokolle.length === 0 ? "Noch keine Datensätze" : `${myProtokolle.length} Datensatz${myProtokolle.length>1?"e":""}`}
+              {myProtokolle.length === 0 ? "Noch keine Übergaben" : `${myProtokolle.length} Übergabe${myProtokolle.length>1?"n":""}`}
             </div>
           </div>
           <button className="btn btn-p btn-sm" onClick={()=>{
             clearDraft();
             setEditingId(null);
             setShowForm(true);
-          }}>+ Neuer Datensatz</button>
+          }}>+ Neue Übergabe</button>
         </div>
         
         {hasDraft && (
           <div style={{background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#b8843e",lineHeight:1.5}}>
             <div style={{fontWeight:600,marginBottom:4}}>💾 Unfertiger Entwurf</div>
-            <div style={{fontSize:11,marginBottom:8}}>Du hast einen Datensatz begonnen, aber noch nicht gespeichert.</div>
+            <div style={{fontSize:11,marginBottom:8}}>Du hast eine Übergabe begonnen, aber noch nicht gespeichert.</div>
             <div style={{display:"flex",gap:6}}>
               <button className="btn btn-g btn-sm" onClick={()=>{setEditingId(null);setShowForm(true);}}>✏️ Weiterarbeiten</button>
               <button className="btn btn-g btn-sm" onClick={()=>{if(confirm("Entwurf verwerfen?"))clearDraft();}}>🗑️ Verwerfen</button>
@@ -2350,7 +2350,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         {myProtokolle.length === 0 && !hasDraft && (
           <div style={{textAlign:"center",padding:"40px 20px",color:"#8a8174"}}>
             <div style={{fontSize:36,marginBottom:10,opacity:.5}}>📋</div>
-            <div style={{fontSize:13,marginBottom:6,fontWeight:500}}>Noch kein Datensatz erfasst</div>
+            <div style={{fontSize:13,marginBottom:6,fontWeight:500}}>Noch keine Übergabe erfasst</div>
             <div style={{fontSize:11.5,lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>
               Erfasse Räume, Fotos und Schlüssel vorab. Vor Ort werden die Unterschriften ergänzt und das Protokoll-PDF erstellt.
             </div>
@@ -2398,7 +2398,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
-          <div style={{fontSize:14,fontWeight:600}}>{editingId ? "✏️ Datensatz bearbeiten" : "📋 Neuer Datensatz"}</div>
+          <div style={{fontSize:14,fontWeight:600}}>{editingId ? "✏️ Übergabe bearbeiten" : "📋 Neue Übergabe"}</div>
           <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
             {totalPhotos} Foto{totalPhotos!==1?"s":""} · {editingId ? "Gespeichert in DB" : "Noch nicht gespeichert"}
           </div>
@@ -2516,7 +2516,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         </div>
       ) : (
         <div style={{background:"#f5f0e6",border:"1px dashed #d4c7a8",borderRadius:8,padding:"12px 14px",marginTop:14,fontSize:11.5,color:"#8a7e5e",lineHeight:1.5,textAlign:"center"}}>
-          ✍️ <strong>Unterschriften kommen später</strong> — speichere erst den Datensatz. Vor Ort kannst du ihn öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
+          ✍️ <strong>Unterschriften kommen später</strong> — speichere erst die Übergabe. Vor Ort kannst du sie öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
         </div>
       )}
       
@@ -2533,7 +2533,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
           </>
         ) : (
           <button className="btn btn-p" onClick={save} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
-            {saving ? "⏳ Speichert…" : "💾 Datensatz speichern"}
+            {saving ? "⏳ Speichert…" : "💾 Übergabe speichern"}
           </button>
         )}
       </div>
@@ -2541,7 +2541,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,lineHeight:1.5,fontStyle:"italic",textAlign:"center"}}>
         {editingId 
           ? "💡 Vor Ort: Unterschriften ergänzen, Änderungen speichern, dann Protokoll-PDF erstellen."
-          : "💡 Datensatz mit allen Daten und Fotos wird in der Datenbank gespeichert. Vor Ort kannst du ihn öffnen, Unterschriften ergänzen und das Protokoll-PDF erstellen."}
+          : "💡 Übergabe mit allen Daten und Fotos wird in der Datenbank gespeichert. Vor Ort kannst du sie öffnen, Unterschriften ergänzen und das Protokoll-PDF erstellen."}
       </div>
     </div>
   );
