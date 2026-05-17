@@ -1871,21 +1871,56 @@ function SignaturePad({value, onChange, placeholder}) {
 
 function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant}){
   const [showForm, setShowForm] = useState(false);
-  const [data, setData] = useState({
-    datum: new Date().toISOString().split("T")[0],
-    raume: {},
-    customRaume: [], // zusätzliche Räume die der User hinzufügt
-    bemerkungen: "",
-    signature_mieter: "", // Data-URL der Unterschrift
-    signature_vermieter: "",
+  
+  // localStorage-Key für Draft-Persistierung (pro Mieter)
+  const draftKey = tenant ? `uebergabe_draft_${tenant.id}` : null;
+  
+  // Initial data: aus localStorage laden falls vorhanden, sonst defaults
+  const loadDraft = () => {
+    if (!draftKey) return null;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { console.warn("Draft-Load failed:", e); }
+    return null;
+  };
+  
+  const [data, setData] = useState(() => {
+    const draft = loadDraft();
+    return draft || {
+      datum: new Date().toISOString().split("T")[0],
+      raume: {},
+      customRaume: [],
+      bemerkungen: "",
+      signature_mieter: "",
+      signature_vermieter: "",
+    };
   });
+  
+  // Auto-Save: Draft in localStorage speichern bei jeder Änderung (sofort)
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(data));
+    } catch (e) {
+      // localStorage voll (5-10MB Limit) - normalerweise OK weil wir Fotos komprimieren
+      console.warn("Draft-Save failed (localStorage full?):", e);
+    }
+  }, [data, draftKey]);
+  
+  // Wenn Protokoll erstellt wurde, Draft löschen
+  function clearDraft() {
+    if (draftKey) localStorage.removeItem(draftKey);
+  }
+  
   const [generating, setGenerating] = useState(false);
   
   // Schlüssel-Daten: editable state, initialisiert aus Mieter-Stammdaten
-  const [schluesselNr, setSchluesselNr] = useState(tenant?.schluesselNr || tenant?.schluessel_nr || "");
+  // (verwendet schluesselAnzahl da das Mieter-Edit-Form ebenfalls dieses Feld nutzt)
+  const [schluesselNr, setSchluesselNr] = useState(tenant?.schluesselAnzahl || tenant?.schluessel_anzahl || tenant?.schluesselNr || tenant?.schluessel_nr || "");
   const [extraSchluessel, setExtraSchluessel] = useState(tenant?.extraSchluessel || tenant?.extra_schluessel || "");
   const [keysSaved, setKeysSaved] = useState(false);
-  const initialKeysRef = useRef({nr: tenant?.schluesselNr || tenant?.schluessel_nr || "", extra: tenant?.extraSchluessel || tenant?.extra_schluessel || ""});
+  const initialKeysRef = useRef({nr: schluesselNr, extra: extraSchluessel});
   
   // Auto-Save: speichert Schlüssel-Daten automatisch 800ms nach letzter Änderung
   useEffect(() => {
@@ -1896,7 +1931,8 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant}){
     const timer = setTimeout(async () => {
       try {
         await updateTenant(tenant.id, {
-          schluesselNr: schluesselNr,
+          schluesselAnzahl: schluesselNr,    // Hauptfeld (matches Mieter-Edit)
+          schluesselNr: schluesselNr,        // Backup-Feld (falls verwendet)
           extraSchluessel: extraSchluessel,
         });
         initialKeysRef.current = {nr: schluesselNr, extra: extraSchluessel};
@@ -1909,6 +1945,21 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant}){
     
     return () => clearTimeout(timer);
   }, [schluesselNr, extraSchluessel]);
+  
+  // Wenn tenant sich von aussen ändert, synchronisiere state
+  useEffect(() => {
+    const newNr = tenant?.schluesselAnzahl || tenant?.schluessel_anzahl || tenant?.schluesselNr || tenant?.schluessel_nr || "";
+    const newExtra = tenant?.extraSchluessel || tenant?.extra_schluessel || "";
+    // Nur sync wenn user nichts eingetippt hat (= Werte gleich wie initialRef)
+    if (schluesselNr === initialKeysRef.current.nr && newNr !== schluesselNr) {
+      setSchluesselNr(newNr);
+      initialKeysRef.current.nr = newNr;
+    }
+    if (extraSchluessel === initialKeysRef.current.extra && newExtra !== extraSchluessel) {
+      setExtraSchluessel(newExtra);
+      initialKeysRef.current.extra = newExtra;
+    }
+  }, [tenant?.schluesselAnzahl, tenant?.schluessel_anzahl, tenant?.extraSchluessel, tenant?.extra_schluessel]);
   
   function updateRaum(name, key, val) {
     setData(p => ({
@@ -2118,18 +2169,30 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       win.document.close();
       win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 400);
       
-      // Optional: also save as document to system
-      // We convert HTML to a blob and upload
-      const blob = new Blob([html], {type: "text/html"});
-      const file = new File([blob], `Uebergabeprotokoll_Einzug.html`, {type:"text/html"});
-      // Note: we save as HTML for now since we can't generate PDF server-side without extra deps
-      // The user prints to PDF via browser
+      // Speichere das HTML-Protokoll als Dokument im System
+      // → so bleiben alle Daten (Fotos, Bemerkungen, Unterschriften) ersichtlich
+      if (uploadDocument && tenant) {
+        try {
+          const blob = new Blob([html], {type: "text/html"});
+          const datumStr = (data.datum || new Date().toISOString().slice(0,10)).replace(/-/g, "");
+          const filename = `Uebergabeprotokoll_Einzug_${tenant.vorname}_${tenant.nachname}_${datumStr}.html`;
+          const file = new File([blob], filename, {type:"text/html"});
+          await uploadDocument("tenant", tenant.id, "Übergabeprotokoll", file);
+          console.log("Protokoll im Dokumente-Tab gespeichert ✓");
+          // Draft löschen weil offiziell gespeichert
+          clearDraft();
+        } catch (e) {
+          console.error("Upload des Protokolls fehlgeschlagen:", e);
+          // Nicht blockierend — User hat trotzdem das PDF
+        }
+      }
     } finally {
       setGenerating(false);
     }
   }
   
   if (!showForm) {
+    const hasDraft = !!loadDraft();
     return (
       <div style={{textAlign:"center",padding:"32px 16px"}}>
         <div style={{fontSize:32,marginBottom:10}}>📋</div>
@@ -2137,7 +2200,26 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         <div style={{fontSize:11.5,color:"#8a8174",marginBottom:18,lineHeight:1.6,maxWidth:400,marginLeft:"auto",marginRight:"auto"}}>
           Erfasse Zustand und Fotos vom privaten Zimmer und den Gemeinschaftsräumen. Am Ende kannst du das Protokoll als PDF erstellen.
         </div>
-        <button className="btn btn-p" onClick={()=>setShowForm(true)}>+ Neues Protokoll erstellen</button>
+        {hasDraft && (
+          <div style={{background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#b8843e",maxWidth:400,margin:"0 auto 14px",lineHeight:1.5}}>
+            💾 Es existiert ein gespeicherter Entwurf. Du kannst weiterarbeiten oder einen neuen erstellen.
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+          <button className="btn btn-p" onClick={()=>setShowForm(true)}>{hasDraft ? "✏️ Entwurf fortsetzen" : "+ Neues Protokoll erstellen"}</button>
+          {hasDraft && (
+            <button className="btn btn-g" onClick={()=>{
+              if (confirm("Gespeicherten Entwurf löschen und neu beginnen?")) {
+                clearDraft();
+                setData({
+                  datum: new Date().toISOString().split("T")[0],
+                  raume: {}, customRaume: [], bemerkungen: "",
+                  signature_mieter: "", signature_vermieter: "",
+                });
+              }
+            }}>🗑️ Entwurf verwerfen</button>
+          )}
+        </div>
       </div>
     );
   }
@@ -2150,7 +2232,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
           <div style={{fontSize:14,fontWeight:600}}>Übergabeprotokoll Einzug</div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>{totalPhotos} Foto{totalPhotos!==1?"s":""} aufgenommen</div>
+          <div style={{fontSize:11,color:"#5a6e4a",marginTop:2}}>💾 Auto-gespeichert · {totalPhotos} Foto{totalPhotos!==1?"s":""}</div>
         </div>
         <button className="btn btn-g btn-sm" onClick={()=>setShowForm(false)}>← Zurück</button>
       </div>
