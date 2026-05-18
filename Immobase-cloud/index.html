@@ -2775,9 +2775,18 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               const aOcc=rs.filter(r=>r.occupied).length;
               const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
               const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0);
-              // Kautionsaufschläge pro Wohnung: alle Mieter der Wohnung
+              // Kautionsaufschläge pro Wohnung: alle Mieter deren Zimmer in dieser Wohnung sind
               const aAufschlag = tenants
-                .filter(t => t.aptId === a.id)
+                .filter(t => {
+                  // Wenn aptId direkt gesetzt: prüfen
+                  if (t.aptId === a.id) return true;
+                  // Sonst: über roomId und Zimmer-Liste der Wohnung
+                  if (t.roomId) {
+                    const tRoom = rooms.find(r => r.id === t.roomId);
+                    if (tRoom && tRoom.aptId === a.id) return true;
+                  }
+                  return false;
+                })
                 .reduce((s, t) => {
                   let auf = +t.kautionAufschlag || 0;
                   if (!auf) {
@@ -2864,12 +2873,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        <div className="card">
-          <div className="ct">Zimmerbelegung pro WG</div>
-          {wgApts.map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);const o=rs.filter(r=>r.occupied).length;return(<div key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{marginBottom:11,cursor:"pointer",padding:"6px 8px",margin:"-6px -8px 5px",borderRadius:6,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#f5efe4"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span>{a.id} — {a.adresse}</span><span style={{color:"#8a8478",fontSize:11}}>{o}/{rs.length}</span></div><Prog val={o} max={rs.length}/></div>);})}
-        </div>
-        <div className="card">
+      <div className="card" style={{marginBottom:16}}>
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>Neueste Bewerber</span>
             {bewerber.length>0&&<button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("bewerber",null)} style={{fontSize:9}}>Alle ansehen →</button>}
@@ -2880,7 +2884,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               <StatusBdg status={b.status}/>
             </div>
           ))}
-        </div>
       </div>
 
       {/* KAUTIONS-AUFSCHLÄGE */}
@@ -2894,6 +2897,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
             </div>
             <div style={{fontSize:10.5,color:"#8a8174",fontStyle:"italic",textAlign:"right",maxWidth:260,lineHeight:1.5}}>Zusatzeinnahmen durch Mieter mit reduzierter Kautionssumme (Variante 0×/1×/2×)</div>
           </div>
+          <div className="finance-card-compact">
+          <div className="finance-scroll-table-wrap">
+          <div className="finance-scroll-table">
           <table style={{width:"100%",fontSize:12}}>
             <thead>
               <tr style={{textAlign:"left",fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",fontWeight:500}}>
@@ -2908,14 +2914,14 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               {aufschlagMieter.map(({tenant:t,room,apt,aufschlag}) => (
                 <tr key={t.id} onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{borderTop:"1px solid #f0e9d8",cursor:"pointer"}}>
                   <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}>{t.vorname} {t.nachname}</td>
-                  <td data-label="Wohnung" style={{padding:"8px",color:"#4a4439"}}>{apt?.adresse||"—"}</td>
-                  <td data-label="Zimmer" style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
-                  <td data-label="Variante" style={{padding:"8px"}}>
-                    <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500}}>
+                  <td style={{padding:"8px",color:"#4a4439"}}>{apt?apt.id+" — "+apt.adresse:"—"}</td>
+                  <td style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
+                  <td style={{padding:"8px"}}>
+                    <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>
                       {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"—"}
                     </span>
                   </td>
-                  <td data-label="Aufschlag/Mt." style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
+                  <td style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
                 </tr>
               ))}
               <tr style={{borderTop:"2px solid #1a1814",background:"#f5efe4"}}>
@@ -2924,6 +2930,41 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               </tr>
             </tbody>
           </table>
+          </div>
+          </div>
+          </div>
+          
+          {/* SUMMARY PRO WOHNUNG */}
+          {(() => {
+            // Gruppiere Aufschläge pro Wohnung
+            const byApt = {};
+            aufschlagMieter.forEach(({apt, aufschlag}) => {
+              const key = apt?.id || "noapt";
+              if (!byApt[key]) byApt[key] = {apt, total: 0, count: 0};
+              byApt[key].total += aufschlag;
+              byApt[key].count += 1;
+            });
+            const aptArr = Object.values(byApt).sort((a,b) => b.total - a.total);
+            return (
+              <div style={{marginTop:18,paddingTop:14,borderTop:"1px dashed #d4c7a8"}}>
+                <div style={{fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",fontWeight:500,marginBottom:10}}>Aufschläge pro Wohnung</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:8}}>
+                  {aptArr.map(({apt, total, count}) => (
+                    <div key={apt?.id || "noapt"} onClick={()=>apt && navigateTo && navigateTo("wohnungen", apt.id)} style={{background:"#f9f6ef",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",cursor:apt?"pointer":"default"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                        <div style={{minWidth:0,flex:1}}>
+                          <div style={{fontSize:12,fontWeight:600,color:"#1a1814"}}>{apt?.id || "Ohne Wohnung"}</div>
+                          <div style={{fontSize:10.5,color:"#8a8174",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{apt?.adresse || "—"}</div>
+                          <div style={{fontSize:10,color:"#bab2a0",marginTop:2}}>{count} Mieter</div>
+                        </div>
+                        <div style={{fontSize:14,fontWeight:600,color:"#5a6e4a",whiteSpace:"nowrap"}}>+{chf(total)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
