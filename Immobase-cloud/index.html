@@ -2219,6 +2219,11 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   .info-section .row{display:grid;grid-template-columns:1fr 1fr;gap:6pt 16pt;font-size:10pt}
   .info-section .row .lbl{font-weight:600}
   .signatures{margin-top:24pt;display:flex;gap:30pt;page-break-inside:avoid}
+  .schluss-erklaerung{margin-top:24pt;padding:14pt 18pt;background:#faf8f3;border-left:3pt solid #1a1a1a;page-break-inside:avoid}
+  .schluss-erklaerung h3{font-size:10pt;font-weight:700;color:#1a1a1a;margin-bottom:10pt;text-transform:uppercase;letter-spacing:.15em}
+  .erklaerung-list{margin:0;padding-left:16pt;font-size:9.5pt;line-height:1.55;color:#2a2823}
+  .erklaerung-list li{margin-bottom:6pt}
+  .erklaerung-list li:last-child{margin-bottom:0}
   .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
   .sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
   .sig-block .name{font-size:11pt;font-weight:600;margin-bottom:24pt}
@@ -2270,6 +2275,17 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
 ${raumeHTML}
 
 ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><div class="bemerkung">${data.bemerkungen}</div></div>` : ''}
+
+<div class="schluss-erklaerung">
+  <h3>Erklärung der Vertragsparteien</h3>
+  <ol class="erklaerung-list">
+    <li>Die Mietpartei bestätigt, dass die Wohnung bzw. das Zimmer im obenstehend protokollierten Zustand übergeben wurde. Nicht aufgeführte Mängel und Schäden gelten als nicht vorhanden.</li>
+    <li>Allfällige verdeckte Mängel, die bei der Übergabe nicht erkennbar waren, werden der Hauptmieterin (D&amp;T Partners GmbH) innert <strong>10 Tagen ab Entdeckung</strong> schriftlich gemeldet (Art. 256 OR).</li>
+    <li>Die Mietpartei verpflichtet sich, das Mietobjekt sorgfältig zu nutzen und am Ende des Mietverhältnisses in vergleichbarem Zustand zurückzugeben (vorbehaltlich normaler Abnutzung gemäss Schweizer Mietrecht und Lebensdauertabelle MV/HEV).</li>
+    <li>Beide Parteien bestätigen mit ihrer Unterschrift, dass die Angaben im Protokoll richtig sind und dass sie je ein unterzeichnetes Exemplar (digital oder gedruckt) erhalten haben.</li>
+    <li>Bei Streitigkeiten gilt schweizerisches Recht; Gerichtsstand ist Chur.</li>
+  </ol>
+</div>
 
 <div class="signatures">
   <div class="sig-block">
@@ -2761,13 +2777,13 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
           <thead>
             <tr>
               <th>ID</th><th>Adresse</th>
-              <th style={{textAlign:"right",background:"#fdf7e8"}}>💰 Aufschlag</th>
               <th>Zimmer</th>
               <th>Stock</th>
               <th style={{textAlign:"right"}}>Ausgabe</th>
               <th style={{textAlign:"right"}}>Einnahme Ist</th>
               <th style={{textAlign:"right"}}>Einnahme Max</th>
               <th style={{textAlign:"right"}}>Marge Ist</th>
+              <th style={{textAlign:"right"}}>Aufschlag</th>
               <th style={{textAlign:"right"}}>Marge Max</th>
               <th>Belegung</th>
             </tr>
@@ -2809,13 +2825,13 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                 <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                   <td style={{fontWeight:600}}>{a.id}</td>
                   <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
-                  <td data-label="Aufschlag" style={{textAlign:"right",fontWeight:600,background:aAufschlag>0?"#fdf7e8":"transparent",color:aAufschlag>0?"#7a5c3c":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"—"}</td>
                   <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"—"}</td>
                   <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"—"}</td>
                   <td data-label="Kosten" style={{textAlign:"right"}}>{chf(a.miete)}</td>
                   <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
                   <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
+                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"—"}</td>
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
                   <td data-label="Belegung" style={{minWidth:120}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -2829,13 +2845,12 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
           </tbody>
           <tfoot>
             <tr style={{borderTop:"2px solid #1a1814"}}>
-              <td colSpan={2} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#7a5c3c",background:"#fdf7e8",paddingTop:14}}>+{chf(totalAufschlagMonat)}</td>
-              <td colSpan={2} style={{paddingTop:14}}></td>
+              <td colSpan={4} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst+totalAufschlagMonat)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst+totalAufschlagMonat)>=0?"+":""}{chf(wgMargeIst+totalAufschlagMonat)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>+{chf(totalAufschlagMonat)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax+totalAufschlagMonat)}</td>
               <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{wgAuslastung}%</span></td>
             </tr>
@@ -4378,7 +4393,10 @@ www.dthomes.ch`;
           <div className="modal" style={{width:620}}>
             <div className="mt">✏ Bewerber bearbeiten</div>
 
-            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Status & Zuständigkeit</div>
+            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Bearbeitet von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">—</option><option value="Daan">Daan</option><option value="Tijn">Tijn</option></select></div></div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
             <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={editForm.vorname||""} onChange={EF("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={editForm.nachname||""} onChange={EF("nachname")}/></div></div>
             <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={editForm.geburt?editForm.geburt.split("T")[0]:""} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">—</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
             <div className="fg"><label className="fl">Nationalität</label><select className="fi" value={editForm.nat||""} onChange={EF("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
@@ -4399,8 +4417,7 @@ www.dthomes.ch`;
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kaution</div>
             <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">—</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
 
-            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Status & Bemerkung</div>
-            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Bearbeitet von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">—</option><option value="Daan">Daan</option><option value="Tijn">Tijn</option></select></div></div>
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
             <div className="fg"><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine offenen Betreibungen</label></div>
             <div className="fg"><label className="fl">Bemerkung</label><textarea className="fi" rows={3} value={editForm.bemerkung||""} onChange={EF("bemerkung")} style={{resize:"vertical",fontFamily:"inherit"}}/></div>
 
