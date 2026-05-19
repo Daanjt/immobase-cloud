@@ -4401,7 +4401,7 @@ www.dthomes.ch`;
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Status & Bemerkung</div>
             <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Bearbeitet von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">—</option><option value="Daan">Daan</option><option value="Tijn">Tijn</option></select></div></div>
-            <div className="fg"><label className="fl" style={{visibility:"hidden"}}>—</label><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine offenen Betreibungen</label></div></div>
+            <div className="fg"><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine offenen Betreibungen</label></div>
             <div className="fg"><label className="fl">Bemerkung</label><textarea className="fi" rows={3} value={editForm.bemerkung||""} onChange={EF("bemerkung")} style={{resize:"vertical",fontFamily:"inherit"}}/></div>
 
             <div className="ma">
