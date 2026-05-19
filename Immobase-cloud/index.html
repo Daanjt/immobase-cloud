@@ -2784,8 +2784,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               <th style={{textAlign:"right"}}>Einnahme Ist</th>
               <th style={{textAlign:"right"}}>Einnahme Max</th>
               <th style={{textAlign:"right"}}>Marge Ist</th>
-              <th style={{textAlign:"right"}}>Aufschlag</th>
               <th style={{textAlign:"right"}}>Marge Max</th>
+              <th style={{textAlign:"right"}}>Aufschlag</th>
+              <th style={{textAlign:"right"}}>Marge Total</th>
               <th>Belegung</th>
             </tr>
           </thead>
@@ -2820,8 +2821,13 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                   }
                   return s + auf;
                 }, 0);
-              const aMargeIst=aIst-(+a.miete||0)+aAufschlag;
-              const aMargeMax=aMax-(+a.miete||0)+aAufschlag;
+              // Marge IST/MAX: PUR ohne Aufschlag (Aufschlag separat ausgewiesen)
+              const aMargeIst = aIst - (+a.miete||0);
+              const aMargeMax = aMax - (+a.miete||0);
+              // Strom-Einnahmen: CHF 25 pro belegtem Zimmer (Pauschale)
+              const aStrom = aOcc * 25;
+              // Marge Total: Marge Ist + Aufschlag + Strom-Pauschale = "alles inklusive"
+              const aMargeTotal = aMargeIst + aAufschlag + aStrom;
               return (
                 <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                   <td style={{fontWeight:600}}>{a.id}</td>
@@ -2832,8 +2838,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                   <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
                   <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
-                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"—"}</td>
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"—"}</td>
+                  <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
                   <td data-label="Belegung" style={{minWidth:120}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <div style={{flex:1}}><Prog val={aOcc} max={rs.length}/></div>
@@ -2850,9 +2857,10 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst+totalAufschlagMonat)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst+totalAufschlagMonat)>=0?"+":""}{chf(wgMargeIst+totalAufschlagMonat)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:wgMargeIst>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>+{chf(totalAufschlagMonat)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax+totalAufschlagMonat)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst+totalAufschlagMonat+wgOcc*25)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst+totalAufschlagMonat+wgOcc*25)>=0?"+":""}{chf(wgMargeIst+totalAufschlagMonat+wgOcc*25)}</td>
               <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{wgAuslastung}%</span></td>
             </tr>
           </tfoot>
