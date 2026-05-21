@@ -1163,6 +1163,7 @@ function useSupabaseData() {
       zimmerWunsch: x.zimmer_wunsch,
       noDebt: x.no_debt,
       bewerberId: x.bewerber_id,
+      archivedAt: x.archived_at,
     })));
     setBewerber((b.data||[]).map(x=>({
       ...x,
@@ -1186,6 +1187,99 @@ function useSupabaseData() {
     );
     return () => channels.forEach(c=>supabase.removeChannel(c));
   },[]);
+  
+  // ─── AUTO-ARCHIVIERUNG ─────────────────────────────────────────
+  // Archiviert Mieter automatisch wenn:
+  // 1. Ihr Auszug-Datum (auszug) in der Vergangenheit liegt
+  // 2. Das Mietende der Wohnung (apt.mietendeUntermiete oder apt.mietende) abgelaufen ist
+  const autoArchiveCheckedRef = useRef(false);
+  useEffect(() => {
+    // Nur einmal pro Session ausführen (nach erstem erfolgreichem Load)
+    if (loading || autoArchiveCheckedRef.current) return;
+    if (tenants.length === 0) return;
+    autoArchiveCheckedRef.current = true;
+    
+    // Helper: parse DD.MM.YYYY oder YYYY-MM-DD zu Date
+    const parseDate = (s) => {
+      if (!s) return null;
+      const str = String(s).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(str)) return new Date(str);
+      const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+      const d = new Date(str);
+      return isNaN(d) ? null : d;
+    };
+    
+    const today = new Date();
+    today.setHours(23,59,59,999); // Ende des aktuellen Tages = inkl. heute
+    
+    const toArchive = [];
+    
+    for (const t of tenants) {
+      // Nur aktive Mieter prüfen
+      if (t.status === "archiviert") continue;
+      
+      let reason = null;
+      
+      // Check 1: Auszug-Datum des Mieters
+      const auszugDate = parseDate(t.auszug);
+      if (auszugDate && auszugDate < today) {
+        reason = `Auszug ${t.auszug} liegt in der Vergangenheit`;
+      }
+      
+      // Check 2: Mietende der Wohnung (befristeter Hauptmietvertrag)
+      if (!reason) {
+        const myRoom = rooms.find(r => r.tenantId === t.id) || rooms.find(r => r.id === t.roomId);
+        const myApt = myRoom ? apts.find(a => a.id === myRoom.aptId) : (t.aptId ? apts.find(a => a.id === t.aptId) : null);
+        if (myApt) {
+          const aptEndeDate = parseDate(myApt.mietendeUntermiete) || parseDate(myApt.mietende) || parseDate(myApt.mietende_untermiete);
+          if (aptEndeDate && aptEndeDate < today) {
+            reason = `Mietende der Wohnung ${myApt.id} (${myApt.adresse}) am ${myApt.mietendeUntermiete||myApt.mietende} abgelaufen`;
+          }
+        }
+      }
+      
+      if (reason) {
+        toArchive.push({ tenant: t, reason });
+      }
+    }
+    
+    if (toArchive.length === 0) return;
+    
+    // Frage einmalig nach (statt für jeden einzeln) — User behält Kontrolle
+    const list = toArchive.map(x => `• ${x.tenant.vorname} ${x.tenant.nachname} (${x.tenant.id}) — ${x.reason}`).join("\n");
+    const confirmed = window.confirm(
+      `📦 Auto-Archivierung\n\n${toArchive.length} Mieter sollte${toArchive.length>1?"n":""} archiviert werden:\n\n${list}\n\nJetzt automatisch archivieren? (Daten + Dokumente bleiben erhalten, Zimmer werden freigegeben)`
+    );
+    if (!confirmed) return;
+    
+    // Asynchron durchführen
+    (async () => {
+      let archivedCount = 0;
+      for (const {tenant: t} of toArchive) {
+        try {
+          // Zimmer freigeben
+          const myRoom = rooms.find(r => r.tenantId === t.id);
+          if (myRoom) {
+            await supabase.from("rooms").update({tenant_id:null, occupied:false}).eq("id", myRoom.id);
+          }
+          // Mieter archivieren
+          await supabase.from("tenants").update({
+            status: "archiviert",
+            archived_at: new Date().toISOString(),
+            auszug: t.auszug || new Date().toLocaleDateString("de-CH"),
+          }).eq("id", t.id);
+          archivedCount++;
+        } catch (e) {
+          console.error("Auto-Archivierung fehlgeschlagen für", t.id, e);
+        }
+      }
+      if (archivedCount > 0) {
+        await loadAll();
+        alert(`✓ ${archivedCount} Mieter wurde${archivedCount>1?"n":""} ins Archiv verschoben.`);
+      }
+    })();
+  }, [loading, tenants, rooms, apts]);
 
   // Update functions
   // Helper: convert camelCase keys to snake_case + strip non-DB fields
@@ -1226,6 +1320,7 @@ function useSupabaseData() {
       zimmerWunsch: "zimmer_wunsch",
       noDebt: "no_debt",
       bewerberId: "bewerber_id",
+      archivedAt: "archived_at",
     };
     const dbFields = {};
     for (const k of Object.keys(fields)) {
@@ -2577,7 +2672,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
   
   // ─── KAUTIONS-AUFSCHLÄGE ───────────────────────────────────────
   // Mieter, die einen monatlichen Aufschlag wegen reduzierter Kaution zahlen
+  // (archivierte Mieter ausschliessen — sie zahlen nicht mehr)
   const aufschlagMieter = tenants
+    .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
       // Mehrere Wege um das Zimmer zu finden
       let room = rooms.find(r => r.id === t.roomId);
@@ -2659,7 +2756,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
   const totalEinnahmenIst = wgEinnahmenIst; // Airbnb income not tracked
   const totalMargeIst = totalEinnahmenIst - totalAusgaben;
 
-  const incomplete=tenants.filter(t=>!t.email||!t.phone||!t.geburt);
+  const incomplete=tenants.filter(t=>(t.status||"aktiv")==="aktiv" && (!t.email||!t.phone||!t.geburt));
   const neueBewerber=bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung");
   const baldEnde=apts.filter(a=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<120;});
 
@@ -2798,7 +2895,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
               const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0);
               // Kautionsaufschläge pro Wohnung: alle Mieter deren Zimmer in dieser Wohnung sind
               // WICHTIG: Über rooms.tenantId suchen (das ist der echte Foreign Key)
+              // Archivierte Mieter ausschliessen
               const aAufschlag = tenants
+                .filter(t => (t.status||"aktiv") === "aktiv")
                 .filter(t => {
                   // Weg 1: Direkter aptId-Match
                   if (t.aptId === a.id) return true;
@@ -3062,8 +3161,12 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     if(!selZimmer||!b)return;
     const room=rooms.find(r=>r.id===selZimmer);
     // Sequenzielle ID: T01, T02, ... (nicht random!)
-    let n=1;
-    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    // Finde höchste existierende T-Nummer und nehme +1 (auch wenn alte IDs gelöscht wurden)
+    let n = 1;
+    tenants.forEach(t => {
+      const m = String(t.id||"").match(/^T(\d+)$/);
+      if (m) n = Math.max(n, parseInt(m[1],10) + 1);
+    });
     const newId=`T${String(n).padStart(2,"0")}`;
     const newTenant={
       id:newId,
@@ -4933,8 +5036,9 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
   const [assigning,setAssigning]=useState(null); // room being assigned
-  const [assignMode,setAssignMode]=useState("bewerber"); // "bewerber" | "manual" | "remove"
+  const [assignMode,setAssignMode]=useState("bewerber"); // "bewerber" | "alteMieter" | "manual" | "remove"
   const [selBewerberId,setSelBewerberId]=useState("");
+  const [selOldTenantId,setSelOldTenantId]=useState("");
   const [manualForm,setManualForm]=useState({vorname:"",nachname:"",email:"",phone:""});
   const [highlightId,setHighlightId]=useState(null);
   
@@ -4978,8 +5082,12 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     const b = bewerber.find(x=>x.id===selBewerberId);
     if (!b) return;
     // Sequenzielle ID: T01, T02, ... (nicht random!)
-    let n=1;
-    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    // Finde höchste existierende T-Nummer und nehme +1 (auch wenn alte IDs gelöscht wurden)
+    let n = 1;
+    tenants.forEach(t => {
+      const m = String(t.id||"").match(/^T(\d+)$/);
+      if (m) n = Math.max(n, parseInt(m[1],10) + 1);
+    });
     const newId = `T${String(n).padStart(2,"0")}`;
     // Compute kaution data from bewerber selection
     const kautionMonate = b.kautionOpt==="3x"?3:b.kautionOpt==="2x"?2:b.kautionOpt==="1x"?1:0;
@@ -5029,11 +5137,47 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       alert("Zuteilung fehlgeschlagen: " + (err.message || err));
     }
   }
+  
+  async function assignFromOldTenant(){
+    if (!selOldTenantId) { alert("Bitte einen alten Mieter auswählen."); return; }
+    const old = tenants.find(t => t.id === selOldTenantId);
+    if (!old) return;
+    
+    const room = rooms.find(r => r.id === assigning.id);
+    const bruttomiete = room?.miete || 0;
+    const strom = 25;
+    const kautionMonate = old.kautionMonate || 3;
+    const kautionBetrag = (bruttomiete + strom) * kautionMonate;
+    
+    try {
+      // Reaktiviere alten Mieter + neue Zimmer-Daten + neuer Einzug
+      await updateTenant(selOldTenantId, {
+        status: "aktiv",
+        archivedAt: null,
+        aptId: assigning.aptId,
+        roomId: assigning.id,
+        einzug: new Date().toLocaleDateString("de-CH"),
+        auszug: "",
+        kautionBetrag: kautionBetrag,
+      });
+      // Zimmer als belegt markieren
+      await updateRoom(assigning.id, {occupied:true, tenantId:selOldTenantId});
+      setAssigning(null);
+      setSelOldTenantId("");
+      alert(`✓ ${old.vorname} ${old.nachname} wurde reaktiviert und Zimmer ${assigning.id} zugewiesen.`);
+    } catch (err) {
+      alert("Zuteilung fehlgeschlagen: " + (err.message || err));
+    }
+  }
   async function assignManual(){
     if (!manualForm.vorname || !manualForm.nachname) { alert("Bitte mindestens Vorname und Nachname angeben."); return; }
     // Sequenzielle ID: T01, T02, ... (nicht random!)
-    let n=1;
-    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    // Finde höchste existierende T-Nummer und nehme +1 (auch wenn alte IDs gelöscht wurden)
+    let n = 1;
+    tenants.forEach(t => {
+      const m = String(t.id||"").match(/^T(\d+)$/);
+      if (m) n = Math.max(n, parseInt(m[1],10) + 1);
+    });
     const newId = `T${String(n).padStart(2,"0")}`;
     const newTenant = {
       id: newId,
@@ -5129,6 +5273,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
         {!assigning.occupied&&(
           <div style={{display:"flex",gap:6,marginBottom:18,padding:4,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8}}>
             <button className={`btn ${assignMode==="bewerber"?"btn-p":"btn-g"} btn-sm`} style={{flex:1}} onClick={()=>setAssignMode("bewerber")}>Aus Bewerbern</button>
+            <button className={`btn ${assignMode==="alteMieter"?"btn-p":"btn-g"} btn-sm`} style={{flex:1}} onClick={()=>setAssignMode("alteMieter")}>📦 Aus Alten Mietern</button>
             <button className={`btn ${assignMode==="manual"?"btn-p":"btn-g"} btn-sm`} style={{flex:1}} onClick={()=>setAssignMode("manual")}>Manuell anlegen</button>
           </div>
         )}
@@ -5157,6 +5302,38 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
             <div className="ma"><button className="btn btn-g" onClick={()=>setAssigning(null)}>Abbrechen</button><button className="btn btn-p" onClick={assignFromBewerber} disabled={!selBewerberId}>✓ Zuteilen</button></div>
           </div>
         )}
+
+        {!assigning.occupied&&assignMode==="alteMieter"&&(() => {
+          const archivierteList = tenants.filter(t => t.status === "archiviert").sort((a,b) => {
+            const dA = a.archivedAt || a.archived_at || 0;
+            const dB = b.archivedAt || b.archived_at || 0;
+            return new Date(dB) - new Date(dA);
+          });
+          return (
+            <div>
+              <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>📦 Alten Mieter reaktivieren</div>
+              <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>Wähle einen ehemaligen Mieter aus, der zurück ins System soll. Seine Daten werden übernommen, die Mieter-ID bleibt erhalten.</div>
+              {archivierteList.length===0 ? <div className="empty">Keine archivierten Mieter vorhanden</div> : (
+                <div style={{maxHeight:280,overflowY:"auto"}}>
+                  {archivierteList.map(t=>{
+                    const sel=selOldTenantId===t.id;
+                    return(
+                      <label key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",marginBottom:6}} onClick={()=>setSelOldTenantId(t.id)}>
+                        <input type="radio" name="oldTenant" checked={sel} readOnly/>
+                        <Av name={t.vorname} size={32}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600}}>{t.vorname} {t.nachname} <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#8a8174",fontWeight:500}}>· {t.id}</span></div>
+                          <div style={{fontSize:11,color:"#8a8174"}}>{t.email||"—"} · Ausgezogen: {t.auszug||"—"}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="ma"><button className="btn btn-g" onClick={()=>setAssigning(null)}>Abbrechen</button><button className="btn btn-p" onClick={assignFromOldTenant} disabled={!selOldTenantId}>↑ Reaktivieren & Zuteilen</button></div>
+            </div>
+          );
+        })()}
 
         {!assigning.occupied&&assignMode==="manual"&&(
           <div>
@@ -5198,15 +5375,33 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
   const [tab,setTab]=useState("info");
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({});
+  const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
   
   // Auto-select target tenant when navigated from another tab
   useEffect(() => {
     if (navTarget && navTarget.type === "mieter" && navTarget.id) {
       setSel(navTarget.id);
       setTab("info");
+      // Wenn der Mieter archiviert ist, automatisch in Archiv-Modus wechseln
+      const t = tenants.find(x => x.id === navTarget.id);
+      if (t && t.status === "archiviert") setViewMode("archiviert");
     }
   }, [navTarget]);
-  const filtered=tenants.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>natSort(a.id, b.id));
+  
+  // Aktive und archivierte Mieter trennen
+  const aktive = tenants.filter(t => (t.status || "aktiv") === "aktiv");
+  const archivierte = tenants.filter(t => t.status === "archiviert");
+  const currentList = viewMode === "archiviert" ? archivierte : aktive;
+  
+  const filtered = currentList.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase())).sort((a,b) => {
+    // Bei archivierten: nach archived_at sortieren (neueste zuerst)
+    if (viewMode === "archiviert") {
+      const dateA = a.archivedAt || a.archived_at || 0;
+      const dateB = b.archivedAt || b.archived_at || 0;
+      return new Date(dateB) - new Date(dateA);
+    }
+    return natSort(a.id, b.id);
+  });
   const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
   function NF(k){return e=>setNewForm(p=>({...p,[k]:e.target.value}));}function NFB(k){return e=>setNewForm(p=>({...p,[k]:e.target.checked}));}
@@ -5215,8 +5410,12 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
   const freeRooms = rooms.filter(r => !r.occupied);
   
   function nextTenantId(){
-    let n=1;
-    while(tenants.find(t=>t.id===`T${String(n).padStart(2,"0")}`)) n++;
+    // Finde höchste existierende T-Nummer und nehme +1 (auch wenn alte IDs gelöscht wurden)
+    let n = 1;
+    tenants.forEach(t => {
+      const m = String(t.id||"").match(/^T(\d+)$/);
+      if (m) n = Math.max(n, parseInt(m[1],10) + 1);
+    });
     return `T${String(n).padStart(2,"0")}`;
   }
   
@@ -5411,9 +5610,19 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
         <div>
           <div className="pt">Mieter</div>
-          <div className="ps">{tenants.length} Personen</div>
+          <div className="ps">{viewMode==="archiviert"?`${archivierte.length} alte Mieter`:`${aktive.length} aktive Personen`}</div>
         </div>
-        <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>
+        {viewMode==="aktiv" && <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>}
+      </div>
+      
+      {/* TAB-TOGGLE: Aktive / Archivierte */}
+      <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"1px solid #e8e3d8"}}>
+        <button onClick={()=>{setViewMode("aktiv");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="aktiv"?600:400,color:viewMode==="aktiv"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="aktiv"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
+          Aktive Mieter ({aktive.length})
+        </button>
+        <button onClick={()=>{setViewMode("archiviert");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="archiviert"?600:400,color:viewMode==="archiviert"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="archiviert"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
+          📦 Alte Mieter ({archivierte.length})
+        </button>
       </div>
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
@@ -5448,9 +5657,44 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
         {tenant?(
           <div className="card" style={{margin:0}}>
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:12,flexWrap:"wrap"}}>
-              <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}</div></div></div>
-              <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
+              <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}{tenant.status==="archiviert"&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIVIERT</span>}</div></div></div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
+                {tenant.status==="archiviert" ? (
+                  <button className="btn btn-p btn-sm" onClick={async()=>{
+                    if (!confirm(`${tenant.vorname} ${tenant.nachname} wieder als aktiven Mieter reaktivieren?\n\nDanach kannst du ihn/sie einem Zimmer zuteilen.`)) return;
+                    await updateTenant(tenant.id, {status:"aktiv", archivedAt:null});
+                    setViewMode("aktiv");
+                    alert("✓ Mieter reaktiviert. Im Tab 'Zimmer' kannst du ein freies Zimmer zuweisen.");
+                  }}>↑ Reaktivieren</button>
+                ) : (
+                  <button className="btn btn-g btn-sm" onClick={async()=>{
+                    if (!confirm(`${tenant.vorname} ${tenant.nachname} archivieren?\n\nDer Mieter wird ins Archiv verschoben (alte Mieter). Daten bleiben erhalten. Die Zimmer-Zuteilung wird aufgelöst.`)) return;
+                    // Zimmer freigeben
+                    const myRoom = rooms.find(r=>r.tenantId===tenant.id);
+                    if (myRoom) await updateRoom(myRoom.id, {tenantId:null, occupied:false});
+                    // Mieter archivieren
+                    await updateTenant(tenant.id, {
+                      status:"archiviert", 
+                      archivedAt:new Date().toISOString(),
+                      auszug: tenant.auszug || new Date().toLocaleDateString("de-CH"),
+                    });
+                    setSel(null);
+                    alert("✓ Mieter ins Archiv verschoben. Du findest ihn unter 'Alte Mieter'.");
+                  }} style={{color:"#9b6a4a",borderColor:"#d4c7a8"}}>📦 Archivieren</button>
+                )}
+              </div>
             </div>
+            {tenant.status==="archiviert" && (
+              <div style={{background:"#f5efe4",border:"1px solid #d4c7a8",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a5249",lineHeight:1.5}}>
+                <div style={{fontWeight:600,marginBottom:3}}>📦 Archivierter Mieter</div>
+                <div style={{fontSize:11}}>
+                  {tenant.archivedAt||tenant.archived_at ? `Archiviert am ${fmtDateDE(tenant.archivedAt||tenant.archived_at)}` : "Archiviert"} · 
+                  Auszug: {tenant.auszug || "—"} · 
+                  Daten + Dokumente bleiben erhalten.
+                </div>
+              </div>
+            )}
             {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
               <div>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>
               <div style={{display:"flex",gap:4}}>
