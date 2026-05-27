@@ -5964,8 +5964,23 @@ function Fristen({apts,tenants,rooms}){
 // ─── ZAHLUNGEN ───────────────────────────────────────────────────────────────
 function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
   const now = new Date();
-  const [jahr, setJahr] = useState(now.getFullYear());
-  const [monat, setMonat] = useState(now.getMonth() + 1); // 1-12
+  
+  // Mieten werden vor dem Monatsbeginn überwiesen (typisch bis 25. des Vormonats).
+  // Daher: ab dem 25. des aktuellen Monats wird der "Zahlungs-Monat" = nächster Kalendermonat.
+  // Beispiel: 26. Mai → wir tracken bereits die Juni-Mieten
+  function getPaymentMonth(date) {
+    let j = date.getFullYear();
+    let m = date.getMonth() + 1;  // 1-12
+    if (date.getDate() >= 25) {
+      m += 1;
+      if (m > 12) { m = 1; j += 1; }
+    }
+    return { jahr: j, monat: m };
+  }
+  
+  const initialPm = getPaymentMonth(now);
+  const [jahr, setJahr] = useState(initialPm.jahr);
+  const [monat, setMonat] = useState(initialPm.monat); // 1-12
   const [search, setSearch] = useState("");
   const [showOnlyOffen, setShowOnlyOffen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null); // { tenantId, ... }
@@ -6083,16 +6098,21 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
   // Statistiken — IMMER mit Strom + Aufschlag (getExpectedMiete liefert das schon)
   // Soll-Total = ALLE Mieter dieses Monats (egal welcher Status)
   const totalSoll = rows.reduce((s,r) => s + r.soll, 0);
-  // Bezahlt-Total = was tatsächlich reingekommen ist (cap pro Zeile auf Soll, damit > 100% nicht passiert)
+  // Bezahlt-Total = was tatsächlich reingekommen ist
+  // WICHTIG: Pro Mieter wird auf das aktuelle SOLL gecapped — so kann eine Überzahlung von Mieter A
+  // nicht eine fehlende Zahlung von Mieter B "ausgleichen" (sonst wäre Marge IST > Marge SOLL)
   const totalBezahlt = rows.reduce((s,r) => {
     if (r.status === "bezahlt") {
-      // Wenn betragIst gespeichert → den nehmen, sonst Soll
-      return s + (+r.payment?.betragIst > 0 ? +r.payment.betragIst : r.soll);
+      const ist = (+r.payment?.betragIst > 0 ? +r.payment.betragIst : r.soll);
+      return s + Math.min(ist, r.soll);
     }
-    if (r.status === "teilweise") return s + (+r.payment?.betragIst || 0);
+    if (r.status === "teilweise") {
+      const ist = +r.payment?.betragIst || 0;
+      return s + Math.min(ist, r.soll);
+    }
     return s;
   }, 0);
-  // Offen-Total = was noch fehlt (Offene komplett, Teilweise nur Differenz)
+  // Offen-Total = was noch fehlt
   const totalOffen = rows.reduce((s,r) => {
     if (r.status === "offen") return s + r.soll;
     if (r.status === "teilweise") return s + Math.max(0, r.soll - (+r.payment?.betragIst || 0));
@@ -6175,7 +6195,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
           <button onClick={()=>changeMonth(-1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>‹</button>
           <div style={{minWidth:150,textAlign:"center",fontWeight:600,fontSize:14}}>{MONATS_NAMEN[monat-1]} {jahr}</div>
           <button onClick={()=>changeMonth(1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>›</button>
-          <button onClick={()=>{setMonat(now.getMonth()+1); setJahr(now.getFullYear());}} className="btn btn-g btn-sm" style={{fontSize:11}}>Aktueller Monat</button>
+          <button onClick={()=>{const pm = getPaymentMonth(new Date()); setMonat(pm.monat); setJahr(pm.jahr);}} className="btn btn-g btn-sm" style={{fontSize:11}}>Aktueller Monat</button>
         </div>
       </div>
       
@@ -6390,10 +6410,14 @@ function MainApp() {
   const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,zahlungen:Zahlungen}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
-  // Offene Zahlungen für aktuellen Monat zählen (mit korrekter Einzug/Auszug-Logik)
+  // Offene Zahlungen für aktuellen Zahlungs-Monat zählen (ab 25. = nächster Monat)
   const now2 = new Date();
-  const aktJ = now2.getFullYear();
-  const aktM = now2.getMonth() + 1;
+  let aktJ = now2.getFullYear();
+  let aktM = now2.getMonth() + 1;
+  if (now2.getDate() >= 25) {
+    aktM += 1;
+    if (aktM > 12) { aktM = 1; aktJ += 1; }
+  }
   const monatsStart2 = new Date(aktJ, aktM-1, 1);
   const monatsEnde2 = new Date(aktJ, aktM, 0, 23, 59, 59);
   const parseDate2 = (s) => {
