@@ -1607,6 +1607,64 @@ function useSupabaseData() {
   
   useEffect(() => { loadProtokolle(); }, []);
   
+  // ─── PAYMENTS (Mietzahlungen) ──────────────────────────────────
+  const [payments, setPayments] = useState([]);
+  
+  async function loadPayments() {
+    try {
+      const {data, error} = await supabase.from("payments").select("*").order("jahr", {ascending:false});
+      if (error) {
+        console.warn("Payments-Tabelle noch nicht eingerichtet (SQL ausführen):", error.message);
+        return;
+      }
+      setPayments((data || []).map(p => ({
+        id: p.id,
+        tenantId: p.tenant_id,
+        jahr: p.jahr,
+        monat: p.monat,
+        betragSoll: p.betrag_soll,
+        betragIst: p.betrag_ist,
+        status: p.status,
+        bezahltAm: p.bezahlt_am,
+        bezahltVia: p.bezahlt_via,
+        markedBy: p.marked_by,
+        bemerkung: p.bemerkung,
+        createdAt: p.created_at,
+      })));
+    } catch (e) {
+      console.warn("loadPayments failed:", e);
+    }
+  }
+  
+  async function upsertPayment(payment) {
+    // Erzeugt oder aktualisiert eine Zahlung für tenant_id + jahr + monat
+    const id = payment.id || `PAY${payment.tenantId}-${payment.jahr}-${String(payment.monat).padStart(2,"0")}`;
+    const dbRow = {
+      id,
+      tenant_id: payment.tenantId,
+      jahr: payment.jahr,
+      monat: payment.monat,
+      betrag_soll: payment.betragSoll || null,
+      betrag_ist: payment.betragIst || null,
+      status: payment.status || "offen",
+      bezahlt_am: payment.bezahltAm || null,
+      bezahlt_via: payment.bezahltVia || null,
+      marked_by: payment.markedBy || null,
+      bemerkung: payment.bemerkung || null,
+    };
+    const {error} = await supabase.from("payments").upsert(dbRow, {onConflict:"tenant_id,jahr,monat"});
+    if (error) { console.error("upsertPayment:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    await loadPayments();
+  }
+  
+  async function deletePayment(id) {
+    const {error} = await supabase.from("payments").delete().eq("id", id);
+    if (error) { console.error("deletePayment:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
+    setPayments(p => p.filter(x => x.id !== id));
+  }
+  
+  useEffect(() => { loadPayments(); }, []);
+  
   async function loadDocuments() {
     try {
       const {data, error} = await supabase.from("documents").select("*").order("uploaded_at", {ascending:false});
@@ -1696,7 +1754,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, insertProtokoll, updateProtokoll, deleteProtokoll};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -5903,6 +5961,291 @@ function Fristen({apts,tenants,rooms}){
   );
 }
 
+// ─── ZAHLUNGEN ───────────────────────────────────────────────────────────────
+function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
+  const now = new Date();
+  const [jahr, setJahr] = useState(now.getFullYear());
+  const [monat, setMonat] = useState(now.getMonth() + 1); // 1-12
+  const [search, setSearch] = useState("");
+  const [showOnlyOffen, setShowOnlyOffen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null); // { tenantId, ... }
+  
+  const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  
+  // Aktive Mieter
+  const activeTenants = tenants.filter(t => (t.status||"aktiv") === "aktiv");
+  
+  // Helper: Erwartete Miete pro Mieter aus Room
+  function getExpectedMiete(tenant) {
+    const room = rooms.find(r => r.tenantId === tenant.id) || rooms.find(r => r.id === tenant.roomId);
+    if (!room) return 0;
+    // Bruttomiete = Zimmermiete + 25 CHF Strom (laut System)
+    return (+room.miete || 0) + 25;
+  }
+  
+  // Helper: Payment für Mieter + Monat
+  function getPayment(tenantId) {
+    return payments.find(p => p.tenantId === tenantId && p.jahr === jahr && p.monat === monat);
+  }
+  
+  // Daten zusammenstellen
+  const rows = activeTenants.map(t => {
+    const p = getPayment(t.id);
+    const soll = getExpectedMiete(t);
+    const room = rooms.find(r => r.tenantId === t.id) || rooms.find(r => r.id === t.roomId);
+    const apt = room ? apts.find(a => a.id === room.aptId) : null;
+    return {
+      tenant: t,
+      room,
+      apt,
+      payment: p,
+      soll,
+      status: p?.status || "offen",
+    };
+  });
+  
+  const filtered = rows
+    .filter(r => `${r.tenant.vorname} ${r.tenant.nachname} ${r.tenant.id}`.toLowerCase().includes(search.toLowerCase()))
+    .filter(r => !showOnlyOffen || r.status === "offen")
+    .sort((a,b) => {
+      // Offene zuerst, dann nach ID
+      if (a.status !== b.status) {
+        const order = {offen:0, teilweise:1, bezahlt:2, erlassen:3};
+        return (order[a.status]||0) - (order[b.status]||0);
+      }
+      return natSort(a.tenant.id, b.tenant.id);
+    });
+  
+  // Statistiken
+  const totalSoll = rows.reduce((s,r) => s + r.soll, 0);
+  const totalBezahlt = rows.filter(r => r.status === "bezahlt").reduce((s,r) => s + (r.payment?.betragIst || r.soll), 0);
+  const totalOffen = rows.filter(r => r.status === "offen").reduce((s,r) => s + r.soll, 0);
+  const anzahlBezahlt = rows.filter(r => r.status === "bezahlt").length;
+  const anzahlOffen = rows.filter(r => r.status === "offen").length;
+  
+  async function toggleBezahlt(row) {
+    const newStatus = row.status === "bezahlt" ? "offen" : "bezahlt";
+    await upsertPayment({
+      tenantId: row.tenant.id,
+      jahr,
+      monat,
+      betragSoll: row.soll,
+      betragIst: newStatus === "bezahlt" ? row.soll : null,
+      status: newStatus,
+      bezahltAm: newStatus === "bezahlt" ? new Date().toISOString().slice(0,10) : null,
+      bezahltVia: newStatus === "bezahlt" ? (row.payment?.bezahltVia || "Überweisung") : null,
+      markedBy: row.tenant.owner || null,
+      bemerkung: row.payment?.bemerkung || null,
+    });
+  }
+  
+  function openDetails(row) {
+    setEditingPayment({
+      tenantId: row.tenant.id,
+      tenant: row.tenant,
+      jahr,
+      monat,
+      betragSoll: row.soll,
+      betragIst: row.payment?.betragIst || row.soll,
+      status: row.status,
+      bezahltAm: row.payment?.bezahltAm || new Date().toISOString().slice(0,10),
+      bezahltVia: row.payment?.bezahltVia || "Überweisung",
+      bemerkung: row.payment?.bemerkung || "",
+    });
+  }
+  
+  async function saveDetails() {
+    await upsertPayment({
+      ...editingPayment,
+      markedBy: editingPayment.tenant?.owner || null,
+    });
+    setEditingPayment(null);
+  }
+  
+  // Monats-Navigation
+  function changeMonth(delta) {
+    let m = monat + delta;
+    let j = jahr;
+    if (m > 12) { m = 1; j++; }
+    if (m < 1) { m = 12; j--; }
+    setMonat(m); setJahr(j);
+  }
+  
+  return (
+    <div style={{padding:"22px 26px",maxWidth:1280,margin:"0 auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:12}}>
+        <div>
+          <div className="pt">Zahlungen</div>
+          <div className="ps">Monatliche Mietzahlungen tracken</div>
+        </div>
+        {/* MONATS-NAVIGATION */}
+        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"6px 8px"}}>
+          <button onClick={()=>changeMonth(-1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>‹</button>
+          <div style={{minWidth:150,textAlign:"center",fontWeight:600,fontSize:14}}>{MONATS_NAMEN[monat-1]} {jahr}</div>
+          <button onClick={()=>changeMonth(1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>›</button>
+          <button onClick={()=>{setMonat(now.getMonth()+1); setJahr(now.getFullYear());}} className="btn btn-g btn-sm" style={{fontSize:11}}>Aktueller Monat</button>
+        </div>
+      </div>
+      
+      {/* STAT-CARDS */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:12,margin:"18px 0"}}>
+        <div className="card" style={{margin:0}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Bezahlt</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#5a6e4a"}}>{anzahlBezahlt} <span style={{fontSize:13,color:"#8a8174",fontWeight:400}}>/ {rows.length}</span></div>
+          <div style={{fontSize:12,color:"#5a6e4a",marginTop:4}}>+ CHF {totalBezahlt.toLocaleString("de-CH")}</div>
+        </div>
+        <div className="card" style={{margin:0}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Offen</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:anzahlOffen>0?"#9b4a3e":"#5a6e4a"}}>{anzahlOffen}</div>
+          <div style={{fontSize:12,color:anzahlOffen>0?"#9b4a3e":"#8a8174",marginTop:4}}>CHF {totalOffen.toLocaleString("de-CH")} ausstehend</div>
+        </div>
+        <div className="card" style={{margin:0}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Soll-Total</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#1a1814"}}>CHF {totalSoll.toLocaleString("de-CH")}</div>
+          <div style={{fontSize:12,color:"#8a8174",marginTop:4}}>für {MONATS_NAMEN[monat-1]}</div>
+        </div>
+        <div className="card" style={{margin:0}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Quote</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#1a1814"}}>{rows.length>0?Math.round((anzahlBezahlt/rows.length)*100):0}%</div>
+          <div style={{width:"100%",height:6,background:"#e8e3d8",borderRadius:3,marginTop:6,overflow:"hidden"}}>
+            <div style={{width:`${rows.length>0?(anzahlBezahlt/rows.length)*100:0}%`,height:"100%",background:"#5a6e4a",transition:"width .3s"}}/>
+          </div>
+        </div>
+      </div>
+      
+      {/* SUCHE + FILTER */}
+      <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
+        <input className="fi" type="text" placeholder="Suche Mieter…" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:"1 1 220px",maxWidth:320}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#4a4439",cursor:"pointer"}}>
+          <input type="checkbox" checked={showOnlyOffen} onChange={e=>setShowOnlyOffen(e.target.checked)}/>
+          Nur offene zeigen
+        </label>
+      </div>
+      
+      {/* TABELLE */}
+      <div className="card" style={{margin:0,padding:0,overflow:"hidden"}}>
+        <div style={{overflowX:"auto"}}>
+          <table className="finance-table" style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead>
+              <tr style={{borderBottom:"1px solid #e8e3d8",background:"#fefcf7"}}>
+                <th style={{textAlign:"left",padding:"12px 14px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Mieter</th>
+                <th style={{textAlign:"left",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Zimmer</th>
+                <th style={{textAlign:"right",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Soll</th>
+                <th style={{textAlign:"center",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Status</th>
+                <th style={{textAlign:"left",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Bezahlt am</th>
+                <th style={{textAlign:"right",padding:"12px 14px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Aktion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} style={{textAlign:"center",padding:30,color:"#8a8174",fontStyle:"italic"}}>Keine Mieter gefunden</td></tr>
+              ) : filtered.map(row => {
+                const isPaid = row.status === "bezahlt";
+                const isErlassen = row.status === "erlassen";
+                return (
+                  <tr key={row.tenant.id} style={{borderBottom:"1px solid #f0ebe1",background:isPaid?"#f5f8f1":isErlassen?"#fefcf7":"transparent"}}>
+                    <td style={{padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <Av name={row.tenant.vorname} size={32}/>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{row.tenant.vorname} {row.tenant.nachname}</div>
+                          <div style={{fontSize:10.5,color:"#8a8174"}}>{row.tenant.id}{row.tenant.owner && ` · 👤 ${row.tenant.owner}`}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.room?.id || "—"}<div style={{fontSize:10.5,color:"#8a8174"}}>{row.apt?.adresse || ""}</div></td>
+                    <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>CHF {row.soll.toLocaleString("de-CH")}</td>
+                    <td style={{padding:"12px 10px",textAlign:"center"}}>
+                      {row.status === "bezahlt" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#e8efde",color:"#3a5230",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>✓ Bezahlt</span>}
+                      {row.status === "offen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fbeae6",color:"#8a3a2e",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Offen</span>}
+                      {row.status === "teilweise" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fdf2e0",color:"#7a5c3c",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Teilweise</span>}
+                      {row.status === "erlassen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#e8e3d8",color:"#5a5249",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Erlassen</span>}
+                    </td>
+                    <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.payment?.bezahltAm ? fmtDateDE(row.payment.bezahltAm) : "—"}{row.payment?.bezahltVia && <div style={{fontSize:10.5,color:"#8a8174"}}>{row.payment.bezahltVia}</div>}</td>
+                    <td style={{padding:"12px 14px",textAlign:"right"}}>
+                      <div style={{display:"inline-flex",gap:6}}>
+                        <button onClick={()=>toggleBezahlt(row)} className={`btn btn-sm ${isPaid?"btn-g":"btn-p"}`} style={{fontSize:11,padding:"5px 10px"}}>
+                          {isPaid ? "↺ Zurücksetzen" : "✓ Bezahlt"}
+                        </button>
+                        <button onClick={()=>openDetails(row)} className="btn btn-g btn-sm" style={{fontSize:11,padding:"5px 10px"}}>⋯</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* HINWEIS UNTEN */}
+      <div style={{marginTop:18,padding:"12px 16px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,fontSize:11.5,color:"#6a6358",lineHeight:1.55}}>
+        💡 <strong>Hinweis:</strong> Manuelles Tracking — Klicke "✓ Bezahlt" sobald eine Zahlung auf dem Konto eingeht. Für Details (anderes Datum, andere Zahlungsart, Bemerkung) auf "⋯" klicken. 
+        Spätere Optimierung möglich: Bank-CSV-Import oder Auto-Reminder per WhatsApp/Email für überfällige Zahlungen.
+      </div>
+      
+      {/* DETAIL-MODAL */}
+      {editingPayment && (
+        <div className="mo-bg" onClick={()=>setEditingPayment(null)}>
+          <div className="mo-c" onClick={e=>e.stopPropagation()} style={{maxWidth:520}}>
+            <div className="mt">💰 Zahlung bearbeiten</div>
+            <div style={{fontSize:13,color:"#4a4439",marginBottom:14}}>
+              <strong>{editingPayment.tenant.vorname} {editingPayment.tenant.nachname}</strong> ({editingPayment.tenant.id}) · {MONATS_NAMEN[editingPayment.monat-1]} {editingPayment.jahr}
+            </div>
+            
+            <div className="frow">
+              <div className="fg">
+                <label className="fl">Status</label>
+                <select className="fi" value={editingPayment.status} onChange={e=>setEditingPayment({...editingPayment, status:e.target.value})}>
+                  <option value="offen">Offen</option>
+                  <option value="bezahlt">Bezahlt</option>
+                  <option value="teilweise">Teilweise bezahlt</option>
+                  <option value="erlassen">Erlassen</option>
+                </select>
+              </div>
+              <div className="fg">
+                <label className="fl">Zahlungsart</label>
+                <select className="fi" value={editingPayment.bezahltVia} onChange={e=>setEditingPayment({...editingPayment, bezahltVia:e.target.value})}>
+                  <option value="Überweisung">Überweisung</option>
+                  <option value="TWINT">TWINT</option>
+                  <option value="Bar">Bar</option>
+                  <option value="Andere">Andere</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="frow">
+              <div className="fg">
+                <label className="fl">Soll-Betrag (CHF)</label>
+                <input className="fi" type="number" step="0.01" value={editingPayment.betragSoll||""} onChange={e=>setEditingPayment({...editingPayment, betragSoll:+e.target.value})}/>
+              </div>
+              <div className="fg">
+                <label className="fl">Ist-Betrag (CHF)</label>
+                <input className="fi" type="number" step="0.01" value={editingPayment.betragIst||""} onChange={e=>setEditingPayment({...editingPayment, betragIst:+e.target.value})}/>
+              </div>
+            </div>
+            
+            <div className="fg">
+              <label className="fl">Bezahlt am</label>
+              <input className="fi" type="date" value={editingPayment.bezahltAm||""} onChange={e=>setEditingPayment({...editingPayment, bezahltAm:e.target.value})}/>
+            </div>
+            
+            <div className="fg">
+              <label className="fl">Bemerkung</label>
+              <textarea className="fi" rows={2} value={editingPayment.bemerkung||""} onChange={e=>setEditingPayment({...editingPayment, bemerkung:e.target.value})} style={{resize:"vertical",fontFamily:"inherit"}}/>
+            </div>
+            
+            <div className="ma">
+              <button className="btn btn-g" onClick={()=>setEditingPayment(null)}>Abbrechen</button>
+              <button className="btn btn-p" onClick={saveDetails}>✓ Speichern</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────────────────
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
@@ -5910,6 +6253,7 @@ const PAGES=[
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
   {id:"mieter",icon:"👤",label:"Mieter"},
+  {id:"zahlungen",icon:"💰",label:"Zahlungen"},
 ];
 
 function MainApp() {
@@ -5920,9 +6264,16 @@ function MainApp() {
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
-  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter}[page];
+  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,zahlungen:Zahlungen}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
+  // Offene Zahlungen für aktuellen Monat zählen
+  const now2 = new Date();
+  const aktiveT = data.tenants.filter(t => (t.status||"aktiv") === "aktiv");
+  const offeneZahlungen = aktiveT.filter(t => {
+    const p = data.payments.find(pay => pay.tenantId === t.id && pay.jahr === now2.getFullYear() && pay.monat === now2.getMonth()+1);
+    return !p || p.status === "offen";
+  }).length;
 
   function navigateTo(targetPage, targetId) {
     setPage(targetPage);
@@ -5953,6 +6304,7 @@ function MainApp() {
             <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
             {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
+            {p.id==="zahlungen"&&offeneZahlungen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneZahlungen}</span>}
           </button>))}
         </div>
         <div className="user-info">
