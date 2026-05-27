@@ -6083,16 +6083,19 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
   // Statistiken — IMMER mit Strom + Aufschlag (getExpectedMiete liefert das schon)
   // Soll-Total = ALLE Mieter dieses Monats (egal welcher Status)
   const totalSoll = rows.reduce((s,r) => s + r.soll, 0);
-  // Bezahlt-Total = was tatsächlich reingekommen ist (auch Teilzahlungen mit Ist-Betrag)
+  // Bezahlt-Total = was tatsächlich reingekommen ist (cap pro Zeile auf Soll, damit > 100% nicht passiert)
   const totalBezahlt = rows.reduce((s,r) => {
-    if (r.status === "bezahlt") return s + (+r.payment?.betragIst || r.soll);
+    if (r.status === "bezahlt") {
+      // Wenn betragIst gespeichert → den nehmen, sonst Soll
+      return s + (+r.payment?.betragIst > 0 ? +r.payment.betragIst : r.soll);
+    }
     if (r.status === "teilweise") return s + (+r.payment?.betragIst || 0);
     return s;
   }, 0);
   // Offen-Total = was noch fehlt (Offene komplett, Teilweise nur Differenz)
   const totalOffen = rows.reduce((s,r) => {
     if (r.status === "offen") return s + r.soll;
-    if (r.status === "teilweise") return s + (r.soll - (+r.payment?.betragIst || 0));
+    if (r.status === "teilweise") return s + Math.max(0, r.soll - (+r.payment?.betragIst || 0));
     return s;
   }, 0);
   const anzahlBezahlt = rows.filter(r => r.status === "bezahlt").length;
@@ -6207,7 +6210,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
         <div className="card" style={{margin:0,background:"#f5f8f1",borderColor:"#d4ddc8"}}>
           <div style={{fontSize:9.5,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>💰 Eingenommen</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:"#3a5230"}}>CHF {totalBezahlt.toLocaleString("de-CH")}</div>
-          <div style={{fontSize:11,color:"#5a6e4a",marginTop:4}}>tatsächlich auf Konto · {totalSoll>0?Math.round((totalBezahlt/totalSoll)*100):0}% vom Soll</div>
+          <div style={{fontSize:11,color:"#5a6e4a",marginTop:4}}>tatsächlich auf Konto · {totalSoll>0?Math.min(100,Math.round((totalBezahlt/totalSoll)*100)):0}% vom Soll</div>
         </div>
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>📤 Ausgaben</div>
