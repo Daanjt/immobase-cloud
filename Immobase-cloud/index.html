@@ -6080,12 +6080,24 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
       return natSort(a.tenant.id, b.tenant.id);
     });
   
-  // Statistiken
+  // Statistiken — IMMER mit Strom + Aufschlag (getExpectedMiete liefert das schon)
+  // Soll-Total = ALLE Mieter dieses Monats (egal welcher Status)
   const totalSoll = rows.reduce((s,r) => s + r.soll, 0);
-  const totalBezahlt = rows.filter(r => r.status === "bezahlt").reduce((s,r) => s + (r.payment?.betragIst || r.soll), 0);
-  const totalOffen = rows.filter(r => r.status === "offen").reduce((s,r) => s + r.soll, 0);
+  // Bezahlt-Total = was tatsächlich reingekommen ist (auch Teilzahlungen mit Ist-Betrag)
+  const totalBezahlt = rows.reduce((s,r) => {
+    if (r.status === "bezahlt") return s + (+r.payment?.betragIst || r.soll);
+    if (r.status === "teilweise") return s + (+r.payment?.betragIst || 0);
+    return s;
+  }, 0);
+  // Offen-Total = was noch fehlt (Offene komplett, Teilweise nur Differenz)
+  const totalOffen = rows.reduce((s,r) => {
+    if (r.status === "offen") return s + r.soll;
+    if (r.status === "teilweise") return s + (r.soll - (+r.payment?.betragIst || 0));
+    return s;
+  }, 0);
   const anzahlBezahlt = rows.filter(r => r.status === "bezahlt").length;
   const anzahlOffen = rows.filter(r => r.status === "offen").length;
+  const anzahlTeilweise = rows.filter(r => r.status === "teilweise").length;
   
   async function toggleBezahlt(row) {
     const newStatus = row.status === "bezahlt" ? "offen" : "bezahlt";
@@ -6166,7 +6178,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Soll-Total</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#1a1814"}}>CHF {totalSoll.toLocaleString("de-CH")}</div>
-          <div style={{fontSize:12,color:"#8a8174",marginTop:4}}>für {MONATS_NAMEN[monat-1]}</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>inkl. Strom + Aufschlag</div>
         </div>
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Quote</div>
@@ -6196,13 +6208,12 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
                 <th style={{textAlign:"left",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Zimmer</th>
                 <th style={{textAlign:"right",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Soll</th>
                 <th style={{textAlign:"center",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Status</th>
-                <th style={{textAlign:"left",padding:"12px 10px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Bezahlt am</th>
                 <th style={{textAlign:"right",padding:"12px 14px",fontSize:10,letterSpacing:".15em",textTransform:"uppercase",color:"#8a8174",fontWeight:600}}>Aktion</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} style={{textAlign:"center",padding:30,color:"#8a8174",fontStyle:"italic"}}>Keine Mieter gefunden</td></tr>
+                <tr><td colSpan={5} style={{textAlign:"center",padding:30,color:"#8a8174",fontStyle:"italic"}}>Keine Mieter gefunden</td></tr>
               ) : filtered.map(row => {
                 const isPaid = row.status === "bezahlt";
                 const isErlassen = row.status === "erlassen";
@@ -6234,7 +6245,6 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
                       {row.status === "teilweise" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fdf2e0",color:"#7a5c3c",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Teilweise</span>}
                       {row.status === "erlassen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#e8e3d8",color:"#5a5249",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Erlassen</span>}
                     </td>
-                    <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.payment?.bezahltAm ? fmtDateDE(row.payment.bezahltAm) : "—"}{row.payment?.bezahltVia && <div style={{fontSize:10.5,color:"#8a8174"}}>{row.payment.bezahltVia}</div>}</td>
                     <td style={{padding:"12px 14px",textAlign:"right"}}>
                       <div style={{display:"inline-flex",gap:6}}>
                         <button onClick={()=>toggleBezahlt(row)} className={`btn btn-sm ${isPaid?"btn-g":"btn-p"}`} style={{fontSize:11,padding:"5px 10px"}}>
@@ -6259,8 +6269,8 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
       
       {/* DETAIL-MODAL */}
       {editingPayment && (
-        <div className="mo-bg" onClick={()=>setEditingPayment(null)}>
-          <div className="mo-c" onClick={e=>e.stopPropagation()} style={{maxWidth:520}}>
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&setEditingPayment(null)}>
+          <div className="modal" style={{width:520,maxHeight:"90vh",overflowY:"auto"}}>
             <div className="mt">💰 Zahlung bearbeiten</div>
             <div style={{fontSize:13,color:"#4a4439",marginBottom:14}}>
               <strong>{editingPayment.tenant.vorname} {editingPayment.tenant.nachname}</strong> ({editingPayment.tenant.id}) · {MONATS_NAMEN[editingPayment.monat-1]} {editingPayment.jahr}
