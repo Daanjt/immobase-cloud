@@ -6099,6 +6099,19 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
   const anzahlOffen = rows.filter(r => r.status === "offen").length;
   const anzahlTeilweise = rows.filter(r => r.status === "teilweise").length;
   
+  // AUSGABEN: Hauptmiete für alle Wohnungen die im aktuellen Monat aktive Mieter haben
+  // (also Wohnungen die wir bezahlen müssen weil sie vermietet sind)
+  const aptIdsInUse = [...new Set(rows.map(r => r.apt?.id).filter(Boolean))];
+  const totalAusgaben = aptIdsInUse.reduce((s, aptId) => {
+    const apt = apts.find(a => a.id === aptId);
+    return s + (+apt?.miete || 0);
+  }, 0);
+  
+  // MARGE: Eingenommen (was tatsächlich da ist) minus Ausgaben (was wir an Hauptvermieter zahlen)
+  const margeIst = totalBezahlt - totalAusgaben;
+  // Erwartete Marge wenn alle bezahlen
+  const margeSoll = totalSoll - totalAusgaben;
+  
   async function toggleBezahlt(row) {
     const newStatus = row.status === "bezahlt" ? "offen" : "bezahlt";
     await upsertPayment({
@@ -6163,8 +6176,8 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
         </div>
       </div>
       
-      {/* STAT-CARDS */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:12,margin:"18px 0"}}>
+      {/* STAT-CARDS: Status-Übersicht */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,margin:"18px 0 10px"}}>
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Bezahlt</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#5a6e4a"}}>{anzahlBezahlt} <span style={{fontSize:13,color:"#8a8174",fontWeight:400}}>/ {rows.length}</span></div>
@@ -6186,6 +6199,30 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
           <div style={{width:"100%",height:6,background:"#e8e3d8",borderRadius:3,marginTop:6,overflow:"hidden"}}>
             <div style={{width:`${rows.length>0?(anzahlBezahlt/rows.length)*100:0}%`,height:"100%",background:"#5a6e4a",transition:"width .3s"}}/>
           </div>
+        </div>
+      </div>
+      
+      {/* STAT-CARDS: Finanz-Übersicht */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12,marginBottom:18}}>
+        <div className="card" style={{margin:0,background:"#f5f8f1",borderColor:"#d4ddc8"}}>
+          <div style={{fontSize:9.5,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>💰 Eingenommen</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:"#3a5230"}}>CHF {totalBezahlt.toLocaleString("de-CH")}</div>
+          <div style={{fontSize:11,color:"#5a6e4a",marginTop:4}}>tatsächlich auf Konto · {totalSoll>0?Math.round((totalBezahlt/totalSoll)*100):0}% vom Soll</div>
+        </div>
+        <div className="card" style={{margin:0}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>📤 Ausgaben</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:"#1a1814"}}>CHF {totalAusgaben.toLocaleString("de-CH")}</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>Hauptmieten {aptIdsInUse.length} Wohnung{aptIdsInUse.length!==1?"en":""}</div>
+        </div>
+        <div className="card" style={{margin:0,background:margeIst>=0?"#f5f8f1":"#fbeae6",borderColor:margeIst>=0?"#d4ddc8":"#e8c5be"}}>
+          <div style={{fontSize:9.5,color:margeIst>=0?"#5a6e4a":"#9b4a3e",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>📈 Marge (Ist)</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:margeIst>=0?"#3a5230":"#7a3a2e"}}>{margeIst>=0?"+":""}CHF {margeIst.toLocaleString("de-CH")}</div>
+          <div style={{fontSize:11,color:margeIst>=0?"#5a6e4a":"#9b4a3e",marginTop:4}}>Eingenommen − Ausgaben</div>
+        </div>
+        <div className="card" style={{margin:0}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>🎯 Marge (Soll)</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:margeSoll>=0?"#1a1814":"#9b4a3e"}}>{margeSoll>=0?"+":""}CHF {margeSoll.toLocaleString("de-CH")}</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>wenn alle bezahlen</div>
         </div>
       </div>
       
