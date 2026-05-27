@@ -5972,15 +5972,65 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
   
   const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   
-  // Aktive Mieter
-  const activeTenants = tenants.filter(t => (t.status||"aktiv") === "aktiv");
+  // Helper: parse DD.MM.YYYY oder YYYY-MM-DD zu Date
+  function parseDate(s) {
+    if (!s) return null;
+    const str = String(s).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return new Date(str);
+    const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+    const d = new Date(str);
+    return isNaN(d) ? null : d;
+  }
   
-  // Helper: Erwartete Miete pro Mieter aus Room
+  // Mieter die in DIESEM Monat (jahr/monat) aktiv waren — also Miete zahlen müssten
+  // Logik: Mieter erscheint wenn
+  //  • Einzug ≤ letzter Tag des Monats  (also vor oder im Monat eingezogen)
+  //  • UND: Auszug fehlt ODER Auszug ≥ erster Tag des Monats  (also nicht vor diesem Monat ausgezogen)
+  // Archivierte Mieter werden ebenfalls einbezogen falls sie im Monat noch da waren!
+  const monatsStart = new Date(jahr, monat-1, 1);  // erster Tag
+  const monatsEnde  = new Date(jahr, monat, 0, 23, 59, 59); // letzter Tag des Monats
+  
+  const activeTenants = tenants.filter(t => {
+    const einzug = parseDate(t.einzug);
+    const auszug = parseDate(t.auszug);
+    
+    // Wenn kein Einzug-Datum → annehmen dass Mieter seit Anfang da ist (aber nur aktiv)
+    if (!einzug) {
+      return (t.status||"aktiv") === "aktiv";
+    }
+    
+    // Einzug muss vor/im Monat liegen
+    if (einzug > monatsEnde) return false;
+    
+    // Wenn Auszug-Datum existiert: muss ≥ Monatsanfang sein (sonst war Mieter vor diesem Monat schon weg)
+    if (auszug && auszug < monatsStart) return false;
+    
+    return true;
+  });
+  
+  // Helper: Erwartete Miete pro Mieter aus Room (auch für archivierte Mieter — über Mieter-Daten)
+  // Soll = Bruttomiete (Zimmer-Miete + 25 CHF Strom) + Kautions-Aufschlag (falls vorhanden)
   function getExpectedMiete(tenant) {
-    const room = rooms.find(r => r.tenantId === tenant.id) || rooms.find(r => r.id === tenant.roomId);
-    if (!room) return 0;
-    // Bruttomiete = Zimmermiete + 25 CHF Strom (laut System)
-    return (+room.miete || 0) + 25;
+    let bruttomiete = 0;
+    
+    // Zuerst aktuelles Zimmer (für aktive Mieter)
+    let room = rooms.find(r => r.tenantId === tenant.id);
+    // Fallback: tenant.roomId (für archivierte Mieter — Zimmer-Verknüpfung ist gelöst aber roomId bleibt evtl)
+    if (!room && tenant.roomId) {
+      room = rooms.find(r => r.id === tenant.roomId);
+    }
+    if (room) {
+      bruttomiete = (+room.miete || 0) + 25;
+    } else if (tenant.kautionBetrag && tenant.kautionMonate) {
+      // Letzter Fallback für archivierte: aus Kautions-Betrag rückrechnen
+      bruttomiete = Math.round((+tenant.kautionBetrag || 0) / (+tenant.kautionMonate || 3));
+    }
+    
+    // Kautions-Aufschlag dazurechnen (monatlicher Aufpreis bei reduzierter Kaution)
+    const aufschlag = +tenant.kautionAufschlag || 0;
+    
+    return bruttomiete + aufschlag;
   }
   
   // Helper: Payment für Mieter + Monat
@@ -5994,6 +6044,18 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
     const soll = getExpectedMiete(t);
     const room = rooms.find(r => r.tenantId === t.id) || rooms.find(r => r.id === t.roomId);
     const apt = room ? apts.find(a => a.id === room.aptId) : null;
+    // Teilmonat-Erkennung: Einzug oder Auszug im aktuellen Monat?
+    const einzug = parseDate(t.einzug);
+    const auszug = parseDate(t.auszug);
+    const isPartialMonth =
+      (einzug && einzug >= monatsStart && einzug <= monatsEnde) ||
+      (auszug && auszug >= monatsStart && auszug <= monatsEnde);
+    let partialNote = "";
+    if (einzug && einzug >= monatsStart && einzug <= monatsEnde) {
+      partialNote = `Einzug ${fmtDateDE(t.einzug)}`;
+    } else if (auszug && auszug >= monatsStart && auszug <= monatsEnde) {
+      partialNote = `Auszug ${fmtDateDE(t.auszug)}`;
+    }
     return {
       tenant: t,
       room,
@@ -6001,6 +6063,8 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
       payment: p,
       soll,
       status: p?.status || "offen",
+      isPartialMonth,
+      partialNote,
     };
   });
   
@@ -6148,13 +6212,22 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <Av name={row.tenant.vorname} size={32}/>
                         <div>
-                          <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{row.tenant.vorname} {row.tenant.nachname}</div>
-                          <div style={{fontSize:10.5,color:"#8a8174"}}>{row.tenant.id}{row.tenant.owner && ` · 👤 ${row.tenant.owner}`}</div>
+                          <div style={{fontSize:13,fontWeight:600,color:"#1a1814",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                            <span>{row.tenant.vorname} {row.tenant.nachname}</span>
+                            {row.tenant.status==="archiviert" && <span style={{fontSize:9,fontWeight:600,padding:"1.5px 6px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIV</span>}
+                            {row.isPartialMonth && <span style={{fontSize:9,fontWeight:600,padding:"1.5px 6px",borderRadius:3,background:"#fdf2e0",color:"#7a5c3c",letterSpacing:".05em"}}>TEILMONAT</span>}
+                          </div>
+                          <div style={{fontSize:10.5,color:"#8a8174"}}>{row.tenant.id}{row.tenant.owner && ` · 👤 ${row.tenant.owner}`}{row.partialNote && ` · ${row.partialNote}`}</div>
                         </div>
                       </div>
                     </td>
                     <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.room?.id || "—"}<div style={{fontSize:10.5,color:"#8a8174"}}>{row.apt?.adresse || ""}</div></td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>CHF {row.soll.toLocaleString("de-CH")}</td>
+                    <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>
+                      CHF {row.soll.toLocaleString("de-CH")}
+                      {(+row.tenant.kautionAufschlag||0)>0 && (
+                        <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH")} Aufschlag</div>
+                      )}
+                    </td>
                     <td style={{padding:"12px 10px",textAlign:"center"}}>
                       {row.status === "bezahlt" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#e8efde",color:"#3a5230",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>✓ Bezahlt</span>}
                       {row.status === "offen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fbeae6",color:"#8a3a2e",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Offen</span>}
@@ -6267,11 +6340,31 @@ function MainApp() {
   const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,zahlungen:Zahlungen}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
-  // Offene Zahlungen für aktuellen Monat zählen
+  // Offene Zahlungen für aktuellen Monat zählen (mit korrekter Einzug/Auszug-Logik)
   const now2 = new Date();
-  const aktiveT = data.tenants.filter(t => (t.status||"aktiv") === "aktiv");
-  const offeneZahlungen = aktiveT.filter(t => {
-    const p = data.payments.find(pay => pay.tenantId === t.id && pay.jahr === now2.getFullYear() && pay.monat === now2.getMonth()+1);
+  const aktJ = now2.getFullYear();
+  const aktM = now2.getMonth() + 1;
+  const monatsStart2 = new Date(aktJ, aktM-1, 1);
+  const monatsEnde2 = new Date(aktJ, aktM, 0, 23, 59, 59);
+  const parseDate2 = (s) => {
+    if (!s) return null;
+    const str = String(s).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return new Date(str);
+    const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+    const d = new Date(str);
+    return isNaN(d) ? null : d;
+  };
+  const relevantTenants = data.tenants.filter(t => {
+    const einzug = parseDate2(t.einzug);
+    const auszug = parseDate2(t.auszug);
+    if (!einzug) return (t.status||"aktiv") === "aktiv";
+    if (einzug > monatsEnde2) return false;
+    if (auszug && auszug < monatsStart2) return false;
+    return true;
+  });
+  const offeneZahlungen = relevantTenants.filter(t => {
+    const p = data.payments.find(pay => pay.tenantId === t.id && pay.jahr === aktJ && pay.monat === aktM);
     return !p || p.status === "offen";
   }).length;
 
