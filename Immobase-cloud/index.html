@@ -2963,8 +2963,12 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
             {wgApts.map(a=>{
               const rs=rooms.filter(r=>r.aptId===a.id);
               const aOcc=rs.filter(r=>r.occupied).length;
-              const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
-              const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0);
+              // Strom: CHF 25 pro Zimmer (Pauschale)
+              const aStromIst = aOcc * 25;                  // bei aktueller Belegung
+              const aStromMax = rs.length * 25;             // bei Vollbelegung
+              // Einnahmen IMMER inkl. Strom
+              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + aStromIst;
+              const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax;
               // Kautionsaufschläge pro Wohnung: alle Mieter deren Zimmer in dieser Wohnung sind
               // WICHTIG: Über rooms.tenantId suchen (das ist der echte Foreign Key)
               // Archivierte Mieter ausschliessen
@@ -2992,13 +2996,11 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                   }
                   return s + auf;
                 }, 0);
-              // Marge IST/MAX: PUR ohne Aufschlag (Aufschlag separat ausgewiesen)
+              // Marge IST/MAX: Einnahmen (inkl. Strom) - Ausgaben, OHNE Aufschlag (bleibt separat)
               const aMargeIst = aIst - (+a.miete||0);
               const aMargeMax = aMax - (+a.miete||0);
-              // Strom-Einnahmen: CHF 25 pro belegtem Zimmer (Pauschale)
-              const aStrom = aOcc * 25;
-              // Marge Total: Marge Ist + Aufschlag + Strom-Pauschale = "alles inklusive"
-              const aMargeTotal = aMargeIst + aAufschlag + aStrom;
+              // Marge Total: Marge MAX + Aufschlag = "alles inklusive bei Vollbelegung"
+              const aMargeTotal = aMargeMax + aAufschlag;
               return (
                 <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                   <td style={{fontWeight:600}}>{a.id}</td>
@@ -3026,12 +3028,16 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
             <tr style={{borderTop:"2px solid #1a1814"}}>
               <td colSpan={4} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:wgMargeIst>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>+{chf(totalAufschlagMonat)}</td>
-              <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst+totalAufschlagMonat+wgOcc*25)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst+totalAufschlagMonat+wgOcc*25)>=0?"+":""}{chf(wgMargeIst+totalAufschlagMonat+wgOcc*25)}</td>
+              {/* Einnahmen IST/MAX: inkl. Strom, ohne Aufschlag (Aufschlag steht separat) */}
+              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst - wgAufschlag)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax - wgAufschlag)}</td>
+              {/* Marge IST/MAX: ohne Aufschlag, mit Strom */}
+              <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst-wgAufschlag)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst-wgAufschlag)>=0?"+":""}{chf(wgMargeIst - wgAufschlag)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax - wgAufschlag)}</td>
+              {/* Aufschlag: separat */}
+              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>+{chf(wgAufschlag)}</td>
+              {/* Marge Total: Marge MAX + Aufschlag = alles inklusive bei Vollbelegung */}
+              <td style={{textAlign:"right",fontWeight:700,color:wgMargeMax>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{wgMargeMax>=0?"+":""}{chf(wgMargeMax)}</td>
               <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{wgAuslastung}%</span></td>
             </tr>
           </tfoot>
