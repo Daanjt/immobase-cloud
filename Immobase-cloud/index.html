@@ -2793,14 +2793,28 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
     return { color:"#5a6e4a", bg:"#e8eadb", border:"#c5cda8", label:"Auszug in ~3 Monaten", icon:"🟢", action:"Verlängerung anbieten oder Nachmieter suchen" };
   }
   
-  // WG calculations
+  // WG calculations — IMMER inkl. Strom (CHF 25/belegtem Zimmer) und Kautions-Aufschlag
   const wgAusgaben = wgApts.reduce((s,a)=>s+(+a.miete||0),0);
-  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
-  const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0);
+  
+  // Strom: CHF 25 pro belegtem Zimmer (Pauschale)
+  const wgOcc = wgRooms.filter(r=>r.occupied).length;
+  const wgStromIst = wgOcc * 25;
+  const wgStromMax = wgRooms.length * 25; // bei Vollbelegung
+  
+  // Aufschlag: Summe aller monatlichen Kautions-Aufschläge der aktiven Mieter in den WGs
+  const wgTenantIds = new Set(wgRooms.filter(r=>r.tenantId).map(r=>r.tenantId));
+  const wgAufschlag = tenants
+    .filter(t => (t.status||"aktiv") === "aktiv")
+    .filter(t => wgTenantIds.has(t.id))
+    .reduce((s,t) => s + (+t.kautionAufschlag || 0), 0);
+  
+  // Einnahmen = Zimmer-Miete + Strom + Aufschlag (alles inkl.)
+  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + wgStromIst + wgAufschlag;
+  const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0) + wgStromMax + wgAufschlag;
+  
   const wgMargeIst = wgEinnahmenIst - wgAusgaben;
   const wgMargeMax = wgEinnahmenMax - wgAusgaben;
   const wgLeerstand = wgEinnahmenMax - wgEinnahmenIst;
-  const wgOcc = wgRooms.filter(r=>r.occupied).length;
   const wgFree = wgRooms.filter(r=>!r.occupied);
   const wgAuslastung = wgRooms.length ? Math.round(wgOcc/wgRooms.length*100) : 0;
   
