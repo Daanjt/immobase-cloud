@@ -5454,6 +5454,8 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({});
   const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
+  const [changingRoom,setChangingRoom]=useState(null); // tenant whose room is being changed
+  const [newRoomId,setNewRoomId]=useState("");
   
   // Auto-select target tenant when navigated from another tab
   useEffect(() => {
@@ -5647,6 +5649,45 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
     return true;
   }
   
+  // Zimmer-Wechsel: aktiven Mieter zu anderem Zimmer verschieben
+  async function executeRoomChange() {
+    if (!changingRoom || !newRoomId) return;
+    const t = changingRoom;
+    const newRoom = rooms.find(r => r.id === newRoomId);
+    if (!newRoom) { alert("Neues Zimmer nicht gefunden."); return; }
+    
+    const oldRoom = rooms.find(r => r.tenantId === t.id) || (t.roomId ? rooms.find(r => r.id === t.roomId) : null);
+    
+    // Falls neues Zimmer schon belegt ist (von anderem Mieter) → Tausch-Frage
+    if (newRoom.occupied && newRoom.tenantId && newRoom.tenantId !== t.id) {
+      const occupant = tenants.find(x => x.id === newRoom.tenantId);
+      const occupantName = occupant ? `${occupant.vorname} ${occupant.nachname} (${occupant.id})` : `Mieter ${newRoom.tenantId}`;
+      const confirmMsg = `⚠ Das Zimmer ${newRoom.id} ist bereits belegt von ${occupantName}.\n\nMöchtest du die Zimmer TAUSCHEN? ${occupantName} würde dann in ${oldRoom?.id || "das aktuelle"} Zimmer ziehen.`;
+      if (!confirm(confirmMsg)) return;
+      // TAUSCH: occupant in altes Zimmer
+      if (oldRoom) {
+        await updateRoom(oldRoom.id, {tenantId: occupant.id, occupied: true});
+        if (occupant) await updateTenant(occupant.id, {aptId: oldRoom.aptId, roomId: oldRoom.id});
+      } else {
+        // Aktueller Mieter hatte kein altes Zimmer → occupant rausnehmen
+        if (occupant) await updateTenant(occupant.id, {aptId: null, roomId: null});
+      }
+    } else if (oldRoom) {
+      // Altes Zimmer freigeben (kein Tausch)
+      await updateRoom(oldRoom.id, {tenantId: null, occupied: false});
+    }
+    
+    // Neues Zimmer belegen mit aktuellem Mieter
+    await updateRoom(newRoom.id, {tenantId: t.id, occupied: true});
+    
+    // Mieter-Datensatz updaten
+    await updateTenant(t.id, {aptId: newRoom.aptId, roomId: newRoom.id});
+    
+    setChangingRoom(null);
+    setNewRoomId("");
+    alert(`✓ ${t.vorname} ${t.nachname} ist jetzt in Zimmer ${newRoom.id} (${apts.find(a=>a.id===newRoom.aptId)?.adresse||""}).`);
+  }
+  
   async function save(){
     if (!validateForm()) return;
     // ID-Änderung erkennen und ggf. durchführen
@@ -5738,6 +5779,9 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}{tenant.status==="archiviert"&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIVIERT</span>}</div></div></div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
+                {tenant.status!=="archiviert" && (
+                  <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
+                )}
                 {tenant.status==="archiviert" ? (
                   <button className="btn btn-p btn-sm" onClick={async()=>{
                     if (!confirm(`${tenant.vorname} ${tenant.nachname} wieder als aktiven Mieter reaktivieren?\n\nDanach kannst du ihn/sie einem Zimmer zuteilen.`)) return;
@@ -5892,6 +5936,85 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
 
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
       </div></div>}
+
+      {/* ZIMMER-WECHSEL MODAL */}
+      {changingRoom && (() => {
+        const currentRoom = rooms.find(r => r.tenantId === changingRoom.id) || (changingRoom.roomId ? rooms.find(r => r.id === changingRoom.roomId) : null);
+        // Alle Zimmer ausser dem aktuellen
+        const availableRooms = rooms.filter(r => r.id !== currentRoom?.id);
+        // Gruppe: Freie zuerst, dann belegte
+        const freie = availableRooms.filter(r => !r.occupied);
+        const belegte = availableRooms.filter(r => r.occupied);
+        return (
+          <div className="ov" onClick={e=>e.target===e.currentTarget&&setChangingRoom(null)}>
+            <div className="modal" style={{width:580,maxHeight:"90vh",overflowY:"auto"}}>
+              <div className="mt">🔄 Zimmer wechseln</div>
+              <div style={{fontSize:13,color:"#4a4439",marginBottom:6}}>
+                <strong>{changingRoom.vorname} {changingRoom.nachname}</strong> ({changingRoom.id})
+              </div>
+              {currentRoom && (
+                <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14}}>
+                  Aktuell: <strong>{currentRoom.id}</strong> · {apts.find(a=>a.id===currentRoom.aptId)?.adresse||""}
+                </div>
+              )}
+              
+              <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Neues Zimmer wählen</div>
+              
+              {freie.length === 0 && belegte.length === 0 ? (
+                <div className="empty">Keine anderen Zimmer vorhanden</div>
+              ) : (
+                <div style={{maxHeight:380,overflowY:"auto"}}>
+                  {freie.length > 0 && (
+                    <>
+                      <div style={{fontSize:10.5,color:"#5a6e4a",fontWeight:600,padding:"8px 4px 6px",letterSpacing:".05em"}}>✓ FREIE ZIMMER ({freie.length})</div>
+                      {freie.map(r => {
+                        const apt = apts.find(a => a.id === r.aptId);
+                        const sel = newRoomId === r.id;
+                        return (
+                          <label key={r.id} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",marginBottom:6}} onClick={()=>setNewRoomId(r.id)}>
+                            <input type="radio" name="newroom" checked={sel} readOnly/>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:13,fontWeight:600}}>{r.id} <span style={{fontWeight:400,color:"#8a8174"}}>· {apt?.adresse||"—"}</span></div>
+                              <div style={{fontSize:11,color:"#8a8174"}}>CHF {(+r.miete||0).toLocaleString("de-CH")}/Monat · {r.qm?`${r.qm} m²`:"k.A."}</div>
+                            </div>
+                            <span style={{fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8efde",color:"#3a5230",letterSpacing:".05em"}}>FREI</span>
+                          </label>
+                        );
+                      })}
+                    </>
+                  )}
+                  {belegte.length > 0 && (
+                    <>
+                      <div style={{fontSize:10.5,color:"#9b4a3e",fontWeight:600,padding:"14px 4px 6px",letterSpacing:".05em"}}>⚠ BELEGTE ZIMMER ({belegte.length})</div>
+                      <div style={{fontSize:11,color:"#8a8174",fontStyle:"italic",marginBottom:8,padding:"0 4px"}}>Bei Auswahl: Tausch-Option (anderer Mieter zieht ins aktuelle Zimmer)</div>
+                      {belegte.map(r => {
+                        const apt = apts.find(a => a.id === r.aptId);
+                        const occupant = tenants.find(x => x.id === r.tenantId);
+                        const sel = newRoomId === r.id;
+                        return (
+                          <label key={r.id} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",marginBottom:6}} onClick={()=>setNewRoomId(r.id)}>
+                            <input type="radio" name="newroom" checked={sel} readOnly/>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:13,fontWeight:600}}>{r.id} <span style={{fontWeight:400,color:"#8a8174"}}>· {apt?.adresse||"—"}</span></div>
+                              <div style={{fontSize:11,color:"#8a8174"}}>{occupant?`Belegt von ${occupant.vorname} ${occupant.nachname} (${occupant.id})`:"belegt"}</div>
+                            </div>
+                            <span style={{fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#fbeae6",color:"#8a3a2e",letterSpacing:".05em"}}>BELEGT</span>
+                          </label>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              )}
+              
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>{setChangingRoom(null);setNewRoomId("");}}>Abbrechen</button>
+                <button className="btn btn-p" onClick={executeRoomChange} disabled={!newRoomId}>✓ Verschieben</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {adding&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAdding(false)}><div className="modal" style={{width:640,maxHeight:"90vh",overflowY:"auto"}}>
         <div className="mt">+ Neuer Mieter manuell anlegen</div>
