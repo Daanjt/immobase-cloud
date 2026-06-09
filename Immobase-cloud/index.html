@@ -2718,7 +2718,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
+function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom}){
   const heute=new Date();
   
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
@@ -2753,7 +2753,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
   
   // ─── AUSZUGS-REMINDER ──────────────────────────────────────────
   // Mieter die in den nächsten 3 Monaten ausziehen (sortiert nach Datum)
+  // Archivierte Mieter werden ausgeblendet (Banner verschwindet nach "✓ Erledigt")
   const reminders = tenants
+    .filter(t => (t.status||"aktiv") === "aktiv")
     .filter(t => t.auszug && t.auszug.trim())
     .map(t => {
       const dt = parseD(t.auszug);
@@ -2791,6 +2793,37 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
     if (daysLeft <= 30) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Auszug in 1 Monat", icon:"🟠", action:"Nachmieter zuteilen · Übergabetermin vereinbaren" };
     if (daysLeft <= 60) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Auszug in 2 Monaten", icon:"🟡", action:"Inserat schalten · Bewerber suchen" };
     return { color:"#5a6e4a", bg:"#e8eadb", border:"#c5cda8", label:"Auszug in ~3 Monaten", icon:"🟢", action:"Verlängerung anbieten oder Nachmieter suchen" };
+  }
+  
+  // ─── ERLEDIGT-AKTION ──────────────────────────────────────────
+  // Archiviert einen Mieter (z.B. nach erfolgter Übergabe). Banner verschwindet,
+  // weil reminders archivierte Mieter ausschliesst. Zimmer wird automatisch frei.
+  async function archiveAndDismiss(tenant) {
+    if (!tenant || !updateTenant) return;
+    const ok = window.confirm(
+      `${tenant.vorname} ${tenant.nachname} archivieren?\n\n` +
+      `→ Mieter wird ins Archiv verschoben (alte Mieter)\n` +
+      `→ Zimmer wird freigegeben\n` +
+      `→ Banner verschwindet aus dem Dashboard\n\n` +
+      `Daten + Dokumente bleiben erhalten. Du findest den Mieter unter "📦 Alte Mieter".`
+    );
+    if (!ok) return;
+    try {
+      // Zimmer freigeben (falls verknüpft)
+      const myRoom = rooms.find(r => r.tenantId === tenant.id);
+      if (myRoom && updateRoom) {
+        await updateRoom(myRoom.id, {tenantId: null, occupied: false});
+      }
+      // Mieter archivieren
+      await updateTenant(tenant.id, {
+        status: "archiviert",
+        archivedAt: new Date().toISOString(),
+        auszug: tenant.auszug || new Date().toLocaleDateString("de-CH"),
+      });
+    } catch (e) {
+      console.error("Archivieren fehlgeschlagen:", e);
+      alert("Archivieren fehlgeschlagen. Bitte erneut versuchen.");
+    }
   }
   
   // WG calculations — IMMER inkl. Strom (CHF 25/belegtem Zimmer) und Kautions-Aufschlag
@@ -2906,6 +2939,19 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo}){
                         title={`Nachmieter für ${r.room?.id} suchen/zuteilen`}
                       >🏠 Nachmieter zuteilen</button>
                     )}
+                    <button
+                      onClick={(e)=>{e.stopPropagation();archiveAndDismiss(r.tenant);}}
+                      style={{
+                        background:"#5a6e4a",color:"#fefcf7",
+                        border:"none",borderRadius:6,
+                        padding:"7px 10px",
+                        fontSize:11,fontWeight:600,
+                        cursor:"pointer",
+                        letterSpacing:".02em",
+                        whiteSpace:"nowrap"
+                      }}
+                      title={r.aptEndsToo ? "Wohnung abgegeben — Mieter archivieren" : "Übergabe erfolgt — Mieter archivieren (Banner verschwindet)"}
+                    >✓ Erledigt</button>
                     <button
                       onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",r.tenant.id);}}
                       style={{
