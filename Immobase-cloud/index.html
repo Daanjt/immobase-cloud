@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>ImmoBase — D&T Homes</title>
+<title>ImmoBase - D&T Homes</title>
 
 <!-- PWA Manifest + Theme -->
 <link rel="manifest" href="/manifest.json">
@@ -241,7 +241,7 @@ a:hover{border-bottom-color:var(--gold)}
     box-shadow: 4px 0 24px rgba(0,0,0,.15);
   }
   
-  /* Mobile menu button (hamburger) — visible only on mobile */
+  /* Mobile menu button (hamburger) - visible only on mobile */
   .mobile-menu-btn {
     display: flex !important;
     position: fixed;
@@ -938,7 +938,7 @@ function formatGroesse(input) {
   if (!str) return "";
   // Extract just the numeric value
   const match = str.match(/^(\d+(?:[.,]\d+)?)/);
-  if (!match) return str; // No number found — return as-is
+  if (!match) return str; // No number found - return as-is
   const num = match[1].replace(",", ".");
   return `${num} m²`;
 }
@@ -1247,8 +1247,8 @@ function useSupabaseData() {
     
     if (toArchive.length === 0) return;
     
-    // Frage einmalig nach (statt für jeden einzeln) — User behält Kontrolle
-    const list = toArchive.map(x => `• ${x.tenant.vorname} ${x.tenant.nachname} (${x.tenant.id}) — ${x.reason}`).join("\n");
+    // Frage einmalig nach (statt für jeden einzeln) - User behält Kontrolle
+    const list = toArchive.map(x => `• ${x.tenant.vorname} ${x.tenant.nachname} (${x.tenant.id}) - ${x.reason}`).join("\n");
     const confirmed = window.confirm(
       `📦 Auto-Archivierung\n\n${toArchive.length} Mieter sollte${toArchive.length>1?"n":""} archiviert werden:\n\n${list}\n\nJetzt automatisch archivieren? (Daten + Dokumente bleiben erhalten, Zimmer werden freigegeben)`
     );
@@ -1752,25 +1752,53 @@ function useSupabaseData() {
     await supabase.from("documents").delete().eq("id", doc.id);
     setDocuments(p => p.filter(d => d.id !== doc.id));
   }
+  
+  // Bewerber-Dokumente zu Mieter migrieren (beim Zuteilen)
+  // entity_type: applicant → tenant, entity_id: bewerber_id → tenant_id
+  // Storage path bleibt wie es ist (bucket+pfad sind nur Referenzen)
+  async function migrateDocumentsToTenant(bewerberId, tenantId) {
+    const { data, error } = await supabase
+      .from("documents")
+      .update({ entity_type: "tenant", entity_id: tenantId })
+      .eq("entity_type", "applicant")
+      .eq("entity_id", String(bewerberId))
+      .select();
+    if (error) {
+      console.error("migrateDocumentsToTenant error:", error);
+      return { migrated: 0, error };
+    }
+    // Lokalen State aktualisieren
+    setDocuments(prev => prev.map(d => {
+      if (d.entity_type === "applicant" && d.entity_id === String(bewerberId)) {
+        return { ...d, entity_type: "tenant", entity_id: tenantId };
+      }
+      return d;
+    }));
+    return { migrated: (data || []).length, error: null };
+  }
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
 const STOCKWERK_OPTIONS = ["EG","1. OG","2. OG","3. OG","4. OG","5. OG","6. OG"];
 
 const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Sonstige"];
-const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
+const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
 
 // Required categories that should be tracked in the checklist (excluding "Sonstige")
 const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"];
-const TENANT_REQUIRED = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug"];
+const TENANT_REQUIRED = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug"];
+const APPLICANT_REQUIRED = ["Pass / Ausweis","Betreibungsregister-Auszug"];
+
+// Bewerber/Applicant: gleiche Kategorien wie Tenant aber ohne Übergabeprotokoll/Kautionsbestätigung
+const APPLICANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Pass / Ausweis","Betreibungsregister-Auszug","Bewerbungsformular","Sonstige"];
 
 function DocumentChecklist({entityType, entityId, documents, onJumpToDocs}){
   const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
-  const categories = entityType === "apartment" ? APT_REQUIRED : TENANT_REQUIRED;
+  const categories = entityType === "apartment" ? APT_REQUIRED : (entityType === "applicant" ? APPLICANT_REQUIRED : TENANT_REQUIRED);
   const present = new Set(docs.map(d => d.category));
   const completed = categories.filter(c => present.has(c)).length;
   const total = categories.length;
@@ -1805,7 +1833,7 @@ function DocumentChecklist({entityType, entityId, documents, onJumpToDocs}){
 }
 
 function fileSize(bytes) {
-  if (!bytes) return "—";
+  if (!bytes) return "-";
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
   return (bytes/(1024*1024)).toFixed(1) + " MB";
@@ -1826,7 +1854,7 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = React.useRef(null);
   const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
-  const categories = entityType === "apartment" ? APT_CATEGORIES : TENANT_CATEGORIES;
+  const categories = entityType === "apartment" ? APT_CATEGORIES : (entityType === "applicant" ? APPLICANT_CATEGORIES : TENANT_CATEGORIES);
   
   async function uploadFile(file) {
     if (!file) return;
@@ -1923,7 +1951,7 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Neues Dokument hochladen</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <select className="fi" style={{flex:1,margin:0}} value={selCategory} onChange={e=>setSelCategory(e.target.value)}>
-            <option value="">— Kategorie wählen —</option>
+            <option value="">- Kategorie wählen -</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading||!selCategory} multiple style={{display:"none"}}/>
@@ -1947,7 +1975,7 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
           {dragOver 
             ? `🎯 Datei${" jetzt loslassen"}` 
             : selCategory 
-              ? `↓ Oder Datei(en) hierher ziehen — Kategorie: ${selCategory}` 
+              ? `↓ Oder Datei(en) hierher ziehen - Kategorie: ${selCategory}` 
               : "Erst Kategorie wählen, dann Datei(en) per Drag & Drop ablegen"}
         </div>
         <div style={{fontSize:10.5,color:"#8a8174",marginTop:6,fontStyle:"italic",textAlign:"center"}}>Max. 25 MB pro Datei · PDF, Bilder, Word, Excel</div>
@@ -1986,7 +2014,7 @@ const UEBERGABE_RAUME_GEMEIN = ["Küche","Badezimmer","Eingang / Korridor"];
 const ZUSTAND_OPTIONS = ["Sehr gut","Gut","Akzeptabel","Mangelhaft"];
 
 // ─── SIGNATURE PAD ────────────────────────────────────────────────
-// Canvas-basiertes Unterschriften-Pad — funktioniert mit Maus + Touch
+// Canvas-basiertes Unterschriften-Pad - funktioniert mit Maus + Touch
 function SignaturePad({value, onChange, placeholder}) {
   const canvasRef = React.useRef(null);
   const [isDrawing, setIsDrawing] = React.useState(false);
@@ -2335,14 +2363,14 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
           </div>
           ${photos.length > 0 ? `
             <div class="photo-grid">
-              ${photos.map((p,i)=>`<div class="photo-item"><img src="${p}" alt="Foto ${i+1}"/><div class="photo-cap">${titel} — Foto ${i+1}</div></div>`).join('')}
+              ${photos.map((p,i)=>`<div class="photo-item"><img src="${p}" alt="Foto ${i+1}"/><div class="photo-cap">${titel} - Foto ${i+1}</div></div>`).join('')}
             </div>
           ` : ''}
         </div>`;
     }).join('');
     
     return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Übergabeprotokoll — ${fullName}</title>
+<html lang="de"><head><meta charset="UTF-8"><title>Übergabeprotokoll - ${fullName}</title>
 <style>
   @page{size:A4;margin:18mm 18mm 22mm 18mm;@bottom-center{content:counter(page) " / " counter(pages);font-family:Arial;font-size:9pt;color:#888}}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -2407,22 +2435,22 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
 <div class="person-card">
   <div class="ph">Mieter*in</div>
   <div class="person-grid">
-    <span class="pl">Vorname:</span><span>${tenant.vorname||"—"}</span>
-    <span class="pl">Nachname:</span><span>${tenant.nachname||"—"}</span>
-    <span class="pl">E-Mail:</span><span>${tenant.email||"—"}</span>
-    <span class="pl">Telefon:</span><span>${tenant.phone||"—"}</span>
-    <span class="pl">Wohnung:</span><span>${apt?.adresse||"—"}, ${apt?.plz||""} ${apt?.ort||""}</span>
-    <span class="pl">Zimmer:</span><span>${room?.id||"—"}</span>
+    <span class="pl">Vorname:</span><span>${tenant.vorname||"-"}</span>
+    <span class="pl">Nachname:</span><span>${tenant.nachname||"-"}</span>
+    <span class="pl">E-Mail:</span><span>${tenant.email||"-"}</span>
+    <span class="pl">Telefon:</span><span>${tenant.phone||"-"}</span>
+    <span class="pl">Wohnung:</span><span>${apt?.adresse||"-"}, ${apt?.plz||""} ${apt?.ort||""}</span>
+    <span class="pl">Zimmer:</span><span>${room?.id||"-"}</span>
     <span class="pl">Einzug am:</span><span>${datumLong}</span>
-    <span class="pl">Mietbeginn:</span><span>${tenant.einzug||"—"}</span>
+    <span class="pl">Mietbeginn:</span><span>${tenant.einzug||"-"}</span>
   </div>
 </div>
 
 <div class="info-section">
   <h3>Schlüsselübergabe</h3>
   <div class="row">
-    <div><span class="lbl">Schlüsselnummer:</span> ${schluesselNr||"—"}</div>
-    <div><span class="lbl">Extra-Schlüssel:</span> ${extraSchluessel||"—"}</div>
+    <div><span class="lbl">Schlüsselnummer:</span> ${schluesselNr||"-"}</div>
+    <div><span class="lbl">Extra-Schlüssel:</span> ${extraSchluessel||"-"}</div>
   </div>
 </div>
 
@@ -2544,7 +2572,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                     )}
                   </div>
                   <div style={{fontSize:10.5,color:"#8a8174",lineHeight:1.5}}>
-                    📷 {photoCount} Foto{photoCount!==1?"s":""} · 🔑 {p.schluesselNr || "—"} 
+                    📷 {photoCount} Foto{photoCount!==1?"s":""} · 🔑 {p.schluesselNr || "-"} 
                     {p.signedAt && <> · Unterschrieben: {fmtDateDE(p.signedAt)}</>}
                   </div>
                 </div>
@@ -2662,7 +2690,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         <textarea className="fi" rows={3} value={data.bemerkungen} onChange={e=>setData(p=>({...p,bemerkungen:e.target.value}))} placeholder="Weitere Notizen oder Vereinbarungen..."/>
       </div>
       
-      {/* UNTERSCHRIFTEN — nur sichtbar wenn man ein gespeichertes Protokoll bearbeitet (vor Ort) */}
+      {/* UNTERSCHRIFTEN - nur sichtbar wenn man ein gespeichertes Protokoll bearbeitet (vor Ort) */}
       {editingId ? (
         <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,marginTop:14}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:14,fontWeight:500}}>✍️ Unterschriften (vor Ort)</div>
@@ -2687,7 +2715,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         </div>
       ) : (
         <div style={{background:"#f5f0e6",border:"1px dashed #d4c7a8",borderRadius:8,padding:"12px 14px",marginTop:14,fontSize:11.5,color:"#8a7e5e",lineHeight:1.5,textAlign:"center"}}>
-          ✍️ <strong>Unterschriften kommen später</strong> — speichere erst die Übergabe. Vor Ort kannst du sie öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
+          ✍️ <strong>Unterschriften kommen später</strong> - speichere erst die Übergabe. Vor Ort kannst du sie öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
         </div>
       )}
       
@@ -2731,7 +2759,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   
   // ─── KAUTIONS-AUFSCHLÄGE ───────────────────────────────────────
   // Mieter, die einen monatlichen Aufschlag wegen reduzierter Kaution zahlen
-  // (archivierte Mieter ausschliessen — sie zahlen nicht mehr)
+  // (archivierte Mieter ausschliessen - sie zahlen nicht mehr)
   const aufschlagMieter = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
@@ -2786,7 +2814,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       if (daysLeft < 0) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Wohnung geräumt", icon:"📦", action:"Übergabe an Eigentümer · Schlüssel zurück" };
       if (daysLeft <= 7) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Räumung diese Woche", icon:"📦", action:"Wohnung räumen · Übergabe an Eigentümer/Verwaltung" };
       if (daysLeft <= 30) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Räumung in 1 Monat", icon:"📦", action:"Räumungstermin koordinieren · Hauptmieter-Übergabe planen" };
-      return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Wohnung läuft aus", icon:"📦", action:"Ganze Wohnung wird abgegeben — kein Nachmieter nötig" };
+      return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Wohnung läuft aus", icon:"📦", action:"Ganze Wohnung wird abgegeben - kein Nachmieter nötig" };
     }
     // Standard: Nachmieter nötig
     if (daysLeft < 0) return { color:"#9b4a3e", bg:"#fdebe5", border:"#e0bcb0", label:"Auszug überfällig", icon:"⚠️", action:"Übergabe + Schlüsselübergabe!" };
@@ -2827,7 +2855,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     }
   }
   
-  // WG calculations — IMMER inkl. Strom (CHF 25/belegtem Zimmer) und Kautions-Aufschlag
+  // WG calculations - IMMER inkl. Strom (CHF 25/belegtem Zimmer) und Kautions-Aufschlag
   const wgAusgaben = wgApts.reduce((s,a)=>s+(+a.miete||0),0);
   
   // Strom: CHF 25 pro belegtem Zimmer (Pauschale)
@@ -2855,7 +2883,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   // Airbnb calculations (whole apt = 1 unit, no rooms)
   const abAusgaben = airbnbApts.reduce((s,a)=>s+(+a.miete||0),0);
   // For Airbnb income we assume the apt rent IS the cost; income comes from bookings (data not in system yet)
-  // For now: Airbnb is shown as cost only — income tracking future feature
+  // For now: Airbnb is shown as cost only - income tracking future feature
   
   // Total
   const totalAusgaben = wgAusgaben + abAusgaben;
@@ -2871,7 +2899,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       <div className="pt">Dashboard</div>
       <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
 
-      {/* TOTAL OVERVIEW — 3-column hero */}
+      {/* TOTAL OVERVIEW - 3-column hero */}
       <div className="dash-hero" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
         <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Total Ausgaben / Mt.</div>
@@ -2916,7 +2944,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                     <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{r.daysLeft < 0 ? `${Math.abs(r.daysLeft)} T. überfällig` : `in ${r.daysLeft} Tagen`}</div>
                   </div>
                   <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{r.tenant.vorname} {r.tenant.nachname}</div>
-                  <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}>{r.room?.id||"—"} · {r.apt?.adresse||"—"} · {r.tenant.auszug}</div>
+                  <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}>{r.room?.id||"-"} · {r.apt?.adresse||"-"} · {r.tenant.auszug}</div>
                   {r.aptEndsToo && (
                     <div style={{fontSize:10,color:"#5a5a5a",background:"rgba(0,0,0,.05)",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block",fontWeight:600,letterSpacing:".02em"}}>
                       📅 Hauptmietvertrag endet {r.apt?.mietende}
@@ -2951,7 +2979,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                         letterSpacing:".02em",
                         whiteSpace:"nowrap"
                       }}
-                      title={r.aptEndsToo ? "Wohnung abgegeben — Mieter archivieren" : "Übergabe erfolgt — Mieter archivieren (Banner verschwindet)"}
+                      title={r.aptEndsToo ? "Wohnung abgegeben - Mieter archivieren" : "Übergabe erfolgt - Mieter archivieren (Banner verschwindet)"}
                     >✓ Erledigt</button>
                     <button
                       onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",r.tenant.id);}}
@@ -2985,9 +3013,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;120 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
 
-      {/* PER-APARTMENT FINANCE BREAKDOWN — separated WG / Airbnb */}
+      {/* PER-APARTMENT FINANCE BREAKDOWN - separated WG / Airbnb */}
       <div className="card finance-card-compact" style={{marginBottom:24}}>
-        <div className="ct">Finanzübersicht — WG-Wohnungen</div>
+        <div className="ct">Finanzübersicht - WG-Wohnungen</div>
         <div className="finance-scroll-table-wrap">
         <div className="finance-scroll-table">
         <table>
@@ -3052,14 +3080,14 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
                   <td style={{fontWeight:600}}>{a.id}</td>
                   <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
-                  <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"—"}</td>
-                  <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"—"}</td>
+                  <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"-"}</td>
+                  <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"-"}</td>
                   <td data-label="Kosten" style={{textAlign:"right"}}>{chf(a.miete)}</td>
                   <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
                   <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
-                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"—"}</td>
+                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
                   <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
                   <td data-label="Belegung" style={{minWidth:120}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3094,8 +3122,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       </div>
 
       <div className="card finance-card-compact" style={{marginBottom:24}}>
-        <div className="ct">Finanzübersicht — Airbnb-Wohnungen</div>
-        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>Einnahmen aus Buchungen werden nicht im System getrackt — nur Kosten zur Eigentümerin.</div>
+        <div className="ct">Finanzübersicht - Airbnb-Wohnungen</div>
+        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>Einnahmen aus Buchungen werden nicht im System getrackt - nur Kosten zur Eigentümerin.</div>
         <div className="finance-scroll-table-wrap">
         <div className="finance-scroll-table">
         <table>
@@ -3136,7 +3164,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
           </div>
           {bewerber.length===0?<div className="empty">Noch keine Bewerbungen</div>:bewerber.slice(0,5).map(b=>(
             <div key={b.id} onClick={()=>navigateTo&&navigateTo("bewerber",b.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,cursor:"pointer",padding:"6px 8px",margin:"-6px -8px 5px",borderRadius:6,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#f5efe4"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#8a8478"}}>{b.eingereichtAm} · {b.type||"—"}</div></div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#8a8478"}}>{b.eingereichtAm} · {b.type||"-"}</div></div></div>
               <StatusBdg status={b.status}/>
             </div>
           ))}
@@ -3170,11 +3198,11 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               {aufschlagMieter.map(({tenant:t,room,apt,aufschlag}) => (
                 <tr key={t.id} onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{borderTop:"1px solid #f0e9d8",cursor:"pointer"}}>
                   <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}>{t.vorname} {t.nachname}</td>
-                  <td style={{padding:"8px",color:"#4a4439"}}>{apt?apt.id+" — "+apt.adresse:"—"}</td>
-                  <td style={{padding:"8px",color:"#4a4439"}}>{room?.id||"—"}</td>
+                  <td style={{padding:"8px",color:"#4a4439"}}>{apt?apt.id+" - "+apt.adresse:"-"}</td>
+                  <td style={{padding:"8px",color:"#4a4439"}}>{room?.id||"-"}</td>
                   <td style={{padding:"8px"}}>
                     <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>
-                      {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"—"}
+                      {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"-"}
                     </span>
                   </td>
                   <td style={{padding:"8px",textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>+{chf(aufschlag)}</td>
@@ -3210,7 +3238,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
                         <div style={{minWidth:0,flex:1}}>
                           <div style={{fontSize:12,fontWeight:600,color:"#1a1814"}}>{apt?.id || "Ohne Wohnung"}</div>
-                          <div style={{fontSize:10.5,color:"#8a8174",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{apt?.adresse || "—"}</div>
+                          <div style={{fontSize:10.5,color:"#8a8174",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{apt?.adresse || "-"}</div>
                           <div style={{fontSize:10,color:"#bab2a0",marginTop:2}}>{count} Mieter</div>
                         </div>
                         <div style={{fontSize:14,fontWeight:600,color:"#5a6e4a",whiteSpace:"nowrap"}}>+{chf(total)}</div>
@@ -3228,7 +3256,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
 }
 
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
-function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget}){
+function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant}){
   const [sel,setSel]=useState(null);
   const [zuteilModal,setZuteilModal]=useState(false);
   const [selZimmer,setSelZimmer]=useState(null);
@@ -3314,6 +3342,17 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     await insertTenant(newTenant);
     await updateRoom(selZimmer,{occupied:true,tenantId:newId});
     await updateBewerber(b.id,{status:"Zugeteilt",zugeteiltes_zimmer:selZimmer});
+    
+    // Dokumente vom Bewerber zum Mieter migrieren (applicant → tenant)
+    if (migrateDocumentsToTenant) {
+      try {
+        const res = await migrateDocumentsToTenant(b.id, newId);
+        if (res.migrated > 0) console.log(`${res.migrated} Dokument(e) migriert: applicant/${b.id} → tenant/${newId}`);
+      } catch (e) {
+        console.error("Dokument-Migration fehlgeschlagen:", e);
+      }
+    }
+    
     setZuteilModal(false);setSelZimmer(null);setSel(null);
   }
 
@@ -3385,7 +3424,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     let subject, body;
     
     if (type === "vertrag") {
-      subject = `Untermietvertrag — ${adresse} (${zimmerId}) | D&T Homes`;
+      subject = `Untermietvertrag - ${adresse} (${zimmerId}) | D&T Homes`;
       body = `Liebe/r ${b.vorname || fullName}
 
 Vielen Dank für dein Interesse an unserer Wohnung an der ${adresse}.
@@ -3410,7 +3449,7 @@ D&T Homes
 info@dthomes.ch
 www.dthomes.ch`;
     } else if (type === "anfangsmietzins") {
-      subject = `Anfangsmietzinsformular — ${adresse} (${zimmerId}) | D&T Homes`;
+      subject = `Anfangsmietzinsformular - ${adresse} (${zimmerId}) | D&T Homes`;
       body = `Liebe/r ${b.vorname || fullName}
 
 Im Anhang findest du das amtliche Anfangsmietzinsformular für das Zimmer ${zimmerId} an der ${adresse}.
@@ -3431,7 +3470,7 @@ D&T Homes
 info@dthomes.ch
 www.dthomes.ch`;
     } else if (type === "beides") {
-      subject = `Vertragsunterlagen — ${adresse} (${zimmerId}) | D&T Homes`;
+      subject = `Vertragsunterlagen - ${adresse} (${zimmerId}) | D&T Homes`;
       body = `Liebe/r ${b.vorname || fullName}
 
 Vielen Dank für dein Interesse an unserer Wohnung an der ${adresse}.
@@ -3460,7 +3499,7 @@ info@dthomes.ch
 www.dthomes.ch`;
     }
     
-    // Outlook Web Compose URL — öffnet neue Email direkt in OWA mit info@dthomes.ch als Absender
+    // Outlook Web Compose URL - öffnet neue Email direkt in OWA mit info@dthomes.ch als Absender
     // (sofern Nutzer im selben Browser bei Microsoft 365 eingeloggt ist)
     const owaUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(b.email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(owaUrl, "_blank");
@@ -3611,7 +3650,7 @@ www.dthomes.ch`;
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // DIGITAL CONTRACT SIGNING — Vertrag senden Workflow
+  // DIGITAL CONTRACT SIGNING - Vertrag senden Workflow
   // ═══════════════════════════════════════════════════════════════════
 
   // Faksimile-Signatur in HTML einfügen (Hauptmieter im UMV)
@@ -3639,7 +3678,7 @@ www.dthomes.ch`;
     let replaced = html.replace(vermPattern, (m, p1, p2, p3, p4) => {
       return `${p1}${labelStyle}${p2}<span class="line" style="flex:1;">${datumStr}</span>${p3}${labelStyle}${p4}<span class="line" style="position:relative;flex:1;"><img src="${DAAN_FAKSIMILE_DATA_URI}" style="position:absolute;left:8pt;bottom:-6pt;height:22pt;pointer-events:none;" alt="Daan Theijse"/></span>`;
     });
-    // Mieter Block — nur Labels gleichbreit machen (keine Unterschrift)
+    // Mieter Block - nur Labels gleichbreit machen (keine Unterschrift)
     const mieterPattern = /(<div class="lbl">Mieter\*in<\/div>[\s\S]*?<div class="sig-row-inner"><span class="label")(>Datum:<\/span><span class="line"><\/span><\/div>\s*<div class="sig-row-inner"><span class="label")(>Unterschrift:<\/span>)/;
     replaced = replaced.replace(mieterPattern, (m, p1, p2, p3) => {
       return `${p1}${labelStyle}${p2}${labelStyle}${p3}`;
@@ -3684,7 +3723,7 @@ www.dthomes.ch`;
   // Hauptworkflow: generiert beide PDFs, lädt sie hoch, erstellt contracts row, sendet Email
   async function sendContractForSigning(b, vertragData, onProgress, types) {
     const progress = onProgress || (() => {});
-    // types: optional array ["umv","amz"] — default both
+    // types: optional array ["umv","amz"] - default both
     const selectedTypes = Array.isArray(types) && types.length > 0 ? types : ["umv", "amz"];
     const wantUmv = selectedTypes.includes("umv");
     const wantAmz = selectedTypes.includes("amz");
@@ -3776,7 +3815,7 @@ www.dthomes.ch`;
     if (!emailRes.ok) {
       const err = await emailRes.text();
       console.error("Email-Versand fehlgeschlagen:", err);
-      // Don't fail — contract is in DB, email can be re-sent
+      // Don't fail - contract is in DB, email can be re-sent
     }
 
     progress("Fertig!", 1.0);
@@ -3793,7 +3832,7 @@ www.dthomes.ch`;
     const adresseLiegenschaft = `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
     const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
     const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
-    // Defensive recalculation — Strom fix 25 für dieses Formular
+    // Defensive recalculation - Strom fix 25 für dieses Formular
     // Kautions-Aufschlag wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
     const stromFix = 25;
     const nettomiete = +v.nettomiete || 0;
@@ -3803,7 +3842,7 @@ www.dthomes.ch`;
     v = {...v, strom: stromFix, total: totalCalc};
     
     return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Anfangsmietzins — ${fullName}</title>
+<html lang="de"><head><meta charset="UTF-8"><title>Anfangsmietzins - ${fullName}</title>
 <style>
   @page{size:A4;margin:15mm 18mm}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -3914,7 +3953,7 @@ www.dthomes.ch`;
     <div class="lbl">Mieter*in</div>
     <div class="content">
       ${fullName}<br>
-      ${adresseMieter ? adresseMieter.replace(/, /g, '<br>') : '—'}
+      ${adresseMieter ? adresseMieter.replace(/, /g, '<br>') : '-'}
     </div>
   </div>
 </div>
@@ -3936,13 +3975,13 @@ www.dthomes.ch`;
       </tr>
     </thead>
     <tbody>
-      <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
-      <tr><td>Nebenkosten</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
-      <tr><td>Stromkosten (pauschal)</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
-      <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">Fr. —</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
+      <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
+      <tr><td>Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
+      <tr><td>Stromkosten (pauschal)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
+      <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
     </tbody>
   </table>
-  <div class="indent" style="margin-top:6pt">(seit: —)</div>
+  <div class="indent" style="margin-top:6pt">(seit: -)</div>
 </div>
 
 <!-- 1. Berechnungsgrundlagen -->
@@ -3950,11 +3989,11 @@ www.dthomes.ch`;
   <h2>1. Berechnungsgrundlagen des bisherigen Mietzinses</h2>
   <div class="field-row">
     <span class="lbl">Referenzzinssatz für hypothekarische Bauobjekte:</span>
-    <span class="val">— %</span>
+    <span class="val">- %</span>
   </div>
   <div class="field-row">
     <span class="lbl">Landesindex der Konsumentenpreise (Basis Dez. 2020 = 100):</span>
-    <span class="val">— Pkte</span>
+    <span class="val">- Pkte</span>
   </div>
 </div>
 
@@ -3981,7 +4020,7 @@ www.dthomes.ch`;
   </div>
 </div>
 
-<!-- 5. Förderbeiträge — auf neuer Seite -->
+<!-- 5. Förderbeiträge - auf neuer Seite -->
 <div class="section" style="page-break-before:always">
   <h2>5. Bei Erhöhung wegen Mehrleistungen: Erhalt von Förderbeiträgen für wertvermehrende Verbesserungen</h2>
   <div class="yn-row">
@@ -4079,7 +4118,7 @@ www.dthomes.ch`;
     const adresseFull = `${v.adresse}, CH-${v.plz} in ${v.ort}`;
     const refStr = `${v.adresse} & ${fullName}`;
     return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag — ${fullName}</title>
+<html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
 <style>
   @page{size:A4;margin:18mm 18mm 22mm 18mm}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -4361,14 +4400,14 @@ www.dthomes.ch`;
 <div class="person-card">
   <div class="ph">Untermieter*in</div>
   <div class="person-grid">
-    <span class="pl">Vorname:</span><span class="pv">${b.vorname||"—"}</span>
-    <span class="pl">Nachname:</span><span class="pv">${b.nachname||"—"}</span>
-    <span class="pl">Strasse:</span><span class="pv">${b.adresse||"—"}</span>
+    <span class="pl">Vorname:</span><span class="pv">${b.vorname||"-"}</span>
+    <span class="pl">Nachname:</span><span class="pv">${b.nachname||"-"}</span>
+    <span class="pl">Strasse:</span><span class="pv">${b.adresse||"-"}</span>
     <span class="pl">PLZ / Ort:</span><span class="pv">${b.plz||""} ${b.ort||""}</span>
-    <span class="pl">E-Mail:</span><span class="pv">${b.email||"—"}</span>
-    <span class="pl">Telefon:</span><span class="pv">${b.phone||"—"}</span>
-    <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"—"}</span>
-    <span class="pl">Nationalität:</span><span class="pv">${b.nat||"—"}</span>
+    <span class="pl">E-Mail:</span><span class="pv">${b.email||"-"}</span>
+    <span class="pl">Telefon:</span><span class="pv">${b.phone||"-"}</span>
+    <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"-"}</span>
+    <span class="pl">Nationalität:</span><span class="pv">${b.nat||"-"}</span>
   </div>
 </div>
 
@@ -4462,7 +4501,7 @@ www.dthomes.ch`;
   </div>
 
   ${v.kautionMonate>0
-    ? `<p>Der Untermieter verpflichtet sich, vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""} – <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> – über die Plattform <strong>de.evorest.ch</strong> zu leisten. Die Kaution wird dort auf ein separates, auf den Namen des Untermieters lautendes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>`
+    ? `<p>Der Untermieter verpflichtet sich, vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""} - <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> - über die Plattform <strong>de.evorest.ch</strong> zu leisten. Die Kaution wird dort auf ein separates, auf den Namen des Untermieters lautendes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>`
     : `<p>Der Untermieter hat sich für die Variante <strong>ohne Kaution</strong> entschieden. Anstelle der Kaution wird der monatliche Mietzins um <strong>CHF 150</strong> erhöht. Dieser Aufschlag ist bereits im totalen Mietzins (siehe §3) enthalten.</p>`
   }
   <p>Die Rückerstattung ${v.kautionMonate>0?"der Kaution ":""}erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden.${v.kautionMonate>0?" Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.":""}</p>
@@ -4479,7 +4518,7 @@ www.dthomes.ch`;
   <p class="clause"><span class="clause-num">5.6</span>Der Untermieter ist verpflichtet, sich innert acht Tagen nach Einzug bei der zuständigen Einwohnerkontrolle anzumelden.</p>
   <p class="clause"><span class="clause-num">5.7</span>Der Untermieter darf die Suche nach Mitbewohnern durch die D&amp;T Partners GmbH nicht behindern. Diese schlägt geeignete Mitbewohner vor und ermöglicht ein vorgängiges Kennenlernen. Im Zweifelsfall behält sich die D&amp;T Partners GmbH das Recht vor, einen Untermietvertrag mit einem Interessenten abzuschliessen, ohne Mitspracherecht der aktuellen Bewohner.</p>
   <p class="clause"><span class="clause-num">5.8</span>In der Schweiz wohnhafte Personen, die Radio- oder Fernsehprogramme empfangen, sind gesetzlich verpflichtet, entsprechende Empfangsgebühren zu entrichten. Diese Verpflichtung liegt beim jeweiligen Haushalt und damit bei den Untermietern. Die D&amp;T Partners GmbH organisiert keine Kostenaufteilung innerhalb der Untermieterschaft.</p>
-  <p class="clause"><span class="clause-num">5.9</span>Die Kontaktdaten des Untermieters dürfen – sofern keine ausdrückliche Verweigerung erfolgt – an potenzielle Mitbewohner weitergegeben werden, um ein gegenseitiges Kennenlernen zu ermöglichen.</p>
+  <p class="clause"><span class="clause-num">5.9</span>Die Kontaktdaten des Untermieters dürfen - sofern keine ausdrückliche Verweigerung erfolgt - an potenzielle Mitbewohner weitergegeben werden, um ein gegenseitiges Kennenlernen zu ermöglichen.</p>
   <p class="clause"><span class="clause-num">5.10</span>Interne Angelegenheiten zwischen den Mitbewohnern fallen nicht in den Zuständigkeitsbereich des Hauptmieters. Dieser bemüht sich jedoch, bei Bedarf zu unterstützen und ein harmonisches Zusammenleben zu fördern.</p>
 </div>
 
@@ -4622,7 +4661,7 @@ www.dthomes.ch`;
             <div>
               <div style={{fontSize:10,letterSpacing:".25em",textTransform:"uppercase",color:"#b8af9f",marginBottom:4,fontWeight:600}}>🏠 Nachmieter-Suche</div>
               <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Zeige passende Bewerber für {nachmieterFor}</div>
-              <div style={{fontSize:11,color:"#b8af9f"}}>{targetApt?.adresse||"—"} {targetRoom?.miete?`· CHF ${targetRoom.miete}/Mt.`:""} · {shown.length} passende{shown.length===1?"r":""} Bewerber</div>
+              <div style={{fontSize:11,color:"#b8af9f"}}>{targetApt?.adresse||"-"} {targetRoom?.miete?`· CHF ${targetRoom.miete}/Mt.`:""} · {shown.length} passende{shown.length===1?"r":""} Bewerber</div>
             </div>
             <button onClick={()=>setNachmieterFor(null)} style={{background:"transparent",color:"#fefcf7",border:"1px solid #b8af9f",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em"}}>✕ Filter aufheben</button>
           </div>
@@ -4631,7 +4670,7 @@ www.dthomes.ch`;
       
       <div className="card" style={{marginBottom:20}}>
         <div className="ct">📋 Bewerbungsformular-Link</div>
-        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden — Bewerbungen erscheinen automatisch hier.</div>
+        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden - Bewerbungen erscheinen automatisch hier.</div>
         <div className="link-box">
           <span className="link-text">{formLink}</span>
           <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
@@ -4672,6 +4711,7 @@ www.dthomes.ch`;
           })}
         </div>
         {b?(
+          <>
           <div className="card" style={{margin:0}}>
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:12,flexWrap:"wrap"}}>
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}>
@@ -4689,20 +4729,10 @@ www.dthomes.ch`;
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
-                <div style={{position:"relative",display:"inline-block"}} onMouseLeave={()=>setEmailMenu(false)}>
-                  <button className="btn btn-p btn-sm" style={{background:"#3a5a7a"}} onClick={()=>setEmailMenu(v=>!v)}>📧 Per Email ▾</button>
-                  {emailMenu && (
-                    <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#ffffff",border:"1px solid #e8e3d8",borderRadius:8,boxShadow:"0 4px 16px rgba(26,24,20,.12)",zIndex:50,minWidth:240,overflow:"hidden"}}>
-                      <button onClick={()=>{setEmailMenu(false);sendEmail("vertrag");}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",fontSize:12,background:"transparent",border:"none",cursor:"pointer",color:"#1f1d18",borderBottom:"1px solid #f0eadd"}}>📄 Untermietvertrag senden</button>
-                      <button onClick={()=>{setEmailMenu(false);sendEmail("anfangsmietzins");}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",fontSize:12,background:"transparent",border:"none",cursor:"pointer",color:"#1f1d18",borderBottom:"1px solid #f0eadd"}}>📋 Anfangsmietzins senden</button>
-                      <button onClick={()=>{setEmailMenu(false);sendEmail("beides");}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",fontSize:12,background:"transparent",border:"none",cursor:"pointer",color:"#1f1d18",fontWeight:600}}>📦 Beide Dokumente senden</button>
-                    </div>
-                  )}
-                </div>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
                 <button className="btn btn-sm" onClick={()=>{
-                  if(confirm(`Bewerbung von ${b.vorname} ${b.nachname} wirklich endgültig löschen?\n\nDie Bewerbung wird komplett aus der Datenbank entfernt — dieser Vorgang kann nicht rückgängig gemacht werden.`)){
+                  if(confirm(`Bewerbung von ${b.vorname} ${b.nachname} wirklich endgültig löschen?\n\nDie Bewerbung wird komplett aus der Datenbank entfernt - dieser Vorgang kann nicht rückgängig gemacht werden.`)){
                     deleteBewerber(b.id);
                     setSel(null);
                   }
@@ -4720,10 +4750,10 @@ www.dthomes.ch`;
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div>
                       <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:stillFree?"#a08864":"#c89653"}}>{b.zimmerWunsch}</div>
-                      <div style={{fontSize:11.5,color:"#8a8478",marginTop:2}}>{wApt?.adresse||"—"}{wRoom?.balkon?" · 🌿":""}</div>
+                      <div style={{fontSize:11.5,color:"#8a8478",marginTop:2}}>{wApt?.adresse||"-"}{wRoom?.balkon?" · 🌿":""}</div>
                     </div>
                     <div style={{textAlign:"right"}}>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"#5a7c5e",fontSize:14}}>{wRoom?chf(wRoom.miete):"—"}/Mt.</div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"#5a7c5e",fontSize:14}}>{wRoom?chf(wRoom.miete):"-"}/Mt.</div>
                       <div style={{fontSize:10.5,marginTop:3}}>{stillFree?<Bdg label="○ noch frei" color="g"/>:<Bdg label="● belegt" color="y"/>}</div>
                     </div>
                   </div>
@@ -4733,18 +4763,18 @@ www.dthomes.ch`;
 
             <div className="igrid" style={{marginBottom:16}}>
               {[
-                ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"—"],
-                ["Telefon",b.phone?<a href={`tel:${b.phone}`}>{b.phone}</a>:"—"],
-                ["Geburtsdatum", fmtDateDE(b.geburt) || "—"],
-                ["Geschlecht",b.gender||"—"],
-                ["Nationalität",b.nat||"—"],
-                ["Adresse",b.adresse?`${b.adresse}, ${b.plz} ${b.ort}`:"—"],
-                ["Beschäftigung",b.type||"—"],
-                ["Beruf",b.job||"—"],
-                ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"—"],
-                ["Arbeitgeber",b.arbeitgeber||"—"],
-                ["Gewünschter Einzug",b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):"—"],
-                ["Keine offenen Betreibungen",b.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>— Nicht bestätigt</span>],
+                ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
+                ["Telefon",b.phone?<a href={`tel:${b.phone}`}>{b.phone}</a>:"-"],
+                ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
+                ["Geschlecht",b.gender||"-"],
+                ["Nationalität",b.nat||"-"],
+                ["Adresse",b.adresse?`${b.adresse}, ${b.plz} ${b.ort}`:"-"],
+                ["Beschäftigung",b.type||"-"],
+                ["Beruf",b.job||"-"],
+                ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"-"],
+                ["Arbeitgeber",b.arbeitgeber||"-"],
+                ["Gewünschter Einzug",b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):"-"],
+                ["Keine offenen Betreibungen",b.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}
             </div>
 
@@ -4753,14 +4783,14 @@ www.dthomes.ch`;
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
-                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.kautionType||"—"}</div>
-                  {b.kautionAufschlag>0&&<div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {b.kautionAufschlag}.– / Monat</div>}
+                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.kautionType||"-"}</div>
+                  {b.kautionAufschlag>0&&<div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {b.kautionAufschlag}.- / Monat</div>}
                   {b.kautionAufschlag===0&&<div style={{fontSize:11,color:"#5a7c5e",marginTop:2}}>Kein Aufschlag</div>}
                 </div>
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
-                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.moebliert==="ja"?"🛋 Möbliert":b.moebliert==="nein"?"📦 Unmöbliert":"—"}</div>
-                  {b.moeblierungPauschale>0&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>CHF {b.moeblierungPauschale}.– einmalig</div>}
+                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.moebliert==="ja"?"🛋 Möbliert":b.moebliert==="nein"?"📦 Unmöbliert":"-"}</div>
+                  {b.moeblierungPauschale>0&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>CHF {b.moeblierungPauschale}.- einmalig</div>}
                 </div>
               </div>
             </div>
@@ -4769,6 +4799,15 @@ www.dthomes.ch`;
 
             {b.zugeteiltes_zimmer&&(<div style={{background:"#eaeee2",border:"1px solid rgba(90,124,94,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#5a7c5e"}}>✓ Zugeteilt zu Zimmer <strong>{b.zugeteiltes_zimmer}</strong></div></div>)}
           </div>
+          
+          {/* Dokumente Card */}
+          <div className="card" style={{margin:"16px 0 0"}}>
+            <div className="ct">📎 Dokumente</div>
+            <DocumentChecklist entityType="applicant" entityId={String(b.id)} documents={documents}/>
+            <div style={{height:14}}/>
+            <DocumentsManager entityType="applicant" entityId={String(b.id)} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>
+          </div>
+          </>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
       </div>
 
@@ -4811,12 +4850,12 @@ www.dthomes.ch`;
             <div className="mt">✏ Bewerber bearbeiten</div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Status & Zuständigkeit</div>
-            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Bearbeitet von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">—</option><option value="Daan">Daan</option><option value="Tijn">Tijn</option></select></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Bearbeitet von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">-</option><option value="Daan">Daan</option><option value="Tijn">Tijn</option></select></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
             <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={editForm.vorname||""} onChange={EF("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={editForm.nachname||""} onChange={EF("nachname")}/></div></div>
-            <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={editForm.geburt?editForm.geburt.split("T")[0]:""} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">—</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
-            <div className="fg"><label className="fl">Nationalität</label><select className="fi" value={editForm.nat||""} onChange={EF("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
+            <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={editForm.geburt?editForm.geburt.split("T")[0]:""} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">-</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
+            <div className="fg"><label className="fl">Nationalität</label><select className="fi" value={editForm.nat||""} onChange={EF("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kontakt</div>
             <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={editForm.email||""} onChange={EF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={editForm.phone||""} onChange={EF("phone")}/></div></div>
@@ -4824,15 +4863,15 @@ www.dthomes.ch`;
             <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={editForm.plz||""} onChange={EF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={editForm.ort||""} onChange={EF("ort")}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Finanzen</div>
-            <div className="frow"><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={editForm.type||""} onChange={EF("type")}><option value="">—</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div><div className="fg"><label className="fl">Beruf</label><input className="fi" value={editForm.job||""} onChange={EF("job")}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={editForm.type||""} onChange={EF("type")}><option value="">-</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div><div className="fg"><label className="fl">Beruf</label><input className="fi" value={editForm.job||""} onChange={EF("job")}/></div></div>
             <div className="frow"><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={editForm.arbeitgeber||""} onChange={EF("arbeitgeber")}/></div><div className="fg"><label className="fl">Nettoeinkommen / Mt.</label><input className="fi" type="number" value={editForm.einkommen||""} onChange={EF("einkommen")}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
-            <div className="frow"><div className="fg"><label className="fl">Wunsch-Zimmer</label><select className="fi" value={editForm.zimmerWunsch||""} onChange={EF("zimmerWunsch")}><option value="">—</option>{rooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} — {a?.adresse||""} ({chf(r.miete)})</option>;})}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
-            <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">—</option><option value="ja">Möbliert (CHF 990)</option><option value="nein">Unmöbliert</option></select></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Wunsch-Zimmer</label><select className="fi" value={editForm.zimmerWunsch||""} onChange={EF("zimmerWunsch")}><option value="">-</option>{rooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)})</option>;})}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">-</option><option value="ja">Möbliert (CHF 990)</option><option value="nein">Unmöbliert</option></select></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kaution</div>
-            <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">—</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">-</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
             <div className="fg"><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine offenen Betreibungen</label></div>
@@ -4942,7 +4981,7 @@ www.dthomes.ch`;
             </div>
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:600}}>
               <span>Kautionsbetrag</span>
-              <span style={{color:"#1a1814"}}>{vertragData.kautionMonate>0?`CHF ${vertragData.kautionBetrag.toLocaleString('de-CH')}`:"—"}</span>
+              <span style={{color:"#1a1814"}}>{vertragData.kautionMonate>0?`CHF ${vertragData.kautionBetrag.toLocaleString('de-CH')}`:"-"}</span>
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
@@ -5023,7 +5062,7 @@ www.dthomes.ch`;
               <div style={{marginTop:14,padding:"14px 16px",background:"#e8f3ed",border:"1px solid #a5d4b8",borderRadius:8}}>
                 <div style={{fontWeight:600,fontSize:13,color:"#1a5a32",marginBottom:6}}>✓ Vertrag erfolgreich gesendet</div>
                 <div style={{fontSize:11.5,color:"#2d5e44",lineHeight:1.55}}>
-                  {sendResult.emailSent ? `Email gesendet an ${b.email}` : "⚠ Email-Versand fehlgeschlagen — manuell nachsenden"}
+                  {sendResult.emailSent ? `Email gesendet an ${b.email}` : "⚠ Email-Versand fehlgeschlagen - manuell nachsenden"}
                 </div>
                 <div style={{fontSize:11.5,color:"#2d5e44",marginTop:6}}>
                   Sign-Link: <a href={sendResult.signUrl} target="_blank" style={{color:"#1a5a32",textDecoration:"underline"}}>{sendResult.signUrl}</a>
@@ -5187,7 +5226,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         {apt?(
           <div className="card" style={{margin:0}}>
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:12,flexWrap:"wrap"}}>
-              <div style={{minWidth:0,flex:"1 1 auto"}}><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18",wordBreak:"break-word"}}>{apt.id} — {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div></div>
+              <div style={{minWidth:0,flex:"1 1 auto"}}><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18",wordBreak:"break-word"}}>{apt.id} - {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div></div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
@@ -5216,16 +5255,16 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
                 <div className="igrid">{[
                   ["Typ",<TypeBadge type={apt.type}/>],
                   ["Zimmer",apt.zimmer+" Zi."],
-                  ["Stockwerk",apt.stockwerk||"—"],
+                  ["Stockwerk",apt.stockwerk||"-"],
                   ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
                   ["Kaution",chf(apt.kaution)],
                   ["Kautionstyp",apt.kautionType||apt.kaution_type],
-                  ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"—"],
-                  ["Referenz-Nr.",apt.refnr||"—"],
-                  ["Wohnungsschlüssel",apt.schluesselAnzahl?`${apt.schluesselAnzahl}×`:"—"],
-                  ["Extra-Schlüssel",apt.extraSchluessel||"—"],
+                  ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"-"],
+                  ["Referenz-Nr.",apt.refnr||"-"],
+                  ["Wohnungsschlüssel",apt.schluesselAnzahl?`${apt.schluesselAnzahl}×`:"-"],
+                  ["Extra-Schlüssel",apt.extraSchluessel||"-"],
                   ["Mietbeginn",apt.mietbeginn],
-                  ["Mietende",apt.mietende||"—"],
+                  ["Mietende",apt.mietende||"-"],
                   ["Verwaltung",apt.verwaltung],
                   ["Eigentümer",apt.eigentuemer]
                 ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
@@ -5275,7 +5314,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
                 <DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
               </div>);
             })()}
-            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"—"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>)}
+            {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>)}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
@@ -5295,7 +5334,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")}><option value="">— wählen —</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+          <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={newForm.zimmer||""} onChange={NF("zimmer")} placeholder="z.B. 3.5"/></div>
         </div>
         {newForm.type==="WG"&&(
@@ -5339,7 +5378,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Kaution</label><input className="fi" type="number" value={newForm.kaution||""} onChange={NF("kaution")}/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">—</option><option value="Evorest">Evorest</option><option value="Firstcaution">Firstcaution</option><option value="GoCaution">GoCaution</option><option value="Bankkaution">Bankkaution</option></select></div>
+          <div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">-</option><option value="Evorest">Evorest</option><option value="Firstcaution">Firstcaution</option><option value="GoCaution">GoCaution</option><option value="Bankkaution">Bankkaution</option></select></div>
           <div className="fg"><label className="fl">Referenzzinssatz (%)</label><div style={{position:"relative"}}><input className="fi" type="number" step="0.05" value={newForm.refzins||""} onChange={NF("refzins")} placeholder="z.B. 1.50" style={{paddingRight:32}}/><span style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",color:"#8a8174",fontSize:13,pointerEvents:"none"}}>%</span></div></div>
         </div>
 
@@ -5365,7 +5404,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       </div></div>}
 
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal" style={{width:620}}>
-        <div className="mt">Wohnung bearbeiten — {form.id}</div>
+        <div className="mt">Wohnung bearbeiten - {form.id}</div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
@@ -5374,7 +5413,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={form.stockwerk||""} onChange={F("stockwerk")}><option value="">— wählen —</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+          <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={form.stockwerk||""} onChange={F("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={form.zimmer||""} onChange={F("zimmer")}/></div>
         </div>
 
@@ -5388,7 +5427,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           <div className="fg"><label className="fl">Kaution</label><input className="fi" type="number" value={form.kaution||""} onChange={F("kaution")}/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kaution_type||""} onChange={F("kautionType")}><option value="">—</option><option value="Evorest">Evorest</option><option value="Firstcaution">Firstcaution</option><option value="GoCaution">GoCaution</option><option value="Bankkaution">Bankkaution</option></select></div>
+          <div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kaution_type||""} onChange={F("kautionType")}><option value="">-</option><option value="Evorest">Evorest</option><option value="Firstcaution">Firstcaution</option><option value="GoCaution">GoCaution</option><option value="Bankkaution">Bankkaution</option></select></div>
           <div className="fg"><label className="fl">Referenzzinssatz (%)</label><div style={{position:"relative"}}><input className="fi" type="number" step="0.05" value={form.refzins||""} onChange={F("refzins")} placeholder="z.B. 1.50" style={{paddingRight:32}}/><span style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",color:"#8a8174",fontSize:13,pointerEvents:"none"}}>%</span></div></div>
         </div>
 
@@ -5590,7 +5629,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       {grouped.map(({apt,rs})=>(
         <div key={apt.id} className="card">
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>{apt.id} — {apt.adresse}</span>
+            <span>{apt.id} - {apt.adresse}</span>
             <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>
           </div>
           <table>
@@ -5602,11 +5641,11 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                 return(
                   <tr key={r.id} id={`zimmer-${r.id}`} style={isHighlight?{background:"#f5efe4",boxShadow:"0 0 0 2px #a08864",transition:"all .3s"}:{}}>
                     <td style={{fontWeight:600}}>{r.id}</td>
-                    <td data-label="Größe" style={{color:"#8a8174",fontSize:12}}>{r.groesse||"—"}</td>
-                    <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"—"}</td>
-                    <td data-label="Balkon">{r.balkon?"🌿":"—"}</td>
+                    <td data-label="Größe" style={{color:"#8a8174",fontSize:12}}>{r.groesse||"-"}</td>
+                    <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"-"}</td>
+                    <td data-label="Balkon">{r.balkon?"🌿":"-"}</td>
                     <td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td>
-                    <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"—"}</td>
+                    <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td>
                     <td style={{textAlign:"right",whiteSpace:"nowrap"}}>
                       {!r.occupied&&<button className="btn btn-p btn-sm" onClick={()=>openAssign(r)} style={{marginRight:4}}>+ Zuteilen</button>}
                       <button className="btn btn-g btn-sm" onClick={()=>openEdit(r)}>✏ Bearbeiten</button>
@@ -5621,7 +5660,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 
       {/* EDIT-MODAL */}
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal">
-        <div className="mt">Zimmer bearbeiten — {form.id}</div>
+        <div className="mt">Zimmer bearbeiten - {form.id}</div>
         <div className="frow">
           <div className="fg"><label className="fl">Größe</label><input className="fi" value={form.groesse||""} onChange={F("groesse")} placeholder="z.B. 14 (m² wird automatisch ergänzt)"/></div>
           <div className="fg"><label className="fl">Miete CHF/Mt.</label><input className="fi" type="number" value={form.miete||""} onChange={F("miete")}/></div>
@@ -5637,7 +5676,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mieterzuweisung</div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,marginBottom:10}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{(()=>{const t=tenants.find(x=>x.id===form.tenantId);return t?`${t.vorname} ${t.nachname}`:"—";})()}</div>
+                <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{(()=>{const t=tenants.find(x=>x.id===form.tenantId);return t?`${t.vorname} ${t.nachname}`:"-";})()}</div>
                 <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>aktueller Mieter</div>
               </div>
               <button className="btn btn-r btn-sm" onClick={()=>{setEditing(false);openAssign(form);}}>✕ Mieter entfernen</button>
@@ -5650,8 +5689,8 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 
       {/* ASSIGN-MODAL */}
       {assigning&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAssigning(null)}><div className="modal" style={{width:560}}>
-        <div className="mt">{assigning.occupied?"Mieter entfernen":"Bewerber zuteilen"} — {assigning.id}</div>
-        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:18}}>{apts.find(a=>a.id===assigning.aptId)?.adresse} · CHF {assigning.miete||"—"} / Mt.</div>
+        <div className="mt">{assigning.occupied?"Mieter entfernen":"Bewerber zuteilen"} - {assigning.id}</div>
+        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:18}}>{apts.find(a=>a.id===assigning.aptId)?.adresse} · CHF {assigning.miete||"-"} / Mt.</div>
 
         {!assigning.occupied&&(
           <div style={{display:"flex",gap:6,marginBottom:18,padding:4,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8}}>
@@ -5674,7 +5713,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                       <Av name={b.vorname} size={32}/>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:600}}>{b.vorname} {b.nachname}</div>
-                        <div style={{fontSize:11,color:"#8a8174"}}>{b.email||"—"} · {b.zimmerWunsch?`Wunsch: ${b.zimmerWunsch}`:"kein Wunsch"}</div>
+                        <div style={{fontSize:11,color:"#8a8174"}}>{b.email||"-"} · {b.zimmerWunsch?`Wunsch: ${b.zimmerWunsch}`:"kein Wunsch"}</div>
                       </div>
                       <StatusBdg status={b.status}/>
                     </label>
@@ -5706,7 +5745,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                         <Av name={t.vorname} size={32}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:600}}>{t.vorname} {t.nachname} <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#8a8174",fontWeight:500}}>· {t.id}</span></div>
-                          <div style={{fontSize:11,color:"#8a8174"}}>{t.email||"—"} · Ausgezogen: {t.auszug||"—"}</div>
+                          <div style={{fontSize:11,color:"#8a8174"}}>{t.email||"-"} · Ausgezogen: {t.auszug||"-"}</div>
                         </div>
                       </label>
                     );
@@ -5738,9 +5777,9 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
           <div>
             <div style={{padding:"14px 18px",background:"#f0dcd5",border:"1px solid #e0bcb0",borderRadius:8,marginBottom:18}}>
               <div style={{fontSize:11,color:"#9b4a3e",textTransform:"uppercase",letterSpacing:".2em",fontWeight:600,marginBottom:6}}>Aktueller Mieter</div>
-              <div style={{fontSize:14,fontWeight:600,color:"#1a1814"}}>{(()=>{const t=tenants.find(x=>x.id===assigning.tenantId);return t?`${t.vorname} ${t.nachname}`:"—";})()}</div>
+              <div style={{fontSize:14,fontWeight:600,color:"#1a1814"}}>{(()=>{const t=tenants.find(x=>x.id===assigning.tenantId);return t?`${t.vorname} ${t.nachname}`:"-";})()}</div>
             </div>
-            <div style={{fontSize:12,color:"#8a8174",lineHeight:1.6,marginBottom:14}}>Wenn du den Mieter entfernst, wird das Zimmer frei. Der Mieter bleibt im System und kann später wieder einem Zimmer zugewiesen werden — oder du löschst ihn manuell im Mieter-Tab.</div>
+            <div style={{fontSize:12,color:"#8a8174",lineHeight:1.6,marginBottom:14}}>Wenn du den Mieter entfernst, wird das Zimmer frei. Der Mieter bleibt im System und kann später wieder einem Zimmer zugewiesen werden - oder du löschst ihn manuell im Mieter-Tab.</div>
             <div className="ma"><button className="btn btn-g" onClick={()=>setAssigning(null)}>Abbrechen</button><button className="btn btn-r" onClick={removeOccupant}>✕ Mieter entfernen</button></div>
           </div>
         )}
@@ -6117,7 +6156,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
                 <div style={{fontWeight:600,marginBottom:3}}>📦 Archivierter Mieter</div>
                 <div style={{fontSize:11}}>
                   {tenant.archivedAt||tenant.archived_at ? `Archiviert am ${fmtDateDE(tenant.archivedAt||tenant.archived_at)}` : "Archiviert"} · 
-                  Auszug: {tenant.auszug || "—"} · 
+                  Auszug: {tenant.auszug || "-"} · 
                   Daten + Dokumente bleiben erhalten.
                 </div>
               </div>
@@ -6133,34 +6172,34 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
             {tab==="info"&&<div>
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>Persönliche Daten</div>
               <div className="igrid">{[
-                ["E-Mail",tenant.email||"—"],
-                ["Telefon",tenant.phone||"—"],
-                ["Geburt", fmtDateDE(tenant.geburt) || "—"],
-                ["Nationalität",tenant.nat||"—"],
-                ["Vorherige Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz||""} ${tenant.ort||""}`.trim():"—"],
+                ["E-Mail",tenant.email||"-"],
+                ["Telefon",tenant.phone||"-"],
+                ["Geburt", fmtDateDE(tenant.geburt) || "-"],
+                ["Nationalität",tenant.nat||"-"],
+                ["Vorherige Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz||""} ${tenant.ort||""}`.trim():"-"],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Beruf & Einkommen</div>
               <div className="igrid">{[
-                ["Beruf",tenant.beruf||"—"],
-                ["Arbeitgeber",tenant.arbeitgeber||"—"],
-                ["Einkommen",tenant.einkommen?`CHF ${tenant.einkommen}`:"—"],
-                ["Beschäftigung",tenant.type||"—"],
+                ["Beruf",tenant.beruf||"-"],
+                ["Arbeitgeber",tenant.arbeitgeber||"-"],
+                ["Einkommen",tenant.einkommen?`CHF ${tenant.einkommen}`:"-"],
+                ["Beschäftigung",tenant.type||"-"],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Mietverhältnis</div>
               <div className="igrid">{[
-                ["Einzug",tenant.einzug||"—"],
-                ["Auszug",tenant.auszug||"—"],
-                ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"—")],
-                ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"—"],
+                ["Einzug",tenant.einzug||"-"],
+                ["Auszug",tenant.auszug||"-"],
+                ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"-")],
+                ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
                 ["Aufschlag/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
-                ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"—"],
+                ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
                 ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
-                ["Schlüsselnummer",tenant.schluesselAnzahl||"—"],
-                ["Extra-Schlüssel",tenant.extraSchluessel||"—"],
-                ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>— Nein</span>],
-                ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>— Nicht bestätigt</span>],
+                ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
+                ["Extra-Schlüssel",tenant.extraSchluessel||"-"],
+                ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>- Nein</span>],
+                ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               {tenant.bemerkung&&<div style={{marginTop:18}}>
@@ -6192,7 +6231,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
           <div className="fg">
             <label className="fl">👤 Bearbeitet von</label>
             <select className="fi" value={form.owner||""} onChange={F("owner")}>
-              <option value="">—</option>
+              <option value="">-</option>
               <option value="Daan">Daan</option>
               <option value="Tijn">Tijn</option>
             </select>
@@ -6202,13 +6241,13 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
         <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={form.vorname||""} onChange={F("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={form.nachname||""} onChange={F("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={form.email||""} onChange={F("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={form.phone||""} onChange={F("phone")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Einkommen</div>
         <div className="frow"><div className="fg"><label className="fl">Beruf</label><input className="fi" value={form.beruf||""} onChange={F("beruf")}/></div><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={form.arbeitgeber||""} onChange={F("arbeitgeber")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={form.einkommen||""} onChange={F("einkommen")}/></div><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={form.type||""} onChange={F("type")}><option value="">—</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={form.einkommen||""} onChange={F("einkommen")}/></div><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={form.type||""} onChange={F("type")}><option value="">-</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={form.einzug||""} onChange={F("einzug")}/></div><div className="fg"><label className="fl">Auszug</label><input className="fi" value={form.auszug||""} onChange={F("auszug")}/></div></div>
@@ -6224,8 +6263,8 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
           // If no room mietzins available, don't overwrite kautionBetrag (keep user-entered value)
           const betrag = bm > 0 ? (bm + strom) * monate : (form.kautionBetrag || 0);
           setForm(p=>({...p,kautionOpt:opt,kautionMonate:monate,kautionAufschlag:auf,kautionBetrag:betrag}));
-        }}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Aufschlag CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
+        }}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Aufschlag CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">-</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
         <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
         <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!form.schluesselUebergeben} onChange={FB("schluesselUebergeben")}/> Schlüssel übergeben</label>
@@ -6279,7 +6318,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
                           <label key={r.id} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",marginBottom:6}} onClick={()=>setNewRoomId(r.id)}>
                             <input type="radio" name="newroom" checked={sel} readOnly/>
                             <div style={{flex:1}}>
-                              <div style={{fontSize:13,fontWeight:600}}>{r.id} <span style={{fontWeight:400,color:"#8a8174"}}>· {apt?.adresse||"—"}</span></div>
+                              <div style={{fontSize:13,fontWeight:600}}>{r.id} <span style={{fontWeight:400,color:"#8a8174"}}>· {apt?.adresse||"-"}</span></div>
                               <div style={{fontSize:11,color:"#8a8174"}}>CHF {(+r.miete||0).toLocaleString("de-CH")}/Monat · {r.qm?`${r.qm} m²`:"k.A."}</div>
                             </div>
                             <span style={{fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8efde",color:"#3a5230",letterSpacing:".05em"}}>FREI</span>
@@ -6300,7 +6339,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
                           <label key={r.id} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",marginBottom:6}} onClick={()=>setNewRoomId(r.id)}>
                             <input type="radio" name="newroom" checked={sel} readOnly/>
                             <div style={{flex:1}}>
-                              <div style={{fontSize:13,fontWeight:600}}>{r.id} <span style={{fontWeight:400,color:"#8a8174"}}>· {apt?.adresse||"—"}</span></div>
+                              <div style={{fontSize:13,fontWeight:600}}>{r.id} <span style={{fontWeight:400,color:"#8a8174"}}>· {apt?.adresse||"-"}</span></div>
                               <div style={{fontSize:11,color:"#8a8174"}}>{occupant?`Belegt von ${occupant.vorname} ${occupant.nachname} (${occupant.id})`:"belegt"}</div>
                             </div>
                             <span style={{fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#fbeae6",color:"#8a3a2e",letterSpacing:".05em"}}>BELEGT</span>
@@ -6329,26 +6368,26 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
         <div className="frow"><div className="fg"><label className="fl">ID</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. T18"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Vorname *</label><input className="fi" value={newForm.vorname||""} onChange={NF("vorname")}/></div><div className="fg"><label className="fl">Nachname *</label><input className="fi" value={newForm.nachname||""} onChange={NF("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={newForm.email||""} onChange={NF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={newForm.phone||""} onChange={NF("phone")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={newForm.geburt||""} onChange={NF("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={newForm.nat||""} onChange={NF("nat")}><option value="">— Bitte wählen —</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={newForm.geburt||""} onChange={NF("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={newForm.nat||""} onChange={NF("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Beruf & Einkommen</div>
         <div className="frow"><div className="fg"><label className="fl">Beruf</label><input className="fi" value={newForm.beruf||""} onChange={NF("beruf")}/></div><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={newForm.arbeitgeber||""} onChange={NF("arbeitgeber")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={newForm.einkommen||""} onChange={NF("einkommen")}/></div><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={newForm.type||""} onChange={NF("type")}><option value="">—</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Einkommen CHF/Mt.</label><input className="fi" value={newForm.einkommen||""} onChange={NF("einkommen")}/></div><div className="fg"><label className="fl">Beschäftigung</label><select className="fi" value={newForm.type||""} onChange={NF("type")}><option value="">-</option><option value="Arbeitnehmer">Arbeitnehmer</option><option value="Selbstständig">Selbstständig</option><option value="Student">Student</option><option value="AOZ / Sozialhilfe">AOZ / Sozialhilfe</option><option value="Andere">Andere</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
         <div className="fg">
           <label className="fl">Zimmer zuteilen (optional)</label>
           <select className="fi" value={newForm.roomId||""} onChange={NF("roomId")}>
-            <option value="">— Kein Zimmer (später zuweisen) —</option>
-            {freeRooms.length===0?<option disabled>Keine freien Zimmer verfügbar</option>:freeRooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} — {a?.adresse} ({chf(r.miete)}/Mt.)</option>;})}
+            <option value="">- Kein Zimmer (später zuweisen) -</option>
+            {freeRooms.length===0?<option disabled>Keine freien Zimmer verfügbar</option>:freeRooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} - {a?.adresse} ({chf(r.miete)}/Mt.)</option>;})}
           </select>
         </div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={newForm.schluesselAnzahl||""} onChange={NF("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div></div>
         <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={newForm.extraSchluessel||""} onChange={NF("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div>
         <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!newForm.schluesselUebergeben} onChange={NFB("schluesselUebergeben")}/> Schlüssel bereits übergeben</label>
-        <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={newForm.kautionOpt||""} onChange={NF("kautionOpt")}><option value="">—</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">—</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={newForm.kautionOpt||""} onChange={NF("kautionOpt")}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">-</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
@@ -6446,7 +6485,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
     return isNaN(d) ? null : d;
   }
   
-  // Mieter die in DIESEM Monat (jahr/monat) aktiv waren — also Miete zahlen müssten
+  // Mieter die in DIESEM Monat (jahr/monat) aktiv waren - also Miete zahlen müssten
   // Logik: Mieter erscheint wenn
   //  • Einzug ≤ letzter Tag des Monats  (also vor oder im Monat eingezogen)
   //  • UND: Auszug fehlt ODER Auszug ≥ erster Tag des Monats  (also nicht vor diesem Monat ausgezogen)
@@ -6472,14 +6511,14 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
     return true;
   });
   
-  // Helper: Erwartete Miete pro Mieter aus Room (auch für archivierte Mieter — über Mieter-Daten)
+  // Helper: Erwartete Miete pro Mieter aus Room (auch für archivierte Mieter - über Mieter-Daten)
   // Soll = Bruttomiete (Zimmer-Miete + 25 CHF Strom) + Kautions-Aufschlag (falls vorhanden)
   function getExpectedMiete(tenant) {
     let bruttomiete = 0;
     
     // Zuerst aktuelles Zimmer (für aktive Mieter)
     let room = rooms.find(r => r.tenantId === tenant.id);
-    // Fallback: tenant.roomId (für archivierte Mieter — Zimmer-Verknüpfung ist gelöst aber roomId bleibt evtl)
+    // Fallback: tenant.roomId (für archivierte Mieter - Zimmer-Verknüpfung ist gelöst aber roomId bleibt evtl)
     if (!room && tenant.roomId) {
       room = rooms.find(r => r.id === tenant.roomId);
     }
@@ -6543,11 +6582,11 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
       return natSort(a.tenant.id, b.tenant.id);
     });
   
-  // Statistiken — IMMER mit Strom + Aufschlag (getExpectedMiete liefert das schon)
+  // Statistiken - IMMER mit Strom + Aufschlag (getExpectedMiete liefert das schon)
   // Soll-Total = ALLE Mieter dieses Monats (egal welcher Status)
   const totalSoll = rows.reduce((s,r) => s + r.soll, 0);
   // Bezahlt-Total = was tatsächlich reingekommen ist
-  // WICHTIG: Pro Mieter wird auf das aktuelle SOLL gecapped — so kann eine Überzahlung von Mieter A
+  // WICHTIG: Pro Mieter wird auf das aktuelle SOLL gecapped - so kann eine Überzahlung von Mieter A
   // nicht eine fehlende Zahlung von Mieter B "ausgleichen" (sonst wäre Marge IST > Marge SOLL)
   const totalBezahlt = rows.reduce((s,r) => {
     if (r.status === "bezahlt") {
@@ -6740,7 +6779,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
                         </div>
                       </div>
                     </td>
-                    <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.room?.id || "—"}<div style={{fontSize:10.5,color:"#8a8174"}}>{row.apt?.adresse || ""}</div></td>
+                    <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.room?.id || "-"}<div style={{fontSize:10.5,color:"#8a8174"}}>{row.apt?.adresse || ""}</div></td>
                     <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>
                       CHF {row.soll.toLocaleString("de-CH")}
                       {(+row.tenant.kautionAufschlag||0)>0 && (
@@ -6771,7 +6810,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
       
       {/* HINWEIS UNTEN */}
       <div style={{marginTop:18,padding:"12px 16px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,fontSize:11.5,color:"#6a6358",lineHeight:1.55}}>
-        💡 <strong>Hinweis:</strong> Manuelles Tracking — Klicke "✓ Bezahlt" sobald eine Zahlung auf dem Konto eingeht. Für Details (anderes Datum, andere Zahlungsart, Bemerkung) auf "⋯" klicken. 
+        💡 <strong>Hinweis:</strong> Manuelles Tracking - Klicke "✓ Bezahlt" sobald eine Zahlung auf dem Konto eingeht. Für Details (anderes Datum, andere Zahlungsart, Bemerkung) auf "⋯" klicken. 
         Spätere Optimierung möglich: Bank-CSV-Import oder Auto-Reminder per WhatsApp/Email für überfällige Zahlungen.
       </div>
       
@@ -6967,7 +7006,7 @@ class ErrorBoundary extends React.Component {
           <ul style={{fontSize:13,color:"#4a4439",lineHeight:1.7,marginLeft:20,marginBottom:18}}>
             <li>Supabase-Setup unvollständig (z.B. Documents-Tabelle fehlt)</li>
             <li>Browser-Cache veraltet → mit Strg+F5 neu laden</li>
-            <li>Datenbankspalten passen nicht — schick uns den Fehler</li>
+            <li>Datenbankspalten passen nicht - schick uns den Fehler</li>
           </ul>
           <details style={{marginBottom:14}}>
             <summary style={{cursor:"pointer",fontWeight:600,fontSize:13,color:"#1a1814"}}>Technische Details (zum Kopieren)</summary>
