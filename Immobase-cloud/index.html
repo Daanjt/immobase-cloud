@@ -3258,6 +3258,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant}){
   const [sel,setSel]=useState(null);
+  const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
   const [selZimmer,setSelZimmer]=useState(null);
   const [einzugDate,setEinzugDate]=useState("");
@@ -4688,7 +4689,7 @@ www.dthomes.ch`;
             const targetRoom = zugeteiltRoom || wunschRoom;
             const targetApt = targetRoom ? apts.find(a=>a.id===targetRoom.aptId) : null;
             return (
-            <div key={bw.id} className={`bewerber-card${on?" selected":""}`} onClick={()=>setSel(bw.id)}>
+            <div key={bw.id} className={`bewerber-card${on?" selected":""}`} onClick={()=>{setSel(bw.id);setTab("info");}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:3}}>
                 <div style={{fontWeight:600,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0}}>{bw.vorname} {bw.nachname}</div>
                 <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
@@ -4739,6 +4740,10 @@ www.dthomes.ch`;
                 }} style={{background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0"}}>🗑 Löschen</button>
               </div>
             </div>
+            
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            
+            {tab==="info"&&<>
 
             {b.zimmerWunsch&&!b.zugeteiltes_zimmer&&(()=>{
               const wRoom=rooms.find(r=>r.id===b.zimmerWunsch);
@@ -4798,14 +4803,11 @@ www.dthomes.ch`;
             {b.bemerkung&&(<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"10px 13px",marginBottom:12}}><div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",marginBottom:5}}>Bemerkung</div><div style={{fontSize:12.5,lineHeight:1.6}}>{b.bemerkung}</div></div>)}
 
             {b.zugeteiltes_zimmer&&(<div style={{background:"#eaeee2",border:"1px solid rgba(90,124,94,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#5a7c5e"}}>✓ Zugeteilt zu Zimmer <strong>{b.zugeteiltes_zimmer}</strong></div></div>)}
-          </div>
-          
-          {/* Dokumente Card */}
-          <div className="card" style={{margin:"16px 0 0"}}>
-            <div className="ct">📎 Dokumente</div>
-            <DocumentChecklist entityType="applicant" entityId={String(b.id)} documents={documents}/>
-            <div style={{height:14}}/>
-            <DocumentsManager entityType="applicant" entityId={String(b.id)} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>
+            
+            <DocumentChecklist entityType="applicant" entityId={String(b.id)} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
+            </>}
+            
+            {tab==="docs"&&<DocumentsManager entityType="applicant" entityId={String(b.id)} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
           </>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
