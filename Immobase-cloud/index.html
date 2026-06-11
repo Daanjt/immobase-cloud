@@ -3682,8 +3682,13 @@ www.dthomes.ch`;
   }
 
   // Hauptworkflow: generiert beide PDFs, lädt sie hoch, erstellt contracts row, sendet Email
-  async function sendContractForSigning(b, vertragData, onProgress) {
+  async function sendContractForSigning(b, vertragData, onProgress, types) {
     const progress = onProgress || (() => {});
+    // types: optional array ["umv","amz"] — default both
+    const selectedTypes = Array.isArray(types) && types.length > 0 ? types : ["umv", "amz"];
+    const wantUmv = selectedTypes.includes("umv");
+    const wantAmz = selectedTypes.includes("amz");
+    if (!wantUmv && !wantAmz) throw new Error("Keine Vertragsart ausgewählt");
     if (!b || !vertragData) throw new Error("Bewerber oder Vertragsdaten fehlen");
     if (!b.email) throw new Error("Bewerber hat keine Email-Adresse");
 
@@ -3699,28 +3704,48 @@ www.dthomes.ch`;
     };
 
     progress("Verträge generieren...", 0.1);
-    const umvHtml = injectDaanInUMV(buildContractHTML(b, vertragData, fullName, formatDateLong));
-    const amzHtml = injectDaanInAMZ(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong));
+    const umvHtml = wantUmv ? injectDaanInUMV(buildContractHTML(b, vertragData, fullName, formatDateLong)) : null;
+    const amzHtml = wantAmz ? injectDaanInAMZ(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong)) : null;
 
-    progress("PDF erstellen (1/2: Untermietvertrag)...", 0.2);
-    const umvBlob = await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`);
-
-    progress("PDF erstellen (2/2: Anfangsmietzinsformular)...", 0.45);
-    const amzBlob = await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`);
+    const totalSteps = (wantUmv ? 1 : 0) + (wantAmz ? 1 : 0);
+    let step = 0;
+    let umvBlob = null, amzBlob = null;
+    if (wantUmv) {
+      step++;
+      progress(`PDF erstellen (${step}/${totalSteps}: Untermietvertrag)...`, 0.2);
+      umvBlob = await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`);
+    }
+    if (wantAmz) {
+      step++;
+      progress(`PDF erstellen (${step}/${totalSteps}: Anfangsmietzinsformular)...`, 0.45);
+      amzBlob = await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`);
+    }
 
     progress("PDFs hochladen...", 0.6);
     const token = generateContractToken();
     const umvPath = `${token}/untermietvertrag.pdf`;
     const amzPath = `${token}/anfangsmietzins.pdf`;
+    const unsignedPdfs = [];
 
-    const { error: upErr1 } = await supabase.storage.from("contracts").upload(umvPath, umvBlob, {
-      contentType: "application/pdf", upsert: false
-    });
-    if (upErr1) throw new Error(`Upload UMV: ${upErr1.message}`);
-    const { error: upErr2 } = await supabase.storage.from("contracts").upload(amzPath, amzBlob, {
-      contentType: "application/pdf", upsert: false
-    });
-    if (upErr2) throw new Error(`Upload AMZ: ${upErr2.message}`);
+    if (wantUmv) {
+      const { error: upErr1 } = await supabase.storage.from("contracts").upload(umvPath, umvBlob, {
+        contentType: "application/pdf", upsert: false
+      });
+      if (upErr1) throw new Error(`Upload UMV: ${upErr1.message}`);
+      unsignedPdfs.push({ name: "Untermietvertrag", path: umvPath, type: "umv" });
+    }
+    if (wantAmz) {
+      const { error: upErr2 } = await supabase.storage.from("contracts").upload(amzPath, amzBlob, {
+        contentType: "application/pdf", upsert: false
+      });
+      if (upErr2) throw new Error(`Upload AMZ: ${upErr2.message}`);
+      unsignedPdfs.push({ name: "Anfangsmietzinsformular", path: amzPath, type: "amz" });
+    }
+
+    // contract_type-string je nach Auswahl
+    let contractType = "untermietvertrag_und_anfangsmietzins";
+    if (wantUmv && !wantAmz) contractType = "untermietvertrag";
+    else if (!wantUmv && wantAmz) contractType = "anfangsmietzins";
 
     progress("Vertrag in Datenbank speichern...", 0.8);
     const { data: contractRow, error: insErr } = await supabase.from("contracts").insert({
@@ -3731,13 +3756,10 @@ www.dthomes.ch`;
       mieter_email: b.email,
       mieter_vorname: b.vorname || "",
       mieter_nachname: b.nachname || "",
-      contract_type: "untermietvertrag",
+      contract_type: contractType,
       contract_data: { bewerber: b, vertrag: vertragData },
       status: "gesendet",
-      unsigned_pdfs: [
-        { name: "Untermietvertrag", path: umvPath, type: "umv" },
-        { name: "Anfangsmietzinsformular", path: amzPath, type: "amz" },
-      ],
+      unsigned_pdfs: unsignedPdfs,
       created_by: (window.currentUser && window.currentUser.email) || null,
     }).select().single();
     if (insErr) throw new Error(`DB Insert: ${insErr.message}`);
@@ -4666,8 +4688,7 @@ www.dthomes.ch`;
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
-                <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Untermietvertrag</button>
-                <button className="btn btn-p btn-sm" onClick={quickGenerateAnfangsmietzins} style={{background:"#6b5e44"}}>📋 Anfangsmietzins</button>
+                <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 <div style={{position:"relative",display:"inline-block"}} onMouseLeave={()=>setEmailMenu(false)}>
                   <button className="btn btn-p btn-sm" style={{background:"#3a5a7a"}} onClick={()=>setEmailMenu(v=>!v)}>📧 Per Email ▾</button>
                   {emailMenu && (
@@ -4936,8 +4957,40 @@ www.dthomes.ch`;
 
             <div className="ma" style={{flexWrap:"wrap"}}>
               <button className="btn btn-g" onClick={()=>{ setVertragModal(false); setSendResult(null); }} disabled={sending}>Abbrechen</button>
-              <button className="btn btn-s" onClick={generateContract} disabled={sending}>📄 UMV (Print)</button>
-              <button className="btn btn-s" onClick={generateAnfangsmietzins} disabled={sending}>📄 AMZ (Print)</button>
+              <button className="btn btn-s" onClick={generateContract} disabled={sending}>📄 UMV herunterladen</button>
+              <button className="btn btn-s" onClick={generateAnfangsmietzins} disabled={sending}>📄 AMZ herunterladen</button>
+            </div>
+            <div style={{height:1,background:"#e8e3d8",margin:"12px 0"}}/>
+            <div style={{fontSize:11,color:"#6e6a62",marginBottom:6,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>📤 Digital senden zum Online-Unterzeichnen</div>
+            <div className="ma" style={{flexWrap:"wrap"}}>
+              <button className="btn btn-p" style={{background:"#5a5448"}} onClick={async()=>{
+                if (!b || !vertragData) return;
+                if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
+                if (!confirm(`Untermietvertrag digital an ${b.email} senden?`)) return;
+                setSending(true); setSendResult(null);
+                setSendProgress({message:"Starte...",pct:0});
+                try {
+                  const result = await sendContractForSigning(b, vertragData, (msg,pct)=>setSendProgress({message:msg,pct}), ["umv"]);
+                  setSendResult({success:true, ...result});
+                } catch(err) {
+                  console.error("sendContractForSigning UMV failed:", err);
+                  setSendResult({success:false, error: err.message});
+                } finally { setSending(false); }
+              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Nur UMV"}</button>
+              <button className="btn btn-p" style={{background:"#5a5448"}} onClick={async()=>{
+                if (!b || !vertragData) return;
+                if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
+                if (!confirm(`Anfangsmietzinsformular digital an ${b.email} senden?`)) return;
+                setSending(true); setSendResult(null);
+                setSendProgress({message:"Starte...",pct:0});
+                try {
+                  const result = await sendContractForSigning(b, vertragData, (msg,pct)=>setSendProgress({message:msg,pct}), ["amz"]);
+                  setSendResult({success:true, ...result});
+                } catch(err) {
+                  console.error("sendContractForSigning AMZ failed:", err);
+                  setSendResult({success:false, error: err.message});
+                } finally { setSending(false); }
+              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Nur AMZ"}</button>
               <button className="btn btn-p" onClick={async()=>{
                 if (!b || !vertragData) return;
                 if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
@@ -4954,7 +5007,7 @@ www.dthomes.ch`;
                 } finally {
                   setSending(false);
                 }
-              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Digital senden"}</button>
+              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Beide senden"}</button>
             </div>
             
             {sending && (
