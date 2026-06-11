@@ -3726,8 +3726,8 @@ www.dthomes.ch`;
     const { data: contractRow, error: insErr } = await supabase.from("contracts").insert({
       token,
       bewerber_id: b.id,
-      apt_id: vertragData.apt,
-      room_id: vertragData.zimmerId,
+      apt_id: vertragData.apt?.id || null,
+      room_id: vertragData.zimmerId || null,
       mieter_email: b.email,
       mieter_vorname: b.vorname || "",
       mieter_nachname: b.nachname || "",
