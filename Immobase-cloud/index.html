@@ -32,6 +32,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <!-- PWA Service Worker -->
 <script>
@@ -1165,6 +1166,11 @@ function useSupabaseData() {
       noDebt: x.no_debt,
       bewerberId: x.bewerber_id,
       archivedAt: x.archived_at,
+      qrReference: x.qr_reference,
+      qrBillStoragePath: x.qr_bill_storage_path,
+      qrBillGeneratedAt: x.qr_bill_generated_at,
+      qrBillSentAt: x.qr_bill_sent_at,
+      qrBillAmount: x.qr_bill_amount,
     })));
     setBewerber((b.data||[]).map(x=>({
       ...x,
@@ -1552,6 +1558,8 @@ function useSupabaseData() {
         signatureMieter: p.signature_mieter,
         signatureVermieter: p.signature_vermieter,
         signedAt: p.signed_at,
+        emailSentAt: p.email_sent_at,
+        pdfStoragePath: p.pdf_storage_path,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
       })));
@@ -1589,6 +1597,8 @@ function useSupabaseData() {
       customRaume: "custom_raume",
       signatureMieter: "signature_mieter", signatureVermieter: "signature_vermieter",
       signedAt: "signed_at",
+      emailSentAt: "email_sent_at",
+      pdfStoragePath: "pdf_storage_path",
     };
     const dbFields = {};
     for (const k of Object.keys(fields)) {
@@ -1786,7 +1796,7 @@ function useSupabaseData() {
 const STOCKWERK_OPTIONS = ["EG","1. OG","2. OG","3. OG","4. OG","5. OG","6. OG"];
 
 const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Sonstige"];
-const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Anfangsmietzinsformular","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
+const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Anfangsmietzinsformular","Einzahlungsschein","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
 
 // Required categories that should be tracked in the checklist (excluding "Sonstige")
 const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"];
@@ -2193,11 +2203,86 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
     setShowForm(true);
   }
   
+  // Generiert PDF via html2pdf, uploaded in documents bucket, schickt Email an Mieter
+  async function generateAndSendProtokoll(protokollId) {
+    if (!window.html2pdf) throw new Error("html2pdf nicht geladen (Seite neu laden)");
+    if (!tenant?.email) throw new Error("Mieter hat keine Email-Adresse hinterlegt");
+    
+    // 1. HTML in unsichtbarem iframe rendern (für saubere Page-Breaks)
+    const html = buildPDF();
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:absolute;left:-9999px;top:0;width:210mm;height:297mm;border:none;visibility:hidden;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    
+    // Warte auf Bilder
+    await new Promise(r => setTimeout(r, 1000));
+    
+    let pdfBlob;
+    try {
+      pdfBlob = await window.html2pdf().set({
+        margin: 0,
+        filename: "Uebergabeprotokoll.pdf",
+        image: { type: "jpeg", quality: 0.92 },
+        html2canvas: { scale: 1.5, useCORS: true, logging: false, backgroundColor: "#ffffff" },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
+        pagebreak: { mode: ["css", "legacy"] }
+      }).from(iframe.contentDocument.body).outputPdf("blob");
+    } finally {
+      document.body.removeChild(iframe);
+    }
+    
+    if (!pdfBlob || pdfBlob.size < 1000) throw new Error("PDF-Generierung fehlgeschlagen");
+    
+    // 2. Upload via existing uploadDocument
+    const file = new File([pdfBlob], "Uebergabeprotokoll.pdf", { type: "application/pdf" });
+    const docRecord = await uploadDocument("tenant", tenant.id, "Übergabeprotokoll", file);
+    if (!docRecord?.storage_path) throw new Error("Upload returned no path");
+    
+    // 3. Update protokoll mit pdf_storage_path (via updateProtokoll für state-refresh)
+    await updateProtokoll(protokollId, { pdfStoragePath: docRecord.storage_path });
+    
+    // 4. Call edge function send-protocol-email
+    const aptAdresse = apt?.adresse 
+      ? `${apt.adresse}${(apt.plz || apt.ort) ? `, ${apt.plz || ""} ${apt.ort || ""}`.trim() : ""}` 
+      : "";
+    
+    const { data: result, error: fnErr } = await supabase.functions.invoke("send-protocol-email", {
+      body: {
+        protokoll_id: protokollId,
+        storage_path: docRecord.storage_path,
+        tenant_email: tenant.email,
+        tenant_vorname: tenant.vorname,
+        tenant_nachname: tenant.nachname,
+        datum: data.datum,
+        apt_adresse: aptAdresse,
+      }
+    });
+    
+    if (fnErr) throw new Error("Edge function: " + (fnErr.message || fnErr));
+    if (result?.error) throw new Error(result.error);
+    
+    // 5. State refresh: emailSentAt wurde von Edge function gesetzt, lokal nachziehen
+    await updateProtokoll(protokollId, { emailSentAt: new Date().toISOString() });
+    
+    return true;
+  }
+  
   // Speichern (Insert oder Update)
   async function save() {
     if (!tenant) return;
     setSaving(true);
     try {
+      const willBeSigned = !!(data.signature_mieter && data.signature_vermieter);
+      
+      // Prüfe ob Email schon gesendet wurde (bei Update)
+      const existingProtokoll = editingId 
+        ? (protokolle || []).find(p => p.id === editingId) 
+        : null;
+      const prevEmailSent = !!(existingProtokoll?.emailSentAt || existingProtokoll?.email_sent_at);
+      
       const payload = {
         tenantId: tenant.id,
         aptId: apt?.id || null,
@@ -2210,25 +2295,54 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
         customRaume: data.customRaume,
         signatureMieter: data.signature_mieter || null,
         signatureVermieter: data.signature_vermieter || null,
-        signedAt: (data.signature_mieter && data.signature_vermieter) ? new Date().toISOString() : null,
-        status: (data.signature_mieter && data.signature_vermieter) ? "unterschrieben" : "entwurf",
+        signedAt: willBeSigned ? new Date().toISOString() : null,
+        status: willBeSigned ? "unterschrieben" : "entwurf",
       };
       
+      let savedId = editingId;
       if (editingId) {
         await updateProtokoll(editingId, payload);
-        alert("✓ Übergabe aktualisiert.");
       } else {
         const created = await insertProtokoll(payload);
-        alert("✓ Übergabe gespeichert! Du findest sie jetzt in der Übersicht.");
-        if (created) setEditingId(created.id);
+        if (created?.id) {
+          savedId = created.id;
+          setEditingId(created.id);
+        }
         if (draftKey) localStorage.removeItem(draftKey);
       }
+      
+      // Email senden wenn: beide signaturen + noch nicht versendet + tenant.email vorhanden
+      let emailResult = null; // null = nicht versucht, true = success, string = error message
+      if (willBeSigned && !prevEmailSent && savedId) {
+        if (!tenant.email) {
+          emailResult = "Mieter hat keine Email-Adresse hinterlegt";
+        } else {
+          try {
+            await generateAndSendProtokoll(savedId);
+            emailResult = true;
+          } catch (e) {
+            console.error("generateAndSendProtokoll failed:", e);
+            emailResult = e.message || String(e);
+          }
+        }
+      }
+      
+      // User feedback
+      if (emailResult === true) {
+        alert(`✓ Übergabe gespeichert + PDF per Email an ${tenant.email} gesendet!`);
+      } else if (typeof emailResult === "string") {
+        alert(`✓ Übergabe gespeichert.\n\n⚠️ Email-Versand fehlgeschlagen: ${emailResult}\n\nDu kannst das PDF manuell via "Protokoll-PDF ansehen" erstellen und an den Mieter senden.`);
+      } else {
+        alert(editingId ? "✓ Übergabe aktualisiert." : "✓ Übergabe gespeichert! Du findest sie jetzt in der Übersicht.");
+      }
+      
       // Zurück zur Übersicht
       setShowForm(false);
       setEditingId(null);
       resetData();
     } catch (e) {
       // Fehler wurde bereits in CRUD-Funktion angezeigt
+      console.error("save error:", e);
     }
     setSaving(false);
   }
@@ -2559,30 +2673,40 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
         {myProtokolle.map(p => {
           const signed = p.status === "unterschuieben" || (p.signatureMieter && p.signatureVermieter);
           const photoCount = Object.values(p.raume || {}).reduce((s,r) => s + ((r.photos||[]).length), 0);
+          const emailSent = !!p.emailSentAt;
           return (
             <div key={p.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
                     <span style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>📋 {fmtDateDE(p.datum) || "Kein Datum"}</span>
                     {signed ? (
                       <span style={{fontSize:9.5,padding:"2px 7px",background:"#e8f0e6",color:"#2a4a35",borderRadius:10,fontWeight:600,letterSpacing:".05em"}}>✓ UNTERSCHRIEBEN</span>
                     ) : (
                       <span style={{fontSize:9.5,padding:"2px 7px",background:"#fdf7e8",color:"#b8843e",borderRadius:10,fontWeight:600,letterSpacing:".05em"}}>ENTWURF</span>
                     )}
+                    {signed && emailSent && (
+                      <span style={{fontSize:9.5,padding:"2px 7px",background:"#e6eaf0",color:"#2a3d5a",borderRadius:10,fontWeight:600,letterSpacing:".05em"}}>📧 EMAIL GESENDET</span>
+                    )}
                   </div>
                   <div style={{fontSize:10.5,color:"#8a8174",lineHeight:1.5}}>
                     📷 {photoCount} Foto{photoCount!==1?"s":""} · 🔑 {p.schluesselNr || "-"} 
                     {p.signedAt && <> · Unterschrieben: {fmtDateDE(p.signedAt)}</>}
+                    {emailSent && <> · Email: {fmtDateDE(p.emailSentAt)}</>}
                   </div>
                 </div>
                 <button onClick={()=>deleteRecord(p)} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"3px 8px",cursor:"pointer",color:"#9b4a3e",flexShrink:0}}>🗑️</button>
               </div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-p btn-sm" onClick={()=>loadRecord(p)} style={{flex:"1 1 auto"}}>
-                  {signed ? "📄 Protokoll-PDF ansehen / neu erstellen" : "✏️ Öffnen & Unterschreiben → PDF"}
+                  {signed ? (emailSent ? "📄 Protokoll-PDF ansehen / neu erstellen" : "📧 Öffnen → an Mieter senden") : "✏️ Öffnen & Unterschreiben → PDF"}
                 </button>
               </div>
+              {signed && !emailSent && tenant?.email && (
+                <div style={{marginTop:8,padding:"8px 12px",background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:6,fontSize:11,color:"#8a6a2e",lineHeight:1.5}}>
+                  ⚠️ Email noch nicht versendet. Klicke auf "Öffnen → an Mieter senden" und nutze den Button im Formular.
+                </div>
+              )}
             </div>
           );
         })}
@@ -2726,6 +2850,30 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
             <button className="btn btn-g" onClick={save} disabled={saving} style={{flex:"1 1 140px",fontWeight:600}}>
               {saving ? "⏳ Speichert…" : "💾 Änderungen speichern"}
             </button>
+            {(() => {
+              const existing = (protokolle || []).find(x => x.id === editingId);
+              const isSignedInDb = !!existing?.signedAt;
+              const emailSent = !!existing?.emailSentAt;
+              if (isSignedInDb && !emailSent && tenant?.email) {
+                return (
+                  <button className="btn btn-p" onClick={async () => {
+                    if (!confirm(`PDF generieren und an ${tenant.email} senden?`)) return;
+                    setSaving(true);
+                    try {
+                      await generateAndSendProtokoll(editingId);
+                      alert(`✓ PDF per Email an ${tenant.email} gesendet!`);
+                    } catch (e) {
+                      console.error(e);
+                      alert("⚠️ Versand fehlgeschlagen: " + (e.message || e));
+                    }
+                    setSaving(false);
+                  }} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
+                    {saving ? "⏳ Sendet…" : "📧 PDF an Mieter senden"}
+                  </button>
+                );
+              }
+              return null;
+            })()}
             <button className="btn btn-p" onClick={generatePDF} disabled={generating} style={{flex:"1 1 200px"}}>
               {generating?"⏳ Erstellt…":"📄 Protokoll-PDF erstellen"}
             </button>
@@ -5802,6 +5950,25 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
   const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
   const [changingRoom,setChangingRoom]=useState(null); // tenant whose room is being changed
   const [newRoomId,setNewRoomId]=useState("");
+  const [qrBillSending,setQrBillSending]=useState(null); // tenant.id currently sending
+  
+  // QR-Einzahlungsschein generieren + per Email senden
+  async function generateQrBill(tenantId) {
+    if (!tenantId) return;
+    setQrBillSending(tenantId);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-qr-bill", {
+        body: { tenant_id: tenantId, send_email: true }
+      });
+      if (error) throw new Error(error.message || String(error));
+      if (data?.error) throw new Error(data.error);
+      alert(`✓ QR-Einzahlungsschein generiert und per Email versendet!\n\nReferenz: ${data.qr_reference}\nBetrag: CHF ${Number(data.amount).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+    } catch (e) {
+      console.error("generateQrBill failed:", e);
+      alert("⚠️ QR-Bill konnte nicht erstellt werden:\n\n" + (e.message || e));
+    }
+    setQrBillSending(null);
+  }
   
   // Auto-select target tenant when navigated from another tab
   useEffect(() => {
@@ -6203,6 +6370,81 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
                 ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>- Nein</span>],
                 ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+              
+              {/* QR-Einzahlungsschein Sektion */}
+              {room && room.miete > 0 && (() => {
+                const miete = Number(room.miete);
+                const hasQR = !!tenant.qrReference;
+                const sentAt = tenant.qrBillSentAt;
+                const generatedAt = tenant.qrBillGeneratedAt;
+                const lastAmount = tenant.qrBillAmount != null ? Number(tenant.qrBillAmount) : null;
+                const amountChanged = hasQR && lastAmount != null && Math.abs(lastAmount - miete) > 0.01;
+                const sending = qrBillSending === tenant.id;
+                const refFormatted = hasQR ? tenant.qrReference.replace(/(\d{2})(\d{5})(\d{5})(\d{5})(\d{5})(\d{5})/, "$1 $2 $3 $4 $5 $6") : "";
+                
+                return (
+                  <div style={{marginTop:22}}>
+                    <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>QR-Einzahlungsschein · Dauerauftrag</div>
+                    <div style={{background:hasQR?"#fafaf7":"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px"}}>
+                      {hasQR ? (
+                        <>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:10}}>
+                            <div style={{flex:1,minWidth:240}}>
+                              <div style={{fontSize:11,color:"#8a8174",marginBottom:3}}>QR-Referenz</div>
+                              <div style={{fontSize:12,fontFamily:"'SF Mono',Monaco,monospace",color:"#1a1814",letterSpacing:".02em"}}>{refFormatted}</div>
+                            </div>
+                            <div>
+                              <div style={{fontSize:11,color:"#8a8174",marginBottom:3,textAlign:"right"}}>Letzter Betrag</div>
+                              <div style={{fontSize:13,fontWeight:600,color:"#1a1814",textAlign:"right"}}>CHF {lastAmount?.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+                            </div>
+                          </div>
+                          <div style={{fontSize:10.5,color:"#8a8174",lineHeight:1.6,marginBottom:amountChanged?10:12}}>
+                            {generatedAt && <>📄 Erstellt: {fmtDateDE(generatedAt)}</>}
+                            {sentAt && <> · 📧 Gesendet: {fmtDateDE(sentAt)}</>}
+                            {!sentAt && generatedAt && <> · ⚠️ noch nicht versendet</>}
+                          </div>
+                          {amountChanged && (
+                            <div style={{background:"#fdf7e8",border:"1px solid #e8d2a8",borderRadius:6,padding:"8px 12px",marginBottom:12,fontSize:11.5,color:"#8a6a2e",lineHeight:1.5}}>
+                              ⚠️ Miete hat sich geändert: CHF {lastAmount?.toLocaleString("de-CH")} → <strong>CHF {miete.toLocaleString("de-CH")}</strong>. Bitte neu generieren und an Mieter senden.
+                            </div>
+                          )}
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                            {tenant.email ? (
+                              <button className={amountChanged?"btn btn-p btn-sm":"btn btn-g btn-sm"} onClick={()=>{
+                                const action = amountChanged ? "Neuen QR-Bill mit aktualisiertem Betrag" : "Neuen QR-Bill";
+                                if (!confirm(`${action} generieren und an ${tenant.email} senden?\n\nDie QR-Referenz bleibt gleich, nur Betrag wird aktualisiert.`)) return;
+                                generateQrBill(tenant.id);
+                              }} disabled={sending}>
+                                {sending ? "⏳ Sende..." : (amountChanged ? "🔄 Neu generieren + senden" : "📧 Erneut senden")}
+                              </button>
+                            ) : (
+                              <div style={{fontSize:11,color:"#9b4a3e"}}>⚠️ Mieter hat keine Email-Adresse hinterlegt</div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{fontSize:12,color:"#4a4439",lineHeight:1.6,marginBottom:12}}>
+                            Erstelle einen persönlichen QR-Einzahlungsschein für den Mieter. Der Mieter scannt ihn einmal und richtet einen Dauerauftrag ein (fällig 25. des Vormonats).
+                          </div>
+                          {tenant.email ? (
+                            <button className="btn btn-p btn-sm" onClick={()=>{
+                              if (!confirm(`QR-Einzahlungsschein für ${tenant.vorname} ${tenant.nachname} erstellen und an ${tenant.email} senden?\n\nBetrag: CHF ${miete.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}`)) return;
+                              generateQrBill(tenant.id);
+                            }} disabled={sending}>
+                              {sending ? "⏳ Erstelle PDF..." : "📄 QR-Einzahlungsschein erstellen + senden"}
+                            </button>
+                          ) : (
+                            <div style={{fontSize:11.5,color:"#9b4a3e",lineHeight:1.5}}>
+                              ⚠️ Mieter hat keine Email-Adresse hinterlegt. Bitte zuerst Email in den Profil-Daten ergänzen.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
               
               {tenant.bemerkung&&<div style={{marginTop:18}}>
                 <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>Bemerkung</div>
