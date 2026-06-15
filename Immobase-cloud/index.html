@@ -2895,7 +2895,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom}){
+function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom}){
   const heute=new Date();
   
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
@@ -2970,6 +2970,43 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     if (daysLeft <= 30) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Auszug in 1 Monat", icon:"🟠", action:"Nachmieter zuteilen · Übergabetermin vereinbaren" };
     if (daysLeft <= 60) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Auszug in 2 Monaten", icon:"🟡", action:"Inserat schalten · Bewerber suchen" };
     return { color:"#5a6e4a", bg:"#e8eadb", border:"#c5cda8", label:"Auszug in ~3 Monaten", icon:"🟢", action:"Verlängerung anbieten oder Nachmieter suchen" };
+  }
+  
+  // ─── OFFENE SCHLÜSSELÜBERGABEN ─────────────────────────────────
+  // Aktive Mieter (mit Zimmer, nicht archiviert) ohne Übergabeprotokoll mit Schlüsselnummer
+  const offeneSchluesselUebergaben = tenants
+    .filter(t => (t.status||"aktiv") === "aktiv")
+    .map(t => {
+      const room = rooms.find(r => r.tenantId === t.id);
+      if (!room) return null;
+      const apt = apts.find(a => a.id === room.aptId);
+      const myProtokolle = (protokolle || []).filter(p => p.tenantId === t.id);
+      const completedHandover = myProtokolle.find(p => 
+        p.schluesselNr && String(p.schluesselNr).trim() !== ""
+      );
+      if (completedHandover) return null; // bereits abgeschlossen
+      const einzugDate = parseD(t.einzug);
+      const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
+      const hasEntwurf = myProtokolle.length > 0; // Protokoll existiert, aber ohne Schlüsselnummer
+      return { tenant: t, room, apt, einzugDate, daysTilEinzug, hasEntwurf };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      // Überfällige zuerst (negative days), dann nach Einzug
+      if (a.daysTilEinzug == null && b.daysTilEinzug == null) return 0;
+      if (a.daysTilEinzug == null) return 1;
+      if (b.daysTilEinzug == null) return -1;
+      return a.daysTilEinzug - b.daysTilEinzug;
+    });
+  
+  // Kategorie für Farbgebung
+  function schluesselCat(daysTilEinzug, hasEntwurf) {
+    if (daysTilEinzug == null) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Kein Einzug gesetzt", icon:"❓" };
+    if (daysTilEinzug < 0) return { color:"#9b4a3e", bg:"#fdebe5", border:"#e0bcb0", label:`${Math.abs(daysTilEinzug)} T. überfällig`, icon:"⚠️" };
+    if (daysTilEinzug === 0) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Einzug heute", icon:"🔴" };
+    if (daysTilEinzug <= 7) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:`Einzug in ${daysTilEinzug} T.`, icon:"🟠" };
+    if (daysTilEinzug <= 30) return { color:"#5a6e4a", bg:"#e8eadb", border:"#c5cda8", label:`Einzug in ${daysTilEinzug} T.`, icon:"🟢" };
+    return { color:"#5a6e4a", bg:"#e8eadb", border:"#c5cda8", label:`Einzug ${daysTilEinzug > 60 ? "in 2+ Mt." : "in 1 Mt."}`, icon:"📅" };
   }
   
   // ─── ERLEDIGT-AKTION ──────────────────────────────────────────
@@ -3149,6 +3186,62 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
           </div>
         </div>
       )}
+      
+      {/* OFFENE SCHLÜSSELÜBERGABEN */}
+      {offeneSchluesselUebergaben.length > 0 && (
+        <div style={{marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:600,color:"#1a1814",letterSpacing:".02em"}}>🔑 Offene Schlüsselübergaben</div>
+            <div style={{fontSize:11,color:"#8a8174"}}>{offeneSchluesselUebergaben.length} {offeneSchluesselUebergaben.length===1?"Mieter":"Mieter"} ausstehend</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
+            {offeneSchluesselUebergaben.map(s => {
+              const cat = schluesselCat(s.daysTilEinzug, s.hasEntwurf);
+              return (
+                <div 
+                  key={s.tenant.id}
+                  style={{
+                    background:cat.bg,
+                    border:`1px solid ${cat.border}`,
+                    borderRadius:8,
+                    padding:"12px 14px",
+                    transition:"all .15s"
+                  }}
+                >
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{cat.icon} {s.hasEntwurf ? "Entwurf · " : ""}Schlüssel offen</div>
+                    <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{cat.label}</div>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
+                  <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
+                  {s.hasEntwurf && (
+                    <div style={{fontSize:10,color:"#5a5a5a",background:"rgba(0,0,0,.05)",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block",fontWeight:600,letterSpacing:".02em"}}>
+                      📋 Übergabeprotokoll begonnen, Schlüsselnummer fehlt
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <button
+                      onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
+                      style={{
+                        flex:1,minWidth:0,
+                        background:"#1a1814",color:"#fefcf7",
+                        border:"none",borderRadius:6,
+                        padding:"7px 10px",
+                        fontSize:11,fontWeight:600,
+                        cursor:"pointer",
+                        letterSpacing:".02em",
+                        whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
+                      }}
+                      title={s.hasEntwurf ? "Übergabeprotokoll fertigstellen" : "Schlüsselübergabe starten"}
+                    >🔑 {s.hasEntwurf ? "Fertigstellen" : "Übergabe starten"}</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
       <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WG-Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
         <div className="sc"><div className="sl">Auslastung</div><div className="sv">{wgAuslastung}%</div><div className="sn" style={{color:wgAuslastung>=80?"#5a6e4a":wgAuslastung>=50?"#b8843e":"#9b4a3e"}}>{wgOcc}/{wgRooms.length} Zimmer</div></div>
