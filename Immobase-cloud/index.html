@@ -1171,6 +1171,7 @@ function useSupabaseData() {
       qrBillGeneratedAt: x.qr_bill_generated_at,
       qrBillSentAt: x.qr_bill_sent_at,
       qrBillAmount: x.qr_bill_amount,
+      schluesselNr: x.schluessel_nr,
     })));
     setBewerber((b.data||[]).map(x=>({
       ...x,
@@ -1328,6 +1329,7 @@ function useSupabaseData() {
       noDebt: "no_debt",
       bewerberId: "bewerber_id",
       archivedAt: "archived_at",
+      schluesselNr: "schluessel_nr",
     };
     const dbFields = {};
     for (const k of Object.keys(fields)) {
@@ -2973,32 +2975,20 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
   }
   
   // ─── OFFENE SCHLÜSSELÜBERGABEN ─────────────────────────────────
-  // Nur Mieter mit existierendem Übergabeprotokoll OHNE Schlüsselnummer
+  // Aktive Mieter mit Zimmer, deren tenant.schluessel_nr leer ist
   const offeneSchluesselUebergaben = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
       const room = rooms.find(r => r.tenantId === t.id);
       if (!room) return null;
+      
+      // Wenn Schlüsselnummer schon gesetzt → erledigt
+      if (t.schluesselNr && String(t.schluesselNr).trim() !== "") return null;
+      
       const apt = apts.find(a => a.id === room.aptId);
-      const myProtokolle = (protokolle || []).filter(p => p.tenantId === t.id);
-      
-      // Voraussetzung: Mindestens EIN Übergabeprotokoll muss existieren
-      if (myProtokolle.length === 0) return null;
-      
-      // Wenn schon ein Protokoll Schlüsselnummer hat → erledigt
-      const hasSchluessel = myProtokolle.some(p => 
-        p.schluesselNr && String(p.schluesselNr).trim() !== ""
-      );
-      if (hasSchluessel) return null;
-      
-      // Sonst: Protokoll(e) vorhanden aber Schlüsselnummer fehlt überall
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
-      // Neuestes Protokoll für Datum-Anzeige
-      const latestProtokoll = myProtokolle.sort((a,b) => 
-        new Date(b.updatedAt||b.createdAt||0) - new Date(a.updatedAt||a.createdAt||0)
-      )[0];
-      return { tenant: t, room, apt, einzugDate, daysTilEinzug, latestProtokoll };
+      return { tenant: t, room, apt, einzugDate, daysTilEinzug };
     })
     .filter(Boolean)
     .sort((a, b) => {
@@ -6462,7 +6452,33 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
                 ["Aufschlag/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
                 ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
                 ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
-                ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
+                ["Schlüsselnummer", 
+                  <input
+                    type="text"
+                    defaultValue={tenant.schluesselNr || ""}
+                    placeholder="Noch nicht zugewiesen"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      const current = tenant.schluesselNr || "";
+                      if (v !== current) updateTenant(tenant.id, { schluesselNr: v || null });
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                    style={{
+                      width: "100%",
+                      background: tenant.schluesselNr ? "transparent" : "#fdf7e8",
+                      border: tenant.schluesselNr ? "1px solid transparent" : "1px solid #e8d2a8",
+                      borderRadius: 4,
+                      padding: "2px 6px",
+                      fontSize: "inherit",
+                      fontFamily: "inherit",
+                      color: tenant.schluesselNr ? "#1a1814" : "#8a6a2e",
+                      outline: "none",
+                      transition: "all .15s"
+                    }}
+                    onFocus={(e) => { e.target.style.border = "1px solid #1a1814"; e.target.style.background = "#fff"; }}
+                  />
+                ],
+                ["Anzahl Schlüssel",tenant.schluesselAnzahl||"-"],
                 ["Extra-Schlüssel",tenant.extraSchluessel||"-"],
                 ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>- Nein</span>],
                 ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
