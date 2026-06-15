@@ -2973,7 +2973,7 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
   }
   
   // ─── OFFENE SCHLÜSSELÜBERGABEN ─────────────────────────────────
-  // Aktive Mieter (mit Zimmer, nicht archiviert) ohne Übergabeprotokoll mit Schlüsselnummer
+  // Nur Mieter mit existierendem Übergabeprotokoll OHNE Schlüsselnummer
   const offeneSchluesselUebergaben = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
@@ -2981,18 +2981,27 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
       if (!room) return null;
       const apt = apts.find(a => a.id === room.aptId);
       const myProtokolle = (protokolle || []).filter(p => p.tenantId === t.id);
-      const completedHandover = myProtokolle.find(p => 
+      
+      // Voraussetzung: Mindestens EIN Übergabeprotokoll muss existieren
+      if (myProtokolle.length === 0) return null;
+      
+      // Wenn schon ein Protokoll Schlüsselnummer hat → erledigt
+      const hasSchluessel = myProtokolle.some(p => 
         p.schluesselNr && String(p.schluesselNr).trim() !== ""
       );
-      if (completedHandover) return null; // bereits abgeschlossen
+      if (hasSchluessel) return null;
+      
+      // Sonst: Protokoll(e) vorhanden aber Schlüsselnummer fehlt überall
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
-      const hasEntwurf = myProtokolle.length > 0; // Protokoll existiert, aber ohne Schlüsselnummer
-      return { tenant: t, room, apt, einzugDate, daysTilEinzug, hasEntwurf };
+      // Neuestes Protokoll für Datum-Anzeige
+      const latestProtokoll = myProtokolle.sort((a,b) => 
+        new Date(b.updatedAt||b.createdAt||0) - new Date(a.updatedAt||a.createdAt||0)
+      )[0];
+      return { tenant: t, room, apt, einzugDate, daysTilEinzug, latestProtokoll };
     })
     .filter(Boolean)
     .sort((a, b) => {
-      // Überfällige zuerst (negative days), dann nach Einzug
       if (a.daysTilEinzug == null && b.daysTilEinzug == null) return 0;
       if (a.daysTilEinzug == null) return 1;
       if (b.daysTilEinzug == null) return -1;
@@ -3000,7 +3009,7 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
     });
   
   // Kategorie für Farbgebung
-  function schluesselCat(daysTilEinzug, hasEntwurf) {
+  function schluesselCat(daysTilEinzug) {
     if (daysTilEinzug == null) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Kein Einzug gesetzt", icon:"❓" };
     if (daysTilEinzug < 0) return { color:"#9b4a3e", bg:"#fdebe5", border:"#e0bcb0", label:`${Math.abs(daysTilEinzug)} T. überfällig`, icon:"⚠️" };
     if (daysTilEinzug === 0) return { color:"#b8843e", bg:"#f9efdb", border:"#e8d2a8", label:"Einzug heute", icon:"🔴" };
@@ -3196,7 +3205,7 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
             {offeneSchluesselUebergaben.map(s => {
-              const cat = schluesselCat(s.daysTilEinzug, s.hasEntwurf);
+              const cat = schluesselCat(s.daysTilEinzug);
               return (
                 <div 
                   key={s.tenant.id}
@@ -3209,16 +3218,11 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
                   }}
                 >
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                    <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{cat.icon} {s.hasEntwurf ? "Entwurf · " : ""}Schlüssel offen</div>
+                    <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{cat.icon} Schlüsselnummer fehlt</div>
                     <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{cat.label}</div>
                   </div>
                   <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                  <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
-                  {s.hasEntwurf && (
-                    <div style={{fontSize:10,color:"#5a5a5a",background:"rgba(0,0,0,.05)",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block",fontWeight:600,letterSpacing:".02em"}}>
-                      📋 Übergabeprotokoll begonnen, Schlüsselnummer fehlt
-                    </div>
-                  )}
+                  <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                     <button
                       onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
@@ -3232,8 +3236,8 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
                         letterSpacing:".02em",
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
                       }}
-                      title={s.hasEntwurf ? "Übergabeprotokoll fertigstellen" : "Schlüsselübergabe starten"}
-                    >🔑 {s.hasEntwurf ? "Fertigstellen" : "Übergabe starten"}</button>
+                      title="Übergabeprotokoll öffnen → Schlüsselnummer eintragen"
+                    >🔑 Schlüsselnummer eintragen</button>
                   </div>
                 </div>
               );
