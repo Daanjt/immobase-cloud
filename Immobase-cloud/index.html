@@ -1339,7 +1339,10 @@ function useSupabaseData() {
     delete dbFields.created_at;
     delete dbFields.updated_at;
     // Strip bewerber-only fields that don't exist on tenants table
-    delete dbFields.status;
+    // NICHT status komplett löschen - 'aktiv'/'archiviert' sind valide tenant-Werte!
+    if (dbFields.status !== undefined && !["aktiv", "archiviert"].includes(dbFields.status)) {
+      delete dbFields.status; // nur invalid bewerber-status verwerfen
+    }
     delete dbFields.eingereicht_am;
     delete dbFields.eingereichtAm;
     delete dbFields.zugeteiltes_zimmer;
