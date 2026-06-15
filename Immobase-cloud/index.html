@@ -2973,7 +2973,8 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
   }
   
   // ─── OFFENE SCHLÜSSELÜBERGABEN ─────────────────────────────────
-  // Nur Mieter mit existierendem Übergabeprotokoll OHNE Schlüsselnummer
+  // Aktive Mieter mit Zimmer ohne Schlüsselnummer
+  // (unabhängig davon, ob bereits ein Übergabeprotokoll existiert)
   const offeneSchluesselUebergaben = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
@@ -2982,23 +2983,17 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
       const apt = apts.find(a => a.id === room.aptId);
       const myProtokolle = (protokolle || []).filter(p => p.tenantId === t.id);
       
-      // Voraussetzung: Mindestens EIN Übergabeprotokoll muss existieren
-      if (myProtokolle.length === 0) return null;
-      
-      // Wenn schon ein Protokoll Schlüsselnummer hat → erledigt
+      // Wenn irgendein Protokoll für diesen Mieter eine Schlüsselnummer hat → erledigt
       const hasSchluessel = myProtokolle.some(p => 
         p.schluesselNr && String(p.schluesselNr).trim() !== ""
       );
       if (hasSchluessel) return null;
       
-      // Sonst: Protokoll(e) vorhanden aber Schlüsselnummer fehlt überall
+      // Sonst: Mieter zeigen
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
-      // Neuestes Protokoll für Datum-Anzeige
-      const latestProtokoll = myProtokolle.sort((a,b) => 
-        new Date(b.updatedAt||b.createdAt||0) - new Date(a.updatedAt||a.createdAt||0)
-      )[0];
-      return { tenant: t, room, apt, einzugDate, daysTilEinzug, latestProtokoll };
+      const hasEntwurf = myProtokolle.length > 0;
+      return { tenant: t, room, apt, einzugDate, daysTilEinzug, hasEntwurf };
     })
     .filter(Boolean)
     .sort((a, b) => {
@@ -3236,7 +3231,7 @@ function Dashboard({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTena
                         letterSpacing:".02em",
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
                       }}
-                      title="Übergabeprotokoll öffnen → Schlüsselnummer eintragen"
+                      title="Mieter öffnen → Schlüsselnummer im Übergabeprotokoll eintragen"
                     >🔑 Schlüsselnummer eintragen</button>
                   </div>
                 </div>
