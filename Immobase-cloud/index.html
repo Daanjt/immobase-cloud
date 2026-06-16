@@ -1906,27 +1906,35 @@ function MediaManager({apt, editApt, rooms}){
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.type.startsWith("image/")){ errors.push(`${file.name}: kein Bild`); continue; }
-        if (file.size > 5 * 1024 * 1024){ errors.push(`${file.name}: zu groß (>5 MB)`); continue; }
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const isImage = file.type.startsWith("image/");
+        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        if (!isImage && !isPdf){ errors.push(`${file.name}: nur Bilder oder PDF erlaubt`); continue; }
+        const maxSize = isPdf ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+        if (file.size > maxSize){ errors.push(`${file.name}: zu groß (>${isPdf ? 10 : 5} MB)`); continue; }
+        const ext = (file.name.split(".").pop() || (isPdf ? "pdf" : "jpg")).toLowerCase();
         const ts = Date.now() + "-" + Math.random().toString(36).substr(2,7) + "-" + i;
         const path = `apartments/${apt.id}/${ts}.${ext}`;
         try {
-          const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType: file.type, upsert: false });
+          const contentType = isPdf ? "application/pdf" : file.type;
+          const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType, upsert: false });
           if (upErr) { errors.push(`${file.name}: ${upErr.message}`); continue; }
           uploaded.push(path);
         } catch (e) {
           errors.push(`${file.name}: ${e.message || e}`);
         }
       }
-      // Single DB update with ALL new photos appended
+      // Single DB update with ALL new photos appended; auto-tag PDFs as grundriss
       if (uploaded.length > 0) {
         const start = photos.length;
-        const newEntries = uploaded.map((p, i) => ({ path: p, sort_order: start + i, category: null }));
+        const newEntries = uploaded.map((p, i) => ({
+          path: p,
+          sort_order: start + i,
+          category: p.toLowerCase().endsWith(".pdf") ? "grundriss" : null,
+        }));
         await editApt(apt.id, { photos: [...photos, ...newEntries] });
       }
       if (errors.length > 0) {
-        alert((uploaded.length > 0 ? `${uploaded.length} Bild(er) hochgeladen.\n\n` : "") + `${errors.length} Fehler:\n${errors.join("\n")}`);
+        alert((uploaded.length > 0 ? `${uploaded.length} Datei(en) hochgeladen.\n\n` : "") + `${errors.length} Fehler:\n${errors.join("\n")}`);
       }
     } finally {
       setUploading(false);
@@ -1995,13 +2003,13 @@ function MediaManager({apt, editApt, rooms}){
           {photos.filter(p=>!p.category).length > 0 && <span style={{fontSize:10.5,color:"#b8843e",background:"#fdf7e8",padding:"3px 9px",borderRadius:10,fontWeight:600,border:"1px solid #e8d2a8"}}>{photos.filter(p=>!p.category).length} ohne Zuordnung</span>}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*" style={{display:"none"}}/>
+          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*,application/pdf,.pdf" style={{display:"none"}}/>
           <button className="btn btn-p btn-sm" disabled={uploading} onClick={()=>fileInputRef.current?.click()} style={{flex:1}}>
             {uploading ? "⏳ Lädt…" : "📎 Mehrere Bilder gleichzeitig wählen"}
           </button>
         </div>
         <div style={{padding:"12px 14px",background:dragOver?"rgba(26,24,20,.06)":"transparent",border:dragOver?"1px dashed #1a1a1a":"1px dashed #c5b896",borderRadius:6,textAlign:"center",fontSize:11.5,color:dragOver?"#1a1a1a":"#8a8174",fontStyle:"italic",transition:"all .15s ease",pointerEvents:"none"}}>
-          {dragOver ? "📥 Loslassen zum Hochladen" : "JPG, PNG, WebP · max. 5 MB pro Bild · Zuordnung unten pro Bild"}
+          {dragOver ? "📥 Loslassen zum Hochladen" : "JPG, PNG, WebP, PDF · Bilder max. 5 MB, PDF max. 10 MB · Zuordnung unten pro Datei"}
         </div>
       </div>
       
@@ -2010,7 +2018,15 @@ function MediaManager({apt, editApt, rooms}){
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",gap:10,marginBottom:24}}>
           {photos.map((p, i) => (
             <div key={p.path} style={{border:`1px solid ${p.category ? "#e1d8c5" : "#e8d2a8"}`,borderRadius:8,overflow:"hidden",background:"#fff",position:"relative",boxShadow: p.category ? "none" : "0 0 0 1px #fdf7e8 inset"}}>
-              <img src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
+              {p.path.toLowerCase().endsWith(".pdf") ? (
+                <a href={publicUrl(p.path)} target="_blank" rel="noopener" style={{width:"100%",height:140,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#f5efe2",color:"#1a1814",textDecoration:"none",borderBottom:"1px solid #e8e0cd",gap:6}}>
+                  <div style={{fontSize:34}}>📄</div>
+                  <div style={{fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:"#5a5448"}}>PDF</div>
+                  <div style={{fontSize:9.5,color:"#8a8174"}}>klick zum Öffnen</div>
+                </a>
+              ) : (
+                <img src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
+              )}
               <div style={{padding:"6px 8px",borderTop:"1px solid #e8e0cd",background:"#fafafa"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                   <span style={{fontSize:10,color:"#8a8174"}}>#{i+1}</span>
