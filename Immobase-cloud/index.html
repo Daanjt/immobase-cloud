@@ -868,6 +868,8 @@ a:hover{border-bottom-color:var(--gold)}
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
+(function() {
+
 const { useState, useEffect, useCallback, useRef } = React;
 
 // ─── SUPABASE CONFIG ─────────────────────────────────────────────────────────
@@ -7339,6 +7341,7 @@ class ErrorBoundary extends React.Component {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/></ErrorBoundary>);
+})();
 </script>
 </body>
 </html>
