@@ -1147,7 +1147,7 @@ function useSupabaseData() {
       supabase.from("tenants").select("*").order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
     ]);
-    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, photos:x.photos||[]})));
+    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[]})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
     setTenants((t.data||[]).map(x=>({
       ...x,
@@ -1298,6 +1298,7 @@ function useSupabaseData() {
       schluesselAnzahl: "schluessel_anzahl",
       extraSchluessel: "extra_schluessel",
       matterportUrl: "matterport_url",
+      floorplanPath: "floorplan_path",
     };
     const strip = ["kaution_type"]; // some db schemas may differ; we'll use map below only
     const dbFields = {};
@@ -1872,7 +1873,43 @@ function MediaManager({apt, editApt, rooms}){
   const [mpSaving, setMpSaving] = useState(false);
   const [uploadCategory, setUploadCategory] = useState("");
   const fileInputRef = React.useRef(null);
+  const floorplanInputRef = React.useRef(null);
+  const [fpUploading, setFpUploading] = useState(false);
   const photos = apt.photos || [];
+  
+  async function handleFloorplanSelect(e){
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")){ alert("Nur Bilder erlaubt."); return; }
+    if (file.size > 5 * 1024 * 1024){ alert("Max. 5 MB."); return; }
+    setFpUploading(true);
+    try {
+      // Delete old floorplan if any
+      if (apt.floorplanPath){
+        try { await supabase.storage.from("assets").remove([apt.floorplanPath]); } catch(e){ console.warn(e); }
+      }
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const ts = Date.now();
+      const path = `apartments/${apt.id}/floorplan-${ts}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) throw upErr;
+      await editApt(apt.id, { floorplanPath: path });
+    } catch (e){
+      alert("Upload fehlgeschlagen: " + (e.message || e));
+    } finally {
+      setFpUploading(false);
+    }
+  }
+  
+  async function deleteFloorplan(){
+    if (!apt.floorplanPath) return;
+    if (!confirm("Grundriss wirklich entfernen?")) return;
+    try {
+      await supabase.storage.from("assets").remove([apt.floorplanPath]);
+    } catch(e){ console.warn(e); }
+    await editApt(apt.id, { floorplanPath: null });
+  }
   
   // Build category options: Apartment's rooms + fixed common categories
   const aptRooms = (rooms || []).filter(r => r.aptId === apt.id);
@@ -2017,6 +2054,28 @@ function MediaManager({apt, editApt, rooms}){
       ) : (
         <div style={{textAlign:"center",padding:"32px 16px",color:"#8a8174",fontStyle:"italic",fontSize:13,background:"#fafafa",borderRadius:8,border:"1px dashed #d8c9a4",marginBottom:24}}>Noch keine Fotos. Lade welche hoch, sie erscheinen dann im Bewerbungsformular.</div>
       )}
+      
+      {/* ─── Grundriss ─── */}
+      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:18}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>📐 Grundriss</div>
+        {apt.floorplanPath ? (
+          <div>
+            <div style={{borderRadius:6,overflow:"hidden",border:"1px solid #e1d8c5",background:"#fafafa",marginBottom:10}}>
+              <img src={publicUrl(apt.floorplanPath)} alt="Grundriss" style={{width:"100%",height:"auto",maxHeight:400,objectFit:"contain",display:"block",background:"#fff"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn btn-g btn-sm" onClick={()=>floorplanInputRef.current?.click()} disabled={fpUploading}>{fpUploading ? "⏳ Lädt…" : "🔄 Ersetzen"}</button>
+              <button className="btn btn-g btn-sm" style={{color:"#9b4a3e",borderColor:"#c08070"}} onClick={deleteFloorplan} disabled={fpUploading}>× Entfernen</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <button className="btn btn-p btn-sm" onClick={()=>floorplanInputRef.current?.click()} disabled={fpUploading}>{fpUploading ? "⏳ Lädt…" : "📎 Grundriss hochladen"}</button>
+            <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>JPG, PNG, WebP · max. 5 MB · ein Bild pro Wohnung</div>
+          </div>
+        )}
+        <input type="file" ref={floorplanInputRef} onChange={handleFloorplanSelect} accept="image/*" style={{display:"none"}}/>
+      </div>
       
       {/* ─── Matterport URL (zuletzt) ─── */}
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px"}}>
