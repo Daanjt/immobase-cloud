@@ -1933,22 +1933,36 @@ function MediaManager({apt, editApt, rooms}){
     return `${SUPABASE_URL}/storage/v1/object/public/assets/${path}`;
   }
   
-  async function uploadFile(file){
-    if (!file) return;
-    if (!file.type.startsWith("image/")){ alert("Nur Bilder erlaubt."); return; }
-    if (file.size > 5 * 1024 * 1024){ alert("Max. 5 MB pro Bild."); return; }
+  async function uploadBatch(files){
+    if (!files || files.length === 0) return;
     setUploading(true);
+    const errors = [];
+    const uploaded = [];
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const ts = Date.now() + "-" + Math.random().toString(36).substr(2,5);
-      const path = `apartments/${apt.id}/${ts}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType: file.type, upsert: false });
-      if (upErr) throw upErr;
-      const nextPhotos = [...photos, { path, sort_order: photos.length, category: null }];
-      await editApt(apt.id, { photos: nextPhotos });
-    } catch (e){
-      alert("Upload fehlgeschlagen: " + (e.message || e));
-      console.error(e);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith("image/")){ errors.push(`${file.name}: kein Bild`); continue; }
+        if (file.size > 5 * 1024 * 1024){ errors.push(`${file.name}: zu groß (>5 MB)`); continue; }
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const ts = Date.now() + "-" + Math.random().toString(36).substr(2,7) + "-" + i;
+        const path = `apartments/${apt.id}/${ts}.${ext}`;
+        try {
+          const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType: file.type, upsert: false });
+          if (upErr) { errors.push(`${file.name}: ${upErr.message}`); continue; }
+          uploaded.push(path);
+        } catch (e) {
+          errors.push(`${file.name}: ${e.message || e}`);
+        }
+      }
+      // Single DB update with ALL new photos appended
+      if (uploaded.length > 0) {
+        const start = photos.length;
+        const newEntries = uploaded.map((p, i) => ({ path: p, sort_order: start + i, category: null }));
+        await editApt(apt.id, { photos: [...photos, ...newEntries] });
+      }
+      if (errors.length > 0) {
+        alert((uploaded.length > 0 ? `${uploaded.length} Bild(er) hochgeladen.\n\n` : "") + `${errors.length} Fehler:\n${errors.join("\n")}`);
+      }
     } finally {
       setUploading(false);
     }
@@ -1956,8 +1970,8 @@ function MediaManager({apt, editApt, rooms}){
   
   async function handleFileSelect(e){
     const files = [...e.target.files];
-    for (const file of files) await uploadFile(file);
     e.target.value = "";
+    await uploadBatch(files);
   }
   
   function handleDragOver(e){ e.preventDefault(); e.stopPropagation(); setDragOver(true); }
@@ -1965,7 +1979,7 @@ function MediaManager({apt, editApt, rooms}){
   async function handleDrop(e){
     e.preventDefault(); e.stopPropagation(); setDragOver(false);
     const files = [...e.dataTransfer.files];
-    for (const file of files) await uploadFile(file);
+    await uploadBatch(files);
   }
   
   async function deletePhoto(idx){
