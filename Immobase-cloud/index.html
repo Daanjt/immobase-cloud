@@ -1906,16 +1906,22 @@ function MediaManager({apt, editApt, rooms}){
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const isImage = file.type.startsWith("image/");
-        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-        if (!isImage && !isPdf){ errors.push(`${file.name}: nur Bilder oder PDF erlaubt`); continue; }
-        const maxSize = isPdf ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
-        if (file.size > maxSize){ errors.push(`${file.name}: zu groß (>${isPdf ? 10 : 5} MB)`); continue; }
+        const nameLow = file.name.toLowerCase();
+        const isPdf = file.type === "application/pdf" || nameLow.endsWith(".pdf");
+        const isHeic = nameLow.endsWith(".heic") || nameLow.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
+        const isImage = file.type.startsWith("image/") || isHeic;
+        if (!isImage && !isPdf){ errors.push(`${file.name}: Format nicht erlaubt (Bilder + PDF)`); continue; }
+        // Generous 15 MB limit for everything
+        if (file.size > 15 * 1024 * 1024){ errors.push(`${file.name}: zu groß (>15 MB)`); continue; }
         const ext = (file.name.split(".").pop() || (isPdf ? "pdf" : "jpg")).toLowerCase();
         const ts = Date.now() + "-" + Math.random().toString(36).substr(2,7) + "-" + i;
         const path = `apartments/${apt.id}/${ts}.${ext}`;
         try {
-          const contentType = isPdf ? "application/pdf" : file.type;
+          // Use a safe content type — HEIC files may have empty file.type in some browsers
+          let contentType = file.type;
+          if (isPdf) contentType = "application/pdf";
+          else if (isHeic && !contentType) contentType = "image/heic";
+          else if (!contentType) contentType = "image/jpeg";
           const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType, upsert: false });
           if (upErr) { errors.push(`${file.name}: ${upErr.message}`); continue; }
           uploaded.push(path);
@@ -1998,18 +2004,19 @@ function MediaManager({apt, editApt, rooms}){
       {/* ─── Fotos Upload (zuerst) ─── */}
       <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
         style={{background:dragOver?"#f5efe4":"#fefcf7",border:dragOver?"2px dashed #1a1a1a":"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,transition:"all .15s ease"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",fontWeight:500}}>📷 Fotos hochladen</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",fontWeight:500}}>📷 Medien hochladen</div>
           {photos.filter(p=>!p.category).length > 0 && <span style={{fontSize:10.5,color:"#b8843e",background:"#fdf7e8",padding:"3px 9px",borderRadius:10,fontWeight:600,border:"1px solid #e8d2a8"}}>{photos.filter(p=>!p.category).length} ohne Zuordnung</span>}
         </div>
+        <div style={{fontSize:11,color:"#6a6258",marginBottom:10,lineHeight:1.5}}>1. Mehrere Fotos + PDF-Grundrisse gleichzeitig hochladen.<br/>2. Anschließend pro Datei unten Küche, Bad, Zimmer 1, Grundriss etc. zuordnen.</div>
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*,application/pdf,.pdf" style={{display:"none"}}/>
+          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*,.heic,.heif,.pdf,application/pdf" style={{display:"none"}}/>
           <button className="btn btn-p btn-sm" disabled={uploading} onClick={()=>fileInputRef.current?.click()} style={{flex:1}}>
             {uploading ? "⏳ Lädt…" : "📎 Mehrere Bilder gleichzeitig wählen"}
           </button>
         </div>
         <div style={{padding:"12px 14px",background:dragOver?"rgba(26,24,20,.06)":"transparent",border:dragOver?"1px dashed #1a1a1a":"1px dashed #c5b896",borderRadius:6,textAlign:"center",fontSize:11.5,color:dragOver?"#1a1a1a":"#8a8174",fontStyle:"italic",transition:"all .15s ease",pointerEvents:"none"}}>
-          {dragOver ? "📥 Loslassen zum Hochladen" : "JPG, PNG, WebP, PDF · Bilder max. 5 MB, PDF max. 10 MB · Zuordnung unten pro Datei"}
+          {dragOver ? "📥 Loslassen zum Hochladen" : "Bilder (JPG, PNG, HEIC, WebP) + PDF · max. 15 MB · Zuordnung pro Datei nach Upload"}
         </div>
       </div>
       
