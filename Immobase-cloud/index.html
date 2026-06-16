@@ -1865,13 +1865,33 @@ function fileIcon(mime, filename) {
 }
 
 // ─── MediaManager: Fotos + Matterport URL ───────────────────────────────
-function MediaManager({apt, editApt}){
+function MediaManager({apt, editApt, rooms}){
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [mp, setMp] = useState(apt.matterportUrl || "");
   const [mpSaving, setMpSaving] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState("");
   const fileInputRef = React.useRef(null);
   const photos = apt.photos || [];
+  
+  // Build category options: Apartment's rooms + fixed common categories
+  const aptRooms = (rooms || []).filter(r => r.aptId === apt.id);
+  const categoryOptions = [
+    ...aptRooms.map(r => ({ value: `room:${r.id}`, label: `Zimmer ${r.id.split("-")[1] || r.id}` })),
+    { value: "kueche", label: "Küche" },
+    { value: "bad", label: "Bad / Badezimmer" },
+    { value: "wohnzimmer", label: "Wohnzimmer" },
+    { value: "balkon", label: "Balkon / Terrasse" },
+    { value: "eingang", label: "Eingangsbereich" },
+    { value: "aussen", label: "Aussenansicht" },
+    { value: "sonstiges", label: "Sonstiges" },
+  ];
+  
+  function categoryLabel(cat){
+    if (!cat) return "";
+    const opt = categoryOptions.find(o => o.value === cat);
+    return opt ? opt.label : cat;
+  }
   
   function publicUrl(path){
     return `${SUPABASE_URL}/storage/v1/object/public/assets/${path}`;
@@ -1884,11 +1904,11 @@ function MediaManager({apt, editApt}){
     setUploading(true);
     try {
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const ts = Date.now();
+      const ts = Date.now() + "-" + Math.random().toString(36).substr(2,5);
       const path = `apartments/${apt.id}/${ts}.${ext}`;
       const { error: upErr } = await supabase.storage.from("assets").upload(path, file, { contentType: file.type, upsert: false });
       if (upErr) throw upErr;
-      const nextPhotos = [...photos, { path, sort_order: photos.length }];
+      const nextPhotos = [...photos, { path, sort_order: photos.length, category: uploadCategory || null }];
       await editApt(apt.id, { photos: nextPhotos });
     } catch (e){
       alert("Upload fehlgeschlagen: " + (e.message || e));
@@ -1931,6 +1951,11 @@ function MediaManager({apt, editApt}){
     await editApt(apt.id, { photos: reindexed });
   }
   
+  async function changeCategory(idx, newCat){
+    const nextPhotos = photos.map((p,i) => i === idx ? {...p, category: newCat || null} : p);
+    await editApt(apt.id, { photos: nextPhotos });
+  }
+  
   async function saveMatterport(){
     setMpSaving(true);
     try {
@@ -1947,8 +1972,54 @@ function MediaManager({apt, editApt}){
   
   return (
     <div>
-      {/* ─── Matterport URL ─── */}
-      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:18}}>
+      {/* ─── Fotos Upload (zuerst) ─── */}
+      <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+        style={{background:dragOver?"#f5efe4":"#fefcf7",border:dragOver?"2px dashed #1a1a1a":"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,transition:"all .15s ease"}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>📷 Fotos hochladen</div>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+          <select className="fi" style={{flex:1,margin:0}} value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)}>
+            <option value="">– Zuordnung wählen (optional) –</option>
+            {categoryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*" style={{display:"none"}}/>
+          <button className="btn btn-p btn-sm" disabled={uploading} onClick={()=>fileInputRef.current?.click()}>
+            {uploading ? "⏳ Lädt…" : "📎 Bilder wählen"}
+          </button>
+        </div>
+        <div style={{padding:"12px 14px",background:dragOver?"rgba(26,24,20,.06)":"transparent",border:dragOver?"1px dashed #1a1a1a":"1px dashed #c5b896",borderRadius:6,textAlign:"center",fontSize:11.5,color:dragOver?"#1a1a1a":"#8a8174",fontStyle:"italic",transition:"all .15s ease",pointerEvents:"none"}}>
+          {dragOver ? "📥 Loslassen zum Hochladen" : "JPG, PNG, WebP · max. 5 MB pro Bild · Zuordnung ist optional"}
+        </div>
+      </div>
+      
+      {/* ─── Fotos Grid ─── */}
+      {photos.length > 0 ? (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",gap:10,marginBottom:24}}>
+          {photos.map((p, i) => (
+            <div key={p.path} style={{border:"1px solid #e1d8c5",borderRadius:8,overflow:"hidden",background:"#fff",position:"relative"}}>
+              <img src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
+              <div style={{padding:"6px 8px",borderTop:"1px solid #e8e0cd",background:"#fafafa"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <span style={{fontSize:10,color:"#8a8174"}}>#{i+1}</span>
+                  <div style={{display:"flex",gap:4}}>
+                    <button onClick={()=>movePhoto(i,-1)} disabled={i===0} title="Nach oben" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===0?"default":"pointer",opacity:i===0?.3:1,fontSize:11}}>↑</button>
+                    <button onClick={()=>movePhoto(i,1)} disabled={i===photos.length-1} title="Nach unten" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===photos.length-1?"default":"pointer",opacity:i===photos.length-1?.3:1,fontSize:11}}>↓</button>
+                    <button onClick={()=>deletePhoto(i)} title="Löschen" style={{background:"none",border:"1px solid #c08070",color:"#9b4a3e",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>×</button>
+                  </div>
+                </div>
+                <select value={p.category||""} onChange={e=>changeCategory(i, e.target.value)} style={{width:"100%",fontSize:11,padding:"3px 5px",border:"1px solid #d8c9a4",borderRadius:4,background:"#fff",color:"#1a1814"}}>
+                  <option value="">– keine Zuordnung –</option>
+                  {categoryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{textAlign:"center",padding:"32px 16px",color:"#8a8174",fontStyle:"italic",fontSize:13,background:"#fafafa",borderRadius:8,border:"1px dashed #d8c9a4",marginBottom:24}}>Noch keine Fotos. Lade welche hoch, sie erscheinen dann im Bewerbungsformular.</div>
+      )}
+      
+      {/* ─── Matterport URL (zuletzt) ─── */}
+      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px"}}>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🎥 Matterport Virtual Tour</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <input className="fi" style={{flex:1,margin:0}} value={mp} onChange={e=>setMp(e.target.value)} placeholder="https://my.matterport.com/show/?m=xxxxx"/>
@@ -1959,45 +2030,8 @@ function MediaManager({apt, editApt}){
             <iframe src={apt.matterportUrl} width="100%" height="320" frameBorder="0" allowFullScreen style={{display:"block"}} title="Matterport Preview"/>
           </div>
         )}
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Diese 3D-Tour wird im Bewerbungsformular angezeigt.</div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Diese 3D-Tour wird unter den Fotos im Bewerbungsformular angezeigt.</div>
       </div>
-      
-      {/* ─── Fotos Upload ─── */}
-      <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-        style={{background:dragOver?"#f5efe4":"#fefcf7",border:dragOver?"2px dashed #1a1a1a":"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,transition:"all .15s ease"}}>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>📷 Fotos hochladen</div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*" style={{display:"none"}}/>
-          <button className="btn btn-p btn-sm" disabled={uploading} onClick={()=>fileInputRef.current?.click()}>
-            {uploading ? "⏳ Lädt…" : "📎 Bilder wählen"}
-          </button>
-          <span style={{fontSize:11,color:"#8a8174",fontStyle:"italic"}}>oder Dateien hier hineinziehen</span>
-        </div>
-        <div style={{marginTop:10,padding:"12px 14px",background:dragOver?"rgba(26,24,20,.06)":"transparent",border:dragOver?"1px dashed #1a1a1a":"1px dashed #c5b896",borderRadius:6,textAlign:"center",fontSize:11.5,color:dragOver?"#1a1a1a":"#8a8174",fontStyle:"italic",transition:"all .15s ease",pointerEvents:"none"}}>
-          {dragOver ? "📥 Loslassen zum Hochladen" : "JPG, PNG, WebP · max. 5 MB pro Bild"}
-        </div>
-      </div>
-      
-      {/* ─── Fotos Grid ─── */}
-      {photos.length > 0 ? (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))",gap:10}}>
-          {photos.map((p, i) => (
-            <div key={p.path} style={{border:"1px solid #e1d8c5",borderRadius:8,overflow:"hidden",background:"#fff",position:"relative"}}>
-              <img src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
-              <div style={{padding:"6px 8px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa",borderTop:"1px solid #e8e0cd"}}>
-                <span style={{fontSize:10,color:"#8a8174"}}>#{i+1}</span>
-                <div style={{display:"flex",gap:4}}>
-                  <button onClick={()=>movePhoto(i,-1)} disabled={i===0} title="Nach oben" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===0?"default":"pointer",opacity:i===0?.3:1,fontSize:11}}>↑</button>
-                  <button onClick={()=>movePhoto(i,1)} disabled={i===photos.length-1} title="Nach unten" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===photos.length-1?"default":"pointer",opacity:i===photos.length-1?.3:1,fontSize:11}}>↓</button>
-                  <button onClick={()=>deletePhoto(i)} title="Löschen" style={{background:"none",border:"1px solid #c08070",color:"#9b4a3e",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>×</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{textAlign:"center",padding:"32px 16px",color:"#8a8174",fontStyle:"italic",fontSize:13,background:"#fafafa",borderRadius:8,border:"1px dashed #d8c9a4"}}>Noch keine Fotos. Lade welche hoch, sie erscheinen dann im Bewerbungsformular.</div>
-      )}
     </div>
   );
 }
@@ -5679,7 +5713,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
               </div>);
             })()}
             {tab==="zimmer"&&(aptRooms.length===0?<div className="empty">Keine Zimmer</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>)}
-            {tab==="medien"&&<MediaManager apt={apt} editApt={editApt}/>}
+            {tab==="medien"&&<MediaManager apt={apt} editApt={editApt} rooms={rooms}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
