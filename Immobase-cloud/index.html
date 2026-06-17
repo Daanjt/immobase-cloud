@@ -4334,7 +4334,7 @@ www.dthomes.ch`;
       mieter_vorname: b.vorname || "",
       mieter_nachname: b.nachname || "",
       contract_type: contractType,
-      contract_data: { bewerber: b, vertrag: vertragData },
+      contract_data: { bewerber: b, vertrag: vertragData, umv_html: umvHtml, amz_html: amzHtml },
       status: "gesendet",
       unsigned_pdfs: unsignedPdfs,
       created_by: (window.currentUser && window.currentUser.email) || null,
