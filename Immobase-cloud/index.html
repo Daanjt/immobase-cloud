@@ -864,6 +864,176 @@ a:hover{border-bottom-color:var(--gold)}
   /* Nav: smaller padding */
   .nav-wrap { padding: 12px 18px !important; gap: 8px !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   📱 MOBILE FIXES v2 — aggressive layout repair für Detail-Seiten
+   Einfügen vor dem schließenden </style> Tag im großen <style> Block
+   ════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  
+  /* ─── 2-Spalten Detail-Layouts: STACK alle Varianten ─── */
+  div[style*="gridTemplateColumns:\"240px 1fr\""],
+  div[style*="gridTemplateColumns:\"260px 1fr\""],
+  div[style*="gridTemplateColumns:\"280px 1fr\""],
+  div[style*="grid-template-columns:240px 1fr"],
+  div[style*="grid-template-columns: 240px 1fr"],
+  div[style*="grid-template-columns:260px 1fr"],
+  div[style*="grid-template-columns: 260px 1fr"],
+  div[style*="grid-template-columns:280px 1fr"],
+  div[style*="grid-template-columns: 280px 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  /* Linke Spalte (Avatar/Foto/Sidebar) auf Mobile schmaler + zentriert */
+  div[style*="gridTemplateColumns:\"240px 1fr\""] > div:first-child,
+  div[style*="gridTemplateColumns:\"260px 1fr\""] > div:first-child,
+  div[style*="gridTemplateColumns:\"280px 1fr\""] > div:first-child {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  
+  /* ─── Label|Value 1fr 110px Grids (Vertrag-Konditionen, Preis-Listen) ─── */
+  div[style*="gridTemplateColumns:\"1fr 110px\""],
+  div[style*="grid-template-columns:1fr 110px"],
+  div[style*="grid-template-columns: 1fr 110px"] {
+    grid-template-columns: 1fr auto !important;
+    gap: 10px !important;
+  }
+  
+  /* ─── 1fr 1fr → stack (zwei Felder nebeneinander) ─── */
+  /* Vorsicht: nicht ALLE 1fr 1fr — nur die in Formularen / Detail-Bereichen */
+  .card div[style*="gridTemplateColumns:\"1fr 1fr\""],
+  .card div[style*="grid-template-columns:1fr 1fr"],
+  .card div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  
+  /* ─── 60px 1fr 110px 80px (Tabellen-ähnliche Zeilen) ─── */
+  div[style*="gridTemplateColumns:\"60px 1fr 110px 80px\""],
+  div[style*="grid-template-columns:60px 1fr 110px 80px"] {
+    grid-template-columns: 60px 1fr !important;
+    grid-template-rows: auto auto !important;
+    gap: 4px 8px !important;
+  }
+  /* Die letzten 2 Spalten (Preis + Status) auf neue Zeile, span beide cols */
+  div[style*="gridTemplateColumns:\"60px 1fr 110px 80px\""] > *:nth-child(3),
+  div[style*="gridTemplateColumns:\"60px 1fr 110px 80px\""] > *:nth-child(4) {
+    grid-column: 2 !important;
+  }
+  
+  /* ─── 3-Spalten 1fr 1fr 1fr → stack auf einzelne Spalten ─── */
+  div[style*="gridTemplateColumns:\"1fr 1fr 1fr\""],
+  div[style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  
+  /* ─── Modals: full-width mit margin auf Mobile ─── */
+  .modal {
+    width: calc(100vw - 20px) !important;
+    max-width: 100% !important;
+    padding: 24px 20px !important;
+    border-radius: 14px !important;
+    max-height: 90vh !important;
+    margin: 0 10px !important;
+  }
+  
+  /* ─── Formular-Zeilen .frow/.igrid: stack ─── */
+  .frow,
+  .igrid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  
+  /* ─── Status-Grids in Header (.sg) — auf 2x2 statt 1x4 ─── */
+  .sg {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  
+  /* ─── Tabellen mit min-width: horizontal scrollbar + sticky first col ─── */
+  .finance-scroll-table,
+  .scroll-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* ─── Lange Buttons mit Text + Icon → kompakter ─── */
+  .btn,
+  button[class*="btn"]:not(.btn-sm) {
+    font-size: 13px !important;
+    padding: 10px 14px !important;
+  }
+  
+  /* ─── Cards: weniger Padding für mehr Content-Platz ─── */
+  .card {
+    padding: 16px !important;
+    border-radius: 10px !important;
+  }
+  
+  /* ─── Inline-Style font-size 14+ in Detail-Headern auf 16+ für Lesbarkeit ─── */
+  h1, h2 { font-size: 22px !important; line-height: 1.2 !important; }
+  h3 { font-size: 18px !important; }
+  
+  /* ─── Long-text overflow: ellipsis statt overflow ─── */
+  .card .name,
+  .card .title,
+  td:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+  
+  /* ─── Button-Reihen am Card-Header (z.B. Bewerber-Card Actions) ─── */
+  /* Alle Buttons sollen einen vollen Tap-Target haben */
+  button {
+    min-height: 38px;
+  }
+  
+  /* ─── Tabs unten am Bildschirm: scrollbar ─── */
+  .tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 4px 2px 6px !important;
+  }
+  .tab {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    padding: 10px 14px !important;
+  }
+  
+  /* ─── Modal Buttons: Volle Breite, gestapelt ─── */
+  .modal-actions,
+  .modal > div:last-child {
+    flex-direction: column-reverse !important;
+    gap: 8px !important;
+  }
+  .modal-actions button,
+  .modal > div:last-child button {
+    width: 100% !important;
+  }
+  
+  /* ─── Eingabefelder größer für besseres Touch ─── */
+  input, select, textarea {
+    font-size: 16px !important; /* verhindert iOS Auto-Zoom */
+    padding: 12px 14px !important;
+    min-height: 44px !important;
+  }
+  textarea { min-height: 80px !important; }
+}
+
+/* ─── Extra-klein (< 380px): noch aggressiveres Layout ─── */
+@media (max-width: 380px) {
+  .main { padding: 64px 8px 16px !important; }
+  .card { padding: 12px !important; }
+  h1, h2 { font-size: 20px !important; }
+  .btn-sm { padding: 7px 10px !important; font-size: 10px !important; }
+  .modal { padding: 18px 14px !important; }
+}
+
 </style>
 </head>
 <body>
