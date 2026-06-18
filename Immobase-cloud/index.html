@@ -35,14 +35,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-<!-- PWA Service Worker -->
+<!-- Service Worker entfernt — alte SWs werden automatisch entfernt bei Besuch -->
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => 
-      console.warn('SW registration failed:', err)
-    );
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(reg => reg.unregister());
   });
+  if (window.caches) {
+    caches.keys().then(names => names.forEach(name => caches.delete(name)));
+  }
 }
 </script>
 
