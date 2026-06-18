@@ -865,10 +865,16 @@ a:hover{border-bottom-color:var(--gold)}
   .nav-wrap { padding: 12px 18px !important; gap: 8px !important; }
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   📱 MOBILE FIXES v2 — aggressive layout repair für Detail-Seiten
-   Einfügen vor dem schließenden </style> Tag im großen <style> Block
-   ════════════════════════════════════════════════════════════════════ */
+/* ═══ Mobile Fixes v2: Detail-Seiten Layout-Reparatur ═══ */
+
+@media (max-width: 768px) {
+  /* Modal-Overlay über Hamburger: damit Hamburger nicht über Vertrag-Modal etc. greift */
+  .ov { z-index: 1010 !important; }
+  /* Falls Browser :has() supportet (iOS 15.4+, modern Chrome): Hamburger ausblenden wenn Modal offen */
+  body:has(.ov) .mobile-menu-btn { display: none !important; }
+  /* Modal-Inhalt etwas Padding-Top damit nicht direkt am Screen-Rand klebt */
+  .modal { padding-top: 28px !important; }
+}
 
 @media (max-width: 768px) {
   
