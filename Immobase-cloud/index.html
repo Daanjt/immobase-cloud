@@ -4006,10 +4006,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     }
   }, [navTarget]);
 
-  // Form link: use bewerbung.dthomes.ch on production, otherwise same origin
-  const formLink = (window.location.hostname === "admin.dthomes.ch") 
-    ? "https://bewerbung.dthomes.ch" 
-    : window.location.origin + "/mietbewerbung.html";
+  // Form link: always bewerbung.dthomes.ch (hardcoded)
+  const formLink = "https://bewerbung.dthomes.ch";
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
