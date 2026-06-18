@@ -972,10 +972,6 @@ a:hover{border-bottom-color:var(--gold)}
     border-radius: 10px !important;
   }
   
-  /* ─── Inline-Style font-size 14+ in Detail-Headern auf 16+ für Lesbarkeit ─── */
-  h1, h2 { font-size: 22px !important; line-height: 1.2 !important; }
-  h3 { font-size: 18px !important; }
-  
   /* ─── Long-text overflow: ellipsis statt overflow ─── */
   .card .name,
   .card .title,
@@ -1005,15 +1001,24 @@ a:hover{border-bottom-color:var(--gold)}
     padding: 10px 14px !important;
   }
   
-  /* ─── Modal Buttons: Volle Breite, gestapelt ─── */
-  .modal-actions,
-  .modal > div:last-child {
+  /* ─── Modal Button-Reihen (.ma class): nicht wrappen, stacken ─── */
+  .modal .ma {
     flex-direction: column-reverse !important;
+    flex-wrap: nowrap !important;
     gap: 8px !important;
+    align-items: stretch !important;
   }
-  .modal-actions button,
-  .modal > div:last-child button {
+  .modal .ma .btn,
+  .modal .ma button {
     width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
+  /* Inline style="width:600" auf Vertrag-Modal überschreiben */
+  .modal[style*="width:600"],
+  .modal[style*="width: 600"] {
+    width: calc(100vw - 20px) !important;
+    max-width: 100% !important;
   }
   
   /* ─── Eingabefelder größer für besseres Touch ─── */
