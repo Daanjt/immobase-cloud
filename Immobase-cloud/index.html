@@ -1723,6 +1723,26 @@ function useSupabaseData() {
     }
     setBewerber(p => p.filter(b => b.id !== id));
   }
+  
+  async function deleteTenant(id) {
+    // Erst zugehörige Daten löschen (Dokumente, Zahlungen, Protokolle)
+    try { await supabase.from("documents").delete().eq("tenant_id", id); } catch(e) { console.warn("Doc delete:", e); }
+    try { await supabase.from("payments").delete().eq("tenant_id", id); } catch(e) { console.warn("Payment delete:", e); }
+    try { await supabase.from("uebergabe_protokolle").delete().eq("tenant_id", id); } catch(e) { console.warn("Protokoll delete:", e); }
+    
+    // Jetzt den Mieter selbst löschen
+    const {error} = await supabase.from("tenants").delete().eq("id", id);
+    if (error) {
+      console.error("deleteTenant error:", error);
+      alert("Löschen fehlgeschlagen: " + error.message);
+      return false;
+    }
+    setTenants(p => p.filter(t => t.id !== id));
+    setDocuments(p => p.filter(d => d.tenant_id !== id && d.tenantId !== id));
+    setPayments(p => p.filter(pm => pm.tenant_id !== id && pm.tenantId !== id));
+    setProtokolle(p => p.filter(pr => pr.tenant_id !== id && pr.tenantId !== id));
+    return true;
+  }
 
   // ─── DOCUMENTS ─────────────────────────────────────────
   const [documents, setDocuments] = useState([]);
@@ -1980,7 +2000,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -6515,7 +6535,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget}){
+function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -6987,12 +7007,24 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
                 )}
                 {tenant.status==="archiviert" ? (
-                  <button className="btn btn-p btn-sm" onClick={async()=>{
-                    if (!confirm(`${tenant.vorname} ${tenant.nachname} wieder als aktiven Mieter reaktivieren?\n\nDanach kannst du ihn/sie einem Zimmer zuteilen.`)) return;
-                    await updateTenant(tenant.id, {status:"aktiv", archivedAt:null});
-                    setViewMode("aktiv");
-                    alert("✓ Mieter reaktiviert. Im Tab 'Zimmer' kannst du ein freies Zimmer zuweisen.");
-                  }}>↑ Reaktivieren</button>
+                  <>
+                    <button className="btn btn-p btn-sm" onClick={async()=>{
+                      if (!confirm(`${tenant.vorname} ${tenant.nachname} wieder als aktiven Mieter reaktivieren?\n\nDanach kannst du ihn/sie einem Zimmer zuteilen.`)) return;
+                      await updateTenant(tenant.id, {status:"aktiv", archivedAt:null});
+                      setViewMode("aktiv");
+                      alert("✓ Mieter reaktiviert. Im Tab 'Zimmer' kannst du ein freies Zimmer zuweisen.");
+                    }}>↑ Reaktivieren</button>
+                    <button className="btn btn-sm" onClick={async()=>{
+                      const name = `${tenant.vorname} ${tenant.nachname}`;
+                      if (!confirm(`⚠ Archivierten Mieter ${name} ENDGÜLTIG LÖSCHEN?\n\nFolgende Daten werden permanent entfernt:\n• Mieter-Profil\n• Alle hochgeladenen Dokumente\n• Alle Zahlungen\n• Alle Übergabeprotokolle\n\nDieser Vorgang kann NICHT rückgängig gemacht werden.`)) return;
+                      if (!confirm(`Sicher? Tippe nochmal OK um ${name} unwiderruflich zu löschen.`)) return;
+                      const ok = await deleteTenant(tenant.id);
+                      if (ok) {
+                        setSel(null);
+                        alert(`✓ ${name} und alle zugehörigen Daten wurden gelöscht.`);
+                      }
+                    }} style={{background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0"}}>🗑 Löschen</button>
+                  </>
                 ) : (
                   <button className="btn btn-g btn-sm" onClick={async()=>{
                     if (!confirm(`${tenant.vorname} ${tenant.nachname} archivieren?\n\nDer Mieter wird ins Archiv verschoben (alte Mieter). Daten bleiben erhalten. Die Zimmer-Zuteilung wird aufgelöst.`)) return;
