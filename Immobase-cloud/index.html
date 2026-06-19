@@ -3975,6 +3975,839 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   );
 }
 
+// ─── SHARED CONTRACT BUILDERS (used by both Bewerber and Mieter) ────────────
+
+function formatDateLong(dateStr){
+  if (!dateStr) return "____";
+  const d = typeof dateStr === "string" ? new Date(dateStr.includes("-") ? dateStr : dateStr.split(".").reverse().join("-")) : dateStr;
+  if (isNaN(d.getTime())) return dateStr;
+  const months = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  return `${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
+  const chf2 = n => Number(n||0).toLocaleString("de-CH");
+  const adresseLiegenschaft = `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
+  const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
+  const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
+  // Defensive recalculation - Strom fix 25 für dieses Formular
+  // Kautions-Aufschlag wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
+  const stromFix = 25;
+  const nettomiete = +v.nettomiete || 0;
+  const nebenkosten = +v.nebenkosten || 100;
+  const totalCalc = nettomiete + nebenkosten + stromFix;
+  // Override v so the template below uses the corrected values
+  v = {...v, strom: stromFix, total: totalCalc};
+  
+  return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Anfangsmietzins - ${fullName}</title>
+<style>
+@page{size:A4;margin:15mm 18mm}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;line-height:1.45;color:#000;background:#fff}
+@media print{body{padding:0}.print-banner{display:none!important}}
+.print-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:12px 20px;text-align:center;font-size:13px;z-index:9999;font-family:Helvetica,Arial,sans-serif}
+.print-banner button{background:#fff;color:#1a1a1a;border:none;padding:7px 18px;margin-left:14px;font-weight:600;border-radius:4px;cursor:pointer;font-size:13px}
+
+/* HEADER mit Logo */
+.doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14pt}
+.doc-top .logo{width:36mm}
+.doc-top .logo img{width:100%;display:block}
+.doc-top .title{flex:1;text-align:center}
+.doc-top h1{font-size:14pt;font-weight:700;margin-bottom:3pt}
+.doc-top .subtitle{font-size:9.5pt;color:#444;font-style:italic}
+
+/* Window-fields (für Fenstercouvert) */
+.window-row{display:grid;grid-template-columns:1fr 1fr;gap:24pt;margin-bottom:18pt}
+.window-box{border:.4pt solid #ccc;padding:10pt 12pt;background:#fafafa;min-height:50pt;font-size:9pt}
+.window-box .lbl{font-size:7.5pt;color:#888;text-transform:uppercase;letter-spacing:.15em;margin-bottom:4pt;font-weight:600}
+.window-box .content{line-height:1.55}
+
+/* Intro paragraph */
+.intro{font-size:9pt;line-height:1.5;text-align:justify;margin-bottom:14pt;padding:9pt 12pt;background:#f5efe4;border-left:3pt solid #1a1a1a}
+
+/* Section blocks */
+.section{margin-bottom:12pt}
+.section h2{font-size:10pt;font-weight:700;margin-bottom:6pt;padding-bottom:3pt;border-bottom:.4pt solid #1a1a1a}
+
+.field-row{display:flex;align-items:baseline;gap:6pt;margin-bottom:4pt;font-size:9pt}
+.field-row .lbl{min-width:55%;color:#333}
+.field-row .val{flex:1;border-bottom:.3pt dotted #999;padding:1pt 4pt;font-weight:500}
+
+/* Address line */
+.addr-row{margin-bottom:8pt;font-size:9pt}
+.addr-row .lbl{font-weight:600;margin-right:8pt}
+.addr-row .val{display:inline-block;border-bottom:.3pt solid #999;padding:1pt 4pt;min-width:300pt;font-weight:500}
+
+/* Mietzins-Tabelle */
+table.mietzins{width:100%;border-collapse:collapse;margin-top:4pt;font-size:9pt}
+table.mietzins th{background:#f0ebe0;border:.5pt solid #888;padding:5pt 7pt;font-weight:700;text-align:left;font-size:8.5pt}
+table.mietzins th.amt{text-align:right;width:90pt}
+table.mietzins td{border:.4pt solid #aaa;padding:5pt 7pt}
+table.mietzins td.amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+table.mietzins tr.total td{font-weight:700;background:#fafaf3}
+
+/* Subindexes */
+.indent{margin-left:14pt;font-size:8.5pt;color:#444}
+
+/* YN options */
+.yn-row{display:flex;gap:18pt;align-items:center;font-size:9pt}
+.yn-box{display:inline-block;width:11pt;height:11pt;border:.5pt solid #000;text-align:center;line-height:11pt;font-weight:700;margin-right:4pt}
+
+/* Signatures */
+.sig-section{margin-top:20pt;padding-top:14pt;border-top:.5pt solid #1a1a1a}
+.sig-section .confirm{font-size:9pt;margin-bottom:14pt;font-style:italic}
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30pt;margin-top:14pt}
+.sig-block .lbl{font-size:8pt;color:#888;text-transform:uppercase;letter-spacing:.15em;margin-bottom:3pt;font-weight:600}
+.sig-block .name{font-size:9pt;font-weight:600;margin-bottom:18pt}
+.sig-row-inner{display:flex;gap:10pt;margin-bottom:5pt;font-size:8.5pt}
+.sig-row-inner .label{font-weight:600;min-width:40pt}
+.sig-row-inner .line{flex:1;border-bottom:.4pt solid #888;min-height:12pt}
+
+/* Page 2-3 (Auszug OR) */
+.or-page{page-break-before:always}
+.or-page h1{font-size:11pt;font-weight:700;margin-bottom:6pt}
+.or-page h2{font-size:9.5pt;font-weight:700;margin:8pt 0 3pt}
+.or-page p{font-size:7.5pt;line-height:1.5;margin-bottom:5pt;text-align:justify}
+.or-page .small-title{font-size:8pt;font-weight:700;margin:10pt 0 4pt;color:#444}
+.or-cols{column-count:2;column-gap:14pt}
+
+.footer{margin-top:18pt;padding-top:8pt;border-top:.3pt solid #ccc;text-align:center;font-size:7.5pt;color:#888;font-style:italic}
+</style>
+</head>
+<body>
+
+<div class="print-banner">
+Anfangsmietzins-Formular bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-Dialog
+<button onclick="window.print()">📄 Drucken / PDF speichern</button>
+<button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
+</div>
+
+<!-- HEADER -->
+<div class="doc-top">
+<div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+<div class="title">
+  <h1>Mitteilung des Anfangsmietzinses</h1>
+  <div class="subtitle">gemäss Art. 270 Abs. 2 OR und § 229 b EG ZGB</div>
+</div>
+<div style="width:36mm"></div>
+</div>
+
+<div class="intro">
+Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einführungsgesetzes zum Schweizerischen Zivilgesetzbuch (EG ZGB) geben wir Ihnen im Zusammenhang mit dem Abschluss des neuen Mietvertrags folgenden früheren Mietzins und Anfangsmietzins bekannt:
+</div>
+
+<!-- WINDOW (für Fenstercouvert links/rechts) -->
+<div class="window-row">
+<div class="window-box">
+  <div class="lbl">Vermieterin</div>
+  <div class="content">
+    D&amp;T Partners GmbH<br>
+    Via Campeun 40<br>
+    7403 Rhäzüns
+  </div>
+</div>
+<div class="window-box">
+  <div class="lbl">Mieter*in</div>
+  <div class="content">
+    ${fullName}<br>
+    ${adresseMieter ? adresseMieter.replace(/, /g, '<br>') : '-'}
+  </div>
+</div>
+</div>
+
+<!-- Adresse Liegenschaft -->
+<div class="addr-row">
+<span class="lbl">Adresse Liegenschaft/en:</span>
+<span class="val">${adresseLiegenschaft}</span>
+</div>
+
+<!-- MIETZINS TABELLE -->
+<div class="section">
+<table class="mietzins">
+  <thead>
+    <tr>
+      <th>Mietzins</th>
+      <th class="amt">Früherer Mietzins</th>
+      <th class="amt">Anfangsmietzins (neu)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
+    <tr><td>Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Stromkosten (pauschal)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
+    <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
+  </tbody>
+</table>
+<div class="indent" style="margin-top:6pt">(seit: -)</div>
+</div>
+
+<!-- 1. Berechnungsgrundlagen -->
+<div class="section">
+<h2>1. Berechnungsgrundlagen des bisherigen Mietzinses</h2>
+<div class="field-row">
+  <span class="lbl">Referenzzinssatz für hypothekarische Bauobjekte:</span>
+  <span class="val">- %</span>
+</div>
+<div class="field-row">
+  <span class="lbl">Landesindex der Konsumentenpreise (Basis Dez. 2020 = 100):</span>
+  <span class="val">- Pkte</span>
+</div>
+</div>
+
+<!-- 2. Vorbehalte -->
+<div class="section">
+<h2>2. Vorbehalte für allfällige spätere Mietzinserhöhungen</h2>
+<div style="font-size:8.5pt;color:#666;font-style:italic">Keine Vorbehalte gemäss vorherigem Mietvertrag oder letzter Mietzinsanpassung.</div>
+</div>
+
+<!-- 3. Beginn -->
+<div class="section">
+<h2>3. Beginn des neuen Mietvertrags</h2>
+<div class="field-row">
+  <span class="lbl">Mietbeginn:</span>
+  <span class="val">${fmtDate(v.einzug)}</span>
+</div>
+</div>
+
+<!-- 4. Begründung -->
+<div class="section">
+<h2>4. Klare Begründung der (eventuellen) Erhöhung des Anfangsmietzinses</h2>
+<div style="font-size:8.5pt;line-height:1.5">
+  Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR). Eine Erhöhung gegenüber dem früheren Mietzins liegt nicht vor, da das Objekt erstmalig untervermietet wird bzw. ein Mieterwechsel ohne Mietzinserhöhung erfolgt.
+</div>
+</div>
+
+<!-- 5. Förderbeiträge - auf neuer Seite -->
+<div class="section" style="page-break-before:always">
+<h2>5. Bei Erhöhung wegen Mehrleistungen: Erhalt von Förderbeiträgen für wertvermehrende Verbesserungen</h2>
+<div class="yn-row">
+  <span><span class="yn-box">☐</span>Ja</span>
+  <span><span class="yn-box">☒</span>Nein</span>
+</div>
+</div>
+
+<!-- HINWEIS Anfechtung -->
+<div style="margin-top:14pt;padding:9pt 12pt;background:#fafafa;border:.4pt solid #ccc;font-size:8.5pt;line-height:1.5">
+<strong>Hinweis zur Anfechtung:</strong> Der/die Mieter*in kann den Anfangsmietzins gemäss Art. 270 Abs. 1 OR innert 30 Tagen nach der Übernahme des Mietobjekts bei der Paritätischen Schlichtungsbehörde des Bezirks, in dem sich das Mietobjekt befindet (zuständiges Bezirksgericht), als missbräuchlich anfechten und dessen Herabsetzung verlangen. Wenn keine Anfechtung erfolgt, gilt der Anfangsmietzins als angenommen.
+</div>
+
+<!-- UNTERSCHRIFTEN -->
+<div class="sig-section">
+<div class="confirm">Der/die Mieter*in bestätigt, ein Doppel dieses Formulars erhalten zu haben.</div>
+<div class="sig-grid">
+  <div class="sig-block">
+    <div class="lbl">Vermieter*in</div>
+    <div class="name">D&amp;T Partners GmbH</div>
+    <div class="sig-row-inner"><span class="label">Datum:</span><span class="line"></span></div>
+    <div class="sig-row-inner"><span class="label">Unterschrift:</span><span class="line"></span></div>
+  </div>
+  <div class="sig-block">
+    <div class="lbl">Mieter*in</div>
+    <div class="name">${fullName}</div>
+    <div class="sig-row-inner"><span class="label">Datum:</span><span class="line"></span></div>
+    <div class="sig-row-inner"><span class="label">Unterschrift:</span><span class="line"></span></div>
+  </div>
+</div>
+</div>
+
+<div class="footer">Formular bereitgestellt durch die Direktion der Justiz und des Innern des Kantons Zürich</div>
+
+<!-- SEITE 2-3: Auszug OR ->
+<div class="or-page">
+<h1>Auszug aus den massgeblichen Bestimmungen des Schweizerischen Obligationenrechts</h1>
+<div style="font-size:8pt;color:#444;margin-bottom:6pt;font-style:italic">Achter Titel: Die Miete · Zweiter Abschnitt: Schutz vor missbräuchlichen Mietzinsen und anderen missbräuchlichen Forderungen des Vermieters bei der Miete von Wohn- und Geschäftsräumen</div>
+
+<div class="or-cols">
+  <h2>Art. 269 (A. Missbräuchliche Mietzinse. I. Regel)</h2>
+  <p>Mietzinse sind missbräuchlich, wenn damit ein übersetzter Ertrag aus der Mietsache erzielt wird oder wenn sie auf einem offensichtlich übersetzten Kaufpreis beruhen.</p>
+  
+  <h2>Art. 269a (II. Ausnahmen)</h2>
+  <p>Mietzinse sind in der Regel nicht missbräuchlich, wenn sie insbesondere:</p>
+  <p>a. im Rahmen der orts- oder quartierüblichen Mietzinse liegen;<br>
+  b. durch Kostensteigerungen oder Mehrleistungen des Vermieters begründet sind;<br>
+  c. bei neueren Bauten im Rahmen der kostendeckenden Bruttorendite liegen;<br>
+  d. lediglich dem Ausgleich einer Mietzinsverbilligung dienen, die zuvor durch Umlagerung marktüblicher Finanzierungskosten gewährt wurde, und in einem dem Mieter im voraus bekanntgegebenen Zahlungsplan festgelegt sind;<br>
+  e. lediglich die Teuerung auf dem risikotragenden Kapital ausgleichen;<br>
+  f. das Ausmass nicht überschreiten, das Vermieter- und Mieterverbände oder Organisationen, die ähnliche Interessen wahrnehmen, in ihren Rahmenverträgen empfehlen.</p>
+  
+  <h2>Art. 269b (B. Indexierte Mietzinse)</h2>
+  <p>Die Vereinbarung, dass der Mietzins einem Index folgt, ist nur gültig, wenn der Mietvertrag für mindestens fünf Jahre abgeschlossen und als Index der Landesindex der Konsumentenpreise vorgesehen wird.</p>
+  
+  <h2>Art. 269c (C. Gestaffelte Mietzinse)</h2>
+  <p>Die Vereinbarung, dass sich der Mietzins periodisch um einen bestimmten Betrag erhöht, ist nur gültig, wenn:<br>
+  a. der Mietvertrag für mindestens drei Jahre abgeschlossen wird;<br>
+  b. der Mietzins höchstens einmal jährlich erhöht wird; und<br>
+  c. der Betrag der Erhöhung in Franken festgelegt wird.</p>
+  
+  <h2>Art. 269d (D. Mietzinserhöhungen)</h2>
+  <p><strong>1</strong> Der Vermieter kann den Mietzins jederzeit auf den nächstmöglichen Kündigungstermin erhöhen. Er muss dem Mieter die Mietzinserhöhung mindestens zehn Tage vor Beginn der Kündigungsfrist auf einem vom Kanton genehmigten Formular mitteilen und begründen.</p>
+  <p><strong>2</strong> Die Mietzinserhöhung ist nichtig, wenn der Vermieter:<br>
+  a. sie nicht mit dem vorgeschriebenen Formular mitteilt;<br>
+  b. sie nicht begründet;<br>
+  c. mit der Mitteilung die Kündigung androht oder ausspricht.</p>
+  <p><strong>3</strong> Die Absätze 1 und 2 gelten auch, wenn der Vermieter beabsichtigt, sonstwie den Mietvertrag einseitig zu Lasten des Mieters zu ändern.</p>
+  
+  <h2>Art. 270 (E. Anfechtung des Mietzinses I.)</h2>
+  <p><strong>1</strong> Der Mieter kann den Anfangsmietzins innert 30 Tagen nach Übernahme der Sache bei der Schlichtungsbehörde als missbräuchlich im Sinne der Artikel 269 und 269a anfechten und dessen Herabsetzung verlangen, wenn:<br>
+  a. er sich wegen einer persönlichen oder familiären Notlage oder wegen der Verhältnisse auf dem örtlichen Markt für Wohn- und Geschäftsräume zum Vertragsabschluss gezwungen sah; oder<br>
+  b. der Vermieter den Anfangsmietzins gegenüber dem früheren Mietzins für dieselbe Sache erheblich erhöht hat.</p>
+  
+  <h2>Art. 270a (2. Während der Mietdauer)</h2>
+  <p><strong>1</strong> Der Mieter kann den Mietzins als missbräuchlich anfechten und die Herabsetzung auf den nächstmöglichen Kündigungstermin verlangen, wenn er Grund zur Annahme hat, dass der Vermieter wegen einer wesentlichen Änderung der Berechnungsgrundlagen einen übersetzten Ertrag aus der Mietsache erzielt.</p>
+  
+  <h2>Art. 270b (II. Anfechtung von Mietzinserhöhungen)</h2>
+  <p><strong>1</strong> Der Mieter kann eine Mietzinserhöhung innert 30 Tagen, nachdem sie ihm mitgeteilt worden ist, bei der Schlichtungsbehörde als missbräuchlich anfechten.</p>
+  
+  <h2>Art. 270e (F. Weitergeltung des Mietvertrags)</h2>
+  <p>Der bestehende Mietvertrag gilt unverändert weiter:<br>
+  a. während des Schlichtungsverfahrens, wenn zwischen den Parteien keine Einigung zustandekommt, und<br>
+  b. während des Gerichtsverfahrens, unter Vorbehalt vorsorglicher Massnahmen des Richters.</p>
+</div>
+
+<div class="footer">Formular bereitgestellt durch die Direktion der Justiz und des Innern des Kantons Zürich</div>
+</div>
+
+</body></html>`;
+}
+
+function buildContractHTML(b, v, fullName, fmtDate){
+  const chf2 = n => Number(n||0).toLocaleString("de-CH");
+  const adresseFull = `${v.adresse}, CH-${v.plz} in ${v.ort}`;
+  const refStr = `${v.adresse} & ${fullName}`;
+  return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
+<style>
+@page{size:A4;margin:18mm 18mm 22mm 18mm}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{background:#fff}
+body{
+  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  font-size:10pt;
+  line-height:1.55;
+  color:#1a1a1a;
+  padding:18mm 18mm 22mm 18mm;
+  width:210mm;
+  margin:0 auto;
+}
+@media print {
+  body{padding:0;width:auto}
+  .print-banner{display:none!important}
+}
+.print-banner{
+  position:fixed;top:0;left:0;right:0;
+  background:#1a1a1a;color:#fff;
+  padding:12px 20px;
+  text-align:center;
+  font-size:13px;
+  z-index:9999;
+  font-family:Helvetica,Arial,sans-serif;
+  box-shadow:0 2px 12px rgba(0,0,0,.2);
+}
+.print-banner button{
+  background:#fff;color:#1a1a1a;
+  border:none;padding:7px 18px;
+  margin-left:14px;
+  font-weight:600;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:13px;
+}
+.print-banner button:hover{background:#f0ebe0}
+
+/* HEADER mit Logo */
+.doc-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  padding-bottom:12pt;
+  border-bottom:1.5pt solid #1a1a1a;
+  margin-bottom:18pt;
+}
+.doc-header .left{flex:1}
+.doc-header .left .label{
+  font-size:8pt;
+  color:#888;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  font-weight:500;
+  margin-bottom:5pt;
+}
+.doc-header .left .doc-title{
+  font-size:20pt;
+  font-weight:300;
+  letter-spacing:-.3pt;
+  color:#1a1a1a;
+}
+.doc-header .logo{width:38mm;height:auto}
+.doc-header .logo img{width:100%;display:block}
+
+/* PERSONENDATEN-BLOCK */
+.person-card{
+  background:#faf8f3;
+  border-left:3pt solid #1a1a1a;
+  padding:12pt 16pt;
+  margin-bottom:16pt;
+}
+.person-card .ph{
+  font-size:8pt;
+  color:#888;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  font-weight:600;
+  margin-bottom:8pt;
+}
+.person-grid{
+  display:grid;
+  grid-template-columns:auto 1fr auto 1fr;
+  gap:6pt 18pt;
+  font-size:9.5pt;
+}
+.person-grid .pl{font-weight:600;color:#444;white-space:nowrap}
+.person-grid .pv{color:#1a1a1a}
+
+/* GREETING */
+.greeting{margin-bottom:14pt}
+.greeting p{margin-bottom:6pt;text-align:justify;hyphens:auto;font-size:10pt}
+.greeting p.welcome{font-weight:500;color:#1a1a1a}
+
+/* SECTIONS */
+.section{margin-bottom:12pt;page-break-inside:avoid}
+.section.allow-break{page-break-inside:auto}
+.section h2{
+  font-size:11pt;
+  font-weight:700;
+  color:#1a1a1a;
+  margin-bottom:7pt;
+  padding-bottom:3pt;
+  border-bottom:.5pt solid #ddd;
+  page-break-after:avoid;
+}
+.section p{
+  margin-bottom:5pt;
+  text-align:justify;
+  hyphens:auto;
+  orphans:2;
+  widows:2;
+}
+.clause{margin-bottom:5pt;text-align:justify}
+.clause-num{font-weight:700;color:#1a1a1a;margin-right:4pt}
+
+/* MIETZINS-TABELLE */
+.miet-wrap{
+  background:#fafafa;
+  border:.5pt solid #e0e0e0;
+  border-radius:4pt;
+  padding:12pt 16pt;
+  margin:8pt 0 12pt;
+}
+.miet-table{width:100%;border-collapse:collapse}
+.miet-table td{
+  padding:5pt 0;
+  font-size:10pt;
+  border-bottom:.25pt solid #e8e8e8;
+}
+.miet-table td.amt{text-align:right;width:90pt;font-variant-numeric:tabular-nums}
+.miet-table tr:last-child td{border-bottom:none}
+.miet-table tr.brutto td{
+  font-weight:700;
+  background:#f0ebe0;
+  border-bottom:.5pt solid #999;
+  border-top:.5pt solid #999;
+  padding:6pt 8pt;
+}
+.miet-table tr.brutto td.amt{padding-right:8pt}
+.miet-table tr.brutto td:first-child{padding-left:8pt}
+.miet-table tr.aufschlag td{color:#a85c4d;font-style:italic}
+.miet-table tr.total td{
+  font-weight:700;
+  font-size:11pt;
+  background:#1a1a1a;
+  color:#fff;
+  padding:8pt;
+}
+.miet-table tr.total td:first-child{padding-left:10pt}
+.miet-table tr.total td.amt{padding-right:10pt}
+
+/* BANK BLOCK */
+.bank-block{
+  display:flex;
+  gap:20pt;
+  align-items:center;
+  justify-content:center;
+  margin:10pt auto 12pt;
+  padding:14pt 18pt;
+  background:#fafafa;
+  border:.5pt solid #e0e0e0;
+  border-radius:4pt;
+}
+.qr-box{
+  width:90pt;
+  height:90pt;
+  flex-shrink:0;
+  background:#fff;
+  border:.5pt solid #ddd;
+  padding:4pt;
+  object-fit:contain;
+  display:block;
+}
+.bank-info{font-size:9.5pt;line-height:1.7}
+.bank-info .ref{
+  font-weight:700;
+  margin-top:5pt;
+  padding-top:5pt;
+  border-top:.5pt dashed #ccc;
+}
+
+/* INFO BOXEN */
+.info-box{
+  background:#faf8f3;
+  border-left:3pt solid #c5b896;
+  padding:8pt 12pt;
+  margin:8pt 0;
+  font-size:9.5pt;
+  line-height:1.5;
+}
+.highlight-box{
+  background:#fff;
+  border:1pt solid #1a1a1a;
+  padding:10pt 14pt;
+  margin:10pt 0;
+  text-align:center;
+  font-weight:700;
+  font-size:10.5pt;
+}
+
+/* LISTEN */
+ul{margin:5pt 0 8pt 18pt;padding:0}
+li{margin-bottom:3pt;line-height:1.5}
+.indent-list{margin:6pt 0 6pt 18pt}
+.indent-list div{margin-bottom:3pt;line-height:1.5}
+
+/* CLOSING + SIGNATURES (zusammenhalten) */
+.closing-wrap{
+  page-break-inside:avoid;
+  break-inside:avoid;
+  margin-top:18pt;
+}
+.closing{margin-top:0}
+.closing p{margin-bottom:8pt;text-align:justify}
+.closing .signoff{
+  margin-top:10pt;
+  font-style:italic;
+  color:#444;
+}
+
+/* SIGNATURES */
+.signatures{
+  margin-top:18pt;
+  display:flex;
+  gap:30pt;
+  page-break-inside:avoid;
+  break-inside:avoid;
+}
+.sig-block{
+  flex:1;
+  border-top:.5pt solid #1a1a1a;
+  padding-top:6pt;
+}
+.sig-block .role{
+  font-size:8pt;
+  color:#888;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  font-weight:600;
+  margin-bottom:3pt;
+}
+.sig-block .name{
+  font-size:11pt;
+  font-weight:600;
+  margin-bottom:18pt;
+}
+.sig-block .sig-row{
+  display:flex;
+  gap:14pt;
+  margin-bottom:6pt;
+  font-size:9pt;
+}
+.sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:55pt}
+.sig-block .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
+
+.page-break{page-break-after:always}
+.avoid-break{page-break-inside:avoid}
+</style>
+</head>
+<body>
+
+<div class="print-banner">
+Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-Dialog
+<button onclick="window.print()">📄 Drucken / PDF speichern</button>
+<button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
+</div>
+
+<!-- HEADER -->
+<div class="doc-header">
+<div class="left">
+  <div class="label">Vertrag</div>
+  <div class="doc-title">Untermietvertrag</div>
+</div>
+<div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+</div>
+
+<!-- PERSON CARD -->
+<div class="person-card">
+<div class="ph">Untermieter*in</div>
+<div class="person-grid">
+  <span class="pl">Vorname:</span><span class="pv">${b.vorname||"-"}</span>
+  <span class="pl">Nachname:</span><span class="pv">${b.nachname||"-"}</span>
+  <span class="pl">Strasse:</span><span class="pv">${b.adresse||"-"}</span>
+  <span class="pl">PLZ / Ort:</span><span class="pv">${b.plz||""} ${b.ort||""}</span>
+  <span class="pl">E-Mail:</span><span class="pv">${b.email||"-"}</span>
+  <span class="pl">Telefon:</span><span class="pv">${b.phone||"-"}</span>
+  <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"-"}</span>
+  <span class="pl">Nationalität:</span><span class="pv">${b.nat||"-"}</span>
+</div>
+</div>
+
+<!-- GREETING -->
+<div class="greeting">
+<p class="welcome">Guten Tag ${fullName},</p>
+<p class="welcome">Herzlich willkommen bei D&amp;T Homes!</p>
+<p>Nachfolgend findest du alle Details und Regelungen zur Miete. Der vorliegende Untermietvertrag wird zwischen der <strong>D&amp;T Partners GmbH</strong> als Hauptmieterin und dir als Untermieter*in abgeschlossen. Bitte nimm dir einen Moment Zeit, den Vertrag sorgfältig zu lesen, und unterzeichne ihn, wenn du mit den Bedingungen einverstanden bist.</p>
+</div>
+
+<!-- §1 MIETOBJEKT -->
+<div class="section">
+<h2>1. Mietobjekt</h2>
+<p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
+<p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>
+</div>
+
+<!-- §2 MIETDAUER -->
+<div class="section">
+<h2>2. Mietdauer</h2>
+<p>${(() => {
+  function parseD(s) {
+    if (!s) return null;
+    const str = String(s).trim();
+    if (!str) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d=new Date(str); return isNaN(d.getTime())?null:d; }
+    const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (m) { const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime())?null:d; }
+    const d = new Date(str); return isNaN(d.getTime())?null:d;
+  }
+  const beginn = parseD(v.einzug);
+  const mietende = parseD(v.apt?.mietende);
+  if (beginn && mietende) {
+    const months = (mietende - beginn) / (1000*60*60*24*30.44);
+    if (months > 0 && months < 12) {
+      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
+    }
+  }
+  return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
+})()}</p>
+</div>
+
+<!-- §3 MIETZINS -->
+<div class="section">
+<h2>3. Mietzins</h2>
+<p>Der monatliche Mietzins für das Zimmer ${v.zimmerId} beträgt:</p>
+<div class="miet-wrap avoid-break">
+  <table class="miet-table">
+    <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
+    <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
+    ${v.aufschlag>0?`<tr class="aufschlag"><td>Kautions-Aufschlag in CHF</td><td class="amt">+ ${chf2(v.aufschlag)}</td></tr>`:""}
+    <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2(v.total)}</td></tr>
+  </table>
+</div>
+<p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser und weitere Nebenkosten bereits inbegriffen.</p>
+<p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
+<p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
+<p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>
+<p>Nicht enthalten sind allfällige Serafe-Gebühren, diese sind von den Bewohnern selbst zu tragen.</p>
+<p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
+<div class="bank-block avoid-break">
+  <img class="qr-box" src="${DT_QR_DATA_URI}" alt="QR-Rechnung"/>
+  <div class="bank-info">
+    <strong>Graubündner Kantonalbank</strong><br>
+    D&amp;T Partners GmbH<br>
+    Via Campeun 40, 7403 Rhäzüns<br>
+    IBAN: CH80 0077 4010 5279 2690 0
+    <div class="ref">Referenz: Miete ${refStr}</div>
+  </div>
+</div>
+</div>
+
+<!-- §4 KAUTION -->
+<div class="section allow-break">
+<h2>4. Kaution</h2>
+<p>Wünscht der Untermieter, eine reduzierte oder keine Kaution zu leisten, kann dies wie folgt geregelt werden:</p>
+<div class="indent-list">
+  <div${v.kautionMonate===3?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===3?'☑':'☐'} 3 Monatsmieten Kaution = keine Anpassung des monatlichen Mietzinses (Standard)</div>
+  <div${v.kautionMonate===2?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===2?'☑':'☐'} 2 Monatsmieten Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 50</strong></div>
+  <div${v.kautionMonate===1?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===1?'☑':'☐'} 1 Monatsmiete Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 100</strong></div>
+  <div${v.kautionMonate===0?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===0?'☑':'☐'} Keine Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 150</strong></div>
+</div>
+
+<div class="highlight-box" style="text-align:left;font-weight:400;font-size:10pt;line-height:1.6">
+  <div style="font-size:8pt;color:#888;letter-spacing:.25em;text-transform:uppercase;font-weight:700;margin-bottom:6pt">Gewählte Variante</div>
+  ${v.kautionMonate===3?`<strong style="font-size:11pt">3 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*3)} &middot; kein Aufschlag`:""}
+  ${v.kautionMonate===2?`<strong style="font-size:11pt">2 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*2)} &middot; Aufschlag CHF 50/Mt.`:""}
+  ${v.kautionMonate===1?`<strong style="font-size:11pt">1 Monatsmiete Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25)))} &middot; Aufschlag CHF 100/Mt.`:""}
+  ${v.kautionMonate===0?`<strong style="font-size:11pt">Keine Kaution</strong> &middot; Aufschlag CHF 150/Mt.`:""}
+</div>
+
+${v.kautionMonate>0
+  ? `<p>Der Untermieter verpflichtet sich, vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""} - <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> - über die Plattform <strong>de.evorest.ch</strong> zu leisten. Die Kaution wird dort auf ein separates, auf den Namen des Untermieters lautendes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>`
+  : `<p>Der Untermieter hat sich für die Variante <strong>ohne Kaution</strong> entschieden. Anstelle der Kaution wird der monatliche Mietzins um <strong>CHF 150</strong> erhöht. Dieser Aufschlag ist bereits im totalen Mietzins (siehe §3) enthalten.</p>`
+}
+<p>Die Rückerstattung ${v.kautionMonate>0?"der Kaution ":""}erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden.${v.kautionMonate>0?" Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.":""}</p>
+</div>
+
+<!-- §5 -->
+<div class="section allow-break">
+<h2>5. Weiteres und Verantwortlichkeiten des Untermieters</h2>
+<p class="clause"><span class="clause-num">5.1</span>Der Untermieter verpflichtet sich, die Wohnung sowie das Inventar sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. Wohnung und Inventar sind in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
+<p class="clause"><span class="clause-num">5.2</span>Der Untermieter ist für die regelmässige Reinigung der Wohnung sowie für die ordnungsgemässe Entsorgung von Abfällen verantwortlich.</p>
+<p class="clause"><span class="clause-num">5.3</span>Eine Untervermietung oder Weitergabe der Wohnung an Dritte ist ohne ausdrückliche schriftliche Zustimmung des Hauptmieters nicht gestattet.</p>
+<p class="clause"><span class="clause-num">5.4</span>Bauliche Veränderungen an der Wohnung oder das Streichen von Wänden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig.</p>
+<p class="clause"><span class="clause-num">5.5</span>Bei längerer Abwesenheit hat der Untermieter sicherzustellen, dass der Zugang zur Wohnung für Notfälle gewährleistet ist (z. B. durch Hinterlegung eines Schlüssels bei einer Vertrauensperson).</p>
+<p class="clause"><span class="clause-num">5.6</span>Der Untermieter ist verpflichtet, sich innert acht Tagen nach Einzug bei der zuständigen Einwohnerkontrolle anzumelden.</p>
+<p class="clause"><span class="clause-num">5.7</span>Der Untermieter darf die Suche nach Mitbewohnern durch die D&amp;T Partners GmbH nicht behindern. Diese schlägt geeignete Mitbewohner vor und ermöglicht ein vorgängiges Kennenlernen. Im Zweifelsfall behält sich die D&amp;T Partners GmbH das Recht vor, einen Untermietvertrag mit einem Interessenten abzuschliessen, ohne Mitspracherecht der aktuellen Bewohner.</p>
+<p class="clause"><span class="clause-num">5.8</span>In der Schweiz wohnhafte Personen, die Radio- oder Fernsehprogramme empfangen, sind gesetzlich verpflichtet, entsprechende Empfangsgebühren zu entrichten. Diese Verpflichtung liegt beim jeweiligen Haushalt und damit bei den Untermietern. Die D&amp;T Partners GmbH organisiert keine Kostenaufteilung innerhalb der Untermieterschaft.</p>
+<p class="clause"><span class="clause-num">5.9</span>Die Kontaktdaten des Untermieters dürfen - sofern keine ausdrückliche Verweigerung erfolgt - an potenzielle Mitbewohner weitergegeben werden, um ein gegenseitiges Kennenlernen zu ermöglichen.</p>
+<p class="clause"><span class="clause-num">5.10</span>Interne Angelegenheiten zwischen den Mitbewohnern fallen nicht in den Zuständigkeitsbereich des Hauptmieters. Dieser bemüht sich jedoch, bei Bedarf zu unterstützen und ein harmonisches Zusammenleben zu fördern.</p>
+</div>
+
+<!-- §6 -->
+<div class="section">
+<h2>6. Datenschutz</h2>
+<p>Der Untermieter erklärt sich damit einverstanden, dass seine personenbezogenen Daten zum Zweck der Vertragsabwicklung sowie zur Koordination mit (potenziellen) Mitbewohnern gespeichert, verarbeitet und im erforderlichen Umfang weitergegeben werden dürfen. Eine Weitergabe an Dritte erfolgt ausschliesslich, soweit dies für die Durchführung des Mietverhältnisses notwendig ist.</p>
+</div>
+
+<!-- §7 -->
+<div class="section allow-break">
+<h2>7. Inventar &amp; Möblierung</h2>
+<p>In den Gemeinschaftsräumen der Wohnung befindet sich ein vollständiges Inventar mit Gegenständen des täglichen Bedarfs. Das Inventar umfasst insbesondere:</p>
+<ul>
+  <li>Tisch, Stühle, Besteck, Kochgeschirr, Tellerset, Bratpfanne, Küchenutensilien, Weingläser, Messerset, WC-Bürste, Abfalleimer, Schüsseln, Glas, Badematte, Seifenspender, Kanne, Zahnbürstenhalter, Duschvorhang und Topflappen.</li>
+</ul>
+<p class="clause"><span class="clause-num">7.1</span>Für eine einmalige zusätzliche Gebühr von <strong>CHF 990</strong> kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
+<ul>
+  <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
+</ul>
+<p>Die Möbel werden für die Dauer der Untermiete zur Nutzung überlassen. Der Bewohner verpflichtet sich zu einem sorgfältigen Gebrauch. Die Möbel bleiben im Eigentum der D&amp;T Partners GmbH. Das Nutzungsrecht endet mit Beendigung des Untermietvertrages.</p>
+<div class="highlight-box">Die Möblierung des Zimmers wird dazu gemietet: ${v.moebliert?"Ja":"Nein"}</div>
+<p class="clause"><span class="clause-num">7.2</span>Zum Zeitpunkt der Zimmerübergabe kann die Wohnung je nach Datum noch nicht vollständig möbliert sein. Die Möblierung erfolgt in der Regel innerhalb der ersten Tage nach Schlüsselübergabe oder nach vorgängiger Absprache.</p>
+</div>
+
+<!-- §8 -->
+<div class="section allow-break">
+<h2>8. Schlüsselübergabe</h2>
+<p>Die Schlüsselübergabe erfolgt zum vereinbarten Datum und zur vereinbarten Uhrzeit (± 3 Arbeitstage). Der Hauptmieter verpflichtet sich, dem Untermieter sämtliche für den Zugang zur Wohnung erforderlichen Schlüssel und Zugangscodes zu übergeben. Erfolgt die Übergabe mit mehr als drei Tagen Verspätung, hat der Untermieter ab dem vierten Tag Anspruch auf eine anteilsmässige Rückerstattung der ersten Mietperiode. Die Schlüssel- und Wohnungsübergabe erfolgt gegen ein schriftliches Übergabeprotokoll bei Ein- und Auszug, welches von beiden Parteien unterzeichnet wird.</p>
+<p class="clause"><span class="clause-num">8.1</span>Der Untermieter bestätigt den Erhalt der Schlüssel und Zugangscodes und verpflichtet sich, diese sorgfältig aufzubewahren und vor unbefugtem Zugriff zu schützen.</p>
+<p class="clause"><span class="clause-num">8.2</span>Bei Beendigung des Mietverhältnisses sind sämtliche Schlüssel und Zugangscodes zurückzugeben.</p>
+<p class="clause"><span class="clause-num">8.3</span>Das Anfertigen zusätzlicher Schlüssel ist ohne Zustimmung des Hauptmieters untersagt. Bei Verlust ist der Hauptmieter berechtigt, betroffene Schlösser auf Kosten des Untermieters zu ersetzen.</p>
+</div>
+
+<!-- §9 -->
+<div class="section">
+<h2>9. Reparaturen und Instandhaltung</h2>
+<p>Der Hauptmieter ist für die Instandhaltung der Wohnung verantwortlich, einschliesslich notwendiger Reparaturen an sanitären Anlagen, Heizung, Elektrik und baulichen Elementen. Der Untermieter hat Mängel oder Reparaturbedarf unverzüglich zu melden.</p>
+</div>
+
+<!-- §10 -->
+<div class="section">
+<h2>10. Haftung und Versicherung</h2>
+<p>Der Untermieter haftet für Schäden oder Verluste an Wohnung oder Inventar, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung zu erbringen.</p>
+<p>Für Schäden in gemeinsam genutzten Bereichen haften die Bewohner anteilig (Solidarhaftung), sofern kein Verursacher festgestellt werden kann.</p>
+</div>
+
+<!-- §11 -->
+<div class="section allow-break">
+<h2>11. Kündigung</h2>
+<p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt drei Monate auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
+<p class="clause"><span class="clause-num">11.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter das Zimmer vorzeitig verlässt.</p>
+<p class="clause"><span class="clause-num">11.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
+<p class="clause"><span class="clause-num">11.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.</p>
+<p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
+<p class="clause"><span class="clause-num">11.4</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
+<p class="clause"><span class="clause-num">11.5</span>Bei Kündigung innerhalb der Kündigungsfrist ist der Untermieter verpflichtet, einen geeigneten Nachmieter zu stellen, der zu gleichen Konditionen eintritt und von den Mitbewohnern akzeptiert wird. Erfolgt nachweislich keine aktive Suche, kann der Hauptmieter eine Monatsmiete von der Kaution einbehalten.</p>
+<p class="clause"><span class="clause-num">11.6</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
+</div>
+
+<!-- §12 -->
+<div class="section">
+<h2>12. Vertragsänderungen</h2>
+<p>Änderungen oder Ergänzungen dieses Vertrags bedürfen der Schriftform und der Zustimmung beider Parteien.</p>
+</div>
+
+<!-- §13 -->
+<div class="section">
+<h2>13. Rücktrittsrecht</h2>
+<p>Der Mieter erhält ein ausserordentliches Rücktrittsrecht vom unterzeichneten Mietvertrag bis und mit der persönlichen Besichtigung vor Ort. Dieses Rücktrittsrecht gilt ausschliesslich für den Fall, dass die Wohnung wesentlich von der vorgängig zur Verfügung gestellten virtuellen Tour (VR Tour) abweicht. Im Falle eines solchen Rücktritts entstehen dem Mieter keinerlei Kosten oder Verpflichtungen aus dem Mietvertrag. Bereits geleistete Zahlungen werden vollständig zurückerstattet.</p>
+</div>
+
+<!-- §14 -->
+<div class="section">
+<h2>14. Gerichtsstand</h2>
+<p>Gerichtsstand für alle Streitigkeiten aus diesem Vertrag ist <strong>Chur</strong>.</p>
+</div>
+
+<!-- §15 -->
+<div class="section">
+<h2>15. Zusätzliche Bestimmungen</h2>
+<p class="clause"><span class="clause-num">15.1</span>Haustiere sind in der Wohnung nicht gestattet.</p>
+<p class="clause"><span class="clause-num">15.2</span>Rauchen ist in der Wohnung nicht gestattet.</p>
+<p class="clause"><span class="clause-num">15.3</span>Der Untermieter verpflichtet sich, die geltenden Hausordnungen und gesetzlichen Bestimmungen einzuhalten.</p>
+<p class="clause"><span class="clause-num">15.4</span>Die WG-Zimmer sind ausschliesslich für Wohnzwecke der im Vertrag eingetragenen Person bestimmt. Eine Belegung durch mehrere Personen ist unzulässig.</p>
+<p class="clause"><span class="clause-num">15.5</span>Bei Zahlungsverzug kann der Hauptmieter Mahngebühren von <strong>CHF 20 pro Mahnung</strong> sowie Verzugszinsen von <strong>5 % p. a.</strong> erheben.</p>
+<p class="clause"><span class="clause-num">15.6</span>Der Hauptmieter ist berechtigt, das Zimmer nach angemessener Vorankündigung zur Kontrolle, Instandhaltung, Besichtigung mit Interessenten oder bei Vertragsverletzungen zu betreten.</p>
+</div>
+
+<!-- CLOSING + SIGNATURES (zusammenhalten) -->
+<div class="closing-wrap">
+<div class="closing">
+  <p>Bitte unterzeichne diesen Untermietvertrag digital und sende uns eine Kopie zurück. Digitale Unterschriften sind rechtsverbindlich. Bewahre den unterzeichneten Vertrag in deinen Unterlagen auf. Mit seiner Unterschrift bestätigt der Untermieter, sämtliche Vertragsbestimmungen gelesen, verstanden und akzeptiert zu haben.</p>
+  <p class="signoff">Wir wünschen dir viel Spass in deiner neuen Wohnung.<br>Dein D&amp;T Homes Team</p>
+</div>
+
+<!-- SIGNATURES -->
+<div class="signatures">
+  <div class="sig-block">
+    <div class="role">Untermieter*in</div>
+    <div class="name">${fullName}</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+  <div class="sig-block">
+    <div class="role">Hauptmieter</div>
+    <div class="name">D&amp;T Partners GmbH</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+</div>
+</div>
+
+</body></html>`;
+}
+
+// ─── END SHARED CONTRACT BUILDERS ──────────────────────────────────────────
+
+
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant}){
   const [sel,setSel]=useState(null);
@@ -4315,14 +5148,6 @@ www.dthomes.ch`;
     setVertragModal(true);
   }
 
-  function formatDateLong(dateStr){
-    if (!dateStr) return "____";
-    const d = typeof dateStr === "string" ? new Date(dateStr.includes("-") ? dateStr : dateStr.split(".").reverse().join("-")) : dateStr;
-    if (isNaN(d.getTime())) return dateStr;
-    const months = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-    return `${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
-  }
-
   function generateContract(){
     if (!vertragData || !b) return;
     const v = vertragData;
@@ -4544,826 +5369,6 @@ www.dthomes.ch`;
       signUrl: `https://sign.dthomes.ch/${token}`,
       emailSent: emailRes.ok,
     };
-  }
-
-  function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
-    const chf2 = n => Number(n||0).toLocaleString("de-CH");
-    const adresseLiegenschaft = `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
-    const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
-    const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
-    // Defensive recalculation - Strom fix 25 für dieses Formular
-    // Kautions-Aufschlag wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
-    const stromFix = 25;
-    const nettomiete = +v.nettomiete || 0;
-    const nebenkosten = +v.nebenkosten || 100;
-    const totalCalc = nettomiete + nebenkosten + stromFix;
-    // Override v so the template below uses the corrected values
-    v = {...v, strom: stromFix, total: totalCalc};
-    
-    return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Anfangsmietzins - ${fullName}</title>
-<style>
-  @page{size:A4;margin:15mm 18mm}
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;line-height:1.45;color:#000;background:#fff}
-  @media print{body{padding:0}.print-banner{display:none!important}}
-  .print-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:12px 20px;text-align:center;font-size:13px;z-index:9999;font-family:Helvetica,Arial,sans-serif}
-  .print-banner button{background:#fff;color:#1a1a1a;border:none;padding:7px 18px;margin-left:14px;font-weight:600;border-radius:4px;cursor:pointer;font-size:13px}
-  
-  /* HEADER mit Logo */
-  .doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14pt}
-  .doc-top .logo{width:36mm}
-  .doc-top .logo img{width:100%;display:block}
-  .doc-top .title{flex:1;text-align:center}
-  .doc-top h1{font-size:14pt;font-weight:700;margin-bottom:3pt}
-  .doc-top .subtitle{font-size:9.5pt;color:#444;font-style:italic}
-  
-  /* Window-fields (für Fenstercouvert) */
-  .window-row{display:grid;grid-template-columns:1fr 1fr;gap:24pt;margin-bottom:18pt}
-  .window-box{border:.4pt solid #ccc;padding:10pt 12pt;background:#fafafa;min-height:50pt;font-size:9pt}
-  .window-box .lbl{font-size:7.5pt;color:#888;text-transform:uppercase;letter-spacing:.15em;margin-bottom:4pt;font-weight:600}
-  .window-box .content{line-height:1.55}
-  
-  /* Intro paragraph */
-  .intro{font-size:9pt;line-height:1.5;text-align:justify;margin-bottom:14pt;padding:9pt 12pt;background:#f5efe4;border-left:3pt solid #1a1a1a}
-  
-  /* Section blocks */
-  .section{margin-bottom:12pt}
-  .section h2{font-size:10pt;font-weight:700;margin-bottom:6pt;padding-bottom:3pt;border-bottom:.4pt solid #1a1a1a}
-  
-  .field-row{display:flex;align-items:baseline;gap:6pt;margin-bottom:4pt;font-size:9pt}
-  .field-row .lbl{min-width:55%;color:#333}
-  .field-row .val{flex:1;border-bottom:.3pt dotted #999;padding:1pt 4pt;font-weight:500}
-  
-  /* Address line */
-  .addr-row{margin-bottom:8pt;font-size:9pt}
-  .addr-row .lbl{font-weight:600;margin-right:8pt}
-  .addr-row .val{display:inline-block;border-bottom:.3pt solid #999;padding:1pt 4pt;min-width:300pt;font-weight:500}
-  
-  /* Mietzins-Tabelle */
-  table.mietzins{width:100%;border-collapse:collapse;margin-top:4pt;font-size:9pt}
-  table.mietzins th{background:#f0ebe0;border:.5pt solid #888;padding:5pt 7pt;font-weight:700;text-align:left;font-size:8.5pt}
-  table.mietzins th.amt{text-align:right;width:90pt}
-  table.mietzins td{border:.4pt solid #aaa;padding:5pt 7pt}
-  table.mietzins td.amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
-  table.mietzins tr.total td{font-weight:700;background:#fafaf3}
-  
-  /* Subindexes */
-  .indent{margin-left:14pt;font-size:8.5pt;color:#444}
-  
-  /* YN options */
-  .yn-row{display:flex;gap:18pt;align-items:center;font-size:9pt}
-  .yn-box{display:inline-block;width:11pt;height:11pt;border:.5pt solid #000;text-align:center;line-height:11pt;font-weight:700;margin-right:4pt}
-  
-  /* Signatures */
-  .sig-section{margin-top:20pt;padding-top:14pt;border-top:.5pt solid #1a1a1a}
-  .sig-section .confirm{font-size:9pt;margin-bottom:14pt;font-style:italic}
-  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30pt;margin-top:14pt}
-  .sig-block .lbl{font-size:8pt;color:#888;text-transform:uppercase;letter-spacing:.15em;margin-bottom:3pt;font-weight:600}
-  .sig-block .name{font-size:9pt;font-weight:600;margin-bottom:18pt}
-  .sig-row-inner{display:flex;gap:10pt;margin-bottom:5pt;font-size:8.5pt}
-  .sig-row-inner .label{font-weight:600;min-width:40pt}
-  .sig-row-inner .line{flex:1;border-bottom:.4pt solid #888;min-height:12pt}
-  
-  /* Page 2-3 (Auszug OR) */
-  .or-page{page-break-before:always}
-  .or-page h1{font-size:11pt;font-weight:700;margin-bottom:6pt}
-  .or-page h2{font-size:9.5pt;font-weight:700;margin:8pt 0 3pt}
-  .or-page p{font-size:7.5pt;line-height:1.5;margin-bottom:5pt;text-align:justify}
-  .or-page .small-title{font-size:8pt;font-weight:700;margin:10pt 0 4pt;color:#444}
-  .or-cols{column-count:2;column-gap:14pt}
-  
-  .footer{margin-top:18pt;padding-top:8pt;border-top:.3pt solid #ccc;text-align:center;font-size:7.5pt;color:#888;font-style:italic}
-</style>
-</head>
-<body>
-
-<div class="print-banner">
-  Anfangsmietzins-Formular bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-Dialog
-  <button onclick="window.print()">📄 Drucken / PDF speichern</button>
-  <button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
-</div>
-
-<!-- HEADER -->
-<div class="doc-top">
-  <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
-  <div class="title">
-    <h1>Mitteilung des Anfangsmietzinses</h1>
-    <div class="subtitle">gemäss Art. 270 Abs. 2 OR und § 229 b EG ZGB</div>
-  </div>
-  <div style="width:36mm"></div>
-</div>
-
-<div class="intro">
-  Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einführungsgesetzes zum Schweizerischen Zivilgesetzbuch (EG ZGB) geben wir Ihnen im Zusammenhang mit dem Abschluss des neuen Mietvertrags folgenden früheren Mietzins und Anfangsmietzins bekannt:
-</div>
-
-<!-- WINDOW (für Fenstercouvert links/rechts) -->
-<div class="window-row">
-  <div class="window-box">
-    <div class="lbl">Vermieterin</div>
-    <div class="content">
-      D&amp;T Partners GmbH<br>
-      Via Campeun 40<br>
-      7403 Rhäzüns
-    </div>
-  </div>
-  <div class="window-box">
-    <div class="lbl">Mieter*in</div>
-    <div class="content">
-      ${fullName}<br>
-      ${adresseMieter ? adresseMieter.replace(/, /g, '<br>') : '-'}
-    </div>
-  </div>
-</div>
-
-<!-- Adresse Liegenschaft -->
-<div class="addr-row">
-  <span class="lbl">Adresse Liegenschaft/en:</span>
-  <span class="val">${adresseLiegenschaft}</span>
-</div>
-
-<!-- MIETZINS TABELLE -->
-<div class="section">
-  <table class="mietzins">
-    <thead>
-      <tr>
-        <th>Mietzins</th>
-        <th class="amt">Früherer Mietzins</th>
-        <th class="amt">Anfangsmietzins (neu)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
-      <tr><td>Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
-      <tr><td>Stromkosten (pauschal)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
-      <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
-    </tbody>
-  </table>
-  <div class="indent" style="margin-top:6pt">(seit: -)</div>
-</div>
-
-<!-- 1. Berechnungsgrundlagen -->
-<div class="section">
-  <h2>1. Berechnungsgrundlagen des bisherigen Mietzinses</h2>
-  <div class="field-row">
-    <span class="lbl">Referenzzinssatz für hypothekarische Bauobjekte:</span>
-    <span class="val">- %</span>
-  </div>
-  <div class="field-row">
-    <span class="lbl">Landesindex der Konsumentenpreise (Basis Dez. 2020 = 100):</span>
-    <span class="val">- Pkte</span>
-  </div>
-</div>
-
-<!-- 2. Vorbehalte -->
-<div class="section">
-  <h2>2. Vorbehalte für allfällige spätere Mietzinserhöhungen</h2>
-  <div style="font-size:8.5pt;color:#666;font-style:italic">Keine Vorbehalte gemäss vorherigem Mietvertrag oder letzter Mietzinsanpassung.</div>
-</div>
-
-<!-- 3. Beginn -->
-<div class="section">
-  <h2>3. Beginn des neuen Mietvertrags</h2>
-  <div class="field-row">
-    <span class="lbl">Mietbeginn:</span>
-    <span class="val">${fmtDate(v.einzug)}</span>
-  </div>
-</div>
-
-<!-- 4. Begründung -->
-<div class="section">
-  <h2>4. Klare Begründung der (eventuellen) Erhöhung des Anfangsmietzinses</h2>
-  <div style="font-size:8.5pt;line-height:1.5">
-    Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR). Eine Erhöhung gegenüber dem früheren Mietzins liegt nicht vor, da das Objekt erstmalig untervermietet wird bzw. ein Mieterwechsel ohne Mietzinserhöhung erfolgt.
-  </div>
-</div>
-
-<!-- 5. Förderbeiträge - auf neuer Seite -->
-<div class="section" style="page-break-before:always">
-  <h2>5. Bei Erhöhung wegen Mehrleistungen: Erhalt von Förderbeiträgen für wertvermehrende Verbesserungen</h2>
-  <div class="yn-row">
-    <span><span class="yn-box">☐</span>Ja</span>
-    <span><span class="yn-box">☒</span>Nein</span>
-  </div>
-</div>
-
-<!-- HINWEIS Anfechtung -->
-<div style="margin-top:14pt;padding:9pt 12pt;background:#fafafa;border:.4pt solid #ccc;font-size:8.5pt;line-height:1.5">
-  <strong>Hinweis zur Anfechtung:</strong> Der/die Mieter*in kann den Anfangsmietzins gemäss Art. 270 Abs. 1 OR innert 30 Tagen nach der Übernahme des Mietobjekts bei der Paritätischen Schlichtungsbehörde des Bezirks, in dem sich das Mietobjekt befindet (zuständiges Bezirksgericht), als missbräuchlich anfechten und dessen Herabsetzung verlangen. Wenn keine Anfechtung erfolgt, gilt der Anfangsmietzins als angenommen.
-</div>
-
-<!-- UNTERSCHRIFTEN -->
-<div class="sig-section">
-  <div class="confirm">Der/die Mieter*in bestätigt, ein Doppel dieses Formulars erhalten zu haben.</div>
-  <div class="sig-grid">
-    <div class="sig-block">
-      <div class="lbl">Vermieter*in</div>
-      <div class="name">D&amp;T Partners GmbH</div>
-      <div class="sig-row-inner"><span class="label">Datum:</span><span class="line"></span></div>
-      <div class="sig-row-inner"><span class="label">Unterschrift:</span><span class="line"></span></div>
-    </div>
-    <div class="sig-block">
-      <div class="lbl">Mieter*in</div>
-      <div class="name">${fullName}</div>
-      <div class="sig-row-inner"><span class="label">Datum:</span><span class="line"></span></div>
-      <div class="sig-row-inner"><span class="label">Unterschrift:</span><span class="line"></span></div>
-    </div>
-  </div>
-</div>
-
-<div class="footer">Formular bereitgestellt durch die Direktion der Justiz und des Innern des Kantons Zürich</div>
-
-<!-- SEITE 2-3: Auszug OR ->
-<div class="or-page">
-  <h1>Auszug aus den massgeblichen Bestimmungen des Schweizerischen Obligationenrechts</h1>
-  <div style="font-size:8pt;color:#444;margin-bottom:6pt;font-style:italic">Achter Titel: Die Miete · Zweiter Abschnitt: Schutz vor missbräuchlichen Mietzinsen und anderen missbräuchlichen Forderungen des Vermieters bei der Miete von Wohn- und Geschäftsräumen</div>
-  
-  <div class="or-cols">
-    <h2>Art. 269 (A. Missbräuchliche Mietzinse. I. Regel)</h2>
-    <p>Mietzinse sind missbräuchlich, wenn damit ein übersetzter Ertrag aus der Mietsache erzielt wird oder wenn sie auf einem offensichtlich übersetzten Kaufpreis beruhen.</p>
-    
-    <h2>Art. 269a (II. Ausnahmen)</h2>
-    <p>Mietzinse sind in der Regel nicht missbräuchlich, wenn sie insbesondere:</p>
-    <p>a. im Rahmen der orts- oder quartierüblichen Mietzinse liegen;<br>
-    b. durch Kostensteigerungen oder Mehrleistungen des Vermieters begründet sind;<br>
-    c. bei neueren Bauten im Rahmen der kostendeckenden Bruttorendite liegen;<br>
-    d. lediglich dem Ausgleich einer Mietzinsverbilligung dienen, die zuvor durch Umlagerung marktüblicher Finanzierungskosten gewährt wurde, und in einem dem Mieter im voraus bekanntgegebenen Zahlungsplan festgelegt sind;<br>
-    e. lediglich die Teuerung auf dem risikotragenden Kapital ausgleichen;<br>
-    f. das Ausmass nicht überschreiten, das Vermieter- und Mieterverbände oder Organisationen, die ähnliche Interessen wahrnehmen, in ihren Rahmenverträgen empfehlen.</p>
-    
-    <h2>Art. 269b (B. Indexierte Mietzinse)</h2>
-    <p>Die Vereinbarung, dass der Mietzins einem Index folgt, ist nur gültig, wenn der Mietvertrag für mindestens fünf Jahre abgeschlossen und als Index der Landesindex der Konsumentenpreise vorgesehen wird.</p>
-    
-    <h2>Art. 269c (C. Gestaffelte Mietzinse)</h2>
-    <p>Die Vereinbarung, dass sich der Mietzins periodisch um einen bestimmten Betrag erhöht, ist nur gültig, wenn:<br>
-    a. der Mietvertrag für mindestens drei Jahre abgeschlossen wird;<br>
-    b. der Mietzins höchstens einmal jährlich erhöht wird; und<br>
-    c. der Betrag der Erhöhung in Franken festgelegt wird.</p>
-    
-    <h2>Art. 269d (D. Mietzinserhöhungen)</h2>
-    <p><strong>1</strong> Der Vermieter kann den Mietzins jederzeit auf den nächstmöglichen Kündigungstermin erhöhen. Er muss dem Mieter die Mietzinserhöhung mindestens zehn Tage vor Beginn der Kündigungsfrist auf einem vom Kanton genehmigten Formular mitteilen und begründen.</p>
-    <p><strong>2</strong> Die Mietzinserhöhung ist nichtig, wenn der Vermieter:<br>
-    a. sie nicht mit dem vorgeschriebenen Formular mitteilt;<br>
-    b. sie nicht begründet;<br>
-    c. mit der Mitteilung die Kündigung androht oder ausspricht.</p>
-    <p><strong>3</strong> Die Absätze 1 und 2 gelten auch, wenn der Vermieter beabsichtigt, sonstwie den Mietvertrag einseitig zu Lasten des Mieters zu ändern.</p>
-    
-    <h2>Art. 270 (E. Anfechtung des Mietzinses I.)</h2>
-    <p><strong>1</strong> Der Mieter kann den Anfangsmietzins innert 30 Tagen nach Übernahme der Sache bei der Schlichtungsbehörde als missbräuchlich im Sinne der Artikel 269 und 269a anfechten und dessen Herabsetzung verlangen, wenn:<br>
-    a. er sich wegen einer persönlichen oder familiären Notlage oder wegen der Verhältnisse auf dem örtlichen Markt für Wohn- und Geschäftsräume zum Vertragsabschluss gezwungen sah; oder<br>
-    b. der Vermieter den Anfangsmietzins gegenüber dem früheren Mietzins für dieselbe Sache erheblich erhöht hat.</p>
-    
-    <h2>Art. 270a (2. Während der Mietdauer)</h2>
-    <p><strong>1</strong> Der Mieter kann den Mietzins als missbräuchlich anfechten und die Herabsetzung auf den nächstmöglichen Kündigungstermin verlangen, wenn er Grund zur Annahme hat, dass der Vermieter wegen einer wesentlichen Änderung der Berechnungsgrundlagen einen übersetzten Ertrag aus der Mietsache erzielt.</p>
-    
-    <h2>Art. 270b (II. Anfechtung von Mietzinserhöhungen)</h2>
-    <p><strong>1</strong> Der Mieter kann eine Mietzinserhöhung innert 30 Tagen, nachdem sie ihm mitgeteilt worden ist, bei der Schlichtungsbehörde als missbräuchlich anfechten.</p>
-    
-    <h2>Art. 270e (F. Weitergeltung des Mietvertrags)</h2>
-    <p>Der bestehende Mietvertrag gilt unverändert weiter:<br>
-    a. während des Schlichtungsverfahrens, wenn zwischen den Parteien keine Einigung zustandekommt, und<br>
-    b. während des Gerichtsverfahrens, unter Vorbehalt vorsorglicher Massnahmen des Richters.</p>
-  </div>
-  
-  <div class="footer">Formular bereitgestellt durch die Direktion der Justiz und des Innern des Kantons Zürich</div>
-</div>
-
-</body></html>`;
-  }
-
-  function buildContractHTML(b, v, fullName, fmtDate){
-    const chf2 = n => Number(n||0).toLocaleString("de-CH");
-    const adresseFull = `${v.adresse}, CH-${v.plz} in ${v.ort}`;
-    const refStr = `${v.adresse} & ${fullName}`;
-    return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
-<style>
-  @page{size:A4;margin:18mm 18mm 22mm 18mm}
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  html,body{background:#fff}
-  body{
-    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
-    font-size:10pt;
-    line-height:1.55;
-    color:#1a1a1a;
-    padding:18mm 18mm 22mm 18mm;
-    width:210mm;
-    margin:0 auto;
-  }
-  @media print {
-    body{padding:0;width:auto}
-    .print-banner{display:none!important}
-  }
-  .print-banner{
-    position:fixed;top:0;left:0;right:0;
-    background:#1a1a1a;color:#fff;
-    padding:12px 20px;
-    text-align:center;
-    font-size:13px;
-    z-index:9999;
-    font-family:Helvetica,Arial,sans-serif;
-    box-shadow:0 2px 12px rgba(0,0,0,.2);
-  }
-  .print-banner button{
-    background:#fff;color:#1a1a1a;
-    border:none;padding:7px 18px;
-    margin-left:14px;
-    font-weight:600;
-    border-radius:4px;
-    cursor:pointer;
-    font-size:13px;
-  }
-  .print-banner button:hover{background:#f0ebe0}
-  
-  /* HEADER mit Logo */
-  .doc-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-end;
-    padding-bottom:12pt;
-    border-bottom:1.5pt solid #1a1a1a;
-    margin-bottom:18pt;
-  }
-  .doc-header .left{flex:1}
-  .doc-header .left .label{
-    font-size:8pt;
-    color:#888;
-    letter-spacing:.3em;
-    text-transform:uppercase;
-    font-weight:500;
-    margin-bottom:5pt;
-  }
-  .doc-header .left .doc-title{
-    font-size:20pt;
-    font-weight:300;
-    letter-spacing:-.3pt;
-    color:#1a1a1a;
-  }
-  .doc-header .logo{width:38mm;height:auto}
-  .doc-header .logo img{width:100%;display:block}
-  
-  /* PERSONENDATEN-BLOCK */
-  .person-card{
-    background:#faf8f3;
-    border-left:3pt solid #1a1a1a;
-    padding:12pt 16pt;
-    margin-bottom:16pt;
-  }
-  .person-card .ph{
-    font-size:8pt;
-    color:#888;
-    letter-spacing:.3em;
-    text-transform:uppercase;
-    font-weight:600;
-    margin-bottom:8pt;
-  }
-  .person-grid{
-    display:grid;
-    grid-template-columns:auto 1fr auto 1fr;
-    gap:6pt 18pt;
-    font-size:9.5pt;
-  }
-  .person-grid .pl{font-weight:600;color:#444;white-space:nowrap}
-  .person-grid .pv{color:#1a1a1a}
-  
-  /* GREETING */
-  .greeting{margin-bottom:14pt}
-  .greeting p{margin-bottom:6pt;text-align:justify;hyphens:auto;font-size:10pt}
-  .greeting p.welcome{font-weight:500;color:#1a1a1a}
-  
-  /* SECTIONS */
-  .section{margin-bottom:12pt;page-break-inside:avoid}
-  .section.allow-break{page-break-inside:auto}
-  .section h2{
-    font-size:11pt;
-    font-weight:700;
-    color:#1a1a1a;
-    margin-bottom:7pt;
-    padding-bottom:3pt;
-    border-bottom:.5pt solid #ddd;
-    page-break-after:avoid;
-  }
-  .section p{
-    margin-bottom:5pt;
-    text-align:justify;
-    hyphens:auto;
-    orphans:2;
-    widows:2;
-  }
-  .clause{margin-bottom:5pt;text-align:justify}
-  .clause-num{font-weight:700;color:#1a1a1a;margin-right:4pt}
-  
-  /* MIETZINS-TABELLE */
-  .miet-wrap{
-    background:#fafafa;
-    border:.5pt solid #e0e0e0;
-    border-radius:4pt;
-    padding:12pt 16pt;
-    margin:8pt 0 12pt;
-  }
-  .miet-table{width:100%;border-collapse:collapse}
-  .miet-table td{
-    padding:5pt 0;
-    font-size:10pt;
-    border-bottom:.25pt solid #e8e8e8;
-  }
-  .miet-table td.amt{text-align:right;width:90pt;font-variant-numeric:tabular-nums}
-  .miet-table tr:last-child td{border-bottom:none}
-  .miet-table tr.brutto td{
-    font-weight:700;
-    background:#f0ebe0;
-    border-bottom:.5pt solid #999;
-    border-top:.5pt solid #999;
-    padding:6pt 8pt;
-  }
-  .miet-table tr.brutto td.amt{padding-right:8pt}
-  .miet-table tr.brutto td:first-child{padding-left:8pt}
-  .miet-table tr.aufschlag td{color:#a85c4d;font-style:italic}
-  .miet-table tr.total td{
-    font-weight:700;
-    font-size:11pt;
-    background:#1a1a1a;
-    color:#fff;
-    padding:8pt;
-  }
-  .miet-table tr.total td:first-child{padding-left:10pt}
-  .miet-table tr.total td.amt{padding-right:10pt}
-  
-  /* BANK BLOCK */
-  .bank-block{
-    display:flex;
-    gap:20pt;
-    align-items:center;
-    justify-content:center;
-    margin:10pt auto 12pt;
-    padding:14pt 18pt;
-    background:#fafafa;
-    border:.5pt solid #e0e0e0;
-    border-radius:4pt;
-  }
-  .qr-box{
-    width:90pt;
-    height:90pt;
-    flex-shrink:0;
-    background:#fff;
-    border:.5pt solid #ddd;
-    padding:4pt;
-    object-fit:contain;
-    display:block;
-  }
-  .bank-info{font-size:9.5pt;line-height:1.7}
-  .bank-info .ref{
-    font-weight:700;
-    margin-top:5pt;
-    padding-top:5pt;
-    border-top:.5pt dashed #ccc;
-  }
-  
-  /* INFO BOXEN */
-  .info-box{
-    background:#faf8f3;
-    border-left:3pt solid #c5b896;
-    padding:8pt 12pt;
-    margin:8pt 0;
-    font-size:9.5pt;
-    line-height:1.5;
-  }
-  .highlight-box{
-    background:#fff;
-    border:1pt solid #1a1a1a;
-    padding:10pt 14pt;
-    margin:10pt 0;
-    text-align:center;
-    font-weight:700;
-    font-size:10.5pt;
-  }
-  
-  /* LISTEN */
-  ul{margin:5pt 0 8pt 18pt;padding:0}
-  li{margin-bottom:3pt;line-height:1.5}
-  .indent-list{margin:6pt 0 6pt 18pt}
-  .indent-list div{margin-bottom:3pt;line-height:1.5}
-  
-  /* CLOSING + SIGNATURES (zusammenhalten) */
-  .closing-wrap{
-    page-break-inside:avoid;
-    break-inside:avoid;
-    margin-top:18pt;
-  }
-  .closing{margin-top:0}
-  .closing p{margin-bottom:8pt;text-align:justify}
-  .closing .signoff{
-    margin-top:10pt;
-    font-style:italic;
-    color:#444;
-  }
-  
-  /* SIGNATURES */
-  .signatures{
-    margin-top:18pt;
-    display:flex;
-    gap:30pt;
-    page-break-inside:avoid;
-    break-inside:avoid;
-  }
-  .sig-block{
-    flex:1;
-    border-top:.5pt solid #1a1a1a;
-    padding-top:6pt;
-  }
-  .sig-block .role{
-    font-size:8pt;
-    color:#888;
-    letter-spacing:.2em;
-    text-transform:uppercase;
-    font-weight:600;
-    margin-bottom:3pt;
-  }
-  .sig-block .name{
-    font-size:11pt;
-    font-weight:600;
-    margin-bottom:18pt;
-  }
-  .sig-block .sig-row{
-    display:flex;
-    gap:14pt;
-    margin-bottom:6pt;
-    font-size:9pt;
-  }
-  .sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:55pt}
-  .sig-block .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
-  
-  .page-break{page-break-after:always}
-  .avoid-break{page-break-inside:avoid}
-</style>
-</head>
-<body>
-
-<div class="print-banner">
-  Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-Dialog
-  <button onclick="window.print()">📄 Drucken / PDF speichern</button>
-  <button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
-</div>
-
-<!-- HEADER -->
-<div class="doc-header">
-  <div class="left">
-    <div class="label">Vertrag</div>
-    <div class="doc-title">Untermietvertrag</div>
-  </div>
-  <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
-</div>
-
-<!-- PERSON CARD -->
-<div class="person-card">
-  <div class="ph">Untermieter*in</div>
-  <div class="person-grid">
-    <span class="pl">Vorname:</span><span class="pv">${b.vorname||"-"}</span>
-    <span class="pl">Nachname:</span><span class="pv">${b.nachname||"-"}</span>
-    <span class="pl">Strasse:</span><span class="pv">${b.adresse||"-"}</span>
-    <span class="pl">PLZ / Ort:</span><span class="pv">${b.plz||""} ${b.ort||""}</span>
-    <span class="pl">E-Mail:</span><span class="pv">${b.email||"-"}</span>
-    <span class="pl">Telefon:</span><span class="pv">${b.phone||"-"}</span>
-    <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"-"}</span>
-    <span class="pl">Nationalität:</span><span class="pv">${b.nat||"-"}</span>
-  </div>
-</div>
-
-<!-- GREETING -->
-<div class="greeting">
-  <p class="welcome">Guten Tag ${fullName},</p>
-  <p class="welcome">Herzlich willkommen bei D&amp;T Homes!</p>
-  <p>Nachfolgend findest du alle Details und Regelungen zur Miete. Der vorliegende Untermietvertrag wird zwischen der <strong>D&amp;T Partners GmbH</strong> als Hauptmieterin und dir als Untermieter*in abgeschlossen. Bitte nimm dir einen Moment Zeit, den Vertrag sorgfältig zu lesen, und unterzeichne ihn, wenn du mit den Bedingungen einverstanden bist.</p>
-</div>
-
-<!-- §1 MIETOBJEKT -->
-<div class="section">
-  <h2>1. Mietobjekt</h2>
-  <p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
-  <p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>
-</div>
-
-<!-- §2 MIETDAUER -->
-<div class="section">
-  <h2>2. Mietdauer</h2>
-  <p>${(() => {
-    function parseD(s) {
-      if (!s) return null;
-      const str = String(s).trim();
-      if (!str) return null;
-      if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d=new Date(str); return isNaN(d.getTime())?null:d; }
-      const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-      if (m) { const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime())?null:d; }
-      const d = new Date(str); return isNaN(d.getTime())?null:d;
-    }
-    const beginn = parseD(v.einzug);
-    const mietende = parseD(v.apt?.mietende);
-    if (beginn && mietende) {
-      const months = (mietende - beginn) / (1000*60*60*24*30.44);
-      if (months > 0 && months < 12) {
-        return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
-      }
-    }
-    return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
-  })()}</p>
-</div>
-
-<!-- §3 MIETZINS -->
-<div class="section">
-  <h2>3. Mietzins</h2>
-  <p>Der monatliche Mietzins für das Zimmer ${v.zimmerId} beträgt:</p>
-  <div class="miet-wrap avoid-break">
-    <table class="miet-table">
-      <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
-      <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
-      <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
-      ${v.aufschlag>0?`<tr class="aufschlag"><td>Kautions-Aufschlag in CHF</td><td class="amt">+ ${chf2(v.aufschlag)}</td></tr>`:""}
-      <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2(v.total)}</td></tr>
-    </table>
-  </div>
-  <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser und weitere Nebenkosten bereits inbegriffen.</p>
-  <p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
-  <p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
-  <p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>
-  <p>Nicht enthalten sind allfällige Serafe-Gebühren, diese sind von den Bewohnern selbst zu tragen.</p>
-  <p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
-  <div class="bank-block avoid-break">
-    <img class="qr-box" src="${DT_QR_DATA_URI}" alt="QR-Rechnung"/>
-    <div class="bank-info">
-      <strong>Graubündner Kantonalbank</strong><br>
-      D&amp;T Partners GmbH<br>
-      Via Campeun 40, 7403 Rhäzüns<br>
-      IBAN: CH80 0077 4010 5279 2690 0
-      <div class="ref">Referenz: Miete ${refStr}</div>
-    </div>
-  </div>
-</div>
-
-<!-- §4 KAUTION -->
-<div class="section allow-break">
-  <h2>4. Kaution</h2>
-  <p>Wünscht der Untermieter, eine reduzierte oder keine Kaution zu leisten, kann dies wie folgt geregelt werden:</p>
-  <div class="indent-list">
-    <div${v.kautionMonate===3?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===3?'☑':'☐'} 3 Monatsmieten Kaution = keine Anpassung des monatlichen Mietzinses (Standard)</div>
-    <div${v.kautionMonate===2?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===2?'☑':'☐'} 2 Monatsmieten Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 50</strong></div>
-    <div${v.kautionMonate===1?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===1?'☑':'☐'} 1 Monatsmiete Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 100</strong></div>
-    <div${v.kautionMonate===0?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===0?'☑':'☐'} Keine Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 150</strong></div>
-  </div>
-
-  <div class="highlight-box" style="text-align:left;font-weight:400;font-size:10pt;line-height:1.6">
-    <div style="font-size:8pt;color:#888;letter-spacing:.25em;text-transform:uppercase;font-weight:700;margin-bottom:6pt">Gewählte Variante</div>
-    ${v.kautionMonate===3?`<strong style="font-size:11pt">3 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*3)} &middot; kein Aufschlag`:""}
-    ${v.kautionMonate===2?`<strong style="font-size:11pt">2 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*2)} &middot; Aufschlag CHF 50/Mt.`:""}
-    ${v.kautionMonate===1?`<strong style="font-size:11pt">1 Monatsmiete Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25)))} &middot; Aufschlag CHF 100/Mt.`:""}
-    ${v.kautionMonate===0?`<strong style="font-size:11pt">Keine Kaution</strong> &middot; Aufschlag CHF 150/Mt.`:""}
-  </div>
-
-  ${v.kautionMonate>0
-    ? `<p>Der Untermieter verpflichtet sich, vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""} - <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> - über die Plattform <strong>de.evorest.ch</strong> zu leisten. Die Kaution wird dort auf ein separates, auf den Namen des Untermieters lautendes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>`
-    : `<p>Der Untermieter hat sich für die Variante <strong>ohne Kaution</strong> entschieden. Anstelle der Kaution wird der monatliche Mietzins um <strong>CHF 150</strong> erhöht. Dieser Aufschlag ist bereits im totalen Mietzins (siehe §3) enthalten.</p>`
-  }
-  <p>Die Rückerstattung ${v.kautionMonate>0?"der Kaution ":""}erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden.${v.kautionMonate>0?" Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.":""}</p>
-</div>
-
-<!-- §5 -->
-<div class="section allow-break">
-  <h2>5. Weiteres und Verantwortlichkeiten des Untermieters</h2>
-  <p class="clause"><span class="clause-num">5.1</span>Der Untermieter verpflichtet sich, die Wohnung sowie das Inventar sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. Wohnung und Inventar sind in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
-  <p class="clause"><span class="clause-num">5.2</span>Der Untermieter ist für die regelmässige Reinigung der Wohnung sowie für die ordnungsgemässe Entsorgung von Abfällen verantwortlich.</p>
-  <p class="clause"><span class="clause-num">5.3</span>Eine Untervermietung oder Weitergabe der Wohnung an Dritte ist ohne ausdrückliche schriftliche Zustimmung des Hauptmieters nicht gestattet.</p>
-  <p class="clause"><span class="clause-num">5.4</span>Bauliche Veränderungen an der Wohnung oder das Streichen von Wänden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig.</p>
-  <p class="clause"><span class="clause-num">5.5</span>Bei längerer Abwesenheit hat der Untermieter sicherzustellen, dass der Zugang zur Wohnung für Notfälle gewährleistet ist (z. B. durch Hinterlegung eines Schlüssels bei einer Vertrauensperson).</p>
-  <p class="clause"><span class="clause-num">5.6</span>Der Untermieter ist verpflichtet, sich innert acht Tagen nach Einzug bei der zuständigen Einwohnerkontrolle anzumelden.</p>
-  <p class="clause"><span class="clause-num">5.7</span>Der Untermieter darf die Suche nach Mitbewohnern durch die D&amp;T Partners GmbH nicht behindern. Diese schlägt geeignete Mitbewohner vor und ermöglicht ein vorgängiges Kennenlernen. Im Zweifelsfall behält sich die D&amp;T Partners GmbH das Recht vor, einen Untermietvertrag mit einem Interessenten abzuschliessen, ohne Mitspracherecht der aktuellen Bewohner.</p>
-  <p class="clause"><span class="clause-num">5.8</span>In der Schweiz wohnhafte Personen, die Radio- oder Fernsehprogramme empfangen, sind gesetzlich verpflichtet, entsprechende Empfangsgebühren zu entrichten. Diese Verpflichtung liegt beim jeweiligen Haushalt und damit bei den Untermietern. Die D&amp;T Partners GmbH organisiert keine Kostenaufteilung innerhalb der Untermieterschaft.</p>
-  <p class="clause"><span class="clause-num">5.9</span>Die Kontaktdaten des Untermieters dürfen - sofern keine ausdrückliche Verweigerung erfolgt - an potenzielle Mitbewohner weitergegeben werden, um ein gegenseitiges Kennenlernen zu ermöglichen.</p>
-  <p class="clause"><span class="clause-num">5.10</span>Interne Angelegenheiten zwischen den Mitbewohnern fallen nicht in den Zuständigkeitsbereich des Hauptmieters. Dieser bemüht sich jedoch, bei Bedarf zu unterstützen und ein harmonisches Zusammenleben zu fördern.</p>
-</div>
-
-<!-- §6 -->
-<div class="section">
-  <h2>6. Datenschutz</h2>
-  <p>Der Untermieter erklärt sich damit einverstanden, dass seine personenbezogenen Daten zum Zweck der Vertragsabwicklung sowie zur Koordination mit (potenziellen) Mitbewohnern gespeichert, verarbeitet und im erforderlichen Umfang weitergegeben werden dürfen. Eine Weitergabe an Dritte erfolgt ausschliesslich, soweit dies für die Durchführung des Mietverhältnisses notwendig ist.</p>
-</div>
-
-<!-- §7 -->
-<div class="section allow-break">
-  <h2>7. Inventar &amp; Möblierung</h2>
-  <p>In den Gemeinschaftsräumen der Wohnung befindet sich ein vollständiges Inventar mit Gegenständen des täglichen Bedarfs. Das Inventar umfasst insbesondere:</p>
-  <ul>
-    <li>Tisch, Stühle, Besteck, Kochgeschirr, Tellerset, Bratpfanne, Küchenutensilien, Weingläser, Messerset, WC-Bürste, Abfalleimer, Schüsseln, Glas, Badematte, Seifenspender, Kanne, Zahnbürstenhalter, Duschvorhang und Topflappen.</li>
-  </ul>
-  <p class="clause"><span class="clause-num">7.1</span>Für eine einmalige zusätzliche Gebühr von <strong>CHF 990</strong> kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
-  <ul>
-    <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
-  </ul>
-  <p>Die Möbel werden für die Dauer der Untermiete zur Nutzung überlassen. Der Bewohner verpflichtet sich zu einem sorgfältigen Gebrauch. Die Möbel bleiben im Eigentum der D&amp;T Partners GmbH. Das Nutzungsrecht endet mit Beendigung des Untermietvertrages.</p>
-  <div class="highlight-box">Die Möblierung des Zimmers wird dazu gemietet: ${v.moebliert?"Ja":"Nein"}</div>
-  <p class="clause"><span class="clause-num">7.2</span>Zum Zeitpunkt der Zimmerübergabe kann die Wohnung je nach Datum noch nicht vollständig möbliert sein. Die Möblierung erfolgt in der Regel innerhalb der ersten Tage nach Schlüsselübergabe oder nach vorgängiger Absprache.</p>
-</div>
-
-<!-- §8 -->
-<div class="section allow-break">
-  <h2>8. Schlüsselübergabe</h2>
-  <p>Die Schlüsselübergabe erfolgt zum vereinbarten Datum und zur vereinbarten Uhrzeit (± 3 Arbeitstage). Der Hauptmieter verpflichtet sich, dem Untermieter sämtliche für den Zugang zur Wohnung erforderlichen Schlüssel und Zugangscodes zu übergeben. Erfolgt die Übergabe mit mehr als drei Tagen Verspätung, hat der Untermieter ab dem vierten Tag Anspruch auf eine anteilsmässige Rückerstattung der ersten Mietperiode. Die Schlüssel- und Wohnungsübergabe erfolgt gegen ein schriftliches Übergabeprotokoll bei Ein- und Auszug, welches von beiden Parteien unterzeichnet wird.</p>
-  <p class="clause"><span class="clause-num">8.1</span>Der Untermieter bestätigt den Erhalt der Schlüssel und Zugangscodes und verpflichtet sich, diese sorgfältig aufzubewahren und vor unbefugtem Zugriff zu schützen.</p>
-  <p class="clause"><span class="clause-num">8.2</span>Bei Beendigung des Mietverhältnisses sind sämtliche Schlüssel und Zugangscodes zurückzugeben.</p>
-  <p class="clause"><span class="clause-num">8.3</span>Das Anfertigen zusätzlicher Schlüssel ist ohne Zustimmung des Hauptmieters untersagt. Bei Verlust ist der Hauptmieter berechtigt, betroffene Schlösser auf Kosten des Untermieters zu ersetzen.</p>
-</div>
-
-<!-- §9 -->
-<div class="section">
-  <h2>9. Reparaturen und Instandhaltung</h2>
-  <p>Der Hauptmieter ist für die Instandhaltung der Wohnung verantwortlich, einschliesslich notwendiger Reparaturen an sanitären Anlagen, Heizung, Elektrik und baulichen Elementen. Der Untermieter hat Mängel oder Reparaturbedarf unverzüglich zu melden.</p>
-</div>
-
-<!-- §10 -->
-<div class="section">
-  <h2>10. Haftung und Versicherung</h2>
-  <p>Der Untermieter haftet für Schäden oder Verluste an Wohnung oder Inventar, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung zu erbringen.</p>
-  <p>Für Schäden in gemeinsam genutzten Bereichen haften die Bewohner anteilig (Solidarhaftung), sofern kein Verursacher festgestellt werden kann.</p>
-</div>
-
-<!-- §11 -->
-<div class="section allow-break">
-  <h2>11. Kündigung</h2>
-  <p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt drei Monate auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
-  <p class="clause"><span class="clause-num">11.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter das Zimmer vorzeitig verlässt.</p>
-  <p class="clause"><span class="clause-num">11.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
-  <p class="clause"><span class="clause-num">11.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.</p>
-  <p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
-  <p class="clause"><span class="clause-num">11.4</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
-  <p class="clause"><span class="clause-num">11.5</span>Bei Kündigung innerhalb der Kündigungsfrist ist der Untermieter verpflichtet, einen geeigneten Nachmieter zu stellen, der zu gleichen Konditionen eintritt und von den Mitbewohnern akzeptiert wird. Erfolgt nachweislich keine aktive Suche, kann der Hauptmieter eine Monatsmiete von der Kaution einbehalten.</p>
-  <p class="clause"><span class="clause-num">11.6</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
-</div>
-
-<!-- §12 -->
-<div class="section">
-  <h2>12. Vertragsänderungen</h2>
-  <p>Änderungen oder Ergänzungen dieses Vertrags bedürfen der Schriftform und der Zustimmung beider Parteien.</p>
-</div>
-
-<!-- §13 -->
-<div class="section">
-  <h2>13. Rücktrittsrecht</h2>
-  <p>Der Mieter erhält ein ausserordentliches Rücktrittsrecht vom unterzeichneten Mietvertrag bis und mit der persönlichen Besichtigung vor Ort. Dieses Rücktrittsrecht gilt ausschliesslich für den Fall, dass die Wohnung wesentlich von der vorgängig zur Verfügung gestellten virtuellen Tour (VR Tour) abweicht. Im Falle eines solchen Rücktritts entstehen dem Mieter keinerlei Kosten oder Verpflichtungen aus dem Mietvertrag. Bereits geleistete Zahlungen werden vollständig zurückerstattet.</p>
-</div>
-
-<!-- §14 -->
-<div class="section">
-  <h2>14. Gerichtsstand</h2>
-  <p>Gerichtsstand für alle Streitigkeiten aus diesem Vertrag ist <strong>Chur</strong>.</p>
-</div>
-
-<!-- §15 -->
-<div class="section">
-  <h2>15. Zusätzliche Bestimmungen</h2>
-  <p class="clause"><span class="clause-num">15.1</span>Haustiere sind in der Wohnung nicht gestattet.</p>
-  <p class="clause"><span class="clause-num">15.2</span>Rauchen ist in der Wohnung nicht gestattet.</p>
-  <p class="clause"><span class="clause-num">15.3</span>Der Untermieter verpflichtet sich, die geltenden Hausordnungen und gesetzlichen Bestimmungen einzuhalten.</p>
-  <p class="clause"><span class="clause-num">15.4</span>Die WG-Zimmer sind ausschliesslich für Wohnzwecke der im Vertrag eingetragenen Person bestimmt. Eine Belegung durch mehrere Personen ist unzulässig.</p>
-  <p class="clause"><span class="clause-num">15.5</span>Bei Zahlungsverzug kann der Hauptmieter Mahngebühren von <strong>CHF 20 pro Mahnung</strong> sowie Verzugszinsen von <strong>5 % p. a.</strong> erheben.</p>
-  <p class="clause"><span class="clause-num">15.6</span>Der Hauptmieter ist berechtigt, das Zimmer nach angemessener Vorankündigung zur Kontrolle, Instandhaltung, Besichtigung mit Interessenten oder bei Vertragsverletzungen zu betreten.</p>
-</div>
-
-<!-- CLOSING + SIGNATURES (zusammenhalten) -->
-<div class="closing-wrap">
-  <div class="closing">
-    <p>Bitte unterzeichne diesen Untermietvertrag digital und sende uns eine Kopie zurück. Digitale Unterschriften sind rechtsverbindlich. Bewahre den unterzeichneten Vertrag in deinen Unterlagen auf. Mit seiner Unterschrift bestätigt der Untermieter, sämtliche Vertragsbestimmungen gelesen, verstanden und akzeptiert zu haben.</p>
-    <p class="signoff">Wir wünschen dir viel Spass in deiner neuen Wohnung.<br>Dein D&amp;T Homes Team</p>
-  </div>
-
-  <!-- SIGNATURES -->
-  <div class="signatures">
-    <div class="sig-block">
-      <div class="role">Untermieter*in</div>
-      <div class="name">${fullName}</div>
-      <div class="sig-row">
-        <span class="lbl">Ort, Datum:</span>
-        <span class="line"></span>
-      </div>
-      <div class="sig-row">
-        <span class="lbl">Unterschrift:</span>
-        <span class="line"></span>
-      </div>
-    </div>
-    <div class="sig-block">
-      <div class="role">Hauptmieter</div>
-      <div class="name">D&amp;T Partners GmbH</div>
-      <div class="sig-row">
-        <span class="lbl">Ort, Datum:</span>
-        <span class="line"></span>
-      </div>
-      <div class="sig-row">
-        <span class="lbl">Unterschrift:</span>
-        <span class="line"></span>
-      </div>
-    </div>
-  </div>
-</div>
-
-</body></html>`;
   }
 
   return(
@@ -6570,6 +6575,119 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
   function NF(k){return e=>setNewForm(p=>({...p,[k]:e.target.value}));}function NFB(k){return e=>setNewForm(p=>({...p,[k]:e.target.checked}));}
   
+  // ─── Vertrags-Generation für Mieter (UMV + AMZ) ──────────────────────
+  function buildContractDataForTenant(t) {
+    if (!t) return null;
+    const room = rooms.find(r => r.tenantId === t.id) || (t.roomId ? rooms.find(r => r.id === t.roomId) : null);
+    const apt = room ? apts.find(a => a.id === room.aptId) : null;
+    const bruttomiete = room ? +room.miete : 1000;
+    const nebenkosten = 100;
+    const nettomiete = bruttomiete - nebenkosten;
+    const strom = 25;
+    
+    // Detect kaution variant
+    let kautionMonate = 3;
+    let aufschlag = 0;
+    const kOpt = t.kautionOpt || t.kaution_opt;
+    const kAufschlag = t.kautionAufschlag || t.kaution_aufschlag;
+    if (kOpt === "0x" || kAufschlag === 150) { kautionMonate = 0; aufschlag = 150; }
+    else if (kOpt === "1x" || kAufschlag === 100) { kautionMonate = 1; aufschlag = 100; }
+    else if (kOpt === "2x" || kAufschlag === 50) { kautionMonate = 2; aufschlag = 50; }
+    else if (t.kautionMonate !== null && t.kautionMonate !== undefined) {
+      kautionMonate = +t.kautionMonate;
+      aufschlag = kautionMonate === 0 ? 150 : kautionMonate === 1 ? 100 : kautionMonate === 2 ? 50 : 0;
+    }
+    const kautionBetrag = (bruttomiete + strom) * kautionMonate;
+    const total = bruttomiete + strom + aufschlag;
+    
+    // Build bewerber-like object from tenant
+    const b = {
+      id: t.id,
+      vorname: t.vorname,
+      nachname: t.nachname,
+      email: t.email,
+      phone: t.phone,
+      geburt: t.geburt,
+      gender: t.gender,
+      nat: t.nat,
+      adresse: t.adresse,
+      plz: t.plz,
+      ort: t.ort,
+      type: t.type || t.anstellung,
+      job: t.job || t.beruf,
+      einkommen: t.einkommen,
+      einzug: t.einzug,
+      zugeteiltes_zimmer: room?.id,
+      zimmerWunsch: room?.id,
+      kautionOpt: kOpt || (kautionMonate === 3 ? "3x" : kautionMonate === 2 ? "2x" : kautionMonate === 1 ? "1x" : "0x"),
+      kautionType: t.kautionType,
+      kautionAufschlag: aufschlag,
+      moebliert: t.moebliert ? "ja" : "nein",
+      moeblierungPauschale: t.moeblierungPauschale,
+      noDebt: t.noDebt,
+      owner: t.owner,
+      status: t.status,
+      bemerkung: t.bemerkung,
+    };
+    
+    const v = {
+      zimmerId: room?.id || "",
+      apt: apt || null,
+      room: room || null,
+      adresse: apt?.adresse || "",
+      plz: apt?.plz || "",
+      ort: apt?.ort || "Zürich",
+      nettomiete,
+      nebenkosten,
+      bruttomiete,
+      strom,
+      aufschlag,
+      total,
+      kautionMonate,
+      kautionBetrag,
+      moebliert: !!t.moebliert,
+      einzug: t.einzug || "",
+    };
+    
+    return { b, v };
+  }
+  
+  function generateUMVForTenant(t) {
+    const data = buildContractDataForTenant(t);
+    if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
+    const fullName = `${data.b.vorname || ""} ${data.b.nachname || ""}`.trim();
+    const html = buildContractHTML(data.b, data.v, fullName, formatDateLong);
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup wurde blockiert. Bitte erlaube Popups und versuche es erneut.");
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => {
+      setTimeout(() => { win.focus(); win.print(); }, 300);
+    };
+  }
+  
+  function generateAMZForTenant(t) {
+    const data = buildContractDataForTenant(t);
+    if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
+    const fullName = `${data.b.vorname || ""} ${data.b.nachname || ""}`.trim();
+    const html = buildAnfangsmietzinsHTML(data.b, data.v, fullName, formatDateLong);
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup wurde blockiert. Bitte erlaube Popups und versuche es erneut.");
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => {
+      setTimeout(() => { win.focus(); win.print(); }, 300);
+    };
+  }
+  
   // Find free rooms for assignment dropdown
   const freeRooms = rooms.filter(r => !r.occupied);
   
@@ -6863,6 +6981,8 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,upd
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}{tenant.status==="archiviert"&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIVIERT</span>}</div></div></div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
+                <button className="btn btn-s btn-sm" onClick={()=>generateUMVForTenant(tenant)}>📄 UMV</button>
+                <button className="btn btn-s btn-sm" onClick={()=>generateAMZForTenant(tenant)}>📄 AMZ</button>
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
                 )}
