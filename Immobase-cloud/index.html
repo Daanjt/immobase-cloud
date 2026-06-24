@@ -1331,7 +1331,7 @@ function useSupabaseData() {
       supabase.from("tenants").select("*").order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
     ]);
-    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[]})));
+    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
     setTenants((t.data||[]).map(x=>({
       ...x,
@@ -3649,8 +3649,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   const heute=new Date();
   
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
-  const wgApts = apts.filter(a=>a.type==="WG").sort((a,b)=>natSort(a.id, b.id));
-  const airbnbApts = apts.filter(a=>a.type==="Airbnb").sort((a,b)=>natSort(a.id, b.id));
+  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const airbnbApts = apts.filter(a=>a.type==="Airbnb" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
   const wgIds = wgApts.map(a=>a.id);
   const airbnbIds = airbnbApts.map(a=>a.id);
   const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
@@ -3715,7 +3715,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
 
   const incomplete=tenants.filter(t=>(t.status||"aktiv")==="aktiv" && (!t.email||!t.phone||!t.geburt));
   const neueBewerber=bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung");
-  const baldEnde=apts.filter(a=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<120;});
+  const baldEnde=apts.filter(a=>!a.pipeline && (()=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<120;})());
 
   return(
     <div>
@@ -5844,8 +5844,9 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
   const [newForm,setNewForm]=useState({type:"WG",ort:"Zürich"});
   const [roomList,setRoomList]=useState([]);
   const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id).sort((a,b)=>natSort(a.id, b.id)):[];
-  const wgApts=apts.filter(a=>a.type==="WG").sort((a,b)=>natSort(a.id, b.id));
-  const airbnbApts=apts.filter(a=>a.type==="Airbnb").sort((a,b)=>natSort(a.id, b.id));
+  const wgApts=apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const airbnbApts=apts.filter(a=>a.type==="Airbnb" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const pipelineApts=apts.filter(a=>!!a.pipeline).sort((a,b)=>natSort(a.id, b.id));
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
   function NF(k){
     return e => {
@@ -5881,6 +5882,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       refnr:form.refnr,vertrag:form.vertrag,
       schluesselAnzahl:form.schluesselAnzahl,
       extraSchluessel:form.extraSchluessel,
+      pipeline:!!form.pipeline,
     });
     setEditing(false);
   }
@@ -5914,6 +5916,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       vertrag: newForm.vertrag || "",
       schluesselAnzahl: newForm.schluesselAnzahl || "",
       extraSchluessel: newForm.extraSchluessel || "",
+      pipeline: !!newForm.pipeline,
     };
     await insertApt(apt, newForm.type === "WG" ? roomList : null);
     setAdding(false);
@@ -5932,7 +5935,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
     const meta=[a.zimmer?`${a.zimmer} Zi.`:null,a.stockwerk||null].filter(Boolean).join(" · ");
     return(
       <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}</span><TypeBadge type={a.type}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#7a6a4a",background:"#f0e6cc",border:"1px solid #d9ceb5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}</span><TypeBadge type={a.type}/></div>
         <div style={{fontSize:11,color:"#8a8478"}}>{a.adresse}</div>
         {meta&&<div style={{fontSize:10.5,color:"#a89e8b",marginTop:2,letterSpacing:".05em"}}>{meta}</div>}
         {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
@@ -5948,8 +5951,8 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         </div>
         <button className="btn btn-p" onClick={()=>{setNewForm({type:"WG",ort:"Zürich",id:nextAptId()});setAdding(true);}}>+ Neue Wohnung</button>
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:14}}>
-        {[["alle",`Alle (${apts.length})`],["WG",`WG (${wgApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`]].map(([k,l])=>(
+      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+        {[["alle",`Alle (${wgApts.length+airbnbApts.length+pipelineApts.length})`],["WG",`WG (${wgApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`],["pipeline",`🔮 Pipeline (${pipelineApts.length})`]].map(([k,l])=>(
           <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
         ))}
       </div>
@@ -5962,9 +5965,15 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
             </div>
           )}
           {(filter==="alle"||filter==="Airbnb")&&airbnbApts.length>0&&(
-            <div>
+            <div style={{marginBottom:14}}>
               <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>Airbnb-Wohnungen</div>
               {airbnbApts.map(renderAptCard)}
+            </div>
+          )}
+          {(filter==="alle"||filter==="pipeline")&&pipelineApts.length>0&&(
+            <div>
+              <div style={{fontSize:9,color:"#7a6a4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>🔮 Pipeline (in Verhandlung)</div>
+              {pipelineApts.map(renderAptCard)}
             </div>
           )}
         </div>
@@ -6069,6 +6078,17 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       {adding&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAdding(false)}><div className="modal" style={{width:620}}>
         <div className="mt">+ Neue Wohnung erfassen</div>
 
+        <div style={{background:newForm.pipeline?"#f4ecd9":"#faf8f3",border:`1px solid ${newForm.pipeline?"#d9ceb5":"#e8e3d8"}`,borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>🔮 Als Pipeline-Wohnung anlegen</div>
+            <div style={{fontSize:11.5,color:"#6a604f",lineHeight:1.45}}>Verhandlung läuft noch. Bewerber sehen sie, Finanzzahlen sind nicht betroffen.</div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
+            <input type="checkbox" checked={!!newForm.pipeline} onChange={e=>setNewForm(p=>({...p,pipeline:e.target.checked}))} style={{width:18,height:18,cursor:"pointer"}}/>
+            <span style={{fontSize:12,fontWeight:500,color:newForm.pipeline?"#7a6a4a":"#8a8174"}}>{newForm.pipeline?"Aktiv":"Aus"}</span>
+          </label>
+        </div>
+
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="frow">
           <div className="fg"><label className="fl">ID *</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. A9"/></div>
@@ -6151,6 +6171,17 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
 
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal" style={{width:620}}>
         <div className="mt">Wohnung bearbeiten - {form.id}</div>
+
+        <div style={{background:form.pipeline?"#f4ecd9":"#faf8f3",border:`1px solid ${form.pipeline?"#d9ceb5":"#e8e3d8"}`,borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>🔮 Pipeline-Wohnung</div>
+            <div style={{fontSize:11.5,color:"#6a604f",lineHeight:1.45}}>Wohnung in Verhandlung. Bewerber sehen sie im Formular, sie fliesst aber NICHT in Dashboard- und Finanz-Berechnungen ein.</div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
+            <input type="checkbox" checked={!!form.pipeline} onChange={e=>setForm(p=>({...p,pipeline:e.target.checked}))} style={{width:18,height:18,cursor:"pointer"}}/>
+            <span style={{fontSize:12,fontWeight:500,color:form.pipeline?"#7a6a4a":"#8a8174"}}>{form.pipeline?"Aktiv":"Aus"}</span>
+          </label>
+        </div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
@@ -7379,7 +7410,7 @@ function Finanzen({apts,rooms}){
   const wgRooms=rooms.filter(r=>["A2","A3","A5","A6","A7","A8"].includes(r.aptId));
   const soll=wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
   const pot=wgRooms.reduce((s,r)=>s+(+r.miete||0),0);
-  const byApt=apts.filter(a=>a.type==="WG").map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);return{...a,soll:rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0),pot:rs.reduce((s,r)=>s+(+r.miete||0),0)};});
+  const byApt=apts.filter(a=>a.type==="WG" && !a.pipeline).map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);return{...a,soll:rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0),pot:rs.reduce((s,r)=>s+(+r.miete||0),0)};});
   return(
     <div>
       <div className="pt">Finanzen</div>
@@ -7401,7 +7432,7 @@ function Finanzen({apts,rooms}){
 
 function Fristen({apts,tenants,rooms}){
   const heute=new Date();
-  const aptEnds=apts.filter(a=>a.mietende).map(a=>{const d=parseDMY(a.mietende);return{...a,tage:Math.ceil((d-heute)/86400000)};}).sort((a,b)=>a.tage-b.tage);
+  const aptEnds=apts.filter(a=>!a.pipeline && a.mietende).map(a=>{const d=parseDMY(a.mietende);return{...a,tage:Math.ceil((d-heute)/86400000)};}).sort((a,b)=>a.tage-b.tage);
   return(
     <div>
       <div className="pt">Fristen</div>
