@@ -3918,12 +3918,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
 
       {/* PIPELINE-WOHNUNGEN FINANCE TABLE - hypothetisch, in Verhandlung */}
       {pipelineApts.length > 0 && (
-      <div className="card finance-card-compact" style={{marginBottom:24,background:"#faf7ef",border:"1px solid #e1d8c5"}}>
-        <div className="ct" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <span>🔮 Finanzübersicht - Pipeline-Wohnungen</span>
-          <span style={{fontSize:9.5,color:"#7a6a4a",background:"#f0e6cc",border:"1px solid #d9ceb5",borderRadius:3,padding:"2px 7px",letterSpacing:".2em",fontWeight:600}}>IN VERHANDLUNG</span>
-        </div>
-        <div style={{fontSize:11.5,color:"#7a6a4a",marginBottom:14,fontStyle:"italic",lineHeight:1.5}}>Diese Wohnungen sind noch nicht fix. Die Zahlen sind hypothetisch und fliessen NICHT ins Gesamt-Dashboard ein. Bewerber können sich aber bereits darauf bewerben.</div>
+      <div className="card finance-card-compact" style={{marginBottom:24}}>
+        <div className="ct">Finanzübersicht - Pipeline-Wohnungen</div>
+        <div style={{fontSize:11.5,color:"#8a8174",marginBottom:14,fontStyle:"italic"}}>In Verhandlung - Zahlen fliessen nicht in das Gesamt-Dashboard ein.</div>
         <div className="finance-scroll-table-wrap">
         <div className="finance-scroll-table">
         <table>
@@ -3998,7 +3995,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
             })}
           </tbody>
           <tfoot>
-            <tr style={{borderTop:"2px solid #7a6a4a"}}>
+            <tr style={{borderTop:"2px solid #1a1814"}}>
               <td colSpan={4} style={{fontWeight:700,paddingTop:14}}>Total Pipeline</td>
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(pipelineAusgaben)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(pipelineEinnahmenIst - pipelineAufschlag)}</td>
@@ -6054,7 +6051,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
     const meta=[a.zimmer?`${a.zimmer} Zi.`:null,a.stockwerk||null].filter(Boolean).join(" · ");
     return(
       <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#7a6a4a",background:"#f0e6cc",border:"1px solid #d9ceb5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}</span><TypeBadge type={a.type}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#8a8174",background:"#f5f2ea",border:"1px solid #e1d8c5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}</span><TypeBadge type={a.type}/></div>
         <div style={{fontSize:11,color:"#8a8478"}}>{a.adresse}</div>
         {meta&&<div style={{fontSize:10.5,color:"#a89e8b",marginTop:2,letterSpacing:".05em"}}>{meta}</div>}
         {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
@@ -6071,7 +6068,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
         <button className="btn btn-p" onClick={()=>{setNewForm({type:"WG",ort:"Zürich",id:nextAptId()});setAdding(true);}}>+ Neue Wohnung</button>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-        {[["alle",`Alle (${wgApts.length+airbnbApts.length+pipelineApts.length})`],["WG",`WG (${wgApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`],["pipeline",`🔮 Pipeline (${pipelineApts.length})`]].map(([k,l])=>(
+        {[["alle",`Alle (${wgApts.length+airbnbApts.length+pipelineApts.length})`],["WG",`WG (${wgApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`],["pipeline",`Pipeline (${pipelineApts.length})`]].map(([k,l])=>(
           <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
         ))}
       </div>
@@ -6091,7 +6088,7 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
           )}
           {(filter==="alle"||filter==="pipeline")&&pipelineApts.length>0&&(
             <div>
-              <div style={{fontSize:9,color:"#7a6a4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>🔮 Pipeline (in Verhandlung)</div>
+              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>Pipeline-Wohnungen</div>
               {pipelineApts.map(renderAptCard)}
             </div>
           )}
@@ -6197,9 +6194,9 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       {adding&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAdding(false)}><div className="modal" style={{width:620}}>
         <div className="mt">+ Neue Wohnung erfassen</div>
 
-        <div style={{background:newForm.pipeline?"#f4ecd9":"#faf8f3",border:`1px solid ${newForm.pipeline?"#d9ceb5":"#e8e3d8"}`,borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+        <div style={{background:"#faf8f3",border:"1px solid #e8e3d8",borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>🔮 Als Pipeline-Wohnung anlegen</div>
+            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>Als Pipeline-Wohnung anlegen</div>
             <div style={{fontSize:11.5,color:"#6a604f",lineHeight:1.45}}>Verhandlung läuft noch. Bewerber sehen sie, Finanzzahlen sind nicht betroffen.</div>
           </div>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
@@ -6291,9 +6288,9 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal" style={{width:620}}>
         <div className="mt">Wohnung bearbeiten - {form.id}</div>
 
-        <div style={{background:form.pipeline?"#f4ecd9":"#faf8f3",border:`1px solid ${form.pipeline?"#d9ceb5":"#e8e3d8"}`,borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+        <div style={{background:"#faf8f3",border:"1px solid #e8e3d8",borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>🔮 Pipeline-Wohnung</div>
+            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>Pipeline-Wohnung</div>
             <div style={{fontSize:11.5,color:"#6a604f",lineHeight:1.45}}>Wohnung in Verhandlung. Bewerber sehen sie im Formular, sie fliesst aber NICHT in Dashboard- und Finanz-Berechnungen ein.</div>
           </div>
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
