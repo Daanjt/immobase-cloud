@@ -3708,6 +3708,25 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   // For Airbnb income we assume the apt rent IS the cost; income comes from bookings (data not in system yet)
   // For now: Airbnb is shown as cost only - income tracking future feature
   
+  // ─── PIPELINE calculations (gleiche Logik wie WG, separate Anzeige) ──────
+  const pipelineApts = apts.filter(a=>!!a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const pipelineIds = pipelineApts.map(a=>a.id);
+  const pipelineRooms = rooms.filter(r=>pipelineIds.includes(r.aptId));
+  const pipelineAusgaben = pipelineApts.reduce((s,a)=>s+(+a.miete||0),0);
+  const pipelineOcc = pipelineRooms.filter(r=>r.occupied).length;
+  const pipelineStromIst = pipelineOcc * 25;
+  const pipelineStromMax = pipelineRooms.length * 25;
+  const pipelineTenantIds = new Set(pipelineRooms.filter(r=>r.tenantId).map(r=>r.tenantId));
+  const pipelineAufschlag = tenants
+    .filter(t => (t.status||"aktiv") === "aktiv")
+    .filter(t => pipelineTenantIds.has(t.id))
+    .reduce((s,t) => s + (+t.kautionAufschlag || 0), 0);
+  const pipelineEinnahmenIst = pipelineRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + pipelineStromIst + pipelineAufschlag;
+  const pipelineEinnahmenMax = pipelineRooms.reduce((s,r)=>s+(+r.miete||0),0) + pipelineStromMax + pipelineAufschlag;
+  const pipelineMargeIst = pipelineEinnahmenIst - pipelineAusgaben;
+  const pipelineMargeMax = pipelineEinnahmenMax - pipelineAusgaben;
+  const pipelineAuslastung = pipelineRooms.length ? Math.round(pipelineOcc/pipelineRooms.length*100) : 0;
+  
   // Total
   const totalAusgaben = wgAusgaben + abAusgaben;
   const totalEinnahmenIst = wgEinnahmenIst; // Airbnb income not tracked
@@ -3896,6 +3915,106 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
         </div>
         </div>
       </div>
+
+      {/* PIPELINE-WOHNUNGEN FINANCE TABLE - hypothetisch, in Verhandlung */}
+      {pipelineApts.length > 0 && (
+      <div className="card finance-card-compact" style={{marginBottom:24,background:"#faf7ef",border:"1px solid #e1d8c5"}}>
+        <div className="ct" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span>🔮 Finanzübersicht - Pipeline-Wohnungen</span>
+          <span style={{fontSize:9.5,color:"#7a6a4a",background:"#f0e6cc",border:"1px solid #d9ceb5",borderRadius:3,padding:"2px 7px",letterSpacing:".2em",fontWeight:600}}>IN VERHANDLUNG</span>
+        </div>
+        <div style={{fontSize:11.5,color:"#7a6a4a",marginBottom:14,fontStyle:"italic",lineHeight:1.5}}>Diese Wohnungen sind noch nicht fix. Die Zahlen sind hypothetisch und fliessen NICHT ins Gesamt-Dashboard ein. Bewerber können sich aber bereits darauf bewerben.</div>
+        <div className="finance-scroll-table-wrap">
+        <div className="finance-scroll-table">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Adresse</th>
+              <th>Zimmer</th>
+              <th>Stock</th>
+              <th style={{textAlign:"right"}}>Ausgabe</th>
+              <th style={{textAlign:"right"}}>Einnahme Ist</th>
+              <th style={{textAlign:"right"}}>Einnahme Max</th>
+              <th style={{textAlign:"right"}}>Marge Ist</th>
+              <th style={{textAlign:"right"}}>Marge Max</th>
+              <th style={{textAlign:"right"}}>Aufschlag</th>
+              <th style={{textAlign:"right"}}>Marge Total</th>
+              <th>Belegung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pipelineApts.map(a=>{
+              const rs=rooms.filter(r=>r.aptId===a.id);
+              const aOcc=rs.filter(r=>r.occupied).length;
+              const aStromIst = aOcc * 25;
+              const aStromMax = rs.length * 25;
+              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + aStromIst;
+              const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax;
+              const aAufschlag = tenants
+                .filter(t => (t.status||"aktiv") === "aktiv")
+                .filter(t => {
+                  if (t.aptId === a.id) return true;
+                  if (t.roomId) {
+                    const tRoom = rooms.find(r => r.id === t.roomId);
+                    if (tRoom && tRoom.aptId === a.id) return true;
+                  }
+                  const myRoom = rooms.find(r => r.tenantId === t.id);
+                  if (myRoom && myRoom.aptId === a.id) return true;
+                  return false;
+                })
+                .reduce((s, t) => {
+                  let auf = +t.kautionAufschlag || 0;
+                  if (!auf) {
+                    if (t.kautionOpt === "0x") auf = 150;
+                    else if (t.kautionOpt === "1x") auf = 100;
+                    else if (t.kautionOpt === "2x") auf = 50;
+                  }
+                  return s + auf;
+                }, 0);
+              const aMargeIst = aIst - (+a.miete||0);
+              const aMargeMax = aMax - (+a.miete||0);
+              const aMargeTotal = aMargeMax + aAufschlag;
+              return (
+                <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
+                  <td style={{fontWeight:600}}>{a.id}</td>
+                  <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
+                  <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"-"}</td>
+                  <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"-"}</td>
+                  <td data-label="Kosten" style={{textAlign:"right"}}>{chf(a.miete)}</td>
+                  <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
+                  <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
+                  <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
+                  <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
+                  <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
+                  <td data-label="Belegung" style={{minWidth:120}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{flex:1}}><Prog val={aOcc} max={rs.length}/></div>
+                      <span style={{fontSize:10.5,color:"#8a8174"}}>{aOcc}/{rs.length}</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{borderTop:"2px solid #7a6a4a"}}>
+              <td colSpan={4} style={{fontWeight:700,paddingTop:14}}>Total Pipeline</td>
+              <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(pipelineAusgaben)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(pipelineEinnahmenIst - pipelineAufschlag)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(pipelineEinnahmenMax - pipelineAufschlag)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:(pipelineMargeIst-pipelineAufschlag)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(pipelineMargeIst-pipelineAufschlag)>=0?"+":""}{chf(pipelineMargeIst - pipelineAufschlag)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(pipelineMargeMax - pipelineAufschlag)}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:pipelineAufschlag>0?"#5a6e4a":"#bab2a0",paddingTop:14}}>{pipelineAufschlag>0?"+"+chf(pipelineAufschlag):"-"}</td>
+              <td style={{textAlign:"right",fontWeight:700,color:pipelineMargeMax>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{pipelineMargeMax>=0?"+":""}{chf(pipelineMargeMax)}</td>
+              <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{pipelineAuslastung}%</span></td>
+            </tr>
+          </tfoot>
+        </table>
+        </div>
+        </div>
+      </div>
+      )}
 
       <div className="card" style={{marginBottom:16}}>
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
