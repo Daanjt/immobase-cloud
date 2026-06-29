@@ -220,6 +220,11 @@ a:hover{border-bottom-color:var(--gold)}
 .nav-badge{background:var(--ink);color:var(--surface);font-size:9px;padding:2px 7px;border-radius:8px;font-weight:500;letter-spacing:.05em}
 .nav-badge.warn{background:var(--warn)}
 
+/* Desktop: Finanz-Tabellen sollen NICHT aus der Card überlaufen */
+.finance-card-compact .finance-scroll-table-wrap { width: 100%; overflow-x: auto; }
+.finance-card-compact .finance-scroll-table { width: 100%; }
+.finance-card-compact .finance-scroll-table > table { width: 100%; table-layout: auto; }
+
 /* ═══════════════════════════════════════════════════════════════
    📱 MOBILE OPTIMIZATIONS (iPhone, iPad portrait, Android phones)
    ═══════════════════════════════════════════════════════════════ */
@@ -3848,9 +3853,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
                   <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
                   <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
-                  <td data-label="Belegung" style={{minWidth:120}}>
+                  <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{flex:1}}><Prog val={aOcc} max={rs.length}/></div>
+                      <div style={{flex:"1 1 0",minWidth:0}}><Prog val={aOcc} max={rs.length}/></div>
                       <span style={{fontSize:10.5,color:"#8a8174"}}>{aOcc}/{rs.length}</span>
                     </div>
                   </td>
@@ -3984,9 +3989,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
                   <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
                   <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
-                  <td data-label="Belegung" style={{minWidth:120}}>
+                  <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{flex:1}}><Prog val={aOcc} max={rs.length}/></div>
+                      <div style={{flex:"1 1 0",minWidth:0}}><Prog val={aOcc} max={rs.length}/></div>
                       <span style={{fontSize:10.5,color:"#8a8174"}}>{aOcc}/{rs.length}</span>
                     </div>
                   </td>
@@ -7539,7 +7544,7 @@ function Finanzen({apts,rooms}){
       <div className="card">
         <div className="ct">Pro Wohnung</div>
         <table><thead><tr><th>WG</th><th>Adresse</th><th>Ist</th><th>Pot.</th><th>Auslastung</th></tr></thead><tbody>
-          {byApt.map(a=>{const p=a.pot?Math.round(a.soll/a.pot*100):0;return(<tr key={a.id}><td style={{fontWeight:700}}>{a.id}</td><td style={{fontSize:11.5,color:"#8a8478"}}>{a.adresse}</td><td style={{color:"#5a7c5e"}}>{chf(a.soll)}</td><td style={{color:"#8a8478"}}>{chf(a.pot)}</td><td style={{minWidth:130}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1}}><Prog val={a.soll} max={a.pot}/></div><span style={{fontSize:10.5}}>{p}%</span></div></td></tr>);})}
+          {byApt.map(a=>{const p=a.pot?Math.round(a.soll/a.pot*100):0;return(<tr key={a.id}><td style={{fontWeight:700}}>{a.id}</td><td style={{fontSize:11.5,color:"#8a8478"}}>{a.adresse}</td><td style={{color:"#5a7c5e"}}>{chf(a.soll)}</td><td style={{color:"#8a8478"}}>{chf(a.pot)}</td><td style={{width:170,minWidth:130,maxWidth:200}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:"1 1 0",minWidth:0}}><Prog val={a.soll} max={a.pot}/></div><span style={{fontSize:10.5}}>{p}%</span></div></td></tr>);})}
         </tbody></table>
       </div>
     </div>
