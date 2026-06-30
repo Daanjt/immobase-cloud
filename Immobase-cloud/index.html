@@ -7608,6 +7608,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
   const [search, setSearch] = useState("");
   const [showOnlyOffen, setShowOnlyOffen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null); // { tenantId, ... }
+  const [mahnungConfirm, setMahnungConfirm] = useState(null); // { row, stufe, monatLabel }
   
   const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   
@@ -7775,7 +7776,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
     });
   }
   
-  async function sendNextMahnung(row) {
+  function sendNextMahnung(row) {
     const p = row.payment;
     
     if (p?.mahnung1SentAt && p?.mahnung2SentAt) {
@@ -7792,12 +7793,18 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
     
     const stufe = p?.mahnung1SentAt ? 2 : 1;
     const monatLabel = `${MONATS_NAMEN[monat-1]} ${jahr}`;
-    const feeMsg = stufe === 2 ? "\n\n⚠ Inkl. Bearbeitungsgebühr von CHF 30." : "\n\nHinweis: Falls keine Zahlung erfolgt, wird die 2. Mahnung Gebühren von CHF 30 enthalten.";
     
-    if (!confirm(`${stufe}. Mahnung senden?\n\nEmpfänger: ${row.tenant.vorname} ${row.tenant.nachname} <${row.tenant.email}>\nMonat: ${monatLabel}\nBetrag: CHF ${row.soll.toLocaleString("de-CH")}${feeMsg}`)) return;
+    // Modal öffnen (statt direkt senden)
+    setMahnungConfirm({ row, stufe, monatLabel });
+  }
+  
+  async function executeMahnung() {
+    if (!mahnungConfirm) return;
+    const { row, stufe } = mahnungConfirm;
+    setMahnungConfirm(null);
     
     // Sicherstellen dass Payment existiert
-    let paymentId = p?.id;
+    let paymentId = row.payment?.id;
     if (!paymentId) {
       paymentId = `PAY${row.tenant.id}-${jahr}-${String(monat).padStart(2,"0")}`;
       await upsertPayment({
@@ -8010,6 +8017,71 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
         💡 <strong>Hinweis:</strong> Manuelles Tracking - Klicke "✓ Bezahlt" sobald eine Zahlung auf dem Konto eingeht. Für Details (anderes Datum, andere Zahlungsart, Bemerkung) auf "⋯" klicken. 
         Spätere Optimierung möglich: Bank-CSV-Import oder Auto-Reminder per WhatsApp/Email für überfällige Zahlungen.
       </div>
+      
+      {/* MAHNUNG-CONFIRM-MODAL */}
+      {mahnungConfirm && (
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&setMahnungConfirm(null)}>
+          <div className="modal" style={{width:560,maxHeight:"90vh",overflowY:"auto"}}>
+            <div className="mt" style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <span style={{fontSize:24}}>{mahnungConfirm.stufe === 1 ? "⚠" : "🚨"}</span>
+              <span>{mahnungConfirm.stufe}. Mahnung versenden</span>
+            </div>
+            
+            <div style={{background:mahnungConfirm.stufe===1?"#fdf2e0":"#fbeae6",border:`1px solid ${mahnungConfirm.stufe===1?"#e8c89c":"#e8c5be"}`,borderRadius:8,padding:"14px 16px",marginBottom:16}}>
+              <div style={{fontSize:10.5,fontWeight:600,color:mahnungConfirm.stufe===1?"#7a5c3c":"#8a3a2e",marginBottom:4,letterSpacing:".05em",textTransform:"uppercase"}}>
+                Bitte sorgfältig prüfen
+              </div>
+              <div style={{fontSize:12.5,color:"#4a4439",lineHeight:1.55}}>
+                Diese Aktion sendet eine Email direkt an den Mieter und kann nicht rückgängig gemacht werden.
+              </div>
+            </div>
+            
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:16}}>
+              <div style={{display:"grid",gridTemplateColumns:"130px 1fr",gap:"8px 12px",fontSize:13,alignItems:"baseline"}}>
+                <div style={{color:"#8a8174"}}>Empfänger</div>
+                <div style={{color:"#1a1814",fontWeight:600}}>{mahnungConfirm.row.tenant.vorname} {mahnungConfirm.row.tenant.nachname}</div>
+                <div style={{color:"#8a8174"}}>Email</div>
+                <div style={{color:"#1a1814",wordBreak:"break-all"}}>{mahnungConfirm.row.tenant.email}</div>
+                <div style={{color:"#8a8174"}}>Monat</div>
+                <div style={{color:"#1a1814"}}>{mahnungConfirm.monatLabel}</div>
+                <div style={{color:"#8a8174"}}>Ausstehende Miete</div>
+                <div style={{color:"#1a1814",fontWeight:600}}>CHF {mahnungConfirm.row.soll.toLocaleString("de-CH")}</div>
+                {mahnungConfirm.stufe === 2 && (
+                  <>
+                    <div style={{color:"#8a8174"}}>Mahnungsgebühr</div>
+                    <div style={{color:"#9b4a3e",fontWeight:600}}>+ CHF 30</div>
+                    <div style={{color:"#1a1814",fontWeight:700,borderTop:"1.5px solid #1a1814",paddingTop:10,marginTop:4}}>Total fällig</div>
+                    <div style={{color:"#1a1814",fontWeight:700,fontSize:15,borderTop:"1.5px solid #1a1814",paddingTop:10,marginTop:4}}>CHF {(mahnungConfirm.row.soll + 30).toLocaleString("de-CH")}</div>
+                  </>
+                )}
+                {mahnungConfirm.row.payment?.mahnung1SentAt && (
+                  <>
+                    <div style={{color:"#8a8174"}}>1. Mahnung am</div>
+                    <div style={{color:"#4a4439"}}>{new Date(mahnungConfirm.row.payment.mahnung1SentAt).toLocaleDateString("de-CH")}</div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <div style={{background:"#faf8f3",borderRadius:6,padding:"12px 16px",marginBottom:18,fontSize:12,color:"#4a4439",lineHeight:1.55}}>
+              {mahnungConfirm.stufe === 1 ? (
+                <span><strong>Inhalt:</strong> Freundliche Erinnerung an ausstehende Miete, Frist 10 Tage, mit Hinweis auf CHF 30 Gebühr bei 2. Mahnung.</span>
+              ) : (
+                <span><strong>Inhalt:</strong> Bestimmter Ton, inkl. CHF 30 Gebühr aufgeschlüsselt, 10-Tage-Frist, mit Hinweis auf weitere rechtliche Schritte (Betreibung).</span>
+              )}
+            </div>
+            
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",flexWrap:"wrap"}}>
+              <button onClick={()=>setMahnungConfirm(null)} className="btn btn-g" style={{padding:"10px 22px",fontSize:13}}>
+                Abbrechen
+              </button>
+              <button onClick={executeMahnung} style={{padding:"10px 22px",fontSize:13,background:mahnungConfirm.stufe===1?"#7a5c3c":"#8a3a2e",color:"#fff",border:"none",borderRadius:6,fontWeight:600,cursor:"pointer"}}>
+                ✉ {mahnungConfirm.stufe}. Mahnung jetzt senden
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* DETAIL-MODAL */}
       {editingPayment && (
