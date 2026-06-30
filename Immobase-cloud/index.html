@@ -1856,6 +1856,9 @@ function useSupabaseData() {
         bezahltVia: p.bezahlt_via,
         markedBy: p.marked_by,
         bemerkung: p.bemerkung,
+        mahnung1SentAt: p.mahnung_1_sent_at,
+        mahnung2SentAt: p.mahnung_2_sent_at,
+        mahnungFee: p.mahnung_fee,
         createdAt: p.created_at,
       })));
     } catch (e) {
@@ -1888,6 +1891,21 @@ function useSupabaseData() {
     const {error} = await supabase.from("payments").delete().eq("id", id);
     if (error) { console.error("deletePayment:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
     setPayments(p => p.filter(x => x.id !== id));
+  }
+  
+  async function sendMahnung(payment_id, stufe) {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-mahnung', { body: { payment_id, stufe } });
+      if (error) { alert("Fehler beim Senden: " + (error.message || error)); return false; }
+      if (data?.error) { alert("Fehler beim Senden: " + (typeof data.error === 'string' ? data.error : JSON.stringify(data.error))); return false; }
+      await loadPayments();
+      const stufeLabel = stufe === 1 ? "1. Mahnung" : "2. Mahnung (inkl. Gebühr)";
+      alert(`✓ ${stufeLabel} erfolgreich an ${data?.sent_to || "Mieter"} gesendet.`);
+      return true;
+    } catch (e) {
+      alert("Fehler: " + (e.message || e));
+      return false;
+    }
   }
   
   useEffect(() => { loadPayments(); }, []);
@@ -2005,7 +2023,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -7568,7 +7586,7 @@ function Fristen({apts,tenants,rooms}){
 }
 
 // ─── ZAHLUNGEN ───────────────────────────────────────────────────────────────
-function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
+function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, navigateTo}){
   const now = new Date();
   
   // Mieten werden vor dem Monatsbeginn überwiesen (typisch bis 25. des Vormonats).
@@ -7757,6 +7775,43 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
     });
   }
   
+  async function sendNextMahnung(row) {
+    const p = row.payment;
+    
+    if (p?.mahnung1SentAt && p?.mahnung2SentAt) {
+      const d1 = new Date(p.mahnung1SentAt).toLocaleDateString("de-CH");
+      const d2 = new Date(p.mahnung2SentAt).toLocaleDateString("de-CH");
+      alert(`Beide Mahnungen wurden bereits gesendet:\n• 1. Mahnung: ${d1}\n• 2. Mahnung: ${d2}\n\nFür weitere Schritte (Betreibung) bitte manuell vorgehen.`);
+      return;
+    }
+    
+    if (!row.tenant.email) {
+      alert(`Keine Email-Adresse für ${row.tenant.vorname} ${row.tenant.nachname} hinterlegt.`);
+      return;
+    }
+    
+    const stufe = p?.mahnung1SentAt ? 2 : 1;
+    const monatLabel = `${MONATS_NAMEN[monat-1]} ${jahr}`;
+    const feeMsg = stufe === 2 ? "\n\n⚠ Inkl. Bearbeitungsgebühr von CHF 30." : "\n\nHinweis: Falls keine Zahlung erfolgt, wird die 2. Mahnung Gebühren von CHF 30 enthalten.";
+    
+    if (!confirm(`${stufe}. Mahnung senden?\n\nEmpfänger: ${row.tenant.vorname} ${row.tenant.nachname} <${row.tenant.email}>\nMonat: ${monatLabel}\nBetrag: CHF ${row.soll.toLocaleString("de-CH")}${feeMsg}`)) return;
+    
+    // Sicherstellen dass Payment existiert
+    let paymentId = p?.id;
+    if (!paymentId) {
+      paymentId = `PAY${row.tenant.id}-${jahr}-${String(monat).padStart(2,"0")}`;
+      await upsertPayment({
+        tenantId: row.tenant.id,
+        jahr, monat,
+        betragSoll: row.soll,
+        status: "offen",
+        markedBy: row.tenant.owner || null,
+      });
+    }
+    
+    await sendMahnung(paymentId, stufe);
+  }
+  
   function openDetails(row) {
     setEditingPayment({
       tenantId: row.tenant.id,
@@ -7910,12 +7965,35 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, navigateTo}){
                       {row.status === "offen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fbeae6",color:"#8a3a2e",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Offen</span>}
                       {row.status === "teilweise" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fdf2e0",color:"#7a5c3c",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Teilweise</span>}
                       {row.status === "erlassen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#e8e3d8",color:"#5a5249",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Erlassen</span>}
+                      {row.payment?.mahnung1SentAt && row.status !== "bezahlt" && (
+                        <div style={{fontSize:9.5,color:"#9b4a3e",marginTop:4,letterSpacing:".02em"}}>
+                          ⚠ 1. Mahnung {new Date(row.payment.mahnung1SentAt).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}
+                        </div>
+                      )}
+                      {row.payment?.mahnung2SentAt && row.status !== "bezahlt" && (
+                        <div style={{fontSize:9.5,color:"#7a3a2e",fontWeight:600,marginTop:2,letterSpacing:".02em"}}>
+                          🚨 2. Mahnung {new Date(row.payment.mahnung2SentAt).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}
+                        </div>
+                      )}
                     </td>
                     <td style={{padding:"12px 14px",textAlign:"right"}}>
-                      <div style={{display:"inline-flex",gap:6}}>
+                      <div style={{display:"inline-flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                         <button onClick={()=>toggleBezahlt(row)} className={`btn btn-sm ${isPaid?"btn-g":"btn-p"}`} style={{fontSize:11,padding:"5px 10px"}}>
                           {isPaid ? "↺ Zurücksetzen" : "✓ Bezahlt"}
                         </button>
+                        {!isPaid && !isErlassen && (() => {
+                          const both = row.payment?.mahnung1SentAt && row.payment?.mahnung2SentAt;
+                          const nextStufe = row.payment?.mahnung1SentAt ? 2 : 1;
+                          const label = both ? "✓ Mahnungen" : (nextStufe === 1 ? "⚠ 1. Mahnung" : "🚨 2. Mahnung");
+                          const bg = both ? "#e8e3d8" : (nextStufe === 1 ? "#fdf2e0" : "#fbeae6");
+                          const color = both ? "#5a5249" : (nextStufe === 1 ? "#7a5c3c" : "#8a3a2e");
+                          const border = both ? "1px solid #d8d0c0" : (nextStufe === 1 ? "1px solid #e8c89c" : "1px solid #e8c5be");
+                          return (
+                            <button onClick={()=>sendNextMahnung(row)} disabled={both} title={both ? "Beide Mahnungen wurden bereits gesendet" : `${nextStufe}. Mahnung per Email senden`} style={{fontSize:11,padding:"5px 10px",background:bg,color:color,border:border,borderRadius:6,cursor:both?"not-allowed":"pointer",opacity:both?0.6:1,fontWeight:500}}>
+                              {label}
+                            </button>
+                          );
+                        })()}
                         <button onClick={()=>openDetails(row)} className="btn btn-g btn-sm" style={{fontSize:11,padding:"5px 10px"}}>⋯</button>
                       </div>
                     </td>
