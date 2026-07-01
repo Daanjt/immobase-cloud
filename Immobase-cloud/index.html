@@ -7586,7 +7586,7 @@ function Fristen({apts,tenants,rooms}){
 }
 
 // ─── ZAHLUNGEN ───────────────────────────────────────────────────────────────
-function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, navigateTo}){
+function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment, sendMahnung, navigateTo}){
   const now = new Date();
   
   // Mieten werden vor dem Monatsbeginn überwiesen (typisch bis 25. des Vormonats).
@@ -7759,6 +7759,29 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
   const margeIst = totalBezahlt - totalAusgaben;
   // Erwartete Marge wenn alle bezahlen
   const margeSoll = totalSoll - totalAusgaben;
+  
+  function parseSwissDate(str) {
+    if (!str) return null;
+    const parts = str.trim().split(".");
+    if (parts.length !== 3) return null;
+    const [d, m, y] = parts.map(Number);
+    if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
+    return new Date(y, m - 1, d);
+  }
+  
+  function calcProrataBetrag(einzugStr, jahr, monat, bruttomiete) {
+    const einzug = parseSwissDate(einzugStr);
+    if (!einzug) return null;
+    // Einzug muss im gleichen Monat sein
+    if (einzug.getFullYear() !== jahr || einzug.getMonth() + 1 !== monat) return null;
+    const daysInMonth = new Date(jahr, monat, 0).getDate();
+    const einzugTag = einzug.getDate();
+    const verbleibendTage = daysInMonth - einzugTag + 1;
+    if (verbleibendTage >= daysInMonth) return null; // voller Monat, keine Anpassung noetig
+    const proTag = bruttomiete / daysInMonth;
+    const betrag = Math.round(proTag * verbleibendTage * 20) / 20; // gerundet auf 5 Rappen
+    return { betrag, verbleibendTage, daysInMonth, einzug };
+  }
   
   async function toggleBezahlt(row) {
     const newStatus = row.status === "bezahlt" ? "offen" : "bezahlt";
@@ -8115,7 +8138,26 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
             
             <div className="frow">
               <div className="fg">
-                <label className="fl">Soll-Betrag (CHF)</label>
+                <label className="fl" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>Soll-Betrag (CHF)</span>
+                  {editingPayment.tenant?.einzug && (() => {
+                    const einzug = parseSwissDate(editingPayment.tenant.einzug);
+                    if (!einzug) return null;
+                    const sameMonth = einzug.getFullYear() === editingPayment.jahr && einzug.getMonth() + 1 === editingPayment.monat;
+                    if (!sameMonth) return null;
+                    return (
+                      <button type="button" onClick={()=>{
+                        const room = rooms.find(r => r.id === editingPayment.tenant.roomId);
+                        const miete = room?.miete || editingPayment.tenant?.miete || 0;
+                        const result = calcProrataBetrag(editingPayment.tenant.einzug, editingPayment.jahr, editingPayment.monat, miete);
+                        if (!result) { alert("Berechnung nicht moeglich. Pruefe Einzugsdatum und Miete."); return; }
+                        setEditingPayment({...editingPayment, betragSoll: result.betrag, bemerkung: (editingPayment.bemerkung ? editingPayment.bemerkung + " · " : "") + `Pro-rata: ${result.verbleibendTage}/${result.daysInMonth} Tage ab ${einzug.toLocaleDateString("de-CH")}`});
+                      }} style={{fontSize:10.5,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
+                        🧮 Pro-rata (Einzug {editingPayment.tenant.einzug})
+                      </button>
+                    );
+                  })()}
+                </label>
                 <input className="fi" type="number" step="0.01" value={editingPayment.betragSoll||""} onChange={e=>setEditingPayment({...editingPayment, betragSoll:+e.target.value})}/>
               </div>
               <div className="fg">
@@ -8134,9 +8176,22 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, sendMahnung, 
               <textarea className="fi" rows={2} value={editingPayment.bemerkung||""} onChange={e=>setEditingPayment({...editingPayment, bemerkung:e.target.value})} style={{resize:"vertical",fontFamily:"inherit"}}/>
             </div>
             
-            <div className="ma">
-              <button className="btn btn-g" onClick={()=>setEditingPayment(null)}>Abbrechen</button>
-              <button className="btn btn-p" onClick={saveDetails}>✓ Speichern</button>
+            <div className="ma" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              {editingPayment.id ? (
+                <button className="btn" onClick={async()=>{
+                  if (!confirm(`Zahlung wirklich loeschen?\n\n${editingPayment.tenant.vorname} ${editingPayment.tenant.nachname}\n${MONATS_NAMEN[editingPayment.monat-1]} ${editingPayment.jahr}\n\nDies kann nicht rueckgaengig gemacht werden.`)) return;
+                  try {
+                    await deletePayment(editingPayment.id);
+                    setEditingPayment(null);
+                  } catch (e) { /* alert kommt aus deletePayment */ }
+                }} style={{background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",padding:"8px 14px",borderRadius:6,cursor:"pointer",fontSize:12}}>
+                  Zahlung loeschen
+                </button>
+              ) : <span/>}
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-g" onClick={()=>setEditingPayment(null)}>Abbrechen</button>
+                <button className="btn btn-p" onClick={saveDetails}>Speichern</button>
+              </div>
             </div>
           </div>
         </div>
