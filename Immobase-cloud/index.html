@@ -5615,9 +5615,16 @@ www.dthomes.ch`;
                   const zimmerRef = b.zugeteiltes_zimmer || b.zimmerWunsch;
                   const roomObj = zimmerRef ? rooms.find(r => r.id === zimmerRef) : null;
                   const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
-                  const zimmerLabel = zimmerRef 
-                    ? (aptObj ? `Zimmer ${zimmerRef} (${aptObj.adresse})` : `Zimmer ${zimmerRef}`)
-                    : "eines unserer Zimmer";
+                  let zimmerLabel;
+                  if (zimmerRef && aptObj) {
+                    const ortTeil = [aptObj.plz, aptObj.ort].filter(Boolean).join(" ").trim();
+                    const adressTeil = ortTeil ? `${aptObj.adresse}, ${ortTeil}` : aptObj.adresse;
+                    zimmerLabel = `Zimmer ${zimmerRef} (${adressTeil})`;
+                  } else if (zimmerRef) {
+                    zimmerLabel = `Zimmer ${zimmerRef}`;
+                  } else {
+                    zimmerLabel = "eines unserer Zimmer";
+                  }
                   
                   // Konditionen zusammenstellen
                   const miete = roomObj?.miete || 0;
