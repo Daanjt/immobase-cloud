@@ -5610,6 +5610,22 @@ www.dthomes.ch`;
                 </div>
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                {b.phone && (() => {
+                  const cleanPhone = String(b.phone).replace(/\D/g, "");
+                  const zimmerRef = b.zugeteiltes_zimmer || b.zimmerWunsch;
+                  const roomObj = zimmerRef ? rooms.find(r => r.id === zimmerRef) : null;
+                  const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
+                  const zimmerLabel = zimmerRef 
+                    ? (aptObj ? `Zimmer ${zimmerRef} (${aptObj.adresse})` : `Zimmer ${zimmerRef}`)
+                    : "eines unserer Zimmer";
+                  const text = `Hallo ${b.vorname}, hier ist Daan von D&T Homes. Vielen Dank für deine Bewerbung für ${zimmerLabel}. Ich wollte kurz nachfragen, ob du noch Interesse hast?`;
+                  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+                  return (
+                    <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:5,fontWeight:500}}>
+                      💬 WhatsApp
+                    </a>
+                  );
+                })()}
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
