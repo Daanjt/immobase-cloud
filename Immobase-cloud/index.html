@@ -5618,7 +5618,35 @@ www.dthomes.ch`;
                   const zimmerLabel = zimmerRef 
                     ? (aptObj ? `Zimmer ${zimmerRef} (${aptObj.adresse})` : `Zimmer ${zimmerRef}`)
                     : "eines unserer Zimmer";
-                  const text = `Hallo ${b.vorname}, hier ist Daan von D&T Homes. Vielen Dank für deine Bewerbung für ${zimmerLabel}. Ich wollte kurz nachfragen, ob du noch Interesse hast?`;
+                  
+                  // Konditionen zusammenstellen
+                  const miete = roomObj?.miete || 0;
+                  const strom = 25;
+                  const kautionAufschlag = Number(b.kautionAufschlag || 0);
+                  const totalMonat = miete + strom + kautionAufschlag;
+                  const moebPauschale = Number(b.moeblierungPauschale || 0);
+                  
+                  const konditionen = [];
+                  if (miete > 0) konditionen.push(`- Bruttomiete: CHF ${miete.toLocaleString("de-CH")}.-/Mt.`);
+                  if (b.kautionType) {
+                    let kautionLine = `- Kaution: ${b.kautionType}`;
+                    if (kautionAufschlag > 0) kautionLine += ` (+ CHF ${kautionAufschlag}.- pro Monat)`;
+                    konditionen.push(kautionLine);
+                  }
+                  if (b.moebliert === "ja") {
+                    let moebLine = "- Zimmer möbliert";
+                    if (moebPauschale > 0) moebLine += ` (CHF ${moebPauschale.toLocaleString("de-CH")}.- einmalig)`;
+                    konditionen.push(moebLine);
+                  } else if (b.moebliert === "nein") {
+                    konditionen.push("- Zimmer unmöbliert");
+                  }
+                  if (totalMonat > 0) konditionen.push(`- Total monatlich: CHF ${totalMonat.toLocaleString("de-CH")}.- (inkl. Strom-Pauschale)`);
+                  
+                  const konditionenBlock = konditionen.length > 0 
+                    ? `\n\nDeine gewählten Konditionen:\n${konditionen.join("\n")}`
+                    : "";
+                  
+                  const text = `Hallo ${b.vorname}, hier ist Daan von D&T Homes.\n\nVielen Dank für deine Bewerbung für ${zimmerLabel}.${konditionenBlock}\n\nIch wollte kurz nachfragen, ob du noch Interesse hast?`;
                   const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
                   return (
                     <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:5,fontWeight:500}}>
