@@ -4968,7 +4968,7 @@ ${v.kautionMonate>0
 
 
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
-function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant}){
+function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
