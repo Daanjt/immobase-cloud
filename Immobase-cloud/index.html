@@ -4810,7 +4810,7 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
       return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
     }
   }
-  return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens sechs Monate.`;
+  return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs",7:"sieben",8:"acht",9:"neun",10:"zehn",11:"elf",12:"zwölf"};return w[n]||String(n);})(v.minMietdauer||6)} Monate.`;
 })()}</p>
 </div>
 
@@ -4933,7 +4933,7 @@ ${v.kautionMonate>0
 <!-- §11 -->
 <div class="section allow-break">
 <h2>11. Kündigung</h2>
-<p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt drei Monate auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
+<p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs"};return w[n]||String(n);})(v.kuendigungsfrist||3)} ${(v.kuendigungsfrist===1?"Monat":"Monate")} auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
 <p class="clause"><span class="clause-num">11.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter das Zimmer vorzeitig verlässt.</p>
 <p class="clause"><span class="clause-num">11.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
 <p class="clause"><span class="clause-num">11.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.</p>
@@ -5350,6 +5350,8 @@ www.dthomes.ch`;
       auszug: b.auszug || "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
+      minMietdauer: 6,
+      kuendigungsfrist: 3,
     });
     setVertragModal(true);
   }
@@ -6028,6 +6030,22 @@ www.dthomes.ch`;
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:600}}>
               <span>Kautionsbetrag</span>
               <span style={{color:"#1a1814"}}>{vertragData.kautionMonate>0?`CHF ${vertragData.kautionBetrag.toLocaleString('de-CH')}`:"-"}</span>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Vertragsbedingungen</div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:18}}>
+              <div className="frow" style={{marginBottom:0}}>
+                <div className="fg">
+                  <label className="fl">Mindest-Mietdauer (Monate)</label>
+                  <input className="fi" type="number" min="1" max="60" value={vertragData.minMietdauer||6} onChange={e=>setVertragData(p=>({...p,minMietdauer:+e.target.value||6}))}/>
+                  <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Standard: 6 Monate</div>
+                </div>
+                <div className="fg">
+                  <label className="fl">Kündigungsfrist (Monate)</label>
+                  <input className="fi" type="number" min="1" max="6" value={vertragData.kuendigungsfrist||3} onChange={e=>setVertragData(p=>({...p,kuendigungsfrist:+e.target.value||3}))}/>
+                  <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Standard: 3 Monate</div>
+                </div>
+              </div>
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
