@@ -1368,7 +1368,6 @@ function useSupabaseData() {
       kautionOpt:x.kaution_opt, kautionType:x.kaution_type, kautionAufschlag:x.kaution_aufschlag,
       moeblierungPauschale:x.moeblierung_pauschale, zimmerWunsch:x.zimmer_wunsch,
       zugeteiltes_zimmer:x.zugeteiltes_zimmer, eingereichtAm:x.eingereicht_am, noDebt:x.no_debt,
-      contractOverrides: x.contract_overrides || {},
       // Fallback for legacy fields
       beruf: x.beruf || x.job || "",
       anstellung: x.anstellung || x.type || "",
@@ -5017,28 +5016,6 @@ ${v.kautionMonate>0
 
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
-  // Modal-State fuer Vertragskonditionen-Editor
-  const [editingOverrides, setEditingOverrides] = React.useState(null);
-  
-  async function saveOverrides() {
-    if (!editingOverrides) return;
-    // Baue overrides object, entferne leere Werte
-    const overrides = {};
-    const keys = ["minMietdauer","kuendigungsfrist","vertragsart","endDatum","einzugsdatum","bruttomiete","kautionType","moebliert","moeblierungPauschale","nebenkostenPauschale","sonderklausel"];
-    const co = editingOverrides.contractOverrides || {};
-    for (const k of keys) {
-      const v = co[k];
-      if (v !== null && v !== undefined && v !== "") {
-        overrides[k] = v;
-      }
-    }
-    try {
-      await updateBewerber(editingOverrides.id, { contract_overrides: overrides, contractOverrides: overrides });
-      setEditingOverrides(null);
-    } catch (e) {
-      alert("Speichern fehlgeschlagen: " + (e.message || e));
-    }
-  }
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
@@ -5732,9 +5709,6 @@ www.dthomes.ch`;
                   );
                 })()}
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
-                <button className="btn btn-sm" onClick={()=>setEditingOverrides({...b, contractOverrides: b.contractOverrides || {}})} style={{background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0"}} title="Vertragskonditionen anpassen">
-                  ⚙ Konditionen{Object.keys(b.contractOverrides||{}).filter(k=>b.contractOverrides[k]!==null&&b.contractOverrides[k]!==""&&b.contractOverrides[k]!==undefined).length>0?" ✓":""}
-                </button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
@@ -5790,12 +5764,7 @@ www.dthomes.ch`;
             </div>
 
             <div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
-              <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",marginBottom:9,fontWeight:700,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span>💰 Gewählte Konditionen</span>
-                {Object.keys(b.contractOverrides||{}).filter(k=>b.contractOverrides[k]!==null&&b.contractOverrides[k]!==""&&b.contractOverrides[k]!==undefined).length>0 && (
-                  <span style={{fontSize:9,color:"#7a5c3c",background:"#fdf2e0",padding:"2px 7px",borderRadius:10,border:"1px solid #e8c89c",letterSpacing:".05em"}}>⚙ ANGEPASST</span>
-                )}
-              </div>
+              <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",marginBottom:9,fontWeight:700}}>💰 Gewählte Konditionen</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
@@ -5811,88 +5780,6 @@ www.dthomes.ch`;
               </div>
             </div>
 
-            {editingOverrides && (
-              <div className="ov" onClick={e=>e.target===e.currentTarget&&setEditingOverrides(null)}>
-                <div className="modal" style={{width:640,maxHeight:"92vh",overflowY:"auto"}}>
-                  <div className="mt" style={{marginBottom:14}}>⚙ Vertragskonditionen anpassen</div>
-                  <div style={{fontSize:12,color:"#4a4439",marginBottom:16,padding:"10px 14px",background:"#fdf2e0",border:"1px solid #e8c89c",borderRadius:6,lineHeight:1.5}}>
-                    Werte hier ueberschreiben die Standard-Konditionen fuer diesen Bewerber. Leer lassen = Standardwert wird verwendet. Aenderungen wirken sich auf den naechsten Vertragsversand aus.
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 16px"}}>
-                    <div className="fg">
-                      <label className="fl">Mindest-Mietdauer (Monate)</label>
-                      <input className="fi" type="number" min="1" max="60" placeholder="Standard: 6" value={editingOverrides.contractOverrides?.minMietdauer ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, minMietdauer: e.target.value === "" ? null : Number(e.target.value)}})}/>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Kuendigungsfrist (Monate)</label>
-                      <input className="fi" type="number" min="1" max="6" placeholder="Standard: 2" value={editingOverrides.contractOverrides?.kuendigungsfrist ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, kuendigungsfrist: e.target.value === "" ? null : Number(e.target.value)}})}/>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Vertragsart</label>
-                      <select className="fi" value={editingOverrides.contractOverrides?.vertragsart ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, vertragsart: e.target.value || null}})}>
-                        <option value="">Standard: unbefristet</option>
-                        <option value="unbefristet">Unbefristet</option>
-                        <option value="befristet">Befristet</option>
-                      </select>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">End-Datum (falls befristet)</label>
-                      <input className="fi" type="date" value={editingOverrides.contractOverrides?.endDatum ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, endDatum: e.target.value || null}})}/>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Einzugsdatum</label>
-                      <input className="fi" type="date" placeholder={editingOverrides.einzug || "Standard aus Bewerbung"} value={editingOverrides.contractOverrides?.einzugsdatum ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, einzugsdatum: e.target.value || null}})}/>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Bruttomiete Zimmer (CHF)</label>
-                      <input className="fi" type="number" step="1" placeholder="Standard aus Zimmer" value={editingOverrides.contractOverrides?.bruttomiete ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, bruttomiete: e.target.value === "" ? null : Number(e.target.value)}})}/>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Kautions-Typ</label>
-                      <select className="fi" value={editingOverrides.contractOverrides?.kautionType ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, kautionType: e.target.value || null}})}>
-                        <option value="">Standard: {editingOverrides.kautionType || "-"}</option>
-                        <option value="3x">3x Monatsmiete</option>
-                        <option value="2x">2x Monatsmiete (+ CHF 50)</option>
-                        <option value="1x">1x Monatsmiete (+ CHF 100)</option>
-                        <option value="0x">Keine Kaution (+ CHF 150)</option>
-                      </select>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Moebliert</label>
-                      <select className="fi" value={editingOverrides.contractOverrides?.moebliert ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, moebliert: e.target.value || null}})}>
-                        <option value="">Standard: {editingOverrides.moebliert || "-"}</option>
-                        <option value="ja">Ja (moebliert)</option>
-                        <option value="nein">Nein (unmoebliert)</option>
-                      </select>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Moeblierungspauschale (CHF, einmalig)</label>
-                      <input className="fi" type="number" step="10" placeholder="Standard: 990" value={editingOverrides.contractOverrides?.moeblierungPauschale ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, moeblierungPauschale: e.target.value === "" ? null : Number(e.target.value)}})}/>
-                    </div>
-                    <div className="fg">
-                      <label className="fl">Nebenkosten-Pauschale (CHF/Mt.)</label>
-                      <input className="fi" type="number" step="1" placeholder="Standard: 25" value={editingOverrides.contractOverrides?.nebenkostenPauschale ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, nebenkostenPauschale: e.target.value === "" ? null : Number(e.target.value)}})}/>
-                    </div>
-                    <div className="fg" style={{gridColumn:"1 / -1"}}>
-                      <label className="fl">Sonderklausel (freier Text)</label>
-                      <textarea className="fi" rows="3" placeholder="Optional: z.B. 'Untermiete waehrend Auslandsaufenthalt gestattet' - erscheint als eigene Klausel im Vertrag" value={editingOverrides.contractOverrides?.sonderklausel ?? ""} onChange={e=>setEditingOverrides({...editingOverrides, contractOverrides:{...editingOverrides.contractOverrides, sonderklausel: e.target.value || null}})}/>
-                    </div>
-                  </div>
-                  <div className="ma" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginTop:20}}>
-                    {Object.keys(editingOverrides.contractOverrides||{}).filter(k=>editingOverrides.contractOverrides[k]!==null&&editingOverrides.contractOverrides[k]!=="").length > 0 ? (
-                      <button onClick={()=>setEditingOverrides({...editingOverrides, contractOverrides: {}})} style={{background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",padding:"8px 14px",borderRadius:6,cursor:"pointer",fontSize:12}}>
-                        Alle Overrides entfernen
-                      </button>
-                    ) : <span/>}
-                    <div style={{display:"flex",gap:8}}>
-                      <button className="btn btn-g" onClick={()=>setEditingOverrides(null)}>Abbrechen</button>
-                      <button className="btn btn-p" onClick={saveOverrides}>Speichern</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
             {(() => {
               const bContracts = (contracts || []).filter(c => c.bewerberId === b.id);
               if (bContracts.length === 0) return null;
