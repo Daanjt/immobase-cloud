@@ -6002,7 +6002,34 @@ www.dthomes.ch`;
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietobjekt</div>
             <div className="frow" style={{marginBottom:14}}>
-              <div className="fg"><label className="fl">Zimmer</label><input className="fi" value={vertragData.zimmerId} onChange={e=>setVertragData(p=>({...p,zimmerId:e.target.value}))}/></div>
+              <div className="fg"><label className="fl">Zimmer</label><select className="fi" value={vertragData.zimmerId} onChange={e=>{
+                const newId = e.target.value;
+                const room = rooms.find(r=>r.id===newId);
+                const apt = room ? apts.find(a=>a.id===room.aptId) : null;
+                setVertragData(p=>{
+                  const bruttomiete = room ? +room.miete : p.bruttomiete;
+                  const nettomiete = bruttomiete - (p.nebenkosten||100);
+                  const kautionBetrag = (bruttomiete + (p.strom||25)) * (p.kautionMonate||0);
+                  const total = bruttomiete + (p.strom||25) + (p.aufschlag||0);
+                  return {
+                    ...p,
+                    zimmerId: newId,
+                    apt: apt || p.apt,
+                    room: room || p.room,
+                    adresse: apt?.adresse || p.adresse,
+                    plz: apt?.plz || p.plz,
+                    ort: apt?.ort || p.ort,
+                    bruttomiete, nettomiete, kautionBetrag, total,
+                  };
+                });
+              }}>
+                {!rooms.find(r=>r.id===vertragData.zimmerId) && vertragData.zimmerId && <option value={vertragData.zimmerId}>{vertragData.zimmerId} (aktuell)</option>}
+                {[...rooms].sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(r=>{
+                  const a = apts.find(x=>x.id===r.aptId);
+                  const label = a ? `${r.id} - ${a.adresse}${a.ort?", "+a.ort:""}` : r.id;
+                  return <option key={r.id} value={r.id}>{label}</option>;
+                })}
+              </select></div>
               <div className="fg"><label className="fl">Adresse</label><input className="fi" value={vertragData.adresse} onChange={e=>setVertragData(p=>({...p,adresse:e.target.value}))}/></div>
             </div>
             <div className="frow" style={{marginBottom:18}}>
