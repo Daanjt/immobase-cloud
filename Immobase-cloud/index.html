@@ -5942,6 +5942,63 @@ www.dthomes.ch`;
               <strong style={{color:"#1a1814"}}>{b.vorname} {b.nachname}</strong>
               <div style={{color:"#8a8174",fontSize:11.5,marginTop:3}}>{b.email} · {b.phone}</div>
             </div>
+            
+            {(() => {
+              const activeContracts = (contracts || []).filter(c => c.bewerberId === b.id && !["zurueckgezogen","abgelaufen"].includes(c.status));
+              const allContracts = (contracts || []).filter(c => c.bewerberId === b.id);
+              if (allContracts.length === 0) return null;
+              return (
+                <div style={{marginBottom:20,padding:"14px 16px",background:activeContracts.length>0?"#fdf2e0":"#fafaf7",border:`1px solid ${activeContracts.length>0?"#e8c89c":"#e1d8c5"}`,borderRadius:8}}>
+                  <div style={{fontSize:9.5,color:"#7a5c3c",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:600}}>
+                    {activeContracts.length > 0 ? "⚠ Bereits ausgestellte Verträge" : "Frühere Verträge"}
+                  </div>
+                  {activeContracts.length > 0 && (
+                    <div style={{fontSize:12,color:"#4a4439",marginBottom:12,lineHeight:1.5}}>
+                      Dieser Bewerber hat bereits einen aktiven Vertrag. Um Änderungen an den Konditionen zu machen, ziehe den bisherigen Vertrag zuerst zurück.
+                    </div>
+                  )}
+                  {allContracts.map((c, idx) => {
+                    const statusColors = {
+                      "gesendet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Gesendet"},
+                      "geoeffnet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
+                      "geoeffnet_ungelesen": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
+                      "signiert": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Signiert"},
+                      "abgeschlossen": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Abgeschlossen"},
+                      "zurueckgezogen": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Zurückgezogen"},
+                      "abgelaufen": {bg:"#fbeae6",color:"#8a3a2e",border:"#e8c5be",label:"⌛ Abgelaufen"},
+                    };
+                    const sc = statusColors[c.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:c.status||"?"};
+                    const isActive = ["gesendet","geoeffnet","geoeffnet_ungelesen"].includes(c.status);
+                    const contractTypeLabel = c.contractType === "untermietvertrag" ? "UMV" : c.contractType === "anfangsmietzins" ? "AMZ" : "UMV + AMZ";
+                    return (
+                      <div key={c.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<allContracts.length-1?8:0}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:6}}>
+                          <span style={{fontSize:12,color:"#3a352d",fontWeight:600}}>{contractTypeLabel} {c.sentAt ? `· ${new Date(c.sentAt).toLocaleDateString("de-CH")}` : ""}</span>
+                          <span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10,fontWeight:600}}>{sc.label}</span>
+                        </div>
+                        {c.signUrl && (
+                          <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
+                            <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{c.signUrl}</div>
+                            <button type="button" onClick={()=>{navigator.clipboard.writeText(c.signUrl).then(()=>alert("Link kopiert!")).catch(()=>alert("Kopieren fehlgeschlagen"));}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
+                            <a href={c.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
+                          </div>
+                        )}
+                        {isActive && (
+                          <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
+                            <button type="button" onClick={async()=>{
+                              if (!confirm(`Vertrag zurueckziehen?\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Danach kannst du unten einen neuen Vertrag mit angepassten Konditionen erstellen.`)) return;
+                              try { await withdrawContract(c.id); } catch(e){}
+                            }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
+                              ✕ Zurückziehen
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietobjekt</div>
             <div className="frow" style={{marginBottom:14}}>
