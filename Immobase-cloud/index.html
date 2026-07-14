@@ -6026,8 +6026,7 @@ www.dthomes.ch`;
                 {!rooms.find(r=>r.id===vertragData.zimmerId) && vertragData.zimmerId && <option value={vertragData.zimmerId}>{vertragData.zimmerId} (aktuell)</option>}
                 {[...rooms].sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(r=>{
                   const a = apts.find(x=>x.id===r.aptId);
-                  const label = a ? `${r.id} - ${a.adresse}${a.ort?", "+a.ort:""}` : r.id;
-                  return <option key={r.id} value={r.id}>{label}</option>;
+                  return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)})</option>;
                 })}
               </select></div>
               <div className="fg"><label className="fl">Adresse</label><input className="fi" value={vertragData.adresse} onChange={e=>setVertragData(p=>({...p,adresse:e.target.value}))}/></div>
