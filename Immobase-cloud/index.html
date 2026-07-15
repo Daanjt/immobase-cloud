@@ -1837,6 +1837,7 @@ function useSupabaseData() {
   // ─── PAYMENTS (Mietzahlungen) ──────────────────────────────────
   const [payments, setPayments] = useState([]);
   const [contracts, setContracts] = useState([]);
+  const [handoverProtocols, setHandoverProtocols] = useState([]);
   
   async function loadPayments() {
     try {
@@ -1957,6 +1958,102 @@ function useSupabaseData() {
     setContracts(c => c.filter(x => x.id !== contractId));
   }
   
+  async function loadHandoverProtocols() {
+    try {
+      const { data, error } = await supabase.from("handover_protocols").select("*").order("started_at", { ascending: false });
+      if (error) throw error;
+      setHandoverProtocols((data || []).map(h => ({
+        id: h.id,
+        token: h.token,
+        contractId: h.contract_id,
+        bewerberId: h.bewerber_id,
+        tenantId: h.tenant_id,
+        aptId: h.apt_id,
+        roomId: h.room_id,
+        type: h.type,
+        status: h.status,
+        startedAt: h.started_at,
+        deadline: h.deadline,
+        openedAt: h.opened_at,
+        submittedAt: h.submitted_at,
+        autoAcceptedAt: h.auto_accepted_at,
+        closedAt: h.closed_at,
+        mieterEmail: h.mieter_email,
+        mieterVorname: h.mieter_vorname,
+        mieterNachname: h.mieter_nachname,
+        photos: h.photos || [],
+        mangelNotes: h.mangel_notes,
+        tenantSignature: h.tenant_signature,
+        bemerkung: h.bemerkung,
+        createdAt: h.created_at,
+        updatedAt: h.updated_at,
+        signUrl: h.token ? `https://sign.dthomes.ch/uebernahme/${h.token}` : null,
+      })));
+    } catch (e) {
+      console.warn("loadHandoverProtocols failed:", e);
+    }
+  }
+  useEffect(() => { loadHandoverProtocols(); }, []);
+  
+  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId }) {
+    const now = new Date();
+    const deadline = new Date(now.getTime() + 14*24*60*60*1000);
+    const { data, error } = await supabase.from("handover_protocols").insert({
+      bewerber_id: bewerberId || null,
+      contract_id: contractId || null,
+      apt_id: aptId || null,
+      room_id: roomId || null,
+      tenant_id: tenantId || null,
+      mieter_email: mieterEmail,
+      mieter_vorname: mieterVorname,
+      mieter_nachname: mieterNachname,
+      status: "sent",
+      started_at: now.toISOString(),
+      deadline: deadline.toISOString(),
+    }).select().single();
+    if (error) { console.error("startHandoverProtocol:", error); throw error; }
+    await loadHandoverProtocols();
+    return data;
+  }
+  
+  async function cancelHandoverProtocol(protocolId) {
+    const { error } = await supabase.from("handover_protocols").update({
+      status: "cancelled",
+      closed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }).eq("id", protocolId);
+    if (error) { console.error("cancelHandoverProtocol:", error); throw error; }
+    await loadHandoverProtocols();
+  }
+  
+  async function acceptHandoverProtocol(protocolId) {
+    const { error } = await supabase.from("handover_protocols").update({
+      status: "accepted",
+      closed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }).eq("id", protocolId);
+    if (error) { console.error("acceptHandoverProtocol:", error); throw error; }
+    await loadHandoverProtocols();
+  }
+  
+  async function extendHandoverDeadline(protocolId, extraDays) {
+    const proto = handoverProtocols.find(p => p.id === protocolId);
+    if (!proto) return;
+    const newDeadline = new Date(new Date(proto.deadline).getTime() + extraDays*24*60*60*1000);
+    const { error } = await supabase.from("handover_protocols").update({
+      deadline: newDeadline.toISOString(),
+      updated_at: new Date().toISOString()
+    }).eq("id", protocolId);
+    if (error) { console.error("extendHandoverDeadline:", error); throw error; }
+    await loadHandoverProtocols();
+  }
+  
+  async function deleteHandoverProtocol(protocolId) {
+    const { error } = await supabase.from("handover_protocols").delete().eq("id", protocolId);
+    if (error) { console.error("deleteHandoverProtocol:", error); throw error; }
+    setHandoverProtocols(p => p.filter(x => x.id !== protocolId));
+  }
+  
   async function loadDocuments() {
     try {
       const {data, error} = await supabase.from("documents").select("*").order("uploaded_at", {ascending:false});
@@ -2070,7 +2167,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -5015,7 +5112,7 @@ ${v.kautionMonate>0
 
 
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
-function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
+function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
@@ -5835,6 +5932,140 @@ www.dthomes.ch`;
                           <button onClick={async()=>{
                             if (!confirm(`Vertrag komplett loeschen?\n\n${contractTypeLabel}\n\nDies loescht den Vertrag komplett aus der Datenbank. Kann nicht rueckgaengig gemacht werden.`)) return;
                             try { await deleteContract(c.id); } catch(e){}
+                          }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
+                            🗑 Löschen
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            
+            {(() => {
+              const bHandovers = (handoverProtocols || []).filter(h => h.bewerberId === b.id);
+              const openContracts = (contracts || []).filter(c => c.bewerberId === b.id && (c.status === "signiert" || c.status === "abgeschlossen"));
+              const canStart = openContracts.length > 0;
+              const activeHandover = bHandovers.find(h => ["sent","in_progress"].includes(h.status));
+              
+              return (
+                <div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:bHandovers.length>0?10:0,gap:8,flexWrap:"wrap"}}>
+                    <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>
+                      📋 Übernahmeprotokoll {bHandovers.length > 0 ? `(${bHandovers.length})` : ""}
+                    </div>
+                    {!activeHandover && (
+                      <button 
+                        disabled={!canStart}
+                        title={canStart ? "Uebernahmeprotokoll jetzt starten (14 Tage Frist ab jetzt)" : "Erst wenn ein Vertrag signiert wurde"}
+                        onClick={async () => {
+                          if (!canStart) return;
+                          const contract = openContracts[0];
+                          const now = new Date();
+                          const deadline = new Date(now.getTime() + 14*24*60*60*1000);
+                          const dl = deadline.toLocaleDateString("de-CH", {day:"2-digit",month:"long",year:"numeric"});
+                          if (!confirm(`Uebernahmeprotokoll fuer ${b.vorname} ${b.nachname} jetzt starten?\n\nDer Mieter erhaelt eine E-Mail mit dem Link zum Protokoll.\n\nFrist laeuft ab heute fuer 14 Tage bis ${dl}.\n\nNach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand uebernommen.`)) return;
+                          try {
+                            await startHandoverProtocol({
+                              bewerberId: b.id,
+                              contractId: contract?.id,
+                              aptId: b.zugeteiltes_zimmer ? rooms.find(r=>r.id===b.zugeteiltes_zimmer)?.aptId : (b.zimmerWunsch ? rooms.find(r=>r.id===b.zimmerWunsch)?.aptId : null),
+                              roomId: b.zugeteiltes_zimmer || b.zimmerWunsch,
+                              mieterEmail: b.email,
+                              mieterVorname: b.vorname,
+                              mieterNachname: b.nachname,
+                            });
+                            alert("Protokoll gestartet. E-Mail-Versand kommt in Stufe 3.");
+                          } catch(e) {
+                            alert("Fehler: " + (e.message || e));
+                          }
+                        }}
+                        style={{
+                          fontSize:11,
+                          padding:"5px 11px",
+                          background: canStart ? "#e8efde" : "#f0ebe1",
+                          color: canStart ? "#3a5230" : "#a09680",
+                          border:`1px solid ${canStart ? "#c5d5b0" : "#d8d0c0"}`,
+                          borderRadius:5,
+                          cursor: canStart ? "pointer" : "not-allowed",
+                          fontWeight:600
+                        }}
+                      >
+                        📋 Protokoll starten
+                      </button>
+                    )}
+                  </div>
+                  
+                  {bHandovers.length === 0 && !canStart && (
+                    <div style={{fontSize:11.5,color:"#8a8478",fontStyle:"italic"}}>Erst nach Vertragsunterzeichnung verfuegbar</div>
+                  )}
+                  
+                  {bHandovers.map((h, idx) => {
+                    const statusColors = {
+                      "sent": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Eingeladen"},
+                      "in_progress": {bg:"#e0ecf5",color:"#3a5570",border:"#a8c0d5",label:"✎ In Arbeit"},
+                      "submitted": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"📤 Eingereicht"},
+                      "auto_accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Auto-akzeptiert"},
+                      "accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Akzeptiert"},
+                      "cancelled": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Abgebrochen"},
+                    };
+                    const sc = statusColors[h.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:h.status};
+                    const isActive = ["sent","in_progress"].includes(h.status);
+                    const isSubmitted = h.status === "submitted";
+                    const now = new Date();
+                    const dl = new Date(h.deadline);
+                    const daysLeft = Math.ceil((dl - now) / (1000*60*60*24));
+                    return (
+                      <div key={h.id} style={{marginBottom: idx < bHandovers.length-1 ? 12 : 0, paddingBottom: idx < bHandovers.length-1 ? 12 : 0, borderBottom: idx < bHandovers.length-1 ? "1px solid #e8e3d8" : "none"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
+                          <span style={{fontSize:12,color:"#3a352d"}}>
+                            Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")} 
+                            {isActive && daysLeft >= 0 && <span style={{marginLeft:8,color:daysLeft <= 3 ? "#8a3a2e" : "#8a8478",fontWeight:daysLeft <= 3 ? 600 : 400}}> · Deadline in {daysLeft} Tagen</span>}
+                            {isActive && daysLeft < 0 && <span style={{marginLeft:8,color:"#8a3a2e",fontWeight:600}}> · ⌛ Deadline abgelaufen</span>}
+                          </span>
+                          <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10.5,fontWeight:600}}>{sc.label}</span>
+                        </div>
+                        {h.signUrl && isActive && (
+                          <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
+                            <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{h.signUrl}</div>
+                            <button onClick={()=>{navigator.clipboard.writeText(h.signUrl).then(()=>alert("Link kopiert!")).catch(()=>{});}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
+                            <a href={h.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
+                          </div>
+                        )}
+                        {isSubmitted && h.submittedAt && (
+                          <div style={{fontSize:11,color:"#3a352d",marginBottom:6}}>
+                            Eingereicht am {new Date(h.submittedAt).toLocaleDateString("de-CH")} · {(h.photos||[]).length} Fotos {h.mangelNotes ? `· Mängel angegeben` : `· Keine Mängel`}
+                          </div>
+                        )}
+                        <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                          {isActive && (
+                            <>
+                              <button onClick={async()=>{
+                                if (!confirm(`Frist um 7 Tage verlaengern?\n\nNeue Deadline waere ${new Date(new Date(h.deadline).getTime() + 7*24*60*60*1000).toLocaleDateString("de-CH")}`)) return;
+                                try { await extendHandoverDeadline(h.id, 7); } catch(e){alert("Fehler: " + e.message);}
+                              }} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
+                                +7 Tage
+                              </button>
+                              <button onClick={async()=>{
+                                if (!confirm(`Protokoll abbrechen?\n\nDer Link wird ungueltig.`)) return;
+                                try { await cancelHandoverProtocol(h.id); } catch(e){alert("Fehler: " + e.message);}
+                              }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
+                                ✕ Abbrechen
+                              </button>
+                            </>
+                          )}
+                          {isSubmitted && (
+                            <button onClick={async()=>{
+                              if (!confirm(`Protokoll akzeptieren und abschliessen?`)) return;
+                              try { await acceptHandoverProtocol(h.id); } catch(e){alert("Fehler: " + e.message);}
+                            }} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}>
+                              ✓ Akzeptieren
+                            </button>
+                          )}
+                          <button onClick={async()=>{
+                            if (!confirm(`Protokoll komplett loeschen?\n\nDies loescht das Protokoll aus der Datenbank. Kann nicht rueckgaengig gemacht werden.`)) return;
+                            try { await deleteHandoverProtocol(h.id); } catch(e){alert("Fehler: " + e.message);}
                           }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
                             🗑 Löschen
                           </button>
