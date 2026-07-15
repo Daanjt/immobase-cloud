@@ -2828,7 +2828,7 @@ function SignaturePad({value, onChange, placeholder}) {
   );
 }
 
-function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll}){
+function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll, handoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol}){
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -3322,8 +3322,118 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
   if (!showForm) {
     const hasDraft = !!loadDraft();
     
+    // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
+    const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
+    const activeHandover = myHandovers.find(h => ["sent","in_progress"].includes(h.status));
+    
     return (
       <div>
+        {/* SELBST-ÜBERNAHMEPROTOKOLL (Mieter erfasst per Link) */}
+        <div style={{background:"#fafaf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:myHandovers.length>0?12:0,gap:8,flexWrap:"wrap"}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:"#3a352d"}}>📨 Selbst-Übernahmeprotokoll</div>
+              <div style={{fontSize:10.5,color:"#8a8478",marginTop:2}}>Mieter erhält Link, füllt Fotos + Mängel aus. 14 Tage Frist ab Start.</div>
+            </div>
+            {!activeHandover && (
+              <button onClick={async()=>{
+                const now = new Date();
+                const deadline = new Date(now.getTime() + 14*24*60*60*1000);
+                const dl = deadline.toLocaleDateString("de-CH", {day:"2-digit",month:"long",year:"numeric"});
+                if (!confirm(`Selbst-Übernahmeprotokoll für ${tenant.vorname||""} ${tenant.nachname||""} jetzt starten?\n\nDer Mieter erhält einen Link zum Protokoll (E-Mail-Versand kommt in Stufe 3).\n\nFrist läuft ab heute für 14 Tage bis ${dl}.\n\nNach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.`)) return;
+                try {
+                  await startHandoverProtocol({
+                    tenantId: tenant.id,
+                    aptId: apt?.id,
+                    roomId: room?.id,
+                    mieterEmail: tenant.email,
+                    mieterVorname: tenant.vorname,
+                    mieterNachname: tenant.nachname,
+                  });
+                } catch(e) {
+                  alert("Fehler: " + (e.message || e));
+                }
+              }} style={{fontSize:12,padding:"7px 14px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:5,cursor:"pointer",fontWeight:600}}>
+                📋 Selbst-Protokoll starten
+              </button>
+            )}
+          </div>
+          
+          {myHandovers.map((h, idx) => {
+            const statusColors = {
+              "sent": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Eingeladen"},
+              "in_progress": {bg:"#e0ecf5",color:"#3a5570",border:"#a8c0d5",label:"✎ In Arbeit"},
+              "submitted": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"📤 Eingereicht"},
+              "auto_accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Auto-akzeptiert"},
+              "accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Akzeptiert"},
+              "cancelled": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Abgebrochen"},
+            };
+            const sc = statusColors[h.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:h.status};
+            const isActive = ["sent","in_progress"].includes(h.status);
+            const isSubmitted = h.status === "submitted";
+            const now = new Date();
+            const dl = new Date(h.deadline);
+            const daysLeft = Math.ceil((dl - now) / (1000*60*60*24));
+            return (
+              <div key={h.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<myHandovers.length-1?8:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
+                  <span style={{fontSize:11.5,color:"#3a352d"}}>
+                    Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")}
+                    {isActive && daysLeft >= 0 && <span style={{marginLeft:8,color:daysLeft <= 3 ? "#8a3a2e" : "#8a8478",fontWeight:daysLeft <= 3 ? 600 : 400}}> · Deadline in {daysLeft} Tagen</span>}
+                    {isActive && daysLeft < 0 && <span style={{marginLeft:8,color:"#8a3a2e",fontWeight:600}}> · ⌛ Abgelaufen</span>}
+                  </span>
+                  <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10.5,fontWeight:600}}>{sc.label}</span>
+                </div>
+                {h.signUrl && isActive && (
+                  <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
+                    <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{h.signUrl}</div>
+                    <button onClick={()=>{navigator.clipboard.writeText(h.signUrl).then(()=>alert("Link kopiert!")).catch(()=>{});}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
+                    <a href={h.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
+                  </div>
+                )}
+                {isSubmitted && h.submittedAt && (
+                  <div style={{fontSize:11,color:"#3a352d",marginBottom:6}}>
+                    Eingereicht am {new Date(h.submittedAt).toLocaleDateString("de-CH")} · {(h.photos||[]).length} Fotos {h.mangelNotes ? `· Mängel angegeben` : `· Keine Mängel`}
+                  </div>
+                )}
+                <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                  {isActive && (
+                    <>
+                      <button onClick={async()=>{
+                        if (!confirm(`Frist um 7 Tage verlängern?`)) return;
+                        try { await extendHandoverDeadline(h.id, 7); } catch(e){alert("Fehler: "+e.message);}
+                      }} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
+                        +7 Tage
+                      </button>
+                      <button onClick={async()=>{
+                        if (!confirm(`Protokoll abbrechen?\n\nDer Link wird ungültig.`)) return;
+                        try { await cancelHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
+                      }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
+                        ✕ Abbrechen
+                      </button>
+                    </>
+                  )}
+                  {isSubmitted && (
+                    <button onClick={async()=>{
+                      if (!confirm(`Protokoll akzeptieren und abschliessen?`)) return;
+                      try { await acceptHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
+                    }} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}>
+                      ✓ Akzeptieren
+                    </button>
+                  )}
+                  <button onClick={async()=>{
+                    if (!confirm(`Protokoll komplett löschen?`)) return;
+                    try { await deleteHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
+                  }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
+                    🗑
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* BESTEHENDE MANUELLE ÜBERGABEN */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
           <div>
             <div style={{fontSize:14,fontWeight:600}}>📋 Übergaben</div>
@@ -5112,7 +5222,7 @@ ${v.kautionMonate>0
 
 
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
-function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
+function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
@@ -5932,140 +6042,6 @@ www.dthomes.ch`;
                           <button onClick={async()=>{
                             if (!confirm(`Vertrag komplett loeschen?\n\n${contractTypeLabel}\n\nDies loescht den Vertrag komplett aus der Datenbank. Kann nicht rueckgaengig gemacht werden.`)) return;
                             try { await deleteContract(c.id); } catch(e){}
-                          }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
-                            🗑 Löschen
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-            
-            {(() => {
-              const bHandovers = (handoverProtocols || []).filter(h => h.bewerberId === b.id);
-              const openContracts = (contracts || []).filter(c => c.bewerberId === b.id && (c.status === "signiert" || c.status === "abgeschlossen"));
-              const canStart = openContracts.length > 0;
-              const activeHandover = bHandovers.find(h => ["sent","in_progress"].includes(h.status));
-              
-              return (
-                <div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:bHandovers.length>0?10:0,gap:8,flexWrap:"wrap"}}>
-                    <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>
-                      📋 Übernahmeprotokoll {bHandovers.length > 0 ? `(${bHandovers.length})` : ""}
-                    </div>
-                    {!activeHandover && (
-                      <button 
-                        disabled={!canStart}
-                        title={canStart ? "Uebernahmeprotokoll jetzt starten (14 Tage Frist ab jetzt)" : "Erst wenn ein Vertrag signiert wurde"}
-                        onClick={async () => {
-                          if (!canStart) return;
-                          const contract = openContracts[0];
-                          const now = new Date();
-                          const deadline = new Date(now.getTime() + 14*24*60*60*1000);
-                          const dl = deadline.toLocaleDateString("de-CH", {day:"2-digit",month:"long",year:"numeric"});
-                          if (!confirm(`Uebernahmeprotokoll fuer ${b.vorname} ${b.nachname} jetzt starten?\n\nDer Mieter erhaelt eine E-Mail mit dem Link zum Protokoll.\n\nFrist laeuft ab heute fuer 14 Tage bis ${dl}.\n\nNach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand uebernommen.`)) return;
-                          try {
-                            await startHandoverProtocol({
-                              bewerberId: b.id,
-                              contractId: contract?.id,
-                              aptId: b.zugeteiltes_zimmer ? rooms.find(r=>r.id===b.zugeteiltes_zimmer)?.aptId : (b.zimmerWunsch ? rooms.find(r=>r.id===b.zimmerWunsch)?.aptId : null),
-                              roomId: b.zugeteiltes_zimmer || b.zimmerWunsch,
-                              mieterEmail: b.email,
-                              mieterVorname: b.vorname,
-                              mieterNachname: b.nachname,
-                            });
-                            alert("Protokoll gestartet. E-Mail-Versand kommt in Stufe 3.");
-                          } catch(e) {
-                            alert("Fehler: " + (e.message || e));
-                          }
-                        }}
-                        style={{
-                          fontSize:11,
-                          padding:"5px 11px",
-                          background: canStart ? "#e8efde" : "#f0ebe1",
-                          color: canStart ? "#3a5230" : "#a09680",
-                          border:`1px solid ${canStart ? "#c5d5b0" : "#d8d0c0"}`,
-                          borderRadius:5,
-                          cursor: canStart ? "pointer" : "not-allowed",
-                          fontWeight:600
-                        }}
-                      >
-                        📋 Protokoll starten
-                      </button>
-                    )}
-                  </div>
-                  
-                  {bHandovers.length === 0 && !canStart && (
-                    <div style={{fontSize:11.5,color:"#8a8478",fontStyle:"italic"}}>Erst nach Vertragsunterzeichnung verfuegbar</div>
-                  )}
-                  
-                  {bHandovers.map((h, idx) => {
-                    const statusColors = {
-                      "sent": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Eingeladen"},
-                      "in_progress": {bg:"#e0ecf5",color:"#3a5570",border:"#a8c0d5",label:"✎ In Arbeit"},
-                      "submitted": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"📤 Eingereicht"},
-                      "auto_accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Auto-akzeptiert"},
-                      "accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Akzeptiert"},
-                      "cancelled": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Abgebrochen"},
-                    };
-                    const sc = statusColors[h.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:h.status};
-                    const isActive = ["sent","in_progress"].includes(h.status);
-                    const isSubmitted = h.status === "submitted";
-                    const now = new Date();
-                    const dl = new Date(h.deadline);
-                    const daysLeft = Math.ceil((dl - now) / (1000*60*60*24));
-                    return (
-                      <div key={h.id} style={{marginBottom: idx < bHandovers.length-1 ? 12 : 0, paddingBottom: idx < bHandovers.length-1 ? 12 : 0, borderBottom: idx < bHandovers.length-1 ? "1px solid #e8e3d8" : "none"}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
-                          <span style={{fontSize:12,color:"#3a352d"}}>
-                            Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")} 
-                            {isActive && daysLeft >= 0 && <span style={{marginLeft:8,color:daysLeft <= 3 ? "#8a3a2e" : "#8a8478",fontWeight:daysLeft <= 3 ? 600 : 400}}> · Deadline in {daysLeft} Tagen</span>}
-                            {isActive && daysLeft < 0 && <span style={{marginLeft:8,color:"#8a3a2e",fontWeight:600}}> · ⌛ Deadline abgelaufen</span>}
-                          </span>
-                          <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10.5,fontWeight:600}}>{sc.label}</span>
-                        </div>
-                        {h.signUrl && isActive && (
-                          <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
-                            <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{h.signUrl}</div>
-                            <button onClick={()=>{navigator.clipboard.writeText(h.signUrl).then(()=>alert("Link kopiert!")).catch(()=>{});}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
-                            <a href={h.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
-                          </div>
-                        )}
-                        {isSubmitted && h.submittedAt && (
-                          <div style={{fontSize:11,color:"#3a352d",marginBottom:6}}>
-                            Eingereicht am {new Date(h.submittedAt).toLocaleDateString("de-CH")} · {(h.photos||[]).length} Fotos {h.mangelNotes ? `· Mängel angegeben` : `· Keine Mängel`}
-                          </div>
-                        )}
-                        <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
-                          {isActive && (
-                            <>
-                              <button onClick={async()=>{
-                                if (!confirm(`Frist um 7 Tage verlaengern?\n\nNeue Deadline waere ${new Date(new Date(h.deadline).getTime() + 7*24*60*60*1000).toLocaleDateString("de-CH")}`)) return;
-                                try { await extendHandoverDeadline(h.id, 7); } catch(e){alert("Fehler: " + e.message);}
-                              }} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
-                                +7 Tage
-                              </button>
-                              <button onClick={async()=>{
-                                if (!confirm(`Protokoll abbrechen?\n\nDer Link wird ungueltig.`)) return;
-                                try { await cancelHandoverProtocol(h.id); } catch(e){alert("Fehler: " + e.message);}
-                              }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
-                                ✕ Abbrechen
-                              </button>
-                            </>
-                          )}
-                          {isSubmitted && (
-                            <button onClick={async()=>{
-                              if (!confirm(`Protokoll akzeptieren und abschliessen?`)) return;
-                              try { await acceptHandoverProtocol(h.id); } catch(e){alert("Fehler: " + e.message);}
-                            }} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}>
-                              ✓ Akzeptieren
-                            </button>
-                          )}
-                          <button onClick={async()=>{
-                            if (!confirm(`Protokoll komplett loeschen?\n\nDies loescht das Protokoll aus der Datenbank. Kann nicht rueckgaengig gemacht werden.`)) return;
-                            try { await deleteHandoverProtocol(h.id); } catch(e){alert("Fehler: " + e.message);}
                           }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
                             🗑 Löschen
                           </button>
@@ -7848,7 +7824,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,del
               <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll}/>}
+            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
