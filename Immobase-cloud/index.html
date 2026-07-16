@@ -1953,7 +1953,7 @@ function useSupabaseData() {
         createdAt: c.created_at,
         updatedAt: c.updated_at,
         bemerkung: c.bemerkung,
-        signUrl: c.token ? `https://sign.dthomes.ch/${c.token}` : null,
+        signUrl: c.token ? `https://mieter.dthomes.ch/${c.token}` : null,
       })));
     } catch (e) {
       console.warn("loadContracts failed:", e);
@@ -2007,7 +2007,7 @@ function useSupabaseData() {
         updatedAt: h.updated_at,
         schluesselInfo: h.schluessel_info,
         schluesselUebergebenAm: h.schluessel_uebergeben_am,
-        signUrl: h.token ? `https://sign.dthomes.ch/uebernahme/${h.token}` : null,
+        signUrl: h.token ? `https://mieter.dthomes.ch/uebernahme/${h.token}` : null,
       })));
     } catch (e) {
       console.warn("loadHandoverProtocols failed:", e);
@@ -5748,7 +5748,7 @@ www.dthomes.ch`;
     let lastErr = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch("https://sign.dthomes.ch/api/pdf-generate", {
+        const response = await fetch("https://mieter.dthomes.ch/api/pdf-generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ html, filename }),
@@ -5879,7 +5879,7 @@ www.dthomes.ch`;
     return {
       contractId: contractRow.id,
       token,
-      signUrl: `https://sign.dthomes.ch/${token}`,
+      signUrl: `https://mieter.dthomes.ch/${token}`,
       emailSent: emailRes.ok,
     };
   }
