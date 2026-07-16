@@ -2043,6 +2043,18 @@ function useSupabaseData() {
       schluessel_uebergeben_am: schluesselInfo ? now.toISOString() : null,
     }).select().single();
     if (error) { console.error("startHandoverProtocol:", error); throw error; }
+    
+    // Trigger Einladungs-Email an Mieter (fire-and-forget, blockiert nicht wenn fehlschlaegt)
+    if (data?.id && data?.mieter_email) {
+      supabase.functions.invoke("send-handover-invite", { body: { protocolId: data.id } })
+        .then(({ error: emailError }) => {
+          if (emailError) console.warn("send-handover-invite failed:", emailError);
+          else console.log("Einladungs-Email versendet an", data.mieter_email);
+          loadHandoverProtocols(); // Reload um invite_sent_at anzuzeigen
+        })
+        .catch(e => console.warn("send-handover-invite exception:", e));
+    }
+    
     await loadHandoverProtocols();
     return data;
   }
