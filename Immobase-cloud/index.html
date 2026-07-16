@@ -2007,6 +2007,8 @@ function useSupabaseData() {
         updatedAt: h.updated_at,
         schluesselInfo: h.schluessel_info,
         schluesselUebergebenAm: h.schluessel_uebergeben_am,
+        inviteSentAt: h.invite_sent_at,
+        inviteEmailError: h.invite_email_error,
         signUrl: h.token ? `https://mieter.dthomes.ch/uebernahme/${h.token}` : null,
       })));
     } catch (e) {
@@ -3414,6 +3416,20 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
             const daysLeft = Math.ceil((dl - now) / (1000*60*60*24));
             return (
               <div key={h.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<myHandovers.length-1?8:0}}>
+                {/* Email-Status: gruener Haken wenn versendet, rote Warnung bei Error */}
+                {h.inviteSentAt ? (
+                  <div style={{fontSize:10.5,color:"#3a5230",background:"#e8efde",border:"1px solid #c5d5b0",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
+                    ✉️ Einladung versendet {new Date(h.inviteSentAt).toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+                  </div>
+                ) : h.inviteEmailError ? (
+                  <div style={{fontSize:10.5,color:"#9b4a3e",background:"#fdebe5",border:"1px solid #e0bcb0",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
+                    ⚠️ Email-Fehler: {h.inviteEmailError.substring(0,60)}
+                  </div>
+                ) : (
+                  <div style={{fontSize:10.5,color:"#8a6a2e",background:"#fdf7e8",border:"1px solid #e8d2a8",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
+                    ⏳ Email wird versendet ...
+                  </div>
+                )}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
                   <span style={{fontSize:11.5,color:"#3a352d"}}>
                     Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")}
