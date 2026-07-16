@@ -3346,8 +3346,17 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     
     // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
     const [showStartModal, setShowStartModal] = React.useState(false);
-    const [startSchluessel, setStartSchluessel] = React.useState("");
+    const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
+    const [startExtraSchluessel, setStartExtraSchluessel] = React.useState("");
     const [starting, setStarting] = React.useState(false);
+    
+    // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
+    React.useEffect(() => {
+      if (showStartModal && tenant) {
+        setStartSchluesselNr(tenant.schluesselNr || tenant.schluessel_nr || "");
+        setStartExtraSchluessel(tenant.extraSchluessel || tenant.extra_schluessel || "");
+      }
+    }, [showStartModal, tenant?.id]);
     const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
     const activeHandover = myHandovers.find(h => ["sent","in_progress"].includes(h.status));
     
@@ -3453,16 +3462,26 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                 Nach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.
               </div>
               
+              <div style={{marginBottom:12}}>
+                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Schlüsselnummer</label>
+                <input
+                  type="text"
+                  value={startSchluesselNr}
+                  onChange={e=>setStartSchluesselNr(e.target.value)}
+                  placeholder="z.B. 123-456"
+                  style={{width:"100%",padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}
+                />
+              </div>
               <div style={{marginBottom:16}}>
-                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Übergebene Schlüssel</label>
+                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Extra-Schlüssel (optional)</label>
                 <textarea
-                  value={startSchluessel}
-                  onChange={e=>setStartSchluessel(e.target.value)}
-                  placeholder={"z.B.\nWohnungsschlüssel Nr. 123-456\nBriefkastenschlüssel Nr. 4711\nWaschküche Nr. 89"}
-                  style={{width:"100%",minHeight:100,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
+                  value={startExtraSchluessel}
+                  onChange={e=>setStartExtraSchluessel(e.target.value)}
+                  placeholder={"z.B.\nBriefkastenschlüssel Nr. 4711\nWaschküche Nr. 89"}
+                  style={{width:"100%",minHeight:70,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
                 />
                 <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
-                  Diese Angaben erscheinen im Protokoll und im PDF-Dokument des Mieters.
+                  Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
                 </div>
               </div>
               
@@ -3473,6 +3492,20 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                 <button onClick={async()=>{
                   setStarting(true);
                   try {
+                    const nrTrim = startSchluesselNr.trim();
+                    const extraTrim = startExtraSchluessel.trim();
+                    // 1. Update tenant fields
+                    await updateTenant(tenant.id, {
+                      schluessel_nr: nrTrim,
+                      extra_schluessel: extraTrim,
+                      schluessel_uebergeben: !!(nrTrim || extraTrim),
+                    });
+                    // 2. Build snapshot for handover_protocol (fuer Sign-Portal + PDF)
+                    const snapshot = [
+                      nrTrim && `Schlüsselnummer: ${nrTrim}`,
+                      extraTrim && `Extra-Schlüssel:\n${extraTrim}`
+                    ].filter(Boolean).join("\n\n");
+                    // 3. Start the protocol
                     await startHandoverProtocol({
                       tenantId: tenant.id,
                       aptId: apt?.id,
@@ -3480,10 +3513,9 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                       mieterEmail: tenant.email,
                       mieterVorname: tenant.vorname,
                       mieterNachname: tenant.nachname,
-                      schluesselInfo: startSchluessel.trim() || null,
+                      schluesselInfo: snapshot || null,
                     });
                     setShowStartModal(false);
-                    setStartSchluessel("");
                   } catch(e) {
                     alert("Fehler: " + (e.message || e));
                   }
