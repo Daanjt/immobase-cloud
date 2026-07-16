@@ -3664,35 +3664,51 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // ─── ÜBERGABEN (Einzug + Auszug Tab) ─────────────────────────────────────────
-function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom}){
+function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const heute = new Date();
   heute.setHours(0,0,0,0);
   
-  // ─── EINZUG: Offene Schlüsselübergaben ─────────────────────────
-  const offeneSchluesselUebergaben = tenants
+  // ─── EINZUG: Uebernahmeprotokolle nach Status ─────────────────────
+  // Kategorien: 
+  //   "todo" = kein Protokoll gestartet
+  //   "waiting" = Protokoll laeuft (sent/in_progress)
+  //   "review" = Protokoll eingereicht (submitted, wartet auf Admin-Akzeptanz)
+  //   "done" = accepted / auto_accepted
+  const einzuegeMitStatus = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
       const room = rooms.find(r => r.tenantId === t.id);
       if (!room) return null;
       const apt = apts.find(a => a.id === room.aptId);
-      const myProtokolle = (protokolle || []).filter(p => p.tenantId === t.id);
-      const hasSchluessel = myProtokolle.some(p => 
-        p.schluesselNr && String(p.schluesselNr).trim() !== ""
-      );
-      if (hasSchluessel) return null;
+      const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === t.id);
+      // Sortiere absteigend nach start um neuestes zuerst zu haben
+      const sorted = [...myHandovers].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
+      const latest = sorted[0];
+      let kategorie;
+      if (!latest) kategorie = "todo";
+      else if (["sent","in_progress"].includes(latest.status)) kategorie = "waiting";
+      else if (latest.status === "submitted") kategorie = "review";
+      else if (["accepted","auto_accepted"].includes(latest.status)) kategorie = "done";
+      else kategorie = "todo"; // cancelled -> zurueck auf todo
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
-      const hasEntwurf = myProtokolle.length > 0;
-      return { tenant: t, room, apt, einzugDate, daysTilEinzug, hasEntwurf };
+      return { tenant: t, room, apt, einzugDate, daysTilEinzug, kategorie, latest };
     })
     .filter(Boolean)
     .sort((a, b) => {
+      // Prioritaet: review > waiting > todo > done
+      const prio = {review:0, waiting:1, todo:2, done:3};
+      if (prio[a.kategorie] !== prio[b.kategorie]) return prio[a.kategorie] - prio[b.kategorie];
       if (a.daysTilEinzug == null && b.daysTilEinzug == null) return 0;
       if (a.daysTilEinzug == null) return 1;
       if (b.daysTilEinzug == null) return -1;
       return a.daysTilEinzug - b.daysTilEinzug;
     });
+  
+  const offene = einzuegeMitStatus.filter(e => e.kategorie !== "done");
+  const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
+  const offeneSchluesselUebergaben = offene; // legacy alias fuer Tab-Badge
   
   function schluesselCat(daysTilEinzug) {
     if (daysTilEinzug == null) return { color:"#5a5a5a", bg:"#ececec", border:"#c5c5c5", label:"Kein Einzug gesetzt", icon:"❓" };
@@ -3791,39 +3807,84 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       {/* EINZUG */}
       {tab === "einzug" && (
         <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <div style={{fontSize:13,color:"#4a4439",lineHeight:1.5}}>
-              Mieter mit Zimmer-Zuteilung, deren Schlüsselübergabe noch ausstehend ist (Schlüsselnummer im Übergabeprotokoll nicht eingetragen).
-            </div>
+          <div style={{marginBottom:16,fontSize:13,color:"#4a4439",lineHeight:1.5}}>
+            Alle Mieter mit Zimmer-Zuteilung und ihr aktueller Übernahmeprotokoll-Status.
           </div>
-          {offeneSchluesselUebergaben.length === 0 ? (
-            <div style={{padding:"40px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,color:"#8a8174"}}>
-              <div style={{fontSize:32,marginBottom:8}}>✓</div>
-              <div style={{fontSize:14,fontWeight:600,color:"#5a6e4a",marginBottom:4}}>Alle Schlüsselübergaben erledigt</div>
-              <div style={{fontSize:11}}>Aktuell stehen keine Einzüge mit offener Schlüsselübergabe an.</div>
-            </div>
-          ) : (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
-              {offeneSchluesselUebergaben.map(s => {
-                const cat = schluesselCat(s.daysTilEinzug);
-                return (
-                  <div key={s.tenant.id} style={{background:cat.bg,border:`1px solid ${cat.border}`,borderRadius:8,padding:"12px 14px",transition:"all .15s"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                      <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{cat.icon} Schlüsselnummer fehlt</div>
-                      <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{cat.label}</div>
+          
+          {/* FAELLIG (todo / waiting / review) */}
+          {offene.length > 0 && (
+            <>
+              <div style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,marginBottom:10}}>Fällig ({offene.length})</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10,marginBottom:24}}>
+                {offene.map(s => {
+                  const catCfg = {
+                    "todo":    {bg:"#fdebe5",border:"#e0bcb0",color:"#9b4a3e",label:"Nicht gestartet",   icon:"⚠️"},
+                    "waiting": {bg:"#fdf2e0",border:"#e8c89c",color:"#7a5c3c",label:"Läuft (Mieter)",     icon:"⏱"},
+                    "review":  {bg:"#e0ecf5",border:"#a8c0d5",color:"#3a5570",label:"Zur Prüfung",       icon:"📥"},
+                  }[s.kategorie];
+                  const dayHint = s.daysTilEinzug != null ? (
+                    s.daysTilEinzug < 0 ? `${Math.abs(s.daysTilEinzug)} T. überfällig` : 
+                    s.daysTilEinzug === 0 ? "Einzug heute" : 
+                    `Einzug in ${s.daysTilEinzug} T.`
+                  ) : "kein Einzug gesetzt";
+                  return (
+                    <div key={s.tenant.id} style={{background:catCfg.bg,border:`1px solid ${catCfg.border}`,borderRadius:8,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                        <div style={{fontSize:10,fontWeight:700,color:catCfg.color,letterSpacing:".05em",textTransform:"uppercase"}}>{catCfg.icon} {catCfg.label}</div>
+                        <div style={{fontSize:10,color:catCfg.color,fontWeight:600}}>{dayHint}</div>
+                      </div>
+                      <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
+                      <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
+                      {s.latest && ["sent","in_progress"].includes(s.latest.status) && (
+                        <div style={{fontSize:10.5,color:catCfg.color,marginBottom:8,padding:"3px 6px",background:"rgba(255,255,255,.4)",borderRadius:4}}>
+                          Deadline: {new Date(s.latest.deadline).toLocaleDateString("de-CH")}
+                        </div>
+                      )}
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                        <button
+                          onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
+                          style={{flex:1,minWidth:0,background:"#1a1814",color:"#fefcf7",border:"none",borderRadius:6,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em"}}
+                          title="Mieter oeffnen"
+                        >
+                          {s.kategorie === "todo" ? "📋 Protokoll starten" : s.kategorie === "review" ? "📥 Prüfen" : "🔍 Anzeigen"}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                    <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          
+          {/* ERLEDIGT */}
+          {erledigt.length > 0 && (
+            <>
+              <div style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,marginBottom:10}}>Erledigt ({erledigt.length})</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
+                {erledigt.map(s => {
+                  const isAuto = s.latest?.status === "auto_accepted";
+                  return (
+                    <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#3a5230",letterSpacing:".05em",textTransform:"uppercase"}}>✓ {isAuto ? "Auto-akzeptiert" : "Akzeptiert"}</div>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{s.tenant.vorname} {s.tenant.nachname}</div>
+                      <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"}</div>
                       <button
                         onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
-                        style={{flex:1,minWidth:0,background:"#1a1814",color:"#fefcf7",border:"none",borderRadius:6,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}
-                        title="Mieter öffnen → Schlüsselnummer im Übergabeprotokoll eintragen"
-                      >🔑 Schlüsselnummer eintragen</button>
+                        style={{fontSize:10.5,padding:"4px 10px",background:"transparent",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}
+                      >🔍 Anzeigen</button>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </>
+          )}
+          
+          {offene.length === 0 && erledigt.length === 0 && (
+            <div style={{padding:"40px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,color:"#8a8174"}}>
+              <div style={{fontSize:32,marginBottom:8,opacity:.5}}>🔑</div>
+              <div style={{fontSize:14,fontWeight:500}}>Keine Mieter mit Zimmer-Zuteilung</div>
             </div>
           )}
         </div>
