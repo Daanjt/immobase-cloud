@@ -3525,7 +3525,6 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                       mieterGeburtsdatum: tenant.geburt || null,
                       mieterNationalitaet: tenant.nat || null,
                       mieterTelefon: tenant.phone || null,
-                      mieterAdresse: [tenant.adresse, tenant.plz, tenant.ort].filter(Boolean).join(", ") || null,
                       aptAdresse: apt?.adresse || null,
                       aptPlz: apt?.plz || null,
                       aptOrt: apt?.ort || null,
