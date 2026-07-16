@@ -1987,6 +1987,8 @@ function useSupabaseData() {
         bemerkung: h.bemerkung,
         createdAt: h.created_at,
         updatedAt: h.updated_at,
+        schluesselInfo: h.schluessel_info,
+        schluesselUebergebenAm: h.schluessel_uebergeben_am,
         signUrl: h.token ? `https://sign.dthomes.ch/uebernahme/${h.token}` : null,
       })));
     } catch (e) {
@@ -1995,7 +1997,7 @@ function useSupabaseData() {
   }
   useEffect(() => { loadHandoverProtocols(); }, []);
   
-  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId }) {
+  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo }) {
     const now = new Date();
     const deadline = new Date(now.getTime() + 14*24*60*60*1000);
     const { data, error } = await supabase.from("handover_protocols").insert({
@@ -2010,6 +2012,8 @@ function useSupabaseData() {
       status: "sent",
       started_at: now.toISOString(),
       deadline: deadline.toISOString(),
+      schluessel_info: schluesselInfo || null,
+      schluessel_uebergeben_am: schluesselInfo ? now.toISOString() : null,
     }).select().single();
     if (error) { console.error("startHandoverProtocol:", error); throw error; }
     await loadHandoverProtocols();
@@ -3323,6 +3327,9 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
     const hasDraft = !!loadDraft();
     
     // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
+    const [showStartModal, setShowStartModal] = React.useState(false);
+    const [startSchluessel, setStartSchluessel] = React.useState("");
+    const [starting, setStarting] = React.useState(false);
     const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
     const activeHandover = myHandovers.find(h => ["sent","in_progress"].includes(h.status));
     
@@ -3336,25 +3343,8 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
               <div style={{fontSize:10.5,color:"#8a8478",marginTop:2}}>Mieter erhält Link, füllt Fotos + Mängel aus. 14 Tage Frist ab Start.</div>
             </div>
             {!activeHandover && (
-              <button onClick={async()=>{
-                const now = new Date();
-                const deadline = new Date(now.getTime() + 14*24*60*60*1000);
-                const dl = deadline.toLocaleDateString("de-CH", {day:"2-digit",month:"long",year:"numeric"});
-                if (!confirm(`Selbst-Übernahmeprotokoll für ${tenant.vorname||""} ${tenant.nachname||""} jetzt starten?\n\nDer Mieter erhält einen Link zum Protokoll (E-Mail-Versand kommt in Stufe 3).\n\nFrist läuft ab heute für 14 Tage bis ${dl}.\n\nNach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.`)) return;
-                try {
-                  await startHandoverProtocol({
-                    tenantId: tenant.id,
-                    aptId: apt?.id,
-                    roomId: room?.id,
-                    mieterEmail: tenant.email,
-                    mieterVorname: tenant.vorname,
-                    mieterNachname: tenant.nachname,
-                  });
-                } catch(e) {
-                  alert("Fehler: " + (e.message || e));
-                }
-              }} style={{fontSize:12,padding:"7px 14px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:5,cursor:"pointer",fontWeight:600}}>
-                📋 Selbst-Protokoll starten
+              <button onClick={()=>setShowStartModal(true)} style={{fontSize:12,padding:"7px 14px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:5,cursor:"pointer",fontWeight:600}}>
+                📋 Protokoll starten
               </button>
             )}
           </div>
@@ -3432,6 +3422,61 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
             );
           })}
         </div>
+        
+        {/* START-MODAL fuer Uebernahmeprotokoll */}
+        {showStartModal && (
+          <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget && !starting && setShowStartModal(false)}>
+            <div style={{background:"#fefcf7",borderRadius:10,padding:"22px 26px",maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}}>
+              <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>📋 Übernahmeprotokoll starten</div>
+              <div style={{fontSize:12,color:"#8a8174",marginBottom:18}}>Für {tenant?.vorname||""} {tenant?.nachname||""} · {apt?.adresse||""}{room?.id ? ", Zimmer "+room.id : ""}</div>
+              
+              <div style={{background:"#fdf2e0",border:"1px solid #e8c89c",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.5,color:"#5a5044"}}>
+                Nach dem Start erhält der Mieter einen Link mit 14 Tagen Frist für die Fotos und Mängel-Angabe.
+                Nach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.
+              </div>
+              
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Übergebene Schlüssel</label>
+                <textarea
+                  value={startSchluessel}
+                  onChange={e=>setStartSchluessel(e.target.value)}
+                  placeholder={"z.B.\nWohnungsschlüssel Nr. 123-456\nBriefkastenschlüssel Nr. 4711\nWaschküche Nr. 89"}
+                  style={{width:"100%",minHeight:100,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
+                />
+                <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
+                  Diese Angaben erscheinen im Protokoll und im PDF-Dokument des Mieters.
+                </div>
+              </div>
+              
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button onClick={()=>!starting && setShowStartModal(false)} disabled={starting} style={{fontSize:12.5,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:starting?"not-allowed":"pointer"}}>
+                  Abbrechen
+                </button>
+                <button onClick={async()=>{
+                  setStarting(true);
+                  try {
+                    await startHandoverProtocol({
+                      tenantId: tenant.id,
+                      aptId: apt?.id,
+                      roomId: room?.id,
+                      mieterEmail: tenant.email,
+                      mieterVorname: tenant.vorname,
+                      mieterNachname: tenant.nachname,
+                      schluesselInfo: startSchluessel.trim() || null,
+                    });
+                    setShowStartModal(false);
+                    setStartSchluessel("");
+                  } catch(e) {
+                    alert("Fehler: " + (e.message || e));
+                  }
+                  setStarting(false);
+                }} disabled={starting} style={{fontSize:12.5,padding:"8px 16px",background:starting?"#f0ebe1":"#3a5230",color:starting?"#8a8174":"#fff",border:"1px solid "+(starting?"#d8d0c0":"#3a5230"),borderRadius:5,cursor:starting?"not-allowed":"pointer",fontWeight:600}}>
+                  {starting ? "Starte..." : "📋 Protokoll starten"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* BESTEHENDE MANUELLE ÜBERGABEN */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
