@@ -2015,7 +2015,7 @@ function useSupabaseData() {
   }
   useEffect(() => { loadHandoverProtocols(); }, []);
   
-  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo }) {
+  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum }) {
     const now = new Date();
     const deadline = new Date(now.getTime() + 14*24*60*60*1000);
     const { data, error } = await supabase.from("handover_protocols").insert({
@@ -2027,6 +2027,15 @@ function useSupabaseData() {
       mieter_email: mieterEmail,
       mieter_vorname: mieterVorname,
       mieter_nachname: mieterNachname,
+      mieter_geburtsdatum: mieterGeburtsdatum || null,
+      mieter_nationalitaet: mieterNationalitaet || null,
+      mieter_telefon: mieterTelefon || null,
+      mieter_adresse: mieterAdresse || null,
+      apt_adresse: aptAdresse || null,
+      apt_plz: aptPlz || null,
+      apt_ort: aptOrt || null,
+      room_label: roomLabel || null,
+      einzug_datum: einzugDatum || null,
       status: "sent",
       started_at: now.toISOString(),
       deadline: deadline.toISOString(),
@@ -3505,7 +3514,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                       nrTrim && `Schlüsselnummer: ${nrTrim}`,
                       extraTrim && `Extra-Schlüssel:\n${extraTrim}`
                     ].filter(Boolean).join("\n\n");
-                    // 3. Start the protocol
+                    // 3. Start the protocol mit vollem Snapshot
                     await startHandoverProtocol({
                       tenantId: tenant.id,
                       aptId: apt?.id,
@@ -3513,6 +3522,15 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
                       mieterEmail: tenant.email,
                       mieterVorname: tenant.vorname,
                       mieterNachname: tenant.nachname,
+                      mieterGeburtsdatum: tenant.geburt || null,
+                      mieterNationalitaet: tenant.nat || null,
+                      mieterTelefon: tenant.phone || null,
+                      mieterAdresse: [tenant.adresse, tenant.plz, tenant.ort].filter(Boolean).join(", ") || null,
+                      aptAdresse: apt?.adresse || null,
+                      aptPlz: apt?.plz || null,
+                      aptOrt: apt?.ort || null,
+                      roomLabel: room?.id || null,
+                      einzugDatum: tenant.einzug || null,
                       schluesselInfo: snapshot || null,
                     });
                     setShowStartModal(false);
