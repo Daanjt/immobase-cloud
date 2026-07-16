@@ -1097,6 +1097,24 @@ function parseD(s) {
   return null;
 }
 // fmtDateDE: zeigt Datum als TT.MM.JJJJ, akzeptiert beliebige Input-Formate
+function toDateInputValue(v) {
+  // Normalisiert verschiedene Datumsformate zu YYYY-MM-DD fuer <input type="date">
+  if (!v) return "";
+  const s = String(v).trim();
+  if (!s) return "";
+  // ISO 2020-05-15 oder 2020-05-15T12:00:00
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  // Deutsches Format: 15.05.2020
+  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (m) {
+    return `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+  }
+  // Fallback: als Date parsen
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().substring(0, 10);
+  return "";
+}
+
 function fmtDateDE(input) {
   if (!input) return "";
   const s = String(input).trim();
@@ -6139,7 +6157,7 @@ www.dthomes.ch`;
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
             <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={editForm.vorname||""} onChange={EF("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={editForm.nachname||""} onChange={EF("nachname")}/></div></div>
-            <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={editForm.geburt?editForm.geburt.split("T")[0]:""} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">-</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={toDateInputValue(editForm.geburt)} onChange={EF("geburt")}/></div><div className="fg"><label className="fl">Geschlecht</label><select className="fi" value={editForm.gender||""} onChange={EF("gender")}><option value="">-</option><option value="Frau">Frau</option><option value="Mann">Mann</option><option value="Divers">Divers</option></select></div></div>
             <div className="fg"><label className="fl">Nationalität</label><select className="fi" value={editForm.nat||""} onChange={EF("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kontakt</div>
@@ -7905,7 +7923,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,del
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
         <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={form.vorname||""} onChange={F("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={form.nachname||""} onChange={F("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={form.email||""} onChange={F("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={form.phone||""} onChange={F("phone")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={form.geburt||""} onChange={F("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={toDateInputValue(form.geburt)} onChange={F("geburt")}/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div></div>
 
@@ -8032,7 +8050,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,del
         <div className="frow"><div className="fg"><label className="fl">ID</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. T18"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Vorname *</label><input className="fi" value={newForm.vorname||""} onChange={NF("vorname")}/></div><div className="fg"><label className="fl">Nachname *</label><input className="fi" value={newForm.nachname||""} onChange={NF("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={newForm.email||""} onChange={NF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={newForm.phone||""} onChange={NF("phone")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" value={newForm.geburt||""} onChange={NF("geburt")} placeholder="TT.MM.JJJJ"/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={newForm.nat||""} onChange={NF("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={toDateInputValue(newForm.geburt)} onChange={NF("geburt")}/></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={newForm.nat||""} onChange={NF("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div></div>
 
