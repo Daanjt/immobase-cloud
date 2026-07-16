@@ -5154,7 +5154,7 @@ ${v.kautionMonate>0
 <ul>
   <li>Tisch, Stühle, Besteck, Kochgeschirr, Tellerset, Bratpfanne, Küchenutensilien, Weingläser, Messerset, WC-Bürste, Abfalleimer, Schüsseln, Glas, Badematte, Seifenspender, Kanne, Zahnbürstenhalter, Duschvorhang und Topflappen.</li>
 </ul>
-<p class="clause"><span class="clause-num">7.1</span>Für eine einmalige zusätzliche Gebühr von <strong>CHF 990</strong> kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
+<p class="clause"><span class="clause-num">7.1</span>Für eine einmalige zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||990}</strong> kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
 <ul>
   <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
 </ul>
@@ -5600,7 +5600,8 @@ www.dthomes.ch`;
       total,
       kautionMonate,
       kautionBetrag,
-      moebliert: b.moebliert === "ja",
+      moebliert: b.moebliert === "ja" || b.moebliert === true,
+      moeblierungPauschale: +b.moeblierungPauschale || 990,
       einzug: b.einzug || "",
       auszug: b.auszug || "",
       ortVertrag: "Zürich",
@@ -6414,14 +6415,34 @@ www.dthomes.ch`;
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
-            <div style={{display:"flex",gap:10,marginBottom:18}}>
+            <div style={{display:"flex",gap:10,marginBottom:10}}>
               <label style={{flex:1,padding:"10px 14px",background:vertragData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${vertragData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
-                <input type="radio" checked={vertragData.moebliert} onChange={()=>setVertragData(p=>({...p,moebliert:true}))}/> Möbliert (CHF 990 einmalig)
+                <input type="radio" checked={vertragData.moebliert} onChange={()=>{
+                  setVertragData(p=>({...p,moebliert:true}));
+                  updateBewerber(b.id, { moebliert: "ja" });
+                }}/> Möbliert (CHF {vertragData.moeblierungPauschale||990} einmalig)
               </label>
               <label style={{flex:1,padding:"10px 14px",background:!vertragData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!vertragData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
-                <input type="radio" checked={!vertragData.moebliert} onChange={()=>setVertragData(p=>({...p,moebliert:false}))}/> Unmöbliert
+                <input type="radio" checked={!vertragData.moebliert} onChange={()=>{
+                  setVertragData(p=>({...p,moebliert:false}));
+                  updateBewerber(b.id, { moebliert: "nein" });
+                }}/> Unmöbliert
               </label>
             </div>
+            {vertragData.moebliert && (
+              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+                <span>Möblierungspauschale (einmalig)</span>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{color:"#1a1814"}}>CHF</span>
+                  <input className="fi" type="number" step="1" value={vertragData.moeblierungPauschale||990} onChange={e=>{
+                    const val = +e.target.value || 0;
+                    setVertragData(p=>({...p, moeblierungPauschale: val}));
+                    updateBewerber(b.id, { moeblierungPauschale: val });
+                  }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+                </div>
+              </div>
+            )}
+            {!vertragData.moebliert && <div style={{marginBottom:18}}/>}
 
             <div className="ma" style={{flexWrap:"wrap"}}>
               <button className="btn btn-g" onClick={()=>{ setVertragModal(false); setSendResult(null); }} disabled={sending}>Abbrechen</button>
