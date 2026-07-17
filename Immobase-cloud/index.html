@@ -2048,7 +2048,7 @@ function useSupabaseData() {
     
     // Trigger Einladungs-Email an Mieter (fire-and-forget, blockiert nicht wenn fehlschlaegt)
     if (data?.id && data?.mieter_email) {
-      supabase.functions.invoke("send-handover-invite", { body: { protocolId: data.id } })
+      supabase.functions.invoke("dynamic-service", { body: { protocolId: data.id } })
         .then(({ error: emailError }) => {
           if (emailError) console.warn("send-handover-invite failed:", emailError);
           else console.log("Einladungs-Email versendet an", data.mieter_email);
