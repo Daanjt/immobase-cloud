@@ -5748,35 +5748,54 @@ www.dthomes.ch`;
   // ═══════════════════════════════════════════════════════════════════
 
   // Faksimile-Signatur in HTML einfügen (Hauptmieter im UMV)
+  // Einheitliches Datumsformat (ohne führende Null, wie in der Edge Function)
+  function daanDatumStr() {
+    return new Date().toLocaleDateString("de-CH", { day:"numeric", month:"long", year:"numeric" });
+  }
+
   function injectDaanInUMV(html) {
     const hauptmieterPattern = /(<div class="sig-block">\s*<div class="role">Hauptmieter<\/div>[\s\S]*?<div class="sig-row">\s*<span class="lbl">Unterschrift:<\/span>\s*)<span class="line"><\/span>/;
+    let sigOk = false;
     let replaced = html.replace(hauptmieterPattern, (match, prefix) => {
+      sigOk = true;
       return `${prefix}<span class="line" style="position:relative;flex:1;"><img src="${DAAN_FAKSIMILE_DATA_URI}" style="position:absolute;left:8pt;bottom:-6pt;height:28pt;pointer-events:none;" alt="Daan Theijse"/></span>`;
     });
     // Ort/Datum bei Hauptmieter
     const datumPattern = /(<div class="sig-block">\s*<div class="role">Hauptmieter<\/div>[\s\S]*?<div class="sig-row">\s*<span class="lbl">Ort, Datum:<\/span>\s*)<span class="line"><\/span>/;
-    const datumStr = new Date().toLocaleDateString("de-CH", { day:"2-digit", month:"long", year:"numeric" });
+    const datumStr = daanDatumStr();
+    let datumOk = false;
     replaced = replaced.replace(datumPattern, (m, prefix) => {
+      datumOk = true;
       return `${prefix}<span class="line" style="border-bottom:.5pt solid #888;flex:1;">Zürich, ${datumStr}</span>`;
     });
+    if (!sigOk || !datumOk) {
+      throw new Error(`injectDaanInUMV: Hauptmieter-Signaturblock nicht gefunden (Markup geändert?) [sig=${sigOk}, datum=${datumOk}]`);
+    }
     return replaced;
   }
 
   // Faksimile-Signatur in HTML einfügen (Vermieter im AMZ + Labels gleichbreit)
   function injectDaanInAMZ(html) {
-    const datumStr = new Date().toLocaleDateString("de-CH", { day:"2-digit", month:"long", year:"numeric" });
+    const datumStr = daanDatumStr();
     const labelStyle = ' style="min-width:62pt;width:62pt;"';
 
     // Vermieter Block
     const vermPattern = /(<div class="lbl">Vermieter\*in<\/div>[\s\S]*?<div class="sig-row-inner"><span class="label")(>Datum:<\/span>)<span class="line"><\/span>(<\/div>\s*<div class="sig-row-inner"><span class="label")(>Unterschrift:<\/span>)<span class="line"><\/span>/;
+    let vermOk = false;
     let replaced = html.replace(vermPattern, (m, p1, p2, p3, p4) => {
+      vermOk = true;
       return `${p1}${labelStyle}${p2}<span class="line" style="flex:1;">${datumStr}</span>${p3}${labelStyle}${p4}<span class="line" style="position:relative;flex:1;"><img src="${DAAN_FAKSIMILE_DATA_URI}" style="position:absolute;left:8pt;bottom:-6pt;height:22pt;pointer-events:none;" alt="Daan Theijse"/></span>`;
     });
     // Mieter Block - nur Labels gleichbreit machen (keine Unterschrift)
     const mieterPattern = /(<div class="lbl">Mieter\*in<\/div>[\s\S]*?<div class="sig-row-inner"><span class="label")(>Datum:<\/span><span class="line"><\/span><\/div>\s*<div class="sig-row-inner"><span class="label")(>Unterschrift:<\/span>)/;
+    let mieterOk = false;
     replaced = replaced.replace(mieterPattern, (m, p1, p2, p3) => {
+      mieterOk = true;
       return `${p1}${labelStyle}${p2}${labelStyle}${p3}`;
     });
+    if (!vermOk || !mieterOk) {
+      throw new Error(`injectDaanInAMZ: Signaturblock nicht gefunden (Markup geändert?) [verm=${vermOk}, mieter=${mieterOk}]`);
+    }
     return replaced;
   }
 
