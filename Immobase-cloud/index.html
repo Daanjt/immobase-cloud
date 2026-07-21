@@ -1087,7 +1087,7 @@ function parseDMY(s){if(!s)return null;const parts=s.split(".");if(parts.length=
 // hat wird vorausgefüllt, fehlende Felder ergänzt man in Evorest.
 // TEST zuerst: EVOREST_USE_TEST=true -> Testumgebung (kein echtes Depot).
 // Nach erfolgreicher Prüfung auf false setzen fuer Prod.
-const EVOREST_USE_TEST = true;
+const EVOREST_USE_TEST = false;
 const EVOREST_BASE = EVOREST_USE_TEST
   ? "https://www.test.pm-app.evorest.ch/import-deposit"
   : "https://www.pm-app.evorest.ch/import-deposit";
