@@ -138,6 +138,15 @@ body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;fo
 .sn{font-size:10.5px;margin-top:8px;color:var(--muted);letter-spacing:.05em}
 
 .card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:32px;margin-bottom:24px}
+.pcol-h{display:flex;align-items:baseline;gap:8px;margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--line-soft)}
+.pcol-h .t{font-family:'Manrope',sans-serif;font-size:15px;font-weight:500;color:var(--ink);letter-spacing:.02em}
+.pcol-h .c{font-size:11px;color:var(--muted-light)}
+.pcard{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:11px 13px;border-radius:9px;cursor:pointer;border:1px solid transparent;background:transparent;transition:.15s all;font-family:inherit}
+.pcard:hover{background:var(--beige-soft)}
+.pcard.sel{background:var(--beige-soft);border-color:var(--beige)}
+.plink{display:block;width:100%;text-align:left;padding:9px 12px;border-radius:8px;border:1px solid var(--line-soft);background:var(--surface);cursor:pointer;transition:.15s all}
+.plink:hover{border-color:var(--beige);background:var(--beige-soft)}
+.psec{font-size:9.5px;text-transform:uppercase;letter-spacing:.22em;color:var(--muted);font-weight:600;margin-bottom:7px}
 .ct{font-family:'Manrope', sans-serif;font-size:18px;font-weight:400;color:var(--ink);margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);letter-spacing:.01em}
 
 table{width:100%;border-collapse:collapse}
@@ -9085,16 +9094,20 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
         <div style={{padding:"40px 20px",textAlign:"center",color:"#8a8174",fontSize:13}}>Noch keine Partner erfasst. Lege den ersten mit "Neuer Partner" an.</div>
       )}
 
-      <div style={{display:"flex",gap:20,flexWrap:"wrap",marginTop:8}}>
+      <div style={{display:"flex",gap:24,flexWrap:"wrap",marginTop:4}}>
         {[["Verwaltungen",verwaltungen],["Eigentümer",eigentuemer]].map(([title,items])=>(
-          <div key={title} style={{flex:1,minWidth:220}}>
-            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".2em",color:"#8a8174",fontWeight:600,marginBottom:8}}>{title} ({items.length})</div>
-            <div style={{display:"grid",gap:6}}>
-              {items.length===0 && <div style={{fontSize:12,color:"#b0a894",padding:"6px 0"}}>keine erfasst</div>}
+          <div key={title} style={{flex:1,minWidth:240}}>
+            <div className="pcol-h"><span className="t">{title}</span><span className="c">{items.length}</span></div>
+            <div style={{display:"grid",gap:2}}>
+              {items.length===0 && <div style={{fontSize:12.5,color:"var(--muted-light)",padding:"10px 2px"}}>Noch keine erfasst</div>}
               {items.map(p=>(
-                <button key={p.id} onClick={()=>setSelected(p.id)} className="card" style={{textAlign:"left",padding:"10px 12px",cursor:"pointer",border:selected===p.id?"1.5px solid #1a1814":"1px solid var(--line)",background:selected===p.id?"#faf7f0":"#fff"}}>
-                  <div style={{fontWeight:700,fontSize:13}}>{p.name}{p.typ==="Beides"&&<span className="bx b-x" style={{marginLeft:6}}>Beides</span>}</div>
-                  <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>{linkedApts(p).length} Wohnung(en)</div>
+                <button key={p.id} onClick={()=>setSelected(p.id)} className={`pcard${selected===p.id?" sel":""}`}>
+                  <Av name={p.name} size={34}/>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
+                    <div style={{fontSize:11,color:"var(--muted)",marginTop:1}}>{linkedApts(p).length} Wohnung{linkedApts(p).length===1?"":"en"}{p.typ==="Beides"?" · beides":""}</div>
+                  </div>
+                  <span style={{color:"var(--muted-light)",fontSize:16,lineHeight:1}}>›</span>
                 </button>
               ))}
             </div>
@@ -9103,38 +9116,55 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
       </div>
 
       {selPartner && (
-        <div className="card" style={{marginTop:18,padding:18}}>
+        <div className="card" style={{marginTop:22,padding:24}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
-            <div>
-              <div style={{fontWeight:800,fontSize:17}}>{selPartner.name}</div>
-              <span className="bx b-x" style={{marginTop:4,display:"inline-block"}}>{selPartner.typ||"–"}</span>
+            <div style={{display:"flex",alignItems:"center",gap:14,minWidth:0}}>
+              <Av name={selPartner.name} size={46}/>
+              <div style={{minWidth:0}}>
+                <div style={{fontFamily:"'Manrope',sans-serif",fontSize:20,fontWeight:500,color:"var(--ink)",letterSpacing:".01em"}}>{selPartner.name}</div>
+                <span className="bx b-x" style={{marginTop:5,display:"inline-block"}}>{selPartner.typ||"–"}</span>
+              </div>
             </div>
             <div style={{display:"flex",gap:6}}>
-              <button className="btn btn-g btn-sm" onClick={()=>startEdit(selPartner)}>✏ Bearbeiten</button>
-              <button className="btn btn-sm" onClick={()=>{remove(selPartner);setSelected(null);}} style={{color:"#9b4a3e",borderColor:"#e0bcb0"}}>🗑 Löschen</button>
+              <button className="btn btn-g btn-sm" onClick={()=>startEdit(selPartner)}>Bearbeiten</button>
+              <button className="btn btn-sm" onClick={()=>{remove(selPartner);setSelected(null);}} style={{color:"var(--error)",borderColor:"var(--error-soft)"}}>Löschen</button>
               <button className="btn btn-sm" onClick={()=>setSelected(null)} title="Schliessen">✕</button>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:14}}>
+          <div style={{height:1,background:"var(--line-soft)",margin:"18px 0"}}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:28}}>
             <div>
-              <div className="fl">Adresse</div>
-              <div style={{fontSize:13,color:"#3a3630",lineHeight:1.5}}>{addrOf(selPartner)||<span style={{color:"#b0a894"}}>keine Adresse</span>}</div>
-              <div className="fl" style={{marginTop:14}}>Kontaktpersonen</div>
+              <div className="psec">Adresse</div>
+              <div style={{fontSize:13.5,color:"var(--text)",lineHeight:1.55}}>{addrOf(selPartner)||<span style={{color:"var(--muted-light)"}}>keine Adresse hinterlegt</span>}</div>
+
+              <div className="psec" style={{marginTop:22}}>Kontaktpersonen</div>
               {(selPartner.kontakte&&selPartner.kontakte.length>0)
-                ? selPartner.kontakte.map((k,i)=>(<div key={i} style={{marginTop:4}}><div style={{fontSize:13,color:"#3a3630"}}>{k.name||"–"}{k.funktion&&<span style={{color:"#8a8174"}}> · {k.funktion}</span>}</div>{(k.email||k.telefon)&&<div style={{fontSize:11,color:"#8a8174"}}>{[k.email,k.telefon].filter(Boolean).join(" · ")}</div>}</div>))
-                : <div style={{fontSize:12,color:"#b0a894"}}>keine erfasst</div>}
-              {selPartner.notizen&&<><div className="fl" style={{marginTop:14}}>Notizen</div><div style={{fontSize:13,color:"#3a3630",fontStyle:"italic"}}>{selPartner.notizen}</div></>}
+                ? <div style={{display:"grid",gap:11}}>{selPartner.kontakte.map((k,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                      <Av name={k.name||"?"} size={28}/>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:13,color:"var(--ink)"}}>{k.name||"–"}{k.funktion&&<span style={{color:"var(--muted)"}}> · {k.funktion}</span>}</div>
+                        {(k.email||k.telefon)&&<div style={{fontSize:11,color:"var(--muted)"}}>{[k.email,k.telefon].filter(Boolean).join(" · ")}</div>}
+                      </div>
+                    </div>
+                  ))}</div>
+                : <div style={{fontSize:12.5,color:"var(--muted-light)"}}>keine erfasst</div>}
+
+              {selPartner.notizen&&<><div className="psec" style={{marginTop:22}}>Notizen</div><div style={{fontSize:13,color:"var(--text)",lineHeight:1.55}}>{selPartner.notizen}</div></>}
             </div>
             <div>
-              <div className="fl">Verknüpfte Wohnungen ({linkedApts(selPartner).length})</div>
-              <div style={{display:"grid",gap:5,marginTop:4}}>
-                {linkedApts(selPartner).length===0 && <div style={{fontSize:12,color:"#b0a894"}}>keine</div>}
+              <div className="psec">Verknüpfte Wohnungen · {linkedApts(selPartner).length}</div>
+              <div style={{display:"grid",gap:6}}>
+                {linkedApts(selPartner).length===0 && <div style={{fontSize:12.5,color:"var(--muted-light)"}}>keine</div>}
                 {linkedApts(selPartner).map(a=>{
                   const roles=[a.eigentuemer===selPartner.name&&"Eigentümer",a.verwaltung===selPartner.name&&"Verwaltung"].filter(Boolean).join(" + ");
                   return (
-                    <button key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} className="card" style={{textAlign:"left",padding:"8px 10px",cursor:"pointer"}}>
-                      <div style={{fontSize:13,fontWeight:600}}>{a.adresse}</div>
-                      <div style={{fontSize:11,color:"#8a8174"}}>{a.id}{roles&&` · ${roles}`}</div>
+                    <button key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} className="plink">
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.adresse}</span>
+                        <span style={{color:"var(--muted-light)",fontSize:15}}>›</span>
+                      </div>
+                      <div style={{fontSize:10.5,color:"var(--muted)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}}>{a.id}{roles&&` · ${roles}`}</div>
                     </button>
                   );
                 })}
