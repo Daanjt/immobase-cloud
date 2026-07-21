@@ -147,6 +147,17 @@ body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;fo
 .plink{display:block;width:100%;text-align:left;padding:9px 12px;border-radius:8px;border:1px solid var(--line-soft);background:var(--surface);cursor:pointer;transition:.15s all}
 .plink:hover{border-color:var(--beige);background:var(--beige-soft)}
 .psec{font-size:9.5px;text-transform:uppercase;letter-spacing:.22em;color:var(--muted);font-weight:600;margin-bottom:7px}
+.kcol{flex:1;min-width:240px;background:var(--bg);border:1px solid var(--line-soft);border-radius:12px;padding:12px}
+.kcol-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;padding:0 2px}
+.kcol-h .t{font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:var(--ink);letter-spacing:.02em}
+.kcol-h .c{font-size:11px;color:var(--muted-light)}
+.kcard{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:11px 12px;margin-bottom:8px}
+.kauto{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line-soft);border-left:3px solid var(--warn);border-radius:9px;padding:10px 11px;margin-bottom:8px;cursor:pointer;transition:.15s all;font-family:inherit}
+.kauto:hover{background:var(--beige-soft)}
+.kbadge{flex-shrink:0;font-size:8.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--warn);border:1px solid var(--warn);border-radius:20px;padding:2px 7px;font-weight:600}
+.kmini{width:26px;height:24px;border-radius:6px;border:1px solid var(--line);background:var(--surface);cursor:pointer;color:var(--muted);font-size:11px;display:inline-flex;align-items:center;justify-content:center;transition:.15s all}
+.kmini:hover{background:var(--beige-soft);color:var(--ink)}
+.kmini:disabled{opacity:.3;cursor:default}
 .ct{font-family:'Manrope', sans-serif;font-size:18px;font-weight:400;color:var(--ink);margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);letter-spacing:.01em}
 
 table{width:100%;border-collapse:collapse}
@@ -2052,6 +2063,34 @@ function useSupabaseData() {
     setPartners(p => p.filter(x => x.id !== id));
   }
   useEffect(() => { loadPartners(); }, []);
+
+  // ─── TO-DOS (Kanban) ──────────────────────────────────────────
+  const [todos, setTodos] = useState([]);
+  async function loadTodos() {
+    try {
+      const {data, error} = await supabase.from("todos").select("*").order("created_at", {ascending:false});
+      if (error) { console.warn("Todos-Tabelle noch nicht eingerichtet:", error.message); return; }
+      setTodos((data||[]).map(t => ({id:t.id, title:t.title, notiz:t.notiz, status:t.status, prioritaet:t.prioritaet, createdAt:t.created_at})));
+    } catch (e) { console.warn("loadTodos failed:", e); }
+  }
+  async function insertTodo(title, notiz) {
+    const row = { id:`TD${Date.now()}`, title:(title||"").trim()||"Neues To-do", notiz:notiz||"", status:"offen", prioritaet:"" };
+    const {error} = await supabase.from("todos").insert([row]);
+    if (error) { console.error("insertTodo:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    await loadTodos();
+  }
+  async function updateTodo(id, fields) {
+    setTodos(p => p.map(t => t.id===id ? {...t, ...fields} : t));
+    const dbFields = {...fields}; delete dbFields.createdAt; dbFields.updated_at = new Date().toISOString();
+    const {error} = await supabase.from("todos").update(dbFields).eq("id", id);
+    if (error) { console.error("updateTodo:", error); await loadTodos(); }
+  }
+  async function deleteTodo(id) {
+    setTodos(p => p.filter(t => t.id!==id));
+    const {error} = await supabase.from("todos").delete().eq("id", id);
+    if (error) { console.error("deleteTodo:", error); await loadTodos(); }
+  }
+  useEffect(() => { loadTodos(); }, []);
   
   async function sendMahnung(payment_id, stufe) {
     try {
@@ -2352,7 +2391,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -9183,6 +9222,76 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
   );
 }
 
+function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo}){
+  const [newTitle, setNewTitle] = useState("");
+  const hasDoc = (t, cat) => (documents||[]).some(d => d.category===cat && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
+  const auto = [];
+  (tenants||[]).filter(t=>t.status!=="archiviert").forEach(t=>{
+    const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
+    if(!hasDoc(t,"Untermietvertrag")) auto.push({id:"umv-"+t.id,icon:"📄",label:"Untermietvertrag fehlt",sub:nm,page:"mieter",target:t.id});
+    if(!hasDoc(t,"Anfangsmietzinsformular")) auto.push({id:"amz-"+t.id,icon:"📄",label:"Anfangsmietzinsformular fehlt",sub:nm,page:"mieter",target:t.id});
+    if(!(t.schluesselNr||"").toString().trim()) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
+    if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
+  });
+  (apts||[]).filter(a=>!a.pipeline).forEach(a=>{
+    if(!(a.refnr||"").toString().trim()) auto.push({id:"ref-"+a.id,icon:"🏠",label:"Referenznummer fehlt",sub:a.adresse||a.id,page:"wohnungen",target:a.id});
+    if(!(a.eigentuemer||"").trim()) auto.push({id:"own-"+a.id,icon:"🏢",label:"Eigentümer fehlt",sub:a.adresse||a.id,page:"wohnungen",target:a.id});
+  });
+
+  const order=["offen","in_arbeit","erledigt"];
+  const labels={offen:"Offen",in_arbeit:"In Arbeit",erledigt:"Erledigt"};
+  const manual=(s)=>(todos||[]).filter(t=>t.status===s);
+  const move=(t,dir)=>{const i=order.indexOf(t.status);const ni=Math.max(0,Math.min(2,i+dir));if(ni!==i)updateTodo(t.id,{status:order[ni]});};
+  const add=()=>{ if(!newTitle.trim())return; insertTodo(newTitle.trim()).then(()=>setNewTitle("")).catch(()=>{}); };
+
+  return (
+    <div className="ph">
+      <div className="pt">To-dos</div>
+      <p style={{fontSize:12,color:"var(--muted)",margin:"4px 0 16px"}}>Automatisch erkannte Datenlücken (mit Auto-Markierung, klickbar) und eigene Aufgaben. Eigene To-dos verschiebst du mit den Pfeilen zwischen den Spalten.</p>
+
+      <div style={{display:"flex",gap:8,marginBottom:20,maxWidth:520}}>
+        <input className="fi" placeholder="Neues To-do…" value={newTitle} onChange={e=>setNewTitle(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")add();}}/>
+        <button className="btn btn-p" onClick={add}>Hinzufügen</button>
+      </div>
+
+      <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-start"}}>
+        {order.map(s=>(
+          <div key={s} className="kcol">
+            <div className="kcol-h"><span className="t">{labels[s]}</span><span className="c">{manual(s).length + (s==="offen"?auto.length:0)}</span></div>
+
+            {s==="offen" && auto.map(a=>(
+              <button key={a.id} className="kauto" onClick={()=>navigateTo&&navigateTo(a.page,a.target)}>
+                <span style={{fontSize:15}}>{a.icon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{a.label}</div>
+                  <div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.sub}</div>
+                </div>
+                <span className="kbadge">Auto</span>
+              </button>
+            ))}
+
+            {manual(s).map(t=>(
+              <div key={t.id} className="kcard">
+                <div style={{fontSize:13,color:"var(--ink)",lineHeight:1.4}}>{t.title}</div>
+                {t.notiz&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:3}}>{t.notiz}</div>}
+                <div style={{display:"flex",alignItems:"center",gap:5,marginTop:9}}>
+                  <button className="kmini" disabled={s==="offen"} onClick={()=>move(t,-1)} title="Zurück">◀</button>
+                  <button className="kmini" disabled={s==="erledigt"} onClick={()=>move(t,1)} title="Weiter">▶</button>
+                  <div style={{flex:1}}/>
+                  <button className="kmini" onClick={()=>{if(confirm("To-do löschen?"))deleteTodo(t.id);}} title="Löschen" style={{color:"var(--error)"}}>✕</button>
+                </div>
+              </div>
+            ))}
+
+            {s==="offen" && auto.length===0 && manual("offen").length===0 && <div style={{fontSize:12,color:"var(--muted-light)",padding:"8px 2px"}}>Alles erledigt 🎉</div>}
+            {s!=="offen" && manual(s).length===0 && <div style={{fontSize:12,color:"var(--muted-light)",padding:"8px 2px"}}>—</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -9192,6 +9301,7 @@ const PAGES=[
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
   {id:"partner",icon:"🏢",label:"Partner"},
+  {id:"todos",icon:"✅",label:"To-dos"},
 ];
 
 function MainApp() {
@@ -9202,7 +9312,7 @@ function MainApp() {
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
-  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage}[page];
+  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
   // Offene Zahlungen für aktuellen Zahlungs-Monat zählen (ab 25. = nächster Monat)
