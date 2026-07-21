@@ -1124,7 +1124,7 @@ function evDMY(s){
   if(m) return `${m[3]}.${m[2]}.${m[1]}`;
   return str;
 }
-function buildEvorestUrl(tenant, apt, room){
+function buildEvorestUrl(tenant, apt, lessor){
   const t=tenant||{};
   const [objStreet,objNr]=evSplitStreet(apt&&apt.adresse);
   const [tStreet,tNr]=evSplitStreet(t.adresse);
@@ -1142,8 +1142,13 @@ function buildEvorestUrl(tenant, apt, room){
   add("ObjectStreetNumber", objNr);
   add("ObjectZipCode", apt&&apt.plz);
   add("ObjectCity", apt&&apt.ort);
-  // Eigentümer/Vermieter = Eigentümer der Wohnung (aus dem Wohnungstab)
-  add("LessorName", apt&&apt.eigentuemer);
+  // Eigentümer/Vermieter = Eigentümer der Wohnung (aus der Partner-Sektion, sonst nur Name)
+  add("LessorName", (lessor&&lessor.name)||(apt&&apt.eigentuemer));
+  if(lessor){
+    add("LessorAddressStreet", lessor.strasse); add("LessorStreet", lessor.strasse);
+    add("LessorAddressStreetNumber", lessor.hausnummer); add("LessorStreetNumber", lessor.hausnummer);
+    add("LessorZipCode", lessor.plz); add("LessorCity", lessor.ort);
+  }
   // Mieter 1
   add("FirstName1", t.vorname);
   add("LastName1", t.nachname);
@@ -1992,6 +1997,47 @@ function useSupabaseData() {
     if (error) { console.error("deletePayment:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
     setPayments(p => p.filter(x => x.id !== id));
   }
+
+  // ─── PARTNER (Verwaltungen & Eigentümer) ──────────────────────
+  const [partners, setPartners] = useState([]);
+  async function loadPartners() {
+    try {
+      const {data, error} = await supabase.from("partners").select("*").order("name", {ascending:true});
+      if (error) { console.warn("Partners-Tabelle noch nicht eingerichtet:", error.message); return; }
+      setPartners((data||[]).map(p => ({
+        id:p.id, name:p.name, typ:p.typ, strasse:p.strasse, hausnummer:p.hausnummer,
+        plz:p.plz, ort:p.ort, email:p.email, telefon:p.telefon,
+        kontaktperson:p.kontaktperson, notizen:p.notizen, createdAt:p.created_at,
+      })));
+    } catch (e) { console.warn("loadPartners failed:", e); }
+  }
+  async function insertPartner(p) {
+    const row = {
+      id: p.id || `P${Date.now()}`,
+      name: p.name || "", typ: p.typ || "Eigentümer",
+      strasse: p.strasse || "", hausnummer: p.hausnummer || "",
+      plz: p.plz || "", ort: p.ort || "", email: p.email || "",
+      telefon: p.telefon || "", kontaktperson: p.kontaktperson || "", notizen: p.notizen || "",
+    };
+    const {data, error} = await supabase.from("partners").insert([row]).select().single();
+    if (error) { console.error("insertPartner:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    await loadPartners();
+    return data;
+  }
+  async function updatePartner(id, fields) {
+    const dbFields = {}; const map = {createdAt:"created_at"};
+    for (const k of Object.keys(fields)) { if (fields[k]===undefined) continue; dbFields[map[k]||k] = fields[k]; }
+    dbFields.updated_at = new Date().toISOString();
+    const {error} = await supabase.from("partners").update(dbFields).eq("id", id);
+    if (error) { console.error("updatePartner:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    await loadPartners();
+  }
+  async function deletePartner(id) {
+    const {error} = await supabase.from("partners").delete().eq("id", id);
+    if (error) { console.error("deletePartner:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
+    setPartners(p => p.filter(x => x.id !== id));
+  }
+  useEffect(() => { loadPartners(); }, []);
   
   async function sendMahnung(payment_id, stufe) {
     try {
@@ -2292,7 +2338,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
+  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -6719,7 +6765,7 @@ www.dthomes.ch`;
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
+function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -7040,8 +7086,8 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermieter / Verwaltung</div>
         <div className="frow">
-          <div className="fg"><label className="fl">Verwaltung</label><input className="fi" value={newForm.verwaltung||""} onChange={NF("verwaltung")}/></div>
-          <div className="fg"><label className="fl">Eigentümer</label><input className="fi" value={newForm.eigentuemer||""} onChange={NF("eigentuemer")}/></div>
+          <div className="fg"><label className="fl">Verwaltung</label><select className="fi" value={newForm.verwaltung||""} onChange={NF("verwaltung")}><option value="">-</option>{newForm.verwaltung&&!(partners||[]).some(p=>p.name===newForm.verwaltung)&&<option value={newForm.verwaltung}>{newForm.verwaltung} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Verwaltung"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
+          <div className="fg"><label className="fl">Eigentümer</label><select className="fi" value={newForm.eigentuemer||""} onChange={NF("eigentuemer")}><option value="">-</option>{newForm.eigentuemer&&!(partners||[]).some(p=>p.name===newForm.eigentuemer)&&<option value={newForm.eigentuemer}>{newForm.eigentuemer} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Eigentümer"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
         </div>
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
@@ -7100,8 +7146,8 @@ function Wohnungen({apts,rooms,tenants,updateApt,insertApt,deleteApt,documents,u
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermieter / Verwaltung</div>
         <div className="frow">
-          <div className="fg"><label className="fl">Verwaltung</label><input className="fi" value={form.verwaltung||""} onChange={F("verwaltung")}/></div>
-          <div className="fg"><label className="fl">Eigentümer</label><input className="fi" value={form.eigentuemer||""} onChange={F("eigentuemer")}/></div>
+          <div className="fg"><label className="fl">Verwaltung</label><select className="fi" value={form.verwaltung||""} onChange={F("verwaltung")}><option value="">-</option>{form.verwaltung&&!(partners||[]).some(p=>p.name===form.verwaltung)&&<option value={form.verwaltung}>{form.verwaltung} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Verwaltung"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
+          <div className="fg"><label className="fl">Eigentümer</label><select className="fi" value={form.eigentuemer||""} onChange={F("eigentuemer")}><option value="">-</option>{form.eigentuemer&&!(partners||[]).some(p=>p.name===form.eigentuemer)&&<option value={form.eigentuemer}>{form.eigentuemer} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Eigentümer"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
         </div>
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
@@ -7456,7 +7502,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
+function Mieter({tenants,rooms,apts,partners,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -7924,7 +7970,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,del
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
                 <button className="btn btn-s btn-sm" onClick={()=>generateUMVForTenant(tenant)}>📄 UMV</button>
                 <button className="btn btn-s btn-sm" onClick={()=>generateAMZForTenant(tenant)}>📄 AMZ</button>
-                <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, room), "_blank")}>💰 Evorest</button>
+                <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
                 )}
@@ -8953,6 +8999,98 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
 }
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
+function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apts}){
+  const [editing, setEditing] = useState(null);
+  const [f, setF] = useState({});
+  const F = (k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
+  function startNew(){ setF({typ:"Eigentümer"}); setEditing({}); }
+  function startEdit(p){ setF({...p}); setEditing(p); }
+  async function save(){
+    if(!(f.name||"").trim()){ alert("Name ist erforderlich."); return; }
+    try {
+      if(editing && editing.id) await updatePartner(editing.id, f);
+      else await insertPartner(f);
+      setEditing(null); setF({});
+    } catch(e) {}
+  }
+  async function remove(p){
+    const used = (apts||[]).filter(a=>a.eigentuemer===p.name||a.verwaltung===p.name).length;
+    let msg = `${p.name} löschen?`;
+    if(used>0) msg += `\n\nAchtung: ${used} Wohnung(en) verweisen aktuell auf diesen Eintrag.`;
+    if(!confirm(msg)) return;
+    try { await deletePartner(p.id); } catch(e) {}
+  }
+  const list = [...(partners||[])].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  return (
+    <div className="ph">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div className="pt">Verwaltungen & Eigentümer</div>
+        <button className="btn btn-p" onClick={startNew}>＋ Neuer Partner</button>
+      </div>
+      <p style={{fontSize:12,color:"#8a8174",margin:"4px 0 16px"}}>Partner, mit denen wir zusammenarbeiten. Die Adresse des Eigentümers wird beim Evorest-Link automatisch verwendet.</p>
+
+      {editing && (
+        <div className="card" style={{marginBottom:16,padding:18}}>
+          <div style={{fontWeight:700,marginBottom:12}}>{editing.id?"Partner bearbeiten":"Neuer Partner"}</div>
+          <div className="frow">
+            <div className="fg" style={{flex:2}}><label className="fl">Name *</label><input className="fi" value={f.name||""} onChange={F("name")} placeholder="z.B. Bilaya Wohnbau AG"/></div>
+            <div className="fg"><label className="fl">Typ</label><select className="fi" value={f.typ||"Eigentümer"} onChange={F("typ")}><option>Eigentümer</option><option>Verwaltung</option><option>Beides</option></select></div>
+          </div>
+          <div className="frow">
+            <div className="fg" style={{flex:2}}><label className="fl">Strasse</label><input className="fi" value={f.strasse||""} onChange={F("strasse")}/></div>
+            <div className="fg"><label className="fl">Nr.</label><input className="fi" value={f.hausnummer||""} onChange={F("hausnummer")}/></div>
+          </div>
+          <div className="frow">
+            <div className="fg"><label className="fl">PLZ</label><input className="fi" value={f.plz||""} onChange={F("plz")}/></div>
+            <div className="fg" style={{flex:2}}><label className="fl">Ort</label><input className="fi" value={f.ort||""} onChange={F("ort")}/></div>
+          </div>
+          <div className="frow">
+            <div className="fg"><label className="fl">Kontaktperson</label><input className="fi" value={f.kontaktperson||""} onChange={F("kontaktperson")}/></div>
+            <div className="fg"><label className="fl">E-Mail</label><input className="fi" value={f.email||""} onChange={F("email")}/></div>
+            <div className="fg"><label className="fl">Telefon</label><input className="fi" value={f.telefon||""} onChange={F("telefon")}/></div>
+          </div>
+          <div className="frow">
+            <div className="fg" style={{flex:1}}><label className="fl">Notizen</label><textarea className="fi" rows={2} value={f.notizen||""} onChange={F("notizen")}/></div>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:8}}>
+            <button className="btn btn-p btn-sm" onClick={save}>Speichern</button>
+            <button className="btn btn-sm" onClick={()=>{setEditing(null);setF({});}}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+
+      {list.length===0 && !editing && (
+        <div style={{padding:"40px 20px",textAlign:"center",color:"#8a8174",fontSize:13}}>Noch keine Partner erfasst. Lege den ersten mit "Neuer Partner" an.</div>
+      )}
+
+      <div style={{display:"grid",gap:10}}>
+        {list.map(p=>{
+          const used = (apts||[]).filter(a=>a.eigentuemer===p.name||a.verwaltung===p.name).length;
+          const addr = [p.strasse&&`${p.strasse} ${p.hausnummer||""}`.trim(), [p.plz,p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+          const contact = [p.kontaktperson,p.email,p.telefon].filter(Boolean).join(" · ");
+          return (
+            <div key={p.id} className="card" style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:14}}>{p.name} <span className="bx b-x" style={{marginLeft:6}}>{p.typ||"–"}</span></div>
+                <div style={{fontSize:12,color:"#6a6459",marginTop:4,lineHeight:1.5}}>
+                  <div>{addr||<span style={{color:"#b0a894"}}>keine Adresse hinterlegt</span>}</div>
+                  {contact&&<div>{contact}</div>}
+                  {p.notizen&&<div style={{color:"#8a8174",fontStyle:"italic"}}>{p.notizen}</div>}
+                </div>
+                <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>{used} Wohnung(en) verknüpft</div>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-g btn-sm" onClick={()=>startEdit(p)}>✏ Bearbeiten</button>
+                <button className="btn btn-sm" onClick={()=>remove(p)} style={{color:"#9b4a3e",borderColor:"#e0bcb0"}}>🗑</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -8961,6 +9099,7 @@ const PAGES=[
   {id:"mieter",icon:"👤",label:"Mieter"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
+  {id:"partner",icon:"🏢",label:"Verwaltungen"},
 ];
 
 function MainApp() {
@@ -8971,7 +9110,7 @@ function MainApp() {
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
-  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen}[page];
+  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
   // Offene Zahlungen für aktuellen Zahlungs-Monat zählen (ab 25. = nächster Monat)
