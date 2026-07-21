@@ -2007,7 +2007,7 @@ function useSupabaseData() {
       setPartners((data||[]).map(p => ({
         id:p.id, name:p.name, typ:p.typ, strasse:p.strasse, hausnummer:p.hausnummer,
         plz:p.plz, ort:p.ort, email:p.email, telefon:p.telefon,
-        kontaktperson:p.kontaktperson, notizen:p.notizen, createdAt:p.created_at,
+        kontaktperson:p.kontaktperson, notizen:p.notizen, kontakte:p.kontakte||[], createdAt:p.created_at,
       })));
     } catch (e) { console.warn("loadPartners failed:", e); }
   }
@@ -2017,7 +2017,7 @@ function useSupabaseData() {
       name: p.name || "", typ: p.typ || "Eigentümer",
       strasse: p.strasse || "", hausnummer: p.hausnummer || "",
       plz: p.plz || "", ort: p.ort || "", email: p.email || "",
-      telefon: p.telefon || "", kontaktperson: p.kontaktperson || "", notizen: p.notizen || "",
+      telefon: p.telefon || "", kontaktperson: p.kontaktperson || "", notizen: p.notizen || "", kontakte: p.kontakte || [],
     };
     const {data, error} = await supabase.from("partners").insert([row]).select().single();
     if (error) { console.error("insertPartner:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
@@ -9003,8 +9003,15 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
   const [editing, setEditing] = useState(null);
   const [f, setF] = useState({});
   const F = (k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
-  function startNew(){ setF({typ:"Eigentümer"}); setEditing({}); }
-  function startEdit(p){ setF({...p}); setEditing(p); }
+  function startNew(){ setF({typ:"Eigentümer",kontakte:[]}); setEditing({}); }
+  function startEdit(p){
+    const seeded = (p.kontakte&&p.kontakte.length) ? p.kontakte
+      : ((p.kontaktperson||p.email||p.telefon) ? [{name:p.kontaktperson||"",funktion:"",email:p.email||"",telefon:p.telefon||""}] : []);
+    setF({...p,kontakte:seeded}); setEditing(p);
+  }
+  const addK = ()=>setF(p=>({...p,kontakte:[...(p.kontakte||[]),{name:"",funktion:"",email:"",telefon:""}]}));
+  const updK = (i,key,val)=>setF(p=>{const k=[...(p.kontakte||[])];k[i]={...k[i],[key]:val};return {...p,kontakte:k};});
+  const rmK = (i)=>setF(p=>({...p,kontakte:(p.kontakte||[]).filter((_,j)=>j!==i)}));
   async function save(){
     if(!(f.name||"").trim()){ alert("Name ist erforderlich."); return; }
     try {
@@ -9044,10 +9051,18 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
             <div className="fg"><label className="fl">PLZ</label><input className="fi" value={f.plz||""} onChange={F("plz")}/></div>
             <div className="fg" style={{flex:2}}><label className="fl">Ort</label><input className="fi" value={f.ort||""} onChange={F("ort")}/></div>
           </div>
-          <div className="frow">
-            <div className="fg"><label className="fl">Kontaktperson</label><input className="fi" value={f.kontaktperson||""} onChange={F("kontaktperson")}/></div>
-            <div className="fg"><label className="fl">E-Mail</label><input className="fi" value={f.email||""} onChange={F("email")}/></div>
-            <div className="fg"><label className="fl">Telefon</label><input className="fi" value={f.telefon||""} onChange={F("telefon")}/></div>
+          <div style={{marginTop:6,marginBottom:6}}>
+            <label className="fl">Kontaktpersonen</label>
+            {(f.kontakte||[]).map((k,i)=>(
+              <div key={i} className="frow" style={{alignItems:"flex-end",gap:6}}>
+                <div className="fg"><input className="fi" placeholder="Name" value={k.name||""} onChange={e=>updK(i,"name",e.target.value)}/></div>
+                <div className="fg"><input className="fi" placeholder="Funktion (z.B. Bewirtschafter)" value={k.funktion||""} onChange={e=>updK(i,"funktion",e.target.value)}/></div>
+                <div className="fg"><input className="fi" placeholder="E-Mail" value={k.email||""} onChange={e=>updK(i,"email",e.target.value)}/></div>
+                <div className="fg"><input className="fi" placeholder="Telefon" value={k.telefon||""} onChange={e=>updK(i,"telefon",e.target.value)}/></div>
+                <button className="btn btn-sm" onClick={()=>rmK(i)} title="Entfernen" style={{color:"#9b4a3e",borderColor:"#e0bcb0",marginBottom:2}}>✕</button>
+              </div>
+            ))}
+            <button className="btn btn-g btn-sm" onClick={addK} style={{marginTop:4}}>＋ Kontaktperson</button>
           </div>
           <div className="frow">
             <div className="fg" style={{flex:1}}><label className="fl">Notizen</label><textarea className="fi" rows={2} value={f.notizen||""} onChange={F("notizen")}/></div>
@@ -9074,7 +9089,9 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
                 <div style={{fontWeight:700,fontSize:14}}>{p.name} <span className="bx b-x" style={{marginLeft:6}}>{p.typ||"–"}</span></div>
                 <div style={{fontSize:12,color:"#6a6459",marginTop:4,lineHeight:1.5}}>
                   <div>{addr||<span style={{color:"#b0a894"}}>keine Adresse hinterlegt</span>}</div>
-                  {contact&&<div>{contact}</div>}
+                  {(p.kontakte&&p.kontakte.length>0)
+                    ? p.kontakte.map((k,i)=>(<div key={i}>{[k.name, k.funktion&&`(${k.funktion})`, k.email, k.telefon].filter(Boolean).join(" · ")}</div>))
+                    : (contact&&<div>{contact}</div>)}
                   {p.notizen&&<div style={{color:"#8a8174",fontStyle:"italic"}}>{p.notizen}</div>}
                 </div>
                 <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>{used} Wohnung(en) verknüpft</div>
@@ -9099,7 +9116,7 @@ const PAGES=[
   {id:"mieter",icon:"👤",label:"Mieter"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
-  {id:"partner",icon:"🏢",label:"Verwaltungen"},
+  {id:"partner",icon:"🏢",label:"Partner"},
 ];
 
 function MainApp() {
