@@ -5947,49 +5947,32 @@ www.dthomes.ch`;
     setVertragModal(true);
   }
 
-  function generateContract(){
+  const [dlBusy, setDlBusy] = useState("");
+  async function generateContract(){
     if (!vertragData || !b) return;
     const v = vertragData;
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
-    const html = buildContractHTML(b, v, fullName, formatDateLong);
-    const win = window.open("", "_blank");
-    if (!win) {
-      alert("Popup wurde blockiert.\n\nBitte erlaube Popups für diese Seite und versuche es erneut.");
-      return;
-    }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => {
-      setTimeout(() => {
-        win.focus();
-        win.print();
-      }, 300);
-    };
+    setDlBusy("umv");
+    try {
+      const html = injectDaanInUMV(buildContractHTML(b, v, fullName, formatDateLong));
+      const fn = `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`;
+      downloadBlob(await htmlToPdf(html, fn), fn);
+    } catch (e) { alert("PDF konnte nicht erstellt werden: " + (e.message || e)); }
+    finally { setDlBusy(""); }
   }
 
-  function generateAnfangsmietzins(){
+  async function generateAnfangsmietzins(){
     if (!vertragData || !b) return;
-    // Override strom to 25 + total ohne Aufschlag (Anfangsmietzins zeigt nur amtlichen Mietzins)
     const strom = 25;
-    const v = {
-      ...vertragData,
-      strom,
-      total: vertragData.nettomiete + vertragData.nebenkosten + strom,
-    };
+    const v = { ...vertragData, strom, total: vertragData.nettomiete + vertragData.nebenkosten + strom };
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
-    const html = buildAnfangsmietzinsHTML(b, v, fullName, formatDateLong);
-    const win = window.open("", "_blank");
-    if (!win) {
-      alert("Popup wurde blockiert. Bitte Popups erlauben.");
-      return;
-    }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => {
-      setTimeout(() => { win.focus(); win.print(); }, 300);
-    };
+    setDlBusy("amz");
+    try {
+      const html = injectDaanInAMZ(buildAnfangsmietzinsHTML(b, v, fullName, formatDateLong));
+      const fn = `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`;
+      downloadBlob(await htmlToPdf(html, fn), fn);
+    } catch (e) { alert("PDF konnte nicht erstellt werden: " + (e.message || e)); }
+    finally { setDlBusy(""); }
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -6800,8 +6783,8 @@ www.dthomes.ch`;
 
             <div className="ma" style={{flexWrap:"wrap"}}>
               <button className="btn btn-g" onClick={()=>{ setVertragModal(false); setSendResult(null); }} disabled={sending}>Abbrechen</button>
-              <button className="btn btn-s" onClick={generateContract} disabled={sending}>📄 UMV herunterladen</button>
-              <button className="btn btn-s" onClick={generateAnfangsmietzins} disabled={sending}>📄 AMZ herunterladen</button>
+              <button className="btn btn-s" onClick={generateContract} disabled={sending||dlBusy==="umv"}>{dlBusy==="umv"?"⏳ …":"📄 UMV herunterladen"}</button>
+              <button className="btn btn-s" onClick={generateAnfangsmietzins} disabled={sending||dlBusy==="amz"}>{dlBusy==="amz"?"⏳ …":"📄 AMZ herunterladen"}</button>
             </div>
             <div style={{height:1,background:"#e8e3d8",margin:"12px 0"}}/>
             <div style={{fontSize:11,color:"#6e6a62",marginBottom:6,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>📤 Digital senden zum Online-Unterzeichnen</div>
