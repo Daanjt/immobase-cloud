@@ -2777,6 +2777,8 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = React.useRef(null);
   const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
+  const signedBases = new Set(docs.filter(d=>/\(unterzeichnet\)/i.test(d.category||"")).map(d=>(d.category||"").replace(/\s*\(unterzeichnet\)\s*/i,"").trim().toLowerCase()));
+  const shownDocs = docs.filter(d => /\(unterzeichnet\)/i.test(d.category||"") || !signedBases.has((d.category||"").trim().toLowerCase()));
   const categories = entityType === "apartment" ? APT_CATEGORIES : (entityType === "applicant" ? APPLICANT_CATEGORIES : TENANT_CATEGORIES);
   
   async function uploadFile(file) {
@@ -2904,11 +2906,11 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
         <div style={{fontSize:10.5,color:"#8a8174",marginTop:6,fontStyle:"italic",textAlign:"center"}}>Max. 25 MB pro Datei · PDF, Bilder, Word, Excel</div>
       </div>
       
-      {docs.length === 0 ? (
+      {shownDocs.length === 0 ? (
         <div className="empty" style={{padding:"24px 16px"}}>Noch keine Dokumente hinterlegt</div>
       ) : (
         <div>
-          {docs.map(d => (
+          {shownDocs.map(d => (
             <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:"#ffffff",border:"1px solid #e8e3d8",borderRadius:8,marginBottom:6}}>
               <span style={{fontSize:22}}>{fileIcon(d.mime_type, d.filename)}</span>
               <div style={{flex:1,minWidth:0}}>
@@ -9224,12 +9226,12 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 
 function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo}){
   const [newTitle, setNewTitle] = useState("");
-  const hasDoc = (t, cat) => (documents||[]).some(d => d.category===cat && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
+  const hasDoc = (t, prefix) => (documents||[]).some(d => (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()) && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
   const auto = [];
   (tenants||[]).filter(t=>t.status!=="archiviert").forEach(t=>{
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
     if(!hasDoc(t,"Untermietvertrag")) auto.push({id:"umv-"+t.id,icon:"📄",label:"Untermietvertrag fehlt",sub:nm,page:"mieter",target:t.id});
-    if(!hasDoc(t,"Anfangsmietzinsformular")) auto.push({id:"amz-"+t.id,icon:"📄",label:"Anfangsmietzinsformular fehlt",sub:nm,page:"mieter",target:t.id});
+    if(!hasDoc(t,"Anfangsmietzins")) auto.push({id:"amz-"+t.id,icon:"📄",label:"Anfangsmietzinsformular fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.schluesselNr||"").toString().trim()) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
   });
