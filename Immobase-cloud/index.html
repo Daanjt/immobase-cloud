@@ -1137,7 +1137,7 @@ function buildEvorestUrl(tenant, apt, room){
   if(warranty && +warranty>0) add("Warranty", warranty);
   add("Lang","de");
   // Mietobjekt
-  add("Reference", (apt&&apt.refnr)||(apt&&apt.id)||t.aptId||"");
+  add("Reference", apt&&apt.refnr);
   add("ObjectStreet", objStreet);
   add("ObjectStreetNumber", objNr);
   add("ObjectZipCode", apt&&apt.plz);
