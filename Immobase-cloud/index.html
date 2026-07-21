@@ -9270,6 +9270,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo}){
   const [newTitle, setNewTitle] = useState("");
   const hasDoc = (t, prefix) => (documents||[]).some(d => (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()) && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
+  const aptHasDoc = (a, prefix) => (documents||[]).some(d => d.entity_type==="apartment" && d.entity_id===a.id && (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()));
   const auto = [];
   (tenants||[]).filter(t=>t.status!=="archiviert").forEach(t=>{
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
@@ -9279,8 +9280,13 @@ function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, dele
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
   });
   (apts||[]).filter(a=>!a.pipeline).forEach(a=>{
-    if(!(a.refnr||"").toString().trim()) auto.push({id:"ref-"+a.id,icon:"🏠",label:"Referenznummer fehlt",sub:a.adresse||a.id,page:"wohnungen",target:a.id});
-    if(!(a.eigentuemer||"").trim()) auto.push({id:"own-"+a.id,icon:"🏢",label:"Eigentümer fehlt",sub:a.adresse||a.id,page:"wohnungen",target:a.id});
+    const an = a.adresse||a.id;
+    if(!(a.refnr||"").toString().trim()) auto.push({id:"ref-"+a.id,icon:"🏠",label:"Referenznummer fehlt",sub:an,page:"wohnungen",target:a.id});
+    if(!(a.eigentuemer||"").trim()) auto.push({id:"own-"+a.id,icon:"🏢",label:"Eigentümer fehlt",sub:an,page:"wohnungen",target:a.id});
+    if(!(a.verwaltung||"").trim()) auto.push({id:"verw-"+a.id,icon:"🏢",label:"Verwaltung fehlt",sub:an,page:"wohnungen",target:a.id});
+    (typeof APT_REQUIRED!=="undefined"?APT_REQUIRED:["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"]).forEach(cat=>{
+      if(!aptHasDoc(a,cat)) auto.push({id:"apt-"+a.id+"-"+cat,icon:"📄",label:cat+" fehlt",sub:an,page:"wohnungen",target:a.id});
+    });
   });
 
   const order=["offen","in_arbeit","erledigt"];
