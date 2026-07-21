@@ -1137,16 +1137,13 @@ function buildEvorestUrl(tenant, apt, room){
   if(warranty && +warranty>0) add("Warranty", warranty);
   add("Lang","de");
   // Mietobjekt
-  add("Reference", (room&&room.id)||(apt&&apt.id)||t.roomId||t.aptId||"");
+  add("Reference", (apt&&apt.refnr)||(apt&&apt.id)||t.aptId||"");
   add("ObjectStreet", objStreet);
   add("ObjectStreetNumber", objNr);
   add("ObjectZipCode", apt&&apt.plz);
   add("ObjectCity", apt&&apt.ort);
-  // Eigentümer/Vermieter = D&T Partners GmbH (Via Campeun 40, 7403 Rhäzüns)
-  add("LessorName","D&T Partners GmbH");
-  add("LessorAddressStreet","Via Campeun"); add("LessorStreet","Via Campeun");
-  add("LessorAddressStreetNumber","40"); add("LessorStreetNumber","40");
-  add("LessorZipCode","7403"); add("LessorCity","Rhäzüns");
+  // Eigentümer/Vermieter = Eigentümer der Wohnung (aus dem Wohnungstab)
+  add("LessorName", apt&&apt.eigentuemer);
   // Mieter 1
   add("FirstName1", t.vorname);
   add("LastName1", t.nachname);
