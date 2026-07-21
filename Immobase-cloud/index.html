@@ -9039,7 +9039,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
   }
   const byName = (a,b)=>(a.name||"").localeCompare(b.name||"");
   const addrOf = (p)=>[p.strasse&&`${p.strasse} ${p.hausnummer||""}`.trim(), [p.plz,p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  const linkedApts = (p)=>(apts||[]).filter(a=>a.eigentuemer===p.name||a.verwaltung===p.name);
+  const linkedApts = (p)=>(apts||[]).filter(a=>a.eigentuemer===p.name||a.verwaltung===p.name).sort((a,b)=>natSort(a.id,b.id));
   const all = [...(partners||[])];
   const verwaltungen = all.filter(p=>p.typ==="Verwaltung"||p.typ==="Beides").sort(byName);
   const eigentuemer = all.filter(p=>!p.typ||p.typ==="Eigentümer"||p.typ==="Beides").sort(byName);
@@ -9159,12 +9159,13 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
                 {linkedApts(selPartner).map(a=>{
                   const roles=[a.eigentuemer===selPartner.name&&"Eigentümer",a.verwaltung===selPartner.name&&"Verwaltung"].filter(Boolean).join(" + ");
                   return (
-                    <button key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} className="plink">
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-                        <span style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.adresse}</span>
-                        <span style={{color:"var(--muted-light)",fontSize:15}}>›</span>
+                    <button key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} className="pcard" style={{padding:"9px 11px"}}>
+                      <span style={{flexShrink:0,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"0 9px",borderRadius:6,background:"var(--beige-soft)",color:"var(--muted)",fontSize:10.5,fontWeight:600,letterSpacing:".05em"}}>{a.id}</span>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:13,fontWeight:500,color:"var(--ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.adresse}</div>
+                        {roles&&<div style={{fontSize:10.5,color:"var(--muted)",marginTop:1}}>{roles}</div>}
                       </div>
-                      <div style={{fontSize:10.5,color:"var(--muted)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}}>{a.id}{roles&&` · ${roles}`}</div>
+                      <span style={{color:"var(--muted-light)",fontSize:16,lineHeight:1}}>›</span>
                     </button>
                   );
                 })}
