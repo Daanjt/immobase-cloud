@@ -1081,6 +1081,89 @@ function TypeBadge({type}){
 }
 function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
 function parseDMY(s){if(!s)return null;const parts=s.split(".");if(parts.length===3)return new Date(+parts[2],+parts[1]-1,+parts[0]);return new Date(s);}
+// ─── EVOREST KAUTION (URL-Vorausfüllung) ─────────────────────────────────────
+// Baut den Evorest import-deposit-Link mit vorausgefüllten Mieterdaten.
+// Doku: "Evorest x D&T - Contract Opening via URL". Alles was ImmoBase sicher
+// hat wird vorausgefüllt, fehlende Felder ergänzt man in Evorest.
+// TEST zuerst: EVOREST_USE_TEST=true -> Testumgebung (kein echtes Depot).
+// Nach erfolgreicher Prüfung auf false setzen fuer Prod.
+const EVOREST_USE_TEST = true;
+const EVOREST_BASE = EVOREST_USE_TEST
+  ? "https://www.test.pm-app.evorest.ch/import-deposit"
+  : "https://www.pm-app.evorest.ch/import-deposit";
+const EVOREST_NAT_ISO2 = {
+  "schweiz":"CH","deutschland":"DE","österreich":"AT","oesterreich":"AT","italien":"IT",
+  "frankreich":"FR","spanien":"ES","portugal":"PT","tschechien":"CZ","polen":"PL",
+  "niederlande":"NL","belgien":"BE","grossbritannien":"GB","vereinigtes königreich":"GB",
+  "usa":"US","vereinigte staaten":"US","türkei":"TR","tuerkei":"TR","griechenland":"GR",
+  "ungarn":"HU","rumänien":"RO","kroatien":"HR","serbien":"RS","russland":"RU",
+  "ukraine":"UA","indien":"IN","china":"CN","brasilien":"BR","ägypten":"EG","aegypten":"EG",
+  "marokko":"MA","tunesien":"TN","kosovo":"XK","albanien":"AL","nordmazedonien":"MK",
+  "bosnien und herzegowina":"BA","bosnien":"BA","slowakei":"SK","slowenien":"SI",
+  "schweden":"SE","norwegen":"NO","dänemark":"DK","daenemark":"DK","finnland":"FI",
+  "irland":"IE","luxemburg":"LU","syrien":"SY","iran":"IR","irak":"IQ","afghanistan":"AF",
+  "eritrea":"ER","somalia":"SO","nigeria":"NG","sri lanka":"LK","pakistan":"PK",
+};
+function evSplitStreet(adresse){
+  if(!adresse) return ["",""];
+  const m = String(adresse).trim().match(/^(.*?)[\s,]+(\d+\s*[a-zA-Z]?)$/);
+  if(m) return [m[1].trim(), m[2].replace(/\s+/g,"")];
+  return [String(adresse).trim(), ""];
+}
+function evGender(g){
+  const s=(g||"").toLowerCase().trim();
+  if(s.startsWith("mann")||s==="m"||s.startsWith("männlich")||s.startsWith("maennlich")) return "Mann";
+  if(s.startsWith("frau")||s==="f"||s==="w"||s.startsWith("weiblich")) return "Frau";
+  return s ? "Divers" : "";
+}
+function evDMY(s){
+  if(!s) return "";
+  const str=String(s).trim();
+  if(/^\d{2}\.\d{2}\.\d{4}$/.test(str)) return str;
+  const m=str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[3]}.${m[2]}.${m[1]}`;
+  return str;
+}
+function buildEvorestUrl(tenant, apt, room){
+  const t=tenant||{};
+  const [objStreet,objNr]=evSplitStreet(apt&&apt.adresse);
+  const [tStreet,tNr]=evSplitStreet(t.adresse);
+  const parts=[];
+  const add=(k,v)=>{ if(v!==undefined&&v!==null&&String(v).trim()!=="") parts.push(`${k}=${encodeURIComponent(String(v).trim())}`); };
+  const addRaw=(k,v)=>{ if(v!==undefined&&v!==null&&String(v).trim()!=="") parts.push(`${k}=${String(v).trim()}`); };
+  // Mietvertrag
+  add("RentStart", evDMY(t.einzug));
+  const warranty=String(t.kautionBetrag!=null?t.kautionBetrag:"").replace(/[^\d.]/g,"");
+  if(warranty && +warranty>0) add("Warranty", warranty);
+  add("Lang","de");
+  // Mietobjekt
+  add("Reference", (room&&room.id)||(apt&&apt.id)||t.roomId||t.aptId||"");
+  add("ObjectStreet", objStreet);
+  add("ObjectStreetNumber", objNr);
+  add("ObjectZipCode", apt&&apt.plz);
+  add("ObjectCity", apt&&apt.ort);
+  // Eigentümer/Vermieter = D&T Partners GmbH (Via Campeun 40, 7403 Rhäzüns)
+  add("LessorName","D&T Partners GmbH");
+  add("LessorAddressStreet","Via Campeun"); add("LessorStreet","Via Campeun");
+  add("LessorAddressStreetNumber","40"); add("LessorStreetNumber","40");
+  add("LessorZipCode","7403"); add("LessorCity","Rhäzüns");
+  // Mieter 1
+  add("FirstName1", t.vorname);
+  add("LastName1", t.nachname);
+  add("Email1", t.email);
+  addRaw("Phone1", (t.phone||"").replace(/\s+/g,""));
+  add("AddressStreet1", tStreet);
+  add("AddressStreetNumber1", tNr);
+  add("ZipCode1", t.plz);
+  add("City1", t.ort);
+  add("Country1","CH");
+  add("TenantType1","natural_person");
+  add("Gender1", evGender(t.gender));
+  add("BirthDate1", evDMY(t.geburt));
+  add("Nationality1", EVOREST_NAT_ISO2[(t.nat||"").toLowerCase().trim()]||"");
+  add("Source","CustomURL");
+  return `${EVOREST_BASE}?${parts.join("&")}`;
+}
 // parseD: parses DD.MM.YYYY or YYYY-MM-DD, returns Date or null
 function parseD(s) {
   if (!s) return null;
@@ -7844,6 +7927,7 @@ function Mieter({tenants,rooms,apts,updateTenant,insertTenant,renameTenantId,del
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
                 <button className="btn btn-s btn-sm" onClick={()=>generateUMVForTenant(tenant)}>📄 UMV</button>
                 <button className="btn btn-s btn-sm" onClick={()=>generateAMZForTenant(tenant)}>📄 AMZ</button>
+                <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, room), "_blank")}>💰 Evorest</button>
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
                 )}
