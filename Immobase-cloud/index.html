@@ -8577,20 +8577,27 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   // Daten zusammenstellen
   const rows = activeTenants.map(t => {
     const p = getPayment(t.id);
-    const soll = getExpectedMiete(t);
+    let soll = getExpectedMiete(t);
     const room = rooms.find(r => r.tenantId === t.id) || rooms.find(r => r.id === t.roomId);
     const apt = room ? apts.find(a => a.id === room.aptId) : null;
-    // Teilmonat-Erkennung: Einzug oder Auszug im aktuellen Monat?
+    // Teilmonat: Einzug oder Auszug im aktuellen Monat -> Miete taggenau anteilig
     const einzug = parseDate(t.einzug);
     const auszug = parseDate(t.auszug);
-    const isPartialMonth =
-      (einzug && einzug >= monatsStart && einzug <= monatsEnde) ||
-      (auszug && auszug >= monatsStart && auszug <= monatsEnde);
+    const einzugInMonth = einzug && einzug >= monatsStart && einzug <= monatsEnde;
+    const auszugInMonth = auszug && auszug >= monatsStart && auszug <= monatsEnde;
+    const isPartialMonth = einzugInMonth || auszugInMonth;
     let partialNote = "";
-    if (einzug && einzug >= monatsStart && einzug <= monatsEnde) {
-      partialNote = `Einzug ${fmtDateDE(t.einzug)}`;
-    } else if (auszug && auszug >= monatsStart && auszug <= monatsEnde) {
-      partialNote = `Auszug ${fmtDateDE(t.auszug)}`;
+    if (isPartialMonth) {
+      const daysInMonth = new Date(jahr, monat, 0).getDate();
+      const startDay = einzugInMonth ? einzug.getDate() : 1;
+      const endDay = auszugInMonth ? auszug.getDate() : daysInMonth;
+      const daysOccupied = Math.max(0, endDay - startDay + 1);
+      const sollFull = soll;
+      soll = Math.round(sollFull * daysOccupied / daysInMonth);
+      const parts = [];
+      if (einzugInMonth) parts.push(`Einzug ${fmtDateDE(t.einzug)}`);
+      if (auszugInMonth) parts.push(`Auszug ${fmtDateDE(t.auszug)}`);
+      partialNote = `${parts.join(" · ")} · anteilig ${daysOccupied}/${daysInMonth} Tage (voll CHF ${sollFull.toLocaleString("de-CH")})`;
     }
     return {
       tenant: t,
