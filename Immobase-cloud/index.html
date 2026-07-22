@@ -9683,7 +9683,7 @@ function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, dele
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
     if(!hasDoc(t,"Untermietvertrag")) auto.push({id:"umv-"+t.id,icon:"📄",label:"Untermietvertrag fehlt",sub:nm,page:"mieter",target:t.id});
     if(!hasDoc(t,"Anfangsmietzins")) auto.push({id:"amz-"+t.id,icon:"📄",label:"Anfangsmietzinsformular fehlt",sub:nm,page:"mieter",target:t.id});
-    if(!(t.schluesselNr||"").toString().trim()) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
+    if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
   });
   (apts||[]).filter(a=>!a.pipeline).forEach(a=>{
