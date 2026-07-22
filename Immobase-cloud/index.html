@@ -1468,7 +1468,7 @@ function useSupabaseData() {
     supabase.from("smoobu_bookings").select("*").then(({data})=>{
       setSmoobuBookings((data||[]).map(x=>({
         id:x.id, channelName:x.channel_name, apartmentId:x.apartment_id, apartmentName:x.apartment_name,
-        arrival:x.arrival, departure:x.departure, nights:x.nights, price:+x.price||0,
+        arrival:x.arrival, departure:x.departure, nights:x.nights, price:+x.price||0, commission:+x.commission||0,
         adults:+x.adults||0, children:+x.children||0,
         isBlocked:!!x.is_blocked, cancelled:!!x.cancelled
       })));
@@ -9950,7 +9950,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const CLEAN_PER_BOOKING = 100, LAUNDRY_PER_GUEST = 12.5;
   const airbnbFin = (s, e, eNext) => {
     const daysInMonth = Math.round((eNext - s)/86400000);
-    let occNights=0, umsatz=0, putzen=0, waesche=0, anz=0;
+    let occNights=0, umsatz=0, putzen=0, waesche=0, anz=0, kommission=0;
     abBookings.forEach(bk=>{
       const tot = Math.max(1, bk.nights || Math.round((new Date(bk.departure)-new Date(bk.arrival))/86400000));
       const no = nightsOverlap(bk.arrival, bk.departure, s, eNext);
@@ -9958,6 +9958,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         const frac = no/tot;
         occNights += no;
         umsatz += (bk.price||0)*frac;
+        kommission += (bk.commission||0)*frac;
         putzen += CLEAN_PER_BOOKING*frac;
         waesche += LAUNDRY_PER_GUEST*((bk.adults||0)+(bk.children||0))*frac;
         anz += frac;
@@ -9965,7 +9966,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     });
     let miete=0, moeblierung=0;
     abApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += 900; } });
-    return { occNights, umsatz, anz, miete, moeblierung, putzen, waesche, marge: umsatz-miete-putzen-waesche-moeblierung,
+    return { occNights, umsatz, anz, kommission, miete, moeblierung, putzen, waesche, marge: umsatz-kommission-miete-putzen-waesche-moeblierung,
       auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: occNights? umsatz/occNights:0 };
   };
   const abMonths = [];
@@ -10086,7 +10087,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {hasAb && (
         <>
           <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"32px 0 4px"}}>Airbnb · Serviced Apartments</div>
-          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle. Marge = Umsatz minus Hauptmiete der Objekte, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt.</div>
+          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (Airbnb, Booking; bei Direktbuchungen keine), Hauptmiete der Objekte, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt.</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
@@ -10133,7 +10134,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             {(()=>{ const mx=Math.max(1,...abMonths.map(m=>Math.abs(m.marge))); return abMonths.map((m,i)=>{
               const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
               return (
-                <div key={i} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} · Umsatz ${chf(Math.round(m.umsatz))} · Miete ${chf(Math.round(m.miete))} · Möbl. ${chf(Math.round(m.moeblierung))} · Putzen ${chf(Math.round(m.putzen))} · Wäsche ${chf(Math.round(m.waesche))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                <div key={i} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} · Umsatz ${chf(Math.round(m.umsatz))} · Kommission ${chf(Math.round(m.kommission))} · Miete ${chf(Math.round(m.miete))} · Möbl. ${chf(Math.round(m.moeblierung))} · Putzen ${chf(Math.round(m.putzen))} · Wäsche ${chf(Math.round(m.waesche))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
                   <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
                   <div style={{width:"68%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#c5cda8":"#5a6e4a"),borderRadius:"3px 3px 0 0"}}/>
                   <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
