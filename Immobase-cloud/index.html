@@ -9894,7 +9894,7 @@ function FinanzenSection({ tenants, apts, rooms }){
       const apt = aptById(r.aptId);
       const ein = parseDMY(t && t.einzug) || parseDMY(apt && apt.mietbeginn);
       const aus = parseDMY(t && t.auszug) || parseDMY(apt && apt.mietende);
-      const isOcc = !!r.occupied && (!aus || aus >= s);
+      const isOcc = !!r.occupied && (!ein || ein <= e) && (!aus || aus >= s);
       if (isOcc) { belegt++; miete+=(+r.miete||0); strom+=25; aufschlag += t?(+t.kautionAufschlag||0):0; }
       else { leerstandskosten += (+r.miete||0); }
     });
