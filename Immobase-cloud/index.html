@@ -9805,6 +9805,7 @@ function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, dele
   const hasDoc = (t, prefix) => (documents||[]).some(d => (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()) && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
   const aptHasDoc = (a, prefix) => (documents||[]).some(d => d.entity_type==="apartment" && d.entity_id===a.id && (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()));
   const auto = [];
+  const dmHeute = new Date(); dmHeute.setHours(23,59,59,999);
   (tenants||[]).filter(t=>t.status!=="archiviert").forEach(t=>{
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
     if(!hasDoc(t,"Untermietvertrag")) auto.push({id:"umv-"+t.id,icon:"📄",label:"Untermietvertrag fehlt",sub:nm,page:"mieter",target:t.id});
@@ -9812,7 +9813,8 @@ function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, dele
     if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
     if((t.drittmeldungStatus||"offen")!=="gemeldet") auto.push({id:"dm-ez-"+t.id,icon:"📮",label:"Drittmeldung Einzug offen",sub:nm,page:"mieter",target:t.id});
-    if((t.auszug||"").toString().trim() && (t.drittmeldungAuszugStatus||"offen")!=="gemeldet") auto.push({id:"dm-az-"+t.id,icon:"📮",label:"Drittmeldung Auszug offen",sub:nm,page:"mieter",target:t.id});
+    const ausD = parseD(t.auszug);
+    if(ausD && ausD <= dmHeute && (t.drittmeldungAuszugStatus||"offen")!=="gemeldet") auto.push({id:"dm-az-"+t.id,icon:"📮",label:"Drittmeldung Auszug offen",sub:nm,page:"mieter",target:t.id});
   });
   (apts||[]).filter(a=>!a.pipeline).forEach(a=>{
     const an = a.adresse||a.id;
