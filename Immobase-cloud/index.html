@@ -5684,6 +5684,106 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   return { contractId: contractRow.id, token, signUrl: `https://mieter.dthomes.ch/${token}`, emailSent: emailRes.ok };
 }
 
+// ── Verlängerung / Nachtrag ──────────────────────────────────────────────────
+function buildNachtragHTML(person, nd, fullName, fmtDate){
+  const objekt = nd.zimmerId ? `Zimmer ${(nd.zimmerId||"").split("-")[1]||nd.zimmerId} an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : `${nd.adresse}, ${nd.plz} ${nd.ort}`;
+  return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Nachtrag Untermietvertrag - ${fullName}</title>
+<style>
+@page{size:A4;margin:20mm 18mm}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{background:#fff}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10.5pt;line-height:1.6;color:#1a1a1a;padding:20mm 18mm;width:210mm;margin:0 auto}
+h1{font-family:Georgia,serif;font-size:19pt;font-weight:normal;margin-bottom:4pt}
+.sub{font-size:9pt;color:#888;letter-spacing:.22em;text-transform:uppercase;margin-bottom:26pt}
+h2{font-family:Georgia,serif;font-size:12pt;font-weight:normal;margin:20pt 0 6pt;border-bottom:.5pt solid #ccc;padding-bottom:3pt}
+p{margin-bottom:9pt}
+.box{background:#f7f3ea;border:.5pt solid #ddd0b8;border-radius:5pt;padding:11pt 14pt;margin:14pt 0;font-size:10pt}
+.signatures{margin-top:34pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
+.sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
+.sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
+.sig-block .name{font-size:11pt;font-weight:600;margin-bottom:18pt}
+.sig-block .sig-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt}
+.sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:55pt}
+.sig-block .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
+</style></head><body>
+<h1>Nachtrag zum Untermietvertrag</h1>
+<div class="sub">Verlängerung · D&amp;T Homes</div>
+<p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in) betreffend das Mietobjekt ${objekt}.</p>
+<p>Die Parteien haben ${nd.originalDatum?`am <strong>${fmtDate(nd.originalDatum)}</strong> `:""}einen Untermietvertrag über das genannte Mietobjekt abgeschlossen. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
+<h2>1. Verlängerung</h2>
+<p>Das bestehende, befristete Untermietverhältnis wird <strong>verlängert bis und mit ${fmtDate(nd.mietende)}</strong>.${nd.einzug?` Die Verlängerung gilt ab dem ${fmtDate(nd.einzug)}.`:""} Das Mietverhältnis endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf, sofern keine weitere schriftliche Verlängerung vereinbart wird. Eine ordentliche Kündigung durch die Untermieter*in ist während der Verlängerungsdauer ausgeschlossen.</p>
+<h2>2. Übrige Bestimmungen</h2>
+<p>Sämtliche übrigen Bestimmungen des Untermietvertrags${nd.originalDatum?` vom ${fmtDate(nd.originalDatum)}`:""} (insbesondere Mietzins, Nebenkosten, Kaution und Hausordnung) bleiben unverändert in Kraft.</p>
+<div class="box">Dieser Nachtrag wird mit der Unterzeichnung durch beide Parteien gültig und bildet einen integrierenden Bestandteil des bestehenden Untermietvertrags.</div>
+<div class="signatures">
+  <div class="sig-block">
+    <div class="role">Untermieter*in</div>
+    <div class="name">${fullName}</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+  <div class="sig-block">
+    <div class="role">Hauptmieter</div>
+    <div class="name">D&amp;T Partners GmbH</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+</div>
+</body></html>`;
+}
+async function sendSingleDocForSigning(person, html, opts) {
+  opts = opts || {};
+  const progress = opts.onProgress || (() => {});
+  const fullName = `${person.vorname || ""} ${person.nachname || ""}`.trim();
+  if (!person.email) throw new Error("Person hat keine Email-Adresse");
+  progress("PDF erstellen...", 0.3);
+  const blob = await htmlToPdf(html, `${opts.docName||"Dokument"}_${fullName.replace(/\s+/g,"_")}.pdf`);
+  progress("PDF hochladen...", 0.6);
+  const token = generateContractToken();
+  const path = `${token}/${opts.docType||"dokument"}.pdf`;
+  const { error: upErr } = await supabase.storage.from("contracts").upload(path, blob, { contentType: "application/pdf", upsert: false });
+  if (upErr) throw new Error(`Upload: ${upErr.message}`);
+  const unsignedPdfs = [{ name: opts.docName || "Dokument", path, type: opts.docType || "dokument" }];
+  progress("Vertrag in Datenbank speichern...", 0.8);
+  const idField = opts.tenantId ? { tenant_id: opts.tenantId } : { bewerber_id: person.id };
+  const { data: contractRow, error: insErr } = await supabase.from("contracts").insert({
+    token, ...idField,
+    apt_id: opts.aptId || null,
+    room_id: opts.roomId || null,
+    mieter_email: person.email,
+    mieter_vorname: person.vorname || "",
+    mieter_nachname: person.nachname || "",
+    contract_type: opts.contractType || opts.docType || "dokument",
+    contract_data: { person, doc_html: html },
+    status: "gesendet",
+    unsigned_pdfs: unsignedPdfs,
+    created_by: (window.currentUser && window.currentUser.email) || null,
+  }).select().single();
+  if (insErr) throw new Error(`DB Insert: ${insErr.message}`);
+  progress("Email an Mieter senden...", 0.95);
+  const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ contractId: contractRow.id }),
+  });
+  if (!emailRes.ok) { console.error("Email-Versand fehlgeschlagen:", await emailRes.text()); }
+  progress("Fertig!", 1.0);
+  return { contractId: contractRow.id, token, signUrl: `https://mieter.dthomes.ch/${token}`, emailSent: emailRes.ok };
+}
+
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
@@ -7874,6 +7974,59 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
     } catch(e){ setTvResult({ok:false, error:e.message||String(e)}); }
     finally { setTvSending(false); setTvProgress(null); }
   }
+  const [nachModal, setNachModal] = useState(false);
+  const [nd, setNd] = useState(null);
+  const [nachBusy, setNachBusy] = useState(false);
+  const [nachProgress, setNachProgress] = useState(null);
+  const [nachResult, setNachResult] = useState(null);
+  function openNachtrag(t){
+    const data = buildContractDataForTenant(t);
+    const room = data && data.v.room, apt = data && data.v.apt;
+    const tContracts = (contracts||[]).filter(c => c.tenantId === t.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+    const current = tContracts.find(c=>c.status==="signiert") || tContracts[0];
+    setNd({
+      _tenant: t,
+      adresse: (data&&data.v.adresse)||"", plz:(data&&data.v.plz)||"", ort:(data&&data.v.ort)||"",
+      zimmerId: (data&&data.v.zimmerId)||"",
+      aptId: apt?apt.id:null, roomId: room?room.id:null,
+      originalDatum: current ? (current.createdAt||"").split("T")[0] : "",
+      einzug: "",
+      mietende: "",
+    });
+    setNachResult(null); setNachProgress(null); setNachModal(true);
+  }
+  const ND = (k)=>(e)=>{ const val = e && e.target ? e.target.value : e; setNd(p=>({...p,[k]:val})); };
+  async function downloadNachtrag(){
+    if(!nd) return;
+    const t = nd._tenant;
+    const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
+    setNachBusy(true);
+    try {
+      const html = injectDaanInUMV(buildNachtragHTML(t, nd, fullName, formatDateLong));
+      const fn = `Nachtrag_Verlaengerung_${fullName.replace(/\s+/g,"_")}.pdf`;
+      downloadBlob(await htmlToPdf(html, fn), fn);
+    } catch(e){ alert("PDF konnte nicht erstellt werden: " + (e.message||e)); }
+    finally { setNachBusy(false); }
+  }
+  async function sendNachtrag(){
+    if(!nd) return;
+    const t = nd._tenant;
+    if(!nd.mietende){ alert("Bitte das neue Enddatum (verlängert bis) angeben."); return; }
+    if(!t.email){ alert("Dieser Mieter hat keine E-Mail-Adresse."); return; }
+    setNachBusy(true); setNachResult(null);
+    try {
+      const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
+      const html = injectDaanInUMV(buildNachtragHTML(t, nd, fullName, formatDateLong));
+      const res = await sendSingleDocForSigning(t, html, {
+        docName:"Verlaengerung", docType:"verlaengerung", contractType:"verlaengerung",
+        aptId: nd.aptId, roomId: nd.roomId, tenantId: t.id,
+        onProgress:(msg,p)=>setNachProgress({msg,p}),
+      });
+      setNachResult({ok:true, ...res});
+      if(loadContracts) await loadContracts();
+    } catch(e){ setNachResult({ok:false, error:e.message||String(e)}); }
+    finally { setNachBusy(false); setNachProgress(null); }
+  }
   async function generateUMVForTenant(t) {
     const data = buildContractDataForTenant(t);
     if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
@@ -8197,6 +8350,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 <button className="btn btn-s btn-sm" disabled={dlBusy==="umv"} onClick={()=>generateUMVForTenant(tenant)}>{dlBusy==="umv"?"⏳ …":"📄 UMV"}</button>
                 <button className="btn btn-s btn-sm" disabled={dlBusy==="amz"} onClick={()=>generateAMZForTenant(tenant)}>{dlBusy==="amz"?"⏳ …":"📄 AMZ"}</button>
                 <button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>
+                <button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>
                 <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
@@ -8585,6 +8739,47 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
           <button className="btn btn-p" onClick={saveNew}>✓ Mieter anlegen</button>
         </div>
       </div></div>}
+      {nachModal && nd && (() => {
+        const t = nd._tenant;
+        return (
+        <div className="ov" onClick={e=>e.target===e.currentTarget && !nachBusy && setNachModal(false)}>
+          <div className="modal" style={{width:560,maxHeight:"90vh",overflowY:"auto"}}>
+            <div className="mt">⏱ Verlängerung · {t.vorname} {t.nachname}</div>
+            <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:16}}>Nachtrag zum bestehenden Untermietvertrag, gleiche Basis, nur neues Enddatum.</div>
+            {nachResult ? (
+              <div style={{padding:"16px 18px",borderRadius:8,background:nachResult.ok?"var(--green-soft)":"#f7e4e0",fontSize:13,lineHeight:1.6}}>
+                {nachResult.ok ? (<>
+                  <div style={{fontWeight:700,color:"#3d4f2f",marginBottom:6}}>✓ Verlängerung verschickt</div>
+                  <div>Der Mieter hat eine E-Mail zum Unterschreiben erhalten{nachResult.emailSent?"":" (E-Mail-Status unklar, bitte prüfen)"}.</div>
+                  <div style={{marginTop:6,fontSize:11.5,color:"var(--muted)"}}>Signatur-Link: {nachResult.signUrl}</div>
+                </>) : (<>
+                  <div style={{fontWeight:700,color:"var(--error)",marginBottom:6}}>Fehler</div>
+                  <div>{nachResult.error}</div>
+                </>)}
+                <div style={{marginTop:14}}><button className="btn btn-p btn-sm" onClick={()=>setNachModal(false)}>Schliessen</button></div>
+              </div>
+            ) : (<>
+              <div className="frow">
+                <div className="fg"><label className="fl">Ursprungsvertrag vom</label><input className="fi" type="date" value={toDateInputValue(nd.originalDatum)} onChange={ND("originalDatum")}/></div>
+                <div className="fg"><label className="fl">Verlängerung ab (optional)</label><input className="fi" type="date" value={toDateInputValue(nd.einzug)} onChange={ND("einzug")}/></div>
+              </div>
+              <div className="frow">
+                <div className="fg"><label className="fl">Verlängert bis *</label><input className="fi" type="date" value={toDateInputValue(nd.mietende)} onChange={ND("mietende")}/></div>
+                <div className="fg"/>
+              </div>
+              <div style={{fontSize:11.5,color:"var(--muted)",margin:"4px 0 14px",lineHeight:1.5}}>Objekt: {nd.adresse}{nd.zimmerId?` · Zimmer ${(nd.zimmerId||"").split("-")[1]||""}`:""}. Alle übrigen Bedingungen bleiben unverändert.</div>
+              {nachProgress && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>{nachProgress.msg}</div>}
+              <div className="ma" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <button className="btn btn-g btn-sm" disabled={nachBusy} onClick={downloadNachtrag}>{nachBusy?"⏳ …":"📄 Herunterladen"}</button>
+                <div style={{flex:1}}/>
+                <button className="btn btn-g" disabled={nachBusy} onClick={()=>setNachModal(false)}>Abbrechen</button>
+                <button className="btn btn-p" disabled={nachBusy} onClick={sendNachtrag}>{nachBusy?"Wird verschickt…":"Zur Unterschrift senden"}</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+        );
+      })()}
       {tvModal && tvData && (() => {
         const t = tvData._tenant;
         const total = (tvData.nettomiete||0) + (tvData.nebenkosten||0) + (tvData.strom||0) + (tvData.aufschlag||0);
