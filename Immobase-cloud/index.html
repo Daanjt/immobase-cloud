@@ -9992,8 +9992,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     }
   }
   const combinedYears = [];
-  { const map={}; combinedMonths.forEach(m=>{ if(!map[m.y]) map[m.y]={y:m.y,wg:0,ab:0,marge:0}; map[m.y].wg+=m.wg; map[m.y].ab+=m.ab; map[m.y].marge+=m.marge; });
-    Object.values(map).sort((a,b)=>a.y-b.y).forEach(v=>combinedYears.push(v)); }
+  for (let y=2025; y<=now.getFullYear()+1; y++){
+    let wgY=0, abY=0;
+    for (let mo=0; mo<12; mo++){
+      const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
+      wgY += monthFin(s,e).marge; abY += airbnbFin(s,e,eNext).marge;
+    }
+    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY });
+  }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
   const H = 72;
@@ -10184,7 +10190,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
 
       <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"30px 0 4px"}}>Jährlich · WG + Airbnb</div>
-      <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Gesamtmarge pro Jahr. 2025 (ab November) und das laufende Restjahr sind Teiljahre.</div>
+      <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Gesamtmarge pro Kalenderjahr. 2025 ab November. Künftige Monate sind eine Prognose auf Basis der heutigen Buchungen und Verträge, späte Monate ohne Buchungen fallen daher tiefer aus.</div>
       <div style={{display:"grid",gridTemplateColumns:`repeat(${combinedYears.length},1fr)`,gap:10}}>
         {combinedYears.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
