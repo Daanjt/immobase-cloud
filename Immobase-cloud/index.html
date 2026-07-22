@@ -9913,7 +9913,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const now = new Date();
   const floorFut = (v, fut) => (fut && v<0) ? 0 : v;
   const months = [];
-  for (let i=-5; i<=11; i++){
+  for (let i=-5; i<=6; i++){
     const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
     const s = new Date(d.getFullYear(), d.getMonth(), 1);
     const e = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
@@ -9971,7 +9971,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: occNights? umsatz/occNights:0 };
   };
   const abMonths = [];
-  { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+11, 1);
+  { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+6, 1);
     while (new Date(cy,cm,1) <= endD){
       const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
       const f=airbnbFin(s,e,eNext);
@@ -9984,25 +9984,29 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const abCur = abMonths.find(m=>m.current)||abMonths[0];
   // Gesamt (WG + Airbnb), seit Dezember 2025
   const combinedMonths = [];
-  { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+11, 1);
+  { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+6, 1);
     while (new Date(cy,cm,1) <= endD){
       const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
       const fut = new Date(cy,cm,1) > new Date(now.getFullYear(),now.getMonth(),1);
-      const wg=floorFut(monthFin(s,e).marge, fut); const ab=floorFut(airbnbFin(s,e,eNext).marge, fut);
-      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab,
+      const wgF=monthFin(s,e); const abF=airbnbFin(s,e,eNext);
+      const wg=floorFut(wgF.marge, fut); const ab=floorFut(abF.marge, fut);
+      const umsatz=wgF.einnahmen+abF.umsatz; const mietausgaben=wgF.ausgaben+abF.miete;
+      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab, umsatz, mietausgaben,
         future: fut, current: cy===now.getFullYear()&&cm===now.getMonth() });
       cm++; if(cm>11){cm=0;cy++;}
     }
   }
   const combinedYears = [];
   for (let y=2025; y<=now.getFullYear()+1; y++){
-    let wgY=0, abY=0;
+    let wgY=0, abY=0, umsatzY=0, mietausgabenY=0;
     for (let mo=0; mo<12; mo++){
       const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
       const fut = new Date(y,mo,1) > new Date(now.getFullYear(),now.getMonth(),1);
-      wgY += floorFut(monthFin(s,e).marge, fut); abY += floorFut(airbnbFin(s,e,eNext).marge, fut);
+      const wgF=monthFin(s,e); const abF=airbnbFin(s,e,eNext);
+      wgY += floorFut(wgF.marge, fut); abY += floorFut(abF.marge, fut);
+      umsatzY += wgF.einnahmen + abF.umsatz; mietausgabenY += wgF.ausgaben + abF.miete;
     }
-    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY });
+    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY, umsatz:umsatzY, mietausgaben:mietausgabenY });
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
@@ -10175,17 +10179,17 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
           <thead>
             <tr style={{color:"var(--muted)",fontSize:9,textTransform:"uppercase",letterSpacing:".15em"}}>
               <th style={{padding:"6px 8px",textAlign:"left",fontWeight:600}}>Monat</th>
-              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>WG</th>
-              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Airbnb</th>
-              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Gesamt</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Umsatz</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Mietausgaben</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Marge</th>
             </tr>
           </thead>
           <tbody>
             {combinedMonths.map((m,i)=>(
               <tr key={i} style={{borderTop:"1px solid var(--line-soft)",background:m.current?"var(--beige-soft)":"transparent"}}>
                 <td style={{padding:"6px 8px",color:m.future?"var(--muted)":"var(--ink)",fontStyle:m.future?"italic":"normal"}}>{m.full}{m.current?" · aktuell":m.future?" · Prognose":""}</td>
-                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{m.wg>=0?"+":""}{chf(Math.round(m.wg))}</td>
-                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{m.ab>=0?"+":""}{chf(Math.round(m.ab))}</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{chf(Math.round(m.umsatz))}</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{chf(Math.round(m.mietausgaben))}</td>
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{m.marge>=0?"+":""}{chf(Math.round(m.marge))}</td>
               </tr>
             ))}
@@ -10199,9 +10203,9 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         {combinedYears.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",marginBottom:10}}>{yr.y}</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>WG</span><span style={{color:"var(--ink)"}}>{yr.wg>=0?"+":""}{chf(Math.round(yr.wg))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Airbnb</span><span style={{color:"var(--ink)"}}>{yr.ab>=0?"+":""}{chf(Math.round(yr.ab))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,padding:"7px 0 0",marginTop:5,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Gesamt</span><span style={{color:yr.marge>=0?"#3d4f2f":"#9b4a3e"}}>{yr.marge>=0?"+":""}{chf(Math.round(yr.marge))}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Umsatz</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.umsatz))}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Mietausgaben</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.mietausgaben))}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,padding:"7px 0 0",marginTop:5,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Marge</span><span style={{color:yr.marge>=0?"#3d4f2f":"#9b4a3e"}}>{yr.marge>=0?"+":""}{chf(Math.round(yr.marge))}</span></div>
           </div>
         ))}
       </div>
