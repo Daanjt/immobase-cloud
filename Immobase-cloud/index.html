@@ -8399,26 +8399,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 )}
               </div>
             </div>
-            {(() => {
-              const tContracts = (contracts||[]).filter(c => c.tenantId === tenant.id || (c.mieterEmail && tenant.email && c.mieterEmail.toLowerCase().trim() === tenant.email.toLowerCase().trim()) || (c.bewerberId && tenant.bewerberId && c.bewerberId === tenant.bewerberId)).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
-              if (!tContracts.length) return null;
-              const statusLabel = {gesendet:"Gesendet", signiert:"Signiert", zurueckgezogen:"Zurückgezogen", abgelaufen:"Abgelaufen", storniert:"Storniert"};
-              const current = tContracts.find(c => !["zurueckgezogen","abgelaufen","storniert"].includes(c.status));
-              return (
-                <div style={{marginBottom:14,padding:"12px 14px",background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:8}}>
-                  <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Verträge</div>
-                  <div style={{display:"grid",gap:5}}>
-                    {tContracts.map((c,i)=>(
-                      <div key={c.id||i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,flexWrap:"wrap"}}>
-                        <span style={{color:"var(--ink)",minWidth:92}}>{c.createdAt?fmtDateDE(c.createdAt):"—"}</span>
-                        <span style={{color:"var(--muted)"}}>{c.contractType==="untermietvertrag"?"UMV":c.contractType==="anfangsmietzins"?"AMZ":"UMV + AMZ"} · {statusLabel[c.status]||c.status}</span>
-                        {current && c.id===current.id && <span className="bx b-x" style={{background:"var(--green-soft)",color:"#3d4f2f",borderColor:"transparent"}}>aktuell</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
             {tenant.status==="archiviert" && (
               <div style={{background:"#f5efe4",border:"1px solid #d4c7a8",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a5249",lineHeight:1.5}}>
                 <div style={{fontWeight:600,marginBottom:3}}>📦 Archivierter Mieter</div>
