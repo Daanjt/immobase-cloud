@@ -7990,7 +7990,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
       adresse: (data&&data.v.adresse)||"", plz:(data&&data.v.plz)||"", ort:(data&&data.v.ort)||"",
       zimmerId: (data&&data.v.zimmerId)||"",
       aptId: apt?apt.id:null, roomId: room?room.id:null,
-      originalDatum: current ? (current.createdAt||"").split("T")[0] : "",
+      originalDatum: current ? ((current.signedAt || current.createdAt || "").split("T")[0]) : "",
       einzug: "",
       mietende: "",
     });
