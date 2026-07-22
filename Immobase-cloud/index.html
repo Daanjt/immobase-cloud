@@ -9877,25 +9877,36 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 
 // ─── FINANZEN (Monats-KPIs) ──────────────────────────────────────────────────
 function FinanzenSection({ tenants, apts, rooms }){
-  const roomRent = (id) => { const r=(rooms||[]).find(x=>x.id===id); return r ? (+r.miete||0) : 0; };
+  const wgApts = (apts||[]).filter(a=>a.type==="WG" && !a.pipeline);
+  const wgAptIds = new Set(wgApts.map(a=>a.id));
+  const wgRoomIds = new Set((rooms||[]).filter(r=>wgAptIds.has(r.aptId)).map(r=>r.id));
+  const roomById = (id) => (rooms||[]).find(x=>x.id===id);
   const now = new Date();
   const months = [];
   for (let i=-5; i<=11; i++){
     const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
     const s = new Date(d.getFullYear(), d.getMonth(), 1);
     const e = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
-    let einnahmen = 0;
-    (tenants||[]).forEach(t=>{
-      const ein=parseDMY(t.einzug), aus=parseDMY(t.auszug);
-      if (ein && ein <= e && (!aus || aus >= s)) einnahmen += roomRent(t.roomId);
-    });
+    // Ausgaben: Hauptmiete der in diesem Monat aktiven WG-Wohnungen
     let ausgaben = 0;
-    (apts||[]).forEach(a=>{
-      if (a.pipeline) return;
+    wgApts.forEach(a=>{
       const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
       if ((!ab || ab <= e) && (!bis || bis >= s)) ausgaben += (+a.miete||0);
     });
-    months.push({ label: s.toLocaleDateString("de-CH",{month:"short"}), full: s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), einnahmen, ausgaben, marge: einnahmen-ausgaben, future: i>0, current: i===0 });
+    // Einnahmen: Zimmermiete + Strom (CHF 25/belegtes Zimmer) + Kautions-Aufschlag der aktiven WG-Mieter
+    let miete=0, strom=0, aufschlag=0;
+    (tenants||[]).forEach(t=>{
+      if (!wgRoomIds.has(t.roomId)) return;
+      const ein=parseDMY(t.einzug), aus=parseDMY(t.auszug);
+      if (ein && ein <= e && (!aus || aus >= s)) {
+        const r = roomById(t.roomId);
+        miete += r ? (+r.miete||0) : 0;
+        strom += 25;
+        aufschlag += (+t.kautionAufschlag||0);
+      }
+    });
+    const einnahmen = miete + strom + aufschlag;
+    months.push({ label: s.toLocaleDateString("de-CH",{month:"short"}), full: s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), einnahmen, ausgaben, marge: einnahmen-ausgaben, strom, aufschlag, future: i>0, current: i===0 });
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
@@ -9903,7 +9914,7 @@ function FinanzenSection({ tenants, apts, rooms }){
   return (
     <div>
       <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:4}}>Finanzen</div>
-      <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:20,lineHeight:1.5}}>KPIs über die Monate, gerechnet aus den aktuellen Verträgen: Zimmermieten minus Hauptmieten. Zukünftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden.</div>
+      <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:20,lineHeight:1.5}}>KPIs über die Monate für die WGs, ohne Airbnb. Einnahmen inklusive Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Zukünftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden.</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
           <div key={l} style={{background:bg,borderRadius:10,padding:"14px 16px"}}>
@@ -9918,7 +9929,7 @@ function FinanzenSection({ tenants, apts, rooms }){
           const h = Math.max(2, Math.round(Math.abs(m.marge)/maxAbs*H));
           const neg = m.marge<0;
           return (
-            <div key={i} title={`${m.full}: ${m.marge>=0?"+":""}${chf(m.marge)} (Ein ${chf(m.einnahmen)} · Miete ${chf(m.ausgaben)})`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+            <div key={i} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(m.marge)} · Einnahmen ${chf(m.einnahmen)} (Strom ${chf(m.strom)}, Aufschlag ${chf(m.aufschlag)}) · Hauptmiete ${chf(m.ausgaben)}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
               <div style={{width:"68%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#c5cda8":"#5a6e4a"),borderRadius:"3px 3px 0 0"}}/>
               <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
             </div>
