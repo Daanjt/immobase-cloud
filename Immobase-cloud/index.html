@@ -9882,20 +9882,9 @@ function FinanzenSection({ tenants, apts, rooms }){
   const wgRooms = (rooms||[]).filter(r=>wgAptIds.has(r.aptId));
   const tenantById = (id) => (tenants||[]).find(t=>t.id===id);
   const aptById = (id) => (apts||[]).find(a=>a.id===id);
-  const now = new Date();
-  const months = [];
-  for (let i=-5; i<=11; i++){
-    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
-    const s = new Date(d.getFullYear(), d.getMonth(), 1);
-    const e = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
-    // Ausgaben: Hauptmiete der in diesem Monat aktiven WG-Wohnungen
-    let ausgaben = 0;
-    wgApts.forEach(a=>{
-      const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
-      if ((!ab || ab <= e) && (!bis || bis >= s)) ausgaben += (+a.miete||0);
-    });
-    // Einnahmen: belegte WG-Zimmer (Miete) + Strom (25/Zimmer) + Kautions-Aufschlag des Mieters
-    // Aktiv-Fenster pro Zimmer: Einzug/Auszug des Mieters (via Zimmer), sonst Mietbeginn/Mietende der Wohnung
+  const monthFin = (s, e) => {
+    let ausgaben=0;
+    wgApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)) ausgaben+=(+a.miete||0); });
     let miete=0, strom=0, aufschlag=0;
     wgRooms.forEach(r=>{
       if (!r.occupied) return;
@@ -9903,15 +9892,37 @@ function FinanzenSection({ tenants, apts, rooms }){
       const apt = aptById(r.aptId);
       const ein = parseDMY(t && t.einzug) || parseDMY(apt && apt.mietbeginn);
       const aus = parseDMY(t && t.auszug) || parseDMY(apt && apt.mietende);
-      if ((!ein || ein <= e) && (!aus || aus >= s)) {
-        miete += (+r.miete||0);
-        strom += 25;
-        aufschlag += t ? (+t.kautionAufschlag||0) : 0;
-      }
+      if ((!ein || ein <= e) && (!aus || aus >= s)) { miete+=(+r.miete||0); strom+=25; aufschlag += t?(+t.kautionAufschlag||0):0; }
     });
-    const einnahmen = miete + strom + aufschlag;
-    months.push({ label: s.toLocaleDateString("de-CH",{month:"short"}), full: s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), einnahmen, ausgaben, marge: einnahmen-ausgaben, strom, aufschlag, future: i>0, current: i===0 });
+    const einnahmen=miete+strom+aufschlag;
+    return {miete,strom,aufschlag,einnahmen,ausgaben,marge:einnahmen-ausgaben};
+  };
+  const now = new Date();
+  const months = [];
+  for (let i=-5; i<=11; i++){
+    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+    const s = new Date(d.getFullYear(), d.getMonth(), 1);
+    const e = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
+    const f = monthFin(s, e);
+    months.push({ label: s.toLocaleDateString("de-CH",{month:"short"}), full: s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f, future: i>0, current: i===0 });
   }
+  // Jährliche Ergebnisse (Summe über 12 Monate)
+  const years = [];
+  for (let y=now.getFullYear(); y<=now.getFullYear()+1; y++){
+    let einnahmen=0, ausgaben=0, marge=0;
+    for (let m=0;m<12;m++){ const s=new Date(y,m,1); const e=new Date(y,m+1,0,23,59,59,999); const f=monthFin(s,e); einnahmen+=f.einnahmen; ausgaben+=f.ausgaben; marge+=f.marge; }
+    years.push({ y, einnahmen, ausgaben, marge, future: y>now.getFullYear() });
+  }
+  // Bewohner-Kennzahlen (aktive Mieter)
+  const activeTenants = (tenants||[]).filter(t=>(t.status||"aktiv")!=="archiviert");
+  const normNat = (s)=>{ const n=(s||"").trim(); if(!n) return "Unbekannt"; const low=n.toLowerCase(); if(low==="suisse") return "Schweiz"; if(low==="somalien") return "Somalia"; if(low==="greece") return "Griechenland"; return n; };
+  const natCounts={}; activeTenants.forEach(t=>{ const n=normNat(t.nat); natCounts[n]=(natCounts[n]||0)+1; });
+  const natList=Object.entries(natCounts).sort((a,b)=>b[1]-a[1]);
+  const maxNat=Math.max(1, ...natList.map(x=>x[1]));
+  const genderCounts={}; activeTenants.forEach(t=>{ const g=(t.gender||"").trim()||"Unbekannt"; genderCounts[g]=(genderCounts[g]||0)+1; });
+  const genderList=Object.entries(genderCounts).sort((a,b)=>b[1]-a[1]);
+  const ages=activeTenants.map(t=>{ const d=parseDMY(t.geburt); if(!d||isNaN(d.getTime())) return null; const a=(now-d)/(365.25*86400000); return (a>0&&a<120)?a:null; }).filter(a=>a!=null);
+  const avgAge= ages.length ? Math.round(ages.reduce((sm,a)=>sm+a,0)/ages.length) : null;
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
   const H = 72;
@@ -9961,6 +9972,44 @@ function FinanzenSection({ tenants, apts, rooms }){
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"30px 0 12px"}}>Jährliche Ergebnisse</div>
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${years.length},1fr)`,gap:10}}>
+        {years.map(yr=>(
+          <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",marginBottom:10}}>{yr.y}{yr.future?" · Prognose":""}</div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Einnahmen</span><span style={{color:"var(--ink)"}}>{chf(yr.einnahmen)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Miete bezahlt</span><span style={{color:"var(--ink)"}}>{chf(yr.ausgaben)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,padding:"7px 0 0",marginTop:5,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Marge</span><span style={{color:yr.marge>=0?"#3d4f2f":"#9b4a3e"}}>{yr.marge>=0?"+":""}{chf(yr.marge)}</span></div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"30px 0 12px"}}>Bewohner</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
+        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Anzahl Bewohner</div>
+          <div style={{fontSize:24,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)"}}>{activeTenants.length}</div>
+        </div>
+        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Ø Alter</div>
+          <div style={{fontSize:24,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)"}}>{avgAge!=null?`${avgAge} J.`:"—"}</div>
+        </div>
+        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Geschlecht</div>
+          <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.5}}>{genderList.map(([g,n])=>`${g}: ${n}`).join(" · ")||"—"}</div>
+        </div>
+      </div>
+      <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Herkunft</div>
+      <div style={{display:"grid",gap:5}}>
+        {natList.map(([n,c])=>(
+          <div key={n} style={{display:"flex",alignItems:"center",gap:10,fontSize:12}}>
+            <span style={{minWidth:110,color:"var(--ink)"}}>{n}</span>
+            <div style={{flex:1,height:14,background:"var(--line-soft)",borderRadius:7,overflow:"hidden"}}><div style={{width:`${Math.round(c/maxNat*100)}%`,height:"100%",background:"#8a9a6a",borderRadius:7}}/></div>
+            <span style={{minWidth:22,textAlign:"right",color:"var(--muted)"}}>{c}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
