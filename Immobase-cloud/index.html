@@ -5775,7 +5775,7 @@ async function sendSingleDocForSigning(person, html, opts) {
     mieter_vorname: person.vorname || "",
     mieter_nachname: person.nachname || "",
     contract_type: opts.contractType || opts.docType || "dokument",
-    contract_data: { person, doc_html: html },
+    contract_data: { person, doc_html: html, vertrag: opts.vertrag || null },
     status: "gesendet",
     unsigned_pdfs: unsignedPdfs,
     created_by: (window.currentUser && window.currentUser.email) || null,
@@ -8026,9 +8026,11 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
     try {
       const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
       const html = injectDaanInUMV(buildNachtragHTML(t, nd, fullName, formatDateLong));
+      const cdata = buildContractDataForTenant(t);
+      const vFull = cdata ? { ...cdata.v, einzug: nd.mietbeginn || cdata.v.einzug, auszug: nd.mietende, mietende: nd.mietende } : null;
       const res = await sendSingleDocForSigning(t, html, {
         docName:"Verlängerung", docType:"verlaengerung", contractType:"verlaengerung",
-        aptId: nd.aptId, roomId: nd.roomId, tenantId: t.id,
+        aptId: nd.aptId, roomId: nd.roomId, tenantId: t.id, vertrag: vFull,
         onProgress:(msg,p)=>setNachProgress({msg,p}),
       });
       setNachResult({ok:true, ...res});
