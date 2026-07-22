@@ -1454,6 +1454,7 @@ function useSupabaseData() {
   const [rooms, setRooms] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [bewerber, setBewerber] = useState([]);
+  const [smoobuBookings, setSmoobuBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   async function loadAll() {
@@ -1464,6 +1465,13 @@ function useSupabaseData() {
       supabase.from("tenants").select("*").order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
     ]);
+    supabase.from("smoobu_bookings").select("*").then(({data})=>{
+      setSmoobuBookings((data||[]).map(x=>({
+        id:x.id, channelName:x.channel_name, apartmentId:x.apartment_id, apartmentName:x.apartment_name,
+        arrival:x.arrival, departure:x.departure, nights:x.nights, price:+x.price||0,
+        isBlocked:!!x.is_blocked, cancelled:!!x.cancelled
+      })));
+    });
     setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
     setTenants((t.data||[]).map(x=>({
@@ -2419,7 +2427,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -9876,7 +9884,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 }
 
 // ─── FINANZEN (Monats-KPIs) ──────────────────────────────────────────────────
-function FinanzenSection({ tenants, apts, rooms }){
+function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const wgApts = (apts||[]).filter(a=>a.type==="WG" && !a.pipeline);
   const wgAptIds = new Set(wgApts.map(a=>a.id));
   const wgRooms = (rooms||[]).filter(r=>wgAptIds.has(r.aptId));
@@ -9927,6 +9935,32 @@ function FinanzenSection({ tenants, apts, rooms }){
   const genderList=Object.entries(genderCounts).sort((a,b)=>b[1]-a[1]);
   const ages=activeTenants.map(t=>{ const d=parseDMY(t.geburt); if(!d||isNaN(d.getTime())) return null; const a=(now-d)/(365.25*86400000); return (a>0&&a<120)?a:null; }).filter(a=>a!=null);
   const avgAge= ages.length ? Math.round(ages.reduce((sm,a)=>sm+a,0)/ages.length) : null;
+  // Airbnb / Serviced Apartments (aus Smoobu)
+  const hasAb = (smoobuBookings||[]).length>0;
+  const abBookings = (smoobuBookings||[]).filter(x=>!x.cancelled && !x.isBlocked);
+  const strAptCount = Math.max(1, new Set((smoobuBookings||[]).filter(x=>!x.cancelled).map(x=>x.apartmentId)).size);
+  const nightsOverlap = (arr, dep, s, eNext) => {
+    if(!arr||!dep) return 0;
+    const a=new Date(arr), d=new Date(dep);
+    const from = a>s?a:s; const to = d<eNext?d:eNext;
+    const n = Math.round((to-from)/86400000); return n>0?n:0;
+  };
+  const abMonths = [];
+  for (let i=-5;i<=11;i++){
+    const dd=new Date(now.getFullYear(), now.getMonth()+i, 1);
+    const s=new Date(dd.getFullYear(),dd.getMonth(),1);
+    const eNext=new Date(dd.getFullYear(),dd.getMonth()+1,1);
+    const daysInMonth=Math.round((eNext-s)/86400000);
+    let nights=0, umsatz=0;
+    abBookings.forEach(bk=>{
+      const tot=Math.max(1, bk.nights||Math.round((new Date(bk.departure)-new Date(bk.arrival))/86400000));
+      const no=nightsOverlap(bk.arrival, bk.departure, s, eNext);
+      if(no>0){ nights+=no; umsatz += (bk.price||0)*(no/tot); }
+    });
+    const avail = daysInMonth*strAptCount;
+    abMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), nights, umsatz, auslastung: avail?nights/avail:0, adr: nights? umsatz/nights : 0, future:i>0, current:i===0 });
+  }
+  const abCur = abMonths.find(m=>m.current)||abMonths[0];
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
   const H = 72;
@@ -10049,6 +10083,41 @@ function FinanzenSection({ tenants, apts, rooms }){
           </div>
         ))}
       </div>
+
+      {hasAb && (
+        <>
+          <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"32px 0 4px"}}>Airbnb · Serviced Apartments</div>
+          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle (Airbnb, Booking, Direkt), aktualisiert alle 15 Minuten. Auslastung = gebuchte Nächte geteilt durch verfügbare Nächte.</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
+              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(abCur.auslastung*100)}%</div>
+            </div>
+            <div style={{background:"var(--green-soft)",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"#3d4f2f",fontWeight:600,marginBottom:8}}>Umsatz / Mt.</div>
+              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"#3d4f2f",lineHeight:1}}>{chf(Math.round(abCur.umsatz))}</div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Ø Preis / Nacht</div>
+              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{chf(Math.round(abCur.adr))}</div>
+            </div>
+          </div>
+          <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+26,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
+            {abMonths.map((m,i)=>{
+              const pct=Math.round(m.auslastung*100);
+              const h=Math.max(2, Math.round(m.auslastung*H));
+              return (
+                <div key={i} title={`${m.full}: ${pct}% · Umsatz ${chf(Math.round(m.umsatz))} · ${m.nights} Nächte · ADR ${chf(Math.round(m.adr))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                  <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2}}>{pct}</div>
+                  <div style={{width:"68%",height:h,background:m.future?"#e2c9a8":"#c08a3e",borderRadius:"3px 3px 0 0"}}/>
+                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
