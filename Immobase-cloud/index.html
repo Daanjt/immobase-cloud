@@ -5711,7 +5711,7 @@ p{margin-bottom:9pt}
 </style></head><body>
 <div class="hdr"><div><h1>Nachtrag zum Untermietvertrag</h1><div class="sub">Verlängerung · D&amp;T Homes</div></div><img class="logo" src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
 <p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in) betreffend das Mietobjekt ${objekt}.</p>
-<p>Die Parteien haben ${nd.originalDatum?`am <strong>${fmtDate(nd.originalDatum)}</strong> `:""}einen Untermietvertrag über das genannte Mietobjekt abgeschlossen. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
+<p>Die Parteien haben ${nd.originalDatum?`am <strong>${fmtDate(nd.originalDatum)}</strong> `:""}einen Untermietvertrag betreffend das genannte Mietobjekt${nd.mietbeginn?`, mit Mietbeginn am <strong>${fmtDate(nd.mietbeginn)}</strong>,`:""} abgeschlossen. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
 <h2>1. Verlängerung</h2>
 <p>Das bestehende, befristete Untermietverhältnis wird <strong>verlängert bis und mit ${fmtDate(nd.mietende)}</strong>.${nd.einzug?` Die Verlängerung gilt ab dem ${fmtDate(nd.einzug)}.`:""} Das Mietverhältnis endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf, sofern keine weitere schriftliche Verlängerung vereinbart wird. Eine ordentliche Kündigung durch die Untermieter*in ist während der Verlängerungsdauer ausgeschlossen.</p>
 <h2>2. Übrige Bestimmungen</h2>
@@ -7991,6 +7991,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
       zimmerId: (data&&data.v.zimmerId)||"",
       aptId: apt?apt.id:null, roomId: room?room.id:null,
       originalDatum: current ? ((current.signedAt || current.createdAt || "").split("T")[0]) : "",
+      mietbeginn: t.einzug || "",
       einzug: "",
       mietende: "",
     });
@@ -8763,6 +8764,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               <div style={{marginBottom:16,padding:"12px 14px",background:"var(--beige-soft)",borderRadius:8,fontSize:12.5,lineHeight:1.7}}>
                 <div><span style={{color:"var(--muted)"}}>Objekt:</span> {nd.adresse}{nd.zimmerId?`, Zimmer ${(nd.zimmerId||"").split("-")[1]||""}`:""}</div>
                 <div><span style={{color:"var(--muted)"}}>Ursprungsvertrag vom:</span> {nd.originalDatum?fmtDateDE(nd.originalDatum):"nicht erfasst"}</div>
+                <div><span style={{color:"var(--muted)"}}>Mietverhältnis ab:</span> {nd.mietbeginn?fmtDateDE(nd.mietbeginn):"nicht erfasst"}</div>
                 <div style={{color:"var(--muted)",fontSize:11.5,marginTop:5}}>Übrige Bedingungen bleiben unverändert. Nur das neue Enddatum eingeben.</div>
               </div>
               <div className="frow">
