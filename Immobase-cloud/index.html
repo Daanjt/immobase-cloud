@@ -1473,6 +1473,9 @@ function useSupabaseData() {
       schluesselAnzahl: x.schluessel_anzahl,
       extraSchluessel: x.extra_schluessel,
       schluesselUebergeben: x.schluessel_uebergeben,
+      drittmeldungStatus: x.drittmeldung_status || "offen",
+      drittmeldungDatum: x.drittmeldung_datum,
+      drittmeldungNotiz: x.drittmeldung_notiz,
       aptId: x.apt_id,
       roomId: x.room_id,
       kautionMonate: x.kaution_monate,
@@ -1637,6 +1640,9 @@ function useSupabaseData() {
       schluesselAnzahl: "schluessel_anzahl",
       extraSchluessel: "extra_schluessel",
       schluesselUebergeben: "schluessel_uebergeben",
+      drittmeldungStatus: "drittmeldung_status",
+      drittmeldungDatum: "drittmeldung_datum",
+      drittmeldungNotiz: "drittmeldung_notiz",
       aptId: "apt_id",
       roomId: "room_id",
       kautionMonate: "kaution_monate",
@@ -2398,7 +2404,7 @@ function useSupabaseData() {
 const STOCKWERK_OPTIONS = ["EG","1. OG","2. OG","3. OG","4. OG","5. OG","6. OG"];
 
 const APT_CATEGORIES = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll","Sonstige"];
-const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Verlängerung (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Anfangsmietzinsformular","Einzahlungsschein","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Sonstige"];
+const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Verlängerung (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Einzahlungsschein","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Drittmeldebestätigung","Sonstige"];
 
 // Required categories that should be tracked in the checklist (excluding "Sonstige")
 const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"];
@@ -3050,6 +3056,78 @@ function SignaturePad({value, onChange, placeholder}) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── DRITTMELDEPFLICHT (Tab) ─────────────────────────────────────────────────
+function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getDocumentUrl, deleteDocument }){
+  const [status, setStatus] = useState(tenant.drittmeldungStatus || "offen");
+  const [datum, setDatum] = useState(tenant.drittmeldungDatum || "");
+  const [notiz, setNotiz] = useState(tenant.drittmeldungNotiz || "");
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  useEffect(()=>{ setStatus(tenant.drittmeldungStatus||"offen"); setDatum(tenant.drittmeldungDatum||""); setNotiz(tenant.drittmeldungNotiz||""); }, [tenant.id]);
+  const bestDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && d.category==="Drittmeldebestätigung");
+  const hasBest = bestDocs.length>0;
+  const dirty = status!==(tenant.drittmeldungStatus||"offen") || (datum||"")!==(tenant.drittmeldungDatum||"") || (notiz||"")!==(tenant.drittmeldungNotiz||"");
+  async function save(patch){
+    setSaving(true);
+    try { await updateTenant(tenant.id, patch || { drittmeldungStatus: status, drittmeldungDatum: datum||null, drittmeldungNotiz: notiz }); }
+    catch(e){ alert("Speichern fehlgeschlagen: "+(e.message||e)); }
+    finally { setSaving(false); }
+  }
+  async function onUpload(e){
+    const file = e.target.files && e.target.files[0]; if(!file) return;
+    setUploading(true);
+    try {
+      await uploadDocument("tenant", tenant.id, "Drittmeldebestätigung", file);
+      setStatus("bestaetigt");
+      await updateTenant(tenant.id, { drittmeldungStatus:"bestaetigt", drittmeldungDatum: datum||null, drittmeldungNotiz: notiz });
+    } catch(err){ alert("Upload fehlgeschlagen: "+(err.message||err)); }
+    finally { setUploading(false); if(fileRef.current) fileRef.current.value=""; }
+  }
+  const STAT = {offen:{label:"Offen",bg:"#f7e4e0",fg:"#9b4a3e"}, gemeldet:{label:"Gemeldet",bg:"#f5efe0",fg:"#8a6d1f"}, bestaetigt:{label:"Bestätigt",bg:"var(--green-soft)",fg:"#3d4f2f"}};
+  const st = STAT[status]||STAT.offen;
+  return (
+    <div>
+      <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px",marginBottom:16,fontSize:12.5,color:"var(--muted)",lineHeight:1.6}}>
+        Die Drittmeldepflicht verlangt, dass die Untermietpartei bei der Gemeinde bzw. Einwohnerkontrolle gemeldet wird. Hier trackst du den Status und legst die Bestätigung ab.
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600}}>Aktueller Status</span>
+        <span style={{padding:"3px 12px",borderRadius:20,background:st.bg,color:st.fg,fontSize:12,fontWeight:600}}>{st.label}</span>
+        {hasBest && <span style={{fontSize:11.5,color:"#3d4f2f"}}>· Bestätigung hinterlegt</span>}
+      </div>
+      <div className="frow">
+        <div className="fg"><label className="fl">Status</label>
+          <select className="fi" value={status} onChange={e=>setStatus(e.target.value)}>
+            <option value="offen">Offen</option>
+            <option value="gemeldet">Gemeldet</option>
+            <option value="bestaetigt">Bestätigt</option>
+          </select>
+        </div>
+        <div className="fg"><label className="fl">Meldedatum</label><input className="fi" type="date" value={toDateInputValue(datum)} onChange={e=>setDatum(e.target.value)}/></div>
+      </div>
+      <div className="fg" style={{marginBottom:12}}><label className="fl">Notiz</label><textarea className="fi" rows={2} value={notiz} onChange={e=>setNotiz(e.target.value)} placeholder="z.B. Gemeinde, Referenz, Bemerkungen"/></div>
+      <div style={{marginBottom:24}}><button className="btn btn-p btn-sm" disabled={saving||!dirty} onClick={()=>save()}>{saving?"Speichert…":"Status speichern"}</button></div>
+      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Bestätigung Drittmeldung</div>
+      {hasBest ? (
+        <div style={{display:"grid",gap:6,marginBottom:12}}>
+          {bestDocs.map((d,i)=>(
+            <div key={d.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:8,fontSize:12.5}}>
+              <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {d.filename||d.category}</span>
+              <button className="btn btn-g btn-sm" onClick={async()=>{ const u=await getDocumentUrl(d.storage_path); if(u) window.open(u,"_blank"); }}>Ansehen</button>
+              <button className="btn btn-g btn-sm" onClick={async()=>{ if(confirm("Bestätigung löschen?")) await deleteDocument(d); }}>✕</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:12}}>Noch keine Bestätigung hochgeladen.</div>
+      )}
+      <input ref={fileRef} type="file" accept="application/pdf,image/*" style={{display:"none"}} onChange={onUpload}/>
+      <button className="btn btn-g btn-sm" disabled={uploading} onClick={()=>fileRef.current&&fileRef.current.click()}>{uploading?"Lädt hoch…":"📎 Bestätigung hochladen"}</button>
     </div>
   );
 }
@@ -8418,8 +8496,22 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",room.id)} style={{fontSize:9}}>→ Zimmer</button>
               </div>
             </div>}
-            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["uebergabe","Übergabe"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["uebergabe","Übergabe"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
+              {(() => {
+                const dmDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && d.category==="Drittmeldebestätigung");
+                const dmStatus = tenant.drittmeldungStatus || "offen";
+                const hasDm = dmDocs.length>0;
+                const S = {offen:{l:"Offen",bg:"#f7e4e0",fg:"#9b4a3e"},gemeldet:{l:"Gemeldet",bg:"#f5efe0",fg:"#8a6d1f"},bestaetigt:{l:"Bestätigt",bg:"var(--green-soft)",fg:"#3d4f2f"}}[dmStatus]||{l:"Offen",bg:"#f7e4e0",fg:"#9b4a3e"};
+                return (
+                  <div onClick={()=>setTab("drittmeldung")} title="Zur Drittmeldepflicht" style={{display:"flex",alignItems:"center",gap:10,padding:"9px 13px",background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:8,marginBottom:16,fontSize:12.5,cursor:"pointer",flexWrap:"wrap"}}>
+                    <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600}}>Drittmeldepflicht</span>
+                    <span style={{padding:"2px 10px",borderRadius:20,background:S.bg,color:S.fg,fontSize:11.5,fontWeight:600}}>{S.l}</span>
+                    <span style={{color:hasDm?"#3d4f2f":"var(--muted)"}}>{hasDm?"✓ Bestätigung hochgeladen":"Bestätigung fehlt"}</span>
+                    <span style={{marginLeft:"auto",color:"var(--muted)",fontSize:12}}>→</span>
+                  </div>
+                );
+              })()}
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>Persönliche Daten</div>
               <div className="igrid">{[
                 ["E-Mail",tenant.email||"-"],
@@ -8538,6 +8630,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
             {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol}/>}
+            {tab==="drittmeldung"&&<DrittmeldungTab tenant={tenant} updateTenant={updateTenant} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
