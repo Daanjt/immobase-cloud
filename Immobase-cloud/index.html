@@ -9950,17 +9950,23 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const CLEAN_PER_BOOKING = 100, LAUNDRY_PER_GUEST = 12.5;
   const airbnbFin = (s, e, eNext) => {
     const daysInMonth = Math.round((eNext - s)/86400000);
-    let occNights=0, umsatz=0, anz=0, guests=0, arrNights=0;
+    let occNights=0, umsatz=0, putzen=0, waesche=0, anz=0;
     abBookings.forEach(bk=>{
-      occNights += nightsOverlap(bk.arrival, bk.departure, s, eNext);
-      const arr = bk.arrival ? new Date(bk.arrival) : null;
-      if (arr && arr>=s && arr<eNext){ umsatz += bk.price||0; anz++; guests += (bk.adults||0)+(bk.children||0); arrNights += bk.nights||0; }
+      const tot = Math.max(1, bk.nights || Math.round((new Date(bk.departure)-new Date(bk.arrival))/86400000));
+      const no = nightsOverlap(bk.arrival, bk.departure, s, eNext);
+      if (no>0){
+        const frac = no/tot;
+        occNights += no;
+        umsatz += (bk.price||0)*frac;
+        putzen += CLEAN_PER_BOOKING*frac;
+        waesche += LAUNDRY_PER_GUEST*((bk.adults||0)+(bk.children||0))*frac;
+        anz += frac;
+      }
     });
     let miete=0, moeblierung=0;
     abApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += 900; } });
-    const putzen = CLEAN_PER_BOOKING*anz, waesche = LAUNDRY_PER_GUEST*guests;
-    return { occNights, umsatz, anz, guests, miete, moeblierung, putzen, waesche, marge: umsatz-miete-putzen-waesche-moeblierung,
-      auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: arrNights? umsatz/arrNights:0 };
+    return { occNights, umsatz, anz, miete, moeblierung, putzen, waesche, marge: umsatz-miete-putzen-waesche-moeblierung,
+      auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: occNights? umsatz/occNights:0 };
   };
   const abMonths = [];
   for (let i=-5;i<=11;i++){
@@ -10002,22 +10008,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
           </div>
         ))}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
-        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung</div>
-          <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(cur.auslastung*100)}%</div>
-          <div style={{fontSize:11,color:"var(--muted)",marginTop:5}}>{cur.belegt} von {cur.total} Zimmern</div>
-        </div>
-        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Freie Zimmer</div>
-          <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:cur.frei>0?"#9b4a3e":"var(--ink)",lineHeight:1}}>{cur.frei}</div>
-        </div>
-        <div style={{background:cur.leerstandskosten>0?"#f7e4e0":"var(--surface)",border:`1px solid ${cur.leerstandskosten>0?"#e0bcb0":"var(--line-soft)"}`,borderRadius:10,padding:"14px 16px"}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:cur.leerstandskosten>0?"#9b4a3e":"var(--muted)",fontWeight:600,marginBottom:8}}>Leerstand / Mt.</div>
-          <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:cur.leerstandskosten>0?"#9b4a3e":"var(--ink)",lineHeight:1}}>{chf(cur.leerstandskosten)}</div>
-          <div style={{fontSize:11,color:"var(--muted)",marginTop:5}}>entgangene Miete</div>
-        </div>
-      </div>
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
       <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
         {months.map((m,i)=>{
@@ -10032,20 +10022,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
           );
         })}
       </div>
-      <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
-      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+26,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
-        {months.map((m,i)=>{
-          const pct = Math.round(m.auslastung*100);
-          const h = Math.max(2, Math.round(m.auslastung*H));
-          return (
-            <div key={i} title={`${m.full}: ${pct}% (${m.belegt}/${m.total} Zimmer)`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
-              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2}}>{pct}</div>
-              <div style={{width:"68%",height:h,background:m.future?"#bcd0c0":"#5a8a6a",borderRadius:"3px 3px 0 0"}}/>
-              <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
-            </div>
-          );
-        })}
-      </div>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead>
@@ -10054,8 +10030,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
               <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Einnahmen</th>
               <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Miete bezahlt</th>
               <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Marge</th>
-              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Ausl.</th>
-              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Leerstand</th>
             </tr>
           </thead>
           <tbody>
@@ -10065,8 +10039,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{chf(m.einnahmen)}</td>
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{chf(m.ausgaben)}</td>
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{m.marge>=0?"+":""}{chf(m.marge)}</td>
-                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{Math.round(m.auslastung*100)}%</td>
-                <td style={{padding:"6px 8px",textAlign:"right",color:m.leerstandskosten>0?"#9b4a3e":"var(--muted)"}}>{m.leerstandskosten>0?chf(m.leerstandskosten):"—"}</td>
               </tr>
             ))}
           </tbody>
@@ -10114,7 +10086,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {hasAb && (
         <>
           <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"32px 0 4px"}}>Airbnb · Serviced Apartments</div>
-          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle. Marge = Umsatz minus Hauptmiete der Objekte, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten werden dem Anreisemonat zugeordnet.</div>
+          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle. Marge = Umsatz minus Hauptmiete der Objekte, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt.</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
@@ -10148,7 +10120,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             {(()=>{ const mx=Math.max(1,...abMonths.map(m=>m.umsatz)); return abMonths.map((m,i)=>{
               const h=Math.max(2,Math.round(m.umsatz/mx*H));
               return (
-                <div key={i} title={`${m.full}: ${chf(Math.round(m.umsatz))} · ${m.anz} Buchungen · ADR ${chf(Math.round(m.adr))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                <div key={i} title={`${m.full}: ${chf(Math.round(m.umsatz))} · ${Math.round(m.anz)} Buchungen · ADR ${chf(Math.round(m.adr))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
                   <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.umsatz)}</div>
                   <div style={{width:"68%",height:h,background:m.future?"#bcd0c0":"#5a8a6a",borderRadius:"3px 3px 0 0"}}/>
                   <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
