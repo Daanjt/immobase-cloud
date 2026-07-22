@@ -9813,8 +9813,11 @@ function TodoPage({tenants, apts, documents, todos, insertTodo, updateTodo, dele
     if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
     if((t.drittmeldungStatus||"offen")!=="gemeldet") auto.push({id:"dm-ez-"+t.id,icon:"📮",label:"Drittmeldung Einzug offen",sub:nm,page:"mieter",target:t.id});
+  });
+  (tenants||[]).forEach(t=>{
+    const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
     const ausD = parseD(t.auszug);
-    if(ausD && ausD <= dmHeute && (t.drittmeldungAuszugStatus||"offen")!=="gemeldet") auto.push({id:"dm-az-"+t.id,icon:"📮",label:"Drittmeldung Auszug offen",sub:nm,page:"mieter",target:t.id});
+    if(ausD && ausD <= dmHeute && (t.drittmeldungAuszugStatus||"offen")!=="gemeldet") auto.push({id:"dm-az-"+t.id,icon:"📮",label:"Drittmeldung Auszug offen"+(t.status==="archiviert"?" (archiviert)":""),sub:nm,page:"mieter",target:t.id});
   });
   (apts||[]).filter(a=>!a.pipeline).forEach(a=>{
     const an = a.adresse||a.id;
