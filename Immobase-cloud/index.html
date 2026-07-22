@@ -5698,13 +5698,13 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10.5pt;li
 .content{flex:1 1 auto;display:flex;flex-direction:column}
 .top{flex:0 0 auto}
 h1{font-family:Georgia,serif;font-size:19pt;font-weight:normal;margin-bottom:4pt}
-.sub{font-size:9pt;color:#888;letter-spacing:.22em;text-transform:uppercase;display:block;margin-bottom:26pt}
+.sub{font-size:9pt;color:#888;letter-spacing:.22em;text-transform:uppercase;display:block}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:20pt;margin-bottom:26pt}
+.logo{height:30pt;width:auto}
 h2{font-family:Georgia,serif;font-size:12pt;font-weight:normal;margin:20pt 0 6pt;border-bottom:.5pt solid #ccc;padding-bottom:3pt}
 p{margin-bottom:9pt}
 .box{background:#f7f3ea;border:.5pt solid #ddd0b8;border-radius:5pt;padding:11pt 14pt;margin:14pt 0;font-size:10pt}
 .signatures{margin-top:auto;padding-top:30pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
-.footer{flex:0 0 auto;margin-top:22pt;padding-top:8pt;border-top:.5pt solid #e2ddd0;display:flex;justify-content:flex-end;align-items:center}
-.footer .logo{height:22pt;width:auto;opacity:.85}
 .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
 .sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
 .sig-block .name{font-size:11pt;font-weight:600;margin-bottom:18pt}
@@ -5713,7 +5713,7 @@ p{margin-bottom:9pt}
 .sig-block .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
 </style></head><body>
 <div class="page"><div class="content"><div class="top">
-<h1>Nachtrag zum Untermietvertrag</h1><div class="sub">Verlängerung · D&amp;T Homes</div>
+<div class="hdr"><div><h1>Nachtrag zum Untermietvertrag</h1><div class="sub">Verlängerung · D&amp;T Homes</div></div><img class="logo" src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
 <p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in) betreffend das Mietobjekt ${objekt}.</p>
 <p>Die Parteien haben ${nd.originalDatum?`am <strong>${fmtDate(nd.originalDatum)}</strong> `:""}einen Untermietvertrag betreffend das genannte Mietobjekt${nd.mietbeginn?`, mit Mietbeginn am <strong>${fmtDate(nd.mietbeginn)}</strong>,`:""} abgeschlossen. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
 <h2>1. Verlängerung</h2>
@@ -5749,7 +5749,6 @@ p{margin-bottom:9pt}
   </div>
 </div>
 </div>
-<div class="footer"><img class="logo" src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
 </div>
 </body></html>`;
 }
