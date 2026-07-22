@@ -9971,6 +9971,20 @@ function FinanzenSection({ tenants, apts, rooms }){
           );
         })}
       </div>
+      <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
+      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+26,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
+        {months.map((m,i)=>{
+          const pct = Math.round(m.auslastung*100);
+          const h = Math.max(2, Math.round(m.auslastung*H));
+          return (
+            <div key={i} title={`${m.full}: ${pct}% (${m.belegt}/${m.total} Zimmer)`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2}}>{pct}</div>
+              <div style={{width:"68%",height:h,background:m.future?"#bcd0c0":"#5a8a6a",borderRadius:"3px 3px 0 0"}}/>
+              <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+            </div>
+          );
+        })}
+      </div>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead>
