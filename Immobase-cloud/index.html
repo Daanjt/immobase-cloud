@@ -9970,18 +9970,19 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: occNights? umsatz/occNights:0 };
   };
   const abMonths = [];
-  for (let i=-5;i<=11;i++){
-    const dd=new Date(now.getFullYear(), now.getMonth()+i, 1);
-    const s=new Date(dd.getFullYear(),dd.getMonth(),1);
-    const e=new Date(dd.getFullYear(),dd.getMonth()+1,0,23,59,59,999);
-    const eNext=new Date(dd.getFullYear(),dd.getMonth()+1,1);
-    const f=airbnbFin(s,e,eNext);
-    abMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f, future:i>0, current:i===0 });
+  { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+11, 1);
+    while (new Date(cy,cm,1) <= endD){
+      const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
+      const f=airbnbFin(s,e,eNext);
+      abMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f,
+        future: new Date(cy,cm,1) > new Date(now.getFullYear(),now.getMonth(),1), current: cy===now.getFullYear()&&cm===now.getMonth() });
+      cm++; if(cm>11){cm=0;cy++;}
+    }
   }
   const abCur = abMonths.find(m=>m.current)||abMonths[0];
   // Gesamt (WG + Airbnb), seit Dezember 2025
   const combinedMonths = [];
-  { let cy=2025, cm=11; const endD=new Date(now.getFullYear(), now.getMonth()+11, 1);
+  { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+11, 1);
     while (new Date(cy,cm,1) <= endD){
       const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
       const wg=monthFin(s,e).marge; const ab=airbnbFin(s,e,eNext).marge;
@@ -10146,7 +10147,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       )}
 
       <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"34px 0 4px"}}>Gesamt · WG + Airbnb</div>
-      <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Gesamtmarge pro Monat seit Dezember 2025, WGs und Airbnbs zusammen.</div>
+      <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Gesamtmarge pro Monat seit November 2025, WGs und Airbnbs zusammen.</div>
       <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
           const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
@@ -10183,7 +10184,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
 
       <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"30px 0 4px"}}>Jährlich · WG + Airbnb</div>
-      <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Gesamtmarge pro Jahr. 2025 (ab Dezember) und das laufende Restjahr sind Teiljahre.</div>
+      <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Gesamtmarge pro Jahr. 2025 (ab November) und das laufende Restjahr sind Teiljahre.</div>
       <div style={{display:"grid",gridTemplateColumns:`repeat(${combinedYears.length},1fr)`,gap:10}}>
         {combinedYears.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
