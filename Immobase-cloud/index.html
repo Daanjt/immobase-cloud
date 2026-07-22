@@ -5605,6 +5605,85 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// Geteilter Vertrags-Versand (Bewerber UND Mieter). opts.tenantId -> schreibt tenant_id statt bewerber_id.
+function generateContractToken() {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function sendContractForSigningShared(b, vertragData, onProgress, types, opts) {
+  opts = opts || {};
+  const progress = onProgress || (() => {});
+  const selectedTypes = Array.isArray(types) && types.length > 0 ? types : ["umv", "amz"];
+  const wantUmv = selectedTypes.includes("umv");
+  const wantAmz = selectedTypes.includes("amz");
+  if (!wantUmv && !wantAmz) throw new Error("Keine Vertragsart ausgewählt");
+  if (!b || !vertragData) throw new Error("Person oder Vertragsdaten fehlen");
+  if (!b.email) throw new Error("Person hat keine Email-Adresse");
+  const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
+  if (!fullName) throw new Error("Person hat keinen Namen");
+
+  const stromFix = 25;
+  const amzData = { ...vertragData, strom: stromFix, total: (vertragData.nettomiete||0) + (vertragData.nebenkosten||0) + stromFix };
+
+  progress("Verträge generieren...", 0.1);
+  const umvHtml = wantUmv ? injectDaanInUMV(buildContractHTML(b, vertragData, fullName, formatDateLong)) : null;
+  const amzHtml = wantAmz ? injectDaanInAMZ(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong)) : null;
+
+  const totalSteps = (wantUmv ? 1 : 0) + (wantAmz ? 1 : 0);
+  let step = 0, umvBlob = null, amzBlob = null;
+  if (wantUmv) { step++; progress(`PDF erstellen (${step}/${totalSteps}: Untermietvertrag)...`, 0.2); umvBlob = await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`); }
+  if (wantAmz) { step++; progress(`PDF erstellen (${step}/${totalSteps}: Anfangsmietzinsformular)...`, 0.45); amzBlob = await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`); }
+
+  progress("PDFs hochladen...", 0.6);
+  const token = generateContractToken();
+  const umvPath = `${token}/untermietvertrag.pdf`;
+  const amzPath = `${token}/anfangsmietzins.pdf`;
+  const unsignedPdfs = [];
+  if (wantUmv) {
+    const { error: e1 } = await supabase.storage.from("contracts").upload(umvPath, umvBlob, { contentType: "application/pdf", upsert: false });
+    if (e1) throw new Error(`Upload UMV: ${e1.message}`);
+    unsignedPdfs.push({ name: "Untermietvertrag", path: umvPath, type: "umv" });
+  }
+  if (wantAmz) {
+    const { error: e2 } = await supabase.storage.from("contracts").upload(amzPath, amzBlob, { contentType: "application/pdf", upsert: false });
+    if (e2) throw new Error(`Upload AMZ: ${e2.message}`);
+    unsignedPdfs.push({ name: "Anfangsmietzinsformular", path: amzPath, type: "amz" });
+  }
+
+  let contractType = "untermietvertrag_und_anfangsmietzins";
+  if (wantUmv && !wantAmz) contractType = "untermietvertrag";
+  else if (!wantUmv && wantAmz) contractType = "anfangsmietzins";
+
+  progress("Vertrag in Datenbank speichern...", 0.8);
+  const idField = opts.tenantId ? { tenant_id: opts.tenantId } : { bewerber_id: b.id };
+  const { data: contractRow, error: insErr } = await supabase.from("contracts").insert({
+    token, ...idField,
+    apt_id: vertragData.apt?.id || null,
+    room_id: vertragData.zimmerId || null,
+    mieter_email: b.email,
+    mieter_vorname: b.vorname || "",
+    mieter_nachname: b.nachname || "",
+    contract_type: contractType,
+    contract_data: { bewerber: b, vertrag: vertragData, umv_html: umvHtml, amz_html: amzHtml },
+    status: "gesendet",
+    unsigned_pdfs: unsignedPdfs,
+    created_by: (window.currentUser && window.currentUser.email) || null,
+  }).select().single();
+  if (insErr) throw new Error(`DB Insert: ${insErr.message}`);
+
+  progress("Email an Mieter senden...", 0.95);
+  const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ contractId: contractRow.id }),
+  });
+  if (!emailRes.ok) { console.error("Email-Versand fehlgeschlagen:", await emailRes.text()); }
+
+  progress("Fertig!", 1.0);
+  return { contractId: contractRow.id, token, signUrl: `https://mieter.dthomes.ch/${token}`, emailSent: emailRes.ok };
+}
+
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
@@ -7608,7 +7687,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,partners,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
+function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -7746,6 +7825,54 @@ function Mieter({tenants,rooms,apts,partners,updateTenant,insertTenant,renameTen
   }
   
   const [dlBusy, setDlBusy] = useState("");
+  const [tvModal, setTvModal] = useState(false);
+  const [tvData, setTvData] = useState(null);
+  const [tvSending, setTvSending] = useState(false);
+  const [tvProgress, setTvProgress] = useState(null);
+  const [tvResult, setTvResult] = useState(null);
+  const [tvTypes, setTvTypes] = useState(["umv","amz"]);
+  function openTenantVertrag(t){
+    const data = buildContractDataForTenant(t);
+    if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
+    setTvData({
+      ...data.v, _tenant: t,
+      moeblierungPauschale: +t.moeblierungPauschale || 990,
+      auszug: t.auszug || "",
+      ortVertrag: "Zürich",
+      datumVertrag: new Date().toISOString().split("T")[0],
+      minMietdauer: 6,
+      kuendigungsfrist: 3,
+    });
+    setTvResult(null); setTvProgress(null); setTvTypes(["umv","amz"]); setTvModal(true);
+  }
+  const TV = (k)=>(e)=>{ const val = e && e.target ? e.target.value : e; setTvData(p=>({...p,[k]:val})); };
+  const TVn = (k)=>(e)=>{ setTvData(p=>({...p,[k]: +e.target.value || 0})); };
+  async function tvDownload(type){
+    if(!tvData) return;
+    const t = tvData._tenant;
+    const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
+    setDlBusy(type);
+    try {
+      let html, fn;
+      if(type==="umv"){ html = injectDaanInUMV(buildContractHTML(t, tvData, fullName, formatDateLong)); fn = `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`; }
+      else { const amz = {...tvData, strom:25, total:(tvData.nettomiete||0)+(tvData.nebenkosten||0)+25}; html = injectDaanInAMZ(buildAnfangsmietzinsHTML(t, amz, fullName, formatDateLong)); fn = `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`; }
+      downloadBlob(await htmlToPdf(html, fn), fn);
+    } catch(e){ alert("PDF konnte nicht erstellt werden: " + (e.message||e)); }
+    finally { setDlBusy(""); }
+  }
+  async function tvSend(){
+    if(!tvData) return;
+    const t = tvData._tenant;
+    if(!t.email){ alert("Dieser Mieter hat keine E-Mail-Adresse hinterlegt."); return; }
+    if(!tvTypes.length){ alert("Bitte mindestens eine Vertragsart wählen."); return; }
+    setTvSending(true); setTvResult(null);
+    try {
+      const res = await sendContractForSigningShared(t, tvData, (msg,p)=>setTvProgress({msg,p}), tvTypes, {tenantId: t.id});
+      setTvResult({ok:true, ...res});
+      if(loadContracts) await loadContracts();
+    } catch(e){ setTvResult({ok:false, error:e.message||String(e)}); }
+    finally { setTvSending(false); setTvProgress(null); }
+  }
   async function generateUMVForTenant(t) {
     const data = buildContractDataForTenant(t);
     if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
@@ -8068,6 +8195,7 @@ function Mieter({tenants,rooms,apts,partners,updateTenant,insertTenant,renameTen
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
                 <button className="btn btn-s btn-sm" disabled={dlBusy==="umv"} onClick={()=>generateUMVForTenant(tenant)}>{dlBusy==="umv"?"⏳ …":"📄 UMV"}</button>
                 <button className="btn btn-s btn-sm" disabled={dlBusy==="amz"} onClick={()=>generateAMZForTenant(tenant)}>{dlBusy==="amz"?"⏳ …":"📄 AMZ"}</button>
+                <button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>
                 <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
@@ -8109,6 +8237,26 @@ function Mieter({tenants,rooms,apts,partners,updateTenant,insertTenant,renameTen
                 )}
               </div>
             </div>
+            {(() => {
+              const tContracts = (contracts||[]).filter(c => c.tenantId === tenant.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+              if (!tContracts.length) return null;
+              const statusLabel = {gesendet:"Gesendet", signiert:"Signiert", zurueckgezogen:"Zurückgezogen", abgelaufen:"Abgelaufen", storniert:"Storniert"};
+              const current = tContracts.find(c => !["zurueckgezogen","abgelaufen","storniert"].includes(c.status));
+              return (
+                <div style={{marginBottom:14,padding:"12px 14px",background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:8}}>
+                  <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Verträge</div>
+                  <div style={{display:"grid",gap:5}}>
+                    {tContracts.map((c,i)=>(
+                      <div key={c.id||i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,flexWrap:"wrap"}}>
+                        <span style={{color:"var(--ink)",minWidth:92}}>{c.createdAt?fmtDateDE(c.createdAt):"—"}</span>
+                        <span style={{color:"var(--muted)"}}>{c.contractType==="untermietvertrag"?"UMV":c.contractType==="anfangsmietzins"?"AMZ":"UMV + AMZ"} · {statusLabel[c.status]||c.status}</span>
+                        {current && c.id===current.id && <span className="bx b-x" style={{background:"var(--green-soft)",color:"#3d4f2f",borderColor:"transparent"}}>aktuell</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {tenant.status==="archiviert" && (
               <div style={{background:"#f5efe4",border:"1px solid #d4c7a8",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a5249",lineHeight:1.5}}>
                 <div style={{fontWeight:600,marginBottom:3}}>📦 Archivierter Mieter</div>
@@ -8436,6 +8584,61 @@ function Mieter({tenants,rooms,apts,partners,updateTenant,insertTenant,renameTen
           <button className="btn btn-p" onClick={saveNew}>✓ Mieter anlegen</button>
         </div>
       </div></div>}
+      {tvModal && tvData && (() => {
+        const t = tvData._tenant;
+        const total = (tvData.nettomiete||0) + (tvData.nebenkosten||0) + (tvData.strom||0) + (tvData.aufschlag||0);
+        const toggleType = (ty)=> setTvTypes(p => p.includes(ty) ? p.filter(x=>x!==ty) : [...p, ty]);
+        return (
+        <div className="ov" onClick={e=>e.target===e.currentTarget && !tvSending && setTvModal(false)}>
+          <div className="modal" style={{width:620,maxHeight:"90vh",overflowY:"auto"}}>
+            <div className="mt">📝 Neuer Vertrag · {t.vorname} {t.nachname}</div>
+            <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:16}}>{tvData.adresse}{tvData.zimmerId?` · Zimmer ${(tvData.zimmerId||"").split("-")[1]||""}`:""}</div>
+            {tvResult ? (
+              <div style={{padding:"16px 18px",borderRadius:8,background:tvResult.ok?"var(--green-soft)":"#f7e4e0",fontSize:13,lineHeight:1.6}}>
+                {tvResult.ok ? (<>
+                  <div style={{fontWeight:700,color:"#3d4f2f",marginBottom:6}}>✓ Vertrag verschickt</div>
+                  <div>Der Mieter hat eine E-Mail zum Unterschreiben erhalten{tvResult.emailSent?"":" (E-Mail-Status unklar, bitte prüfen)"}.</div>
+                  <div style={{marginTop:6,fontSize:11.5,color:"var(--muted)"}}>Signatur-Link: {tvResult.signUrl}</div>
+                </>) : (<>
+                  <div style={{fontWeight:700,color:"var(--error)",marginBottom:6}}>Fehler</div>
+                  <div>{tvResult.error}</div>
+                </>)}
+                <div style={{marginTop:14}}><button className="btn btn-p btn-sm" onClick={()=>setTvModal(false)}>Schliessen</button></div>
+              </div>
+            ) : (<>
+              <div className="frow">
+                <div className="fg"><label className="fl">Einzug / Beginn</label><input className="fi" type="date" value={toDateInputValue(tvData.einzug)} onChange={TV("einzug")}/></div>
+                <div className="fg"><label className="fl">Mindest-Mietdauer (Mte)</label><input className="fi" type="number" value={tvData.minMietdauer} onChange={TVn("minMietdauer")}/></div>
+                <div className="fg"><label className="fl">Kündigungsfrist (Mte)</label><input className="fi" type="number" value={tvData.kuendigungsfrist} onChange={TVn("kuendigungsfrist")}/></div>
+              </div>
+              <div className="frow">
+                <div className="fg"><label className="fl">Nettomiete</label><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>setTvData(p=>({...p,nettomiete:+e.target.value||0,bruttomiete:(+e.target.value||0)+(p.nebenkosten||0)}))}/></div>
+                <div className="fg"><label className="fl">Nebenkosten</label><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>setTvData(p=>({...p,nebenkosten:+e.target.value||0,bruttomiete:(p.nettomiete||0)+(+e.target.value||0)}))}/></div>
+                <div className="fg"><label className="fl">Strom</label><input className="fi" type="number" value={tvData.strom} onChange={TVn("strom")}/></div>
+              </div>
+              <div className="frow">
+                <div className="fg"><label className="fl">Kaution</label><select className="fi" value={tvData.kautionMonate} onChange={e=>{const km=+e.target.value; const auf=km===0?150:km===1?100:km===2?50:0; setTvData(p=>({...p,kautionMonate:km,aufschlag:auf,kautionBetrag:((p.bruttomiete||0)+(p.strom||0))*km}));}}><option value={3}>3 Monatsmieten (Standard)</option><option value={2}>2 Monate (+50)</option><option value={1}>1 Monat (+100)</option><option value={0}>Keine (+150)</option></select></div>
+                <div className="fg"><label className="fl">Aufschlag</label><input className="fi" type="number" value={tvData.aufschlag} onChange={TVn("aufschlag")}/></div>
+                <div className="fg"><label className="fl">Total / Mt.</label><input className="fi" value={`CHF ${total.toLocaleString("de-CH")}`} disabled/></div>
+              </div>
+              <div style={{margin:"14px 0",padding:"12px 14px",background:"var(--beige-soft)",borderRadius:8}}>
+                <div className="fl" style={{marginBottom:8}}>Vertragsart</div>
+                <label style={{marginRight:18,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={tvTypes.includes("umv")} onChange={()=>toggleType("umv")}/> Untermietvertrag</label>
+                <label style={{fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={tvTypes.includes("amz")} onChange={()=>toggleType("amz")}/> Anfangsmietzinsformular</label>
+              </div>
+              {tvProgress && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>{tvProgress.msg}</div>}
+              <div className="ma" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <button className="btn btn-g btn-sm" disabled={dlBusy==="umv"||tvSending} onClick={()=>tvDownload("umv")}>{dlBusy==="umv"?"⏳ …":"📄 UMV"}</button>
+                <button className="btn btn-g btn-sm" disabled={dlBusy==="amz"||tvSending} onClick={()=>tvDownload("amz")}>{dlBusy==="amz"?"⏳ …":"📄 AMZ"}</button>
+                <div style={{flex:1}}/>
+                <button className="btn btn-g" disabled={tvSending} onClick={()=>setTvModal(false)}>Abbrechen</button>
+                <button className="btn btn-p" disabled={tvSending} onClick={tvSend}>{tvSending?"Wird verschickt…":"Zur Unterschrift senden"}</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 }
