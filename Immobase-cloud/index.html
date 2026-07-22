@@ -9884,18 +9884,22 @@ function FinanzenSection({ tenants, apts, rooms }){
   const aptById = (id) => (apts||[]).find(a=>a.id===id);
   const monthFin = (s, e) => {
     let ausgaben=0;
-    wgApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)) ausgaben+=(+a.miete||0); });
-    let miete=0, strom=0, aufschlag=0;
+    const activeApts = new Set();
+    wgApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)){ ausgaben+=(+a.miete||0); activeApts.add(a.id);} });
+    let miete=0, strom=0, aufschlag=0, belegt=0, total=0, leerstandskosten=0;
     wgRooms.forEach(r=>{
-      if (!r.occupied) return;
+      if (!activeApts.has(r.aptId)) return;
+      total++;
       const t = r.tenantId ? tenantById(r.tenantId) : null;
       const apt = aptById(r.aptId);
       const ein = parseDMY(t && t.einzug) || parseDMY(apt && apt.mietbeginn);
       const aus = parseDMY(t && t.auszug) || parseDMY(apt && apt.mietende);
-      if ((!ein || ein <= e) && (!aus || aus >= s)) { miete+=(+r.miete||0); strom+=25; aufschlag += t?(+t.kautionAufschlag||0):0; }
+      const isOcc = !!r.occupied && (!ein || ein <= e) && (!aus || aus >= s);
+      if (isOcc) { belegt++; miete+=(+r.miete||0); strom+=25; aufschlag += t?(+t.kautionAufschlag||0):0; }
+      else { leerstandskosten += (+r.miete||0); }
     });
     const einnahmen=miete+strom+aufschlag;
-    return {miete,strom,aufschlag,einnahmen,ausgaben,marge:einnahmen-ausgaben};
+    return {miete,strom,aufschlag,einnahmen,ausgaben,marge:einnahmen-ausgaben,belegt,total,frei:total-belegt,leerstandskosten,auslastung: total?belegt/total:0};
   };
   const now = new Date();
   const months = [];
@@ -9938,6 +9942,22 @@ function FinanzenSection({ tenants, apts, rooms }){
           </div>
         ))}
       </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
+        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung</div>
+          <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(cur.auslastung*100)}%</div>
+          <div style={{fontSize:11,color:"var(--muted)",marginTop:5}}>{cur.belegt} von {cur.total} Zimmern</div>
+        </div>
+        <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Freie Zimmer</div>
+          <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:cur.frei>0?"#9b4a3e":"var(--ink)",lineHeight:1}}>{cur.frei}</div>
+        </div>
+        <div style={{background:cur.leerstandskosten>0?"#f7e4e0":"var(--surface)",border:`1px solid ${cur.leerstandskosten>0?"#e0bcb0":"var(--line-soft)"}`,borderRadius:10,padding:"14px 16px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:cur.leerstandskosten>0?"#9b4a3e":"var(--muted)",fontWeight:600,marginBottom:8}}>Leerstand / Mt.</div>
+          <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:cur.leerstandskosten>0?"#9b4a3e":"var(--ink)",lineHeight:1}}>{chf(cur.leerstandskosten)}</div>
+          <div style={{fontSize:11,color:"var(--muted)",marginTop:5}}>entgangene Miete</div>
+        </div>
+      </div>
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
       <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+22,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
         {months.map((m,i)=>{
@@ -9959,6 +9979,8 @@ function FinanzenSection({ tenants, apts, rooms }){
               <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Einnahmen</th>
               <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Miete bezahlt</th>
               <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Marge</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Ausl.</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Leerstand</th>
             </tr>
           </thead>
           <tbody>
@@ -9968,6 +9990,8 @@ function FinanzenSection({ tenants, apts, rooms }){
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{chf(m.einnahmen)}</td>
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{chf(m.ausgaben)}</td>
                 <td style={{padding:"6px 8px",textAlign:"right",color:m.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{m.marge>=0?"+":""}{chf(m.marge)}</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{Math.round(m.auslastung*100)}%</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.leerstandskosten>0?"#9b4a3e":"var(--muted)"}}>{m.leerstandskosten>0?chf(m.leerstandskosten):"—"}</td>
               </tr>
             ))}
           </tbody>
