@@ -1469,6 +1469,7 @@ function useSupabaseData() {
       setSmoobuBookings((data||[]).map(x=>({
         id:x.id, channelName:x.channel_name, apartmentId:x.apartment_id, apartmentName:x.apartment_name,
         arrival:x.arrival, departure:x.departure, nights:x.nights, price:+x.price||0,
+        adults:+x.adults||0, children:+x.children||0,
         isBlocked:!!x.is_blocked, cancelled:!!x.cancelled
       })));
     });
@@ -9938,6 +9939,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   // Airbnb / Serviced Apartments (aus Smoobu)
   const hasAb = (smoobuBookings||[]).length>0;
   const abBookings = (smoobuBookings||[]).filter(x=>!x.cancelled && !x.isBlocked);
+  const abApts = (apts||[]).filter(a=>a.type==="Airbnb" && !a.pipeline);
   const strAptCount = Math.max(1, new Set((smoobuBookings||[]).filter(x=>!x.cancelled).map(x=>x.apartmentId)).size);
   const nightsOverlap = (arr, dep, s, eNext) => {
     if(!arr||!dep) return 0;
@@ -9945,22 +9947,42 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     const from = a>s?a:s; const to = d<eNext?d:eNext;
     const n = Math.round((to-from)/86400000); return n>0?n:0;
   };
+  const CLEAN_PER_BOOKING = 100, LAUNDRY_PER_GUEST = 12.5;
+  const airbnbFin = (s, e, eNext) => {
+    const daysInMonth = Math.round((eNext - s)/86400000);
+    let occNights=0, umsatz=0, anz=0, guests=0, arrNights=0;
+    abBookings.forEach(bk=>{
+      occNights += nightsOverlap(bk.arrival, bk.departure, s, eNext);
+      const arr = bk.arrival ? new Date(bk.arrival) : null;
+      if (arr && arr>=s && arr<eNext){ umsatz += bk.price||0; anz++; guests += (bk.adults||0)+(bk.children||0); arrNights += bk.nights||0; }
+    });
+    let miete=0;
+    abApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)) miete+=(+a.miete||0); });
+    const putzen = CLEAN_PER_BOOKING*anz, waesche = LAUNDRY_PER_GUEST*guests;
+    return { occNights, umsatz, anz, guests, miete, putzen, waesche, marge: umsatz-miete-putzen-waesche,
+      auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: arrNights? umsatz/arrNights:0 };
+  };
   const abMonths = [];
   for (let i=-5;i<=11;i++){
     const dd=new Date(now.getFullYear(), now.getMonth()+i, 1);
     const s=new Date(dd.getFullYear(),dd.getMonth(),1);
+    const e=new Date(dd.getFullYear(),dd.getMonth()+1,0,23,59,59,999);
     const eNext=new Date(dd.getFullYear(),dd.getMonth()+1,1);
-    const daysInMonth=Math.round((eNext-s)/86400000);
-    let nights=0, umsatz=0;
-    abBookings.forEach(bk=>{
-      const tot=Math.max(1, bk.nights||Math.round((new Date(bk.departure)-new Date(bk.arrival))/86400000));
-      const no=nightsOverlap(bk.arrival, bk.departure, s, eNext);
-      if(no>0){ nights+=no; umsatz += (bk.price||0)*(no/tot); }
-    });
-    const avail = daysInMonth*strAptCount;
-    abMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), nights, umsatz, auslastung: avail?nights/avail:0, adr: nights? umsatz/nights : 0, future:i>0, current:i===0 });
+    const f=airbnbFin(s,e,eNext);
+    abMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f, future:i>0, current:i===0 });
   }
   const abCur = abMonths.find(m=>m.current)||abMonths[0];
+  // Gesamt (WG + Airbnb), seit Dezember 2025
+  const combinedMonths = [];
+  { let cy=2025, cm=11; const endD=new Date(now.getFullYear(), now.getMonth()+11, 1);
+    while (new Date(cy,cm,1) <= endD){
+      const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
+      const wg=monthFin(s,e).marge; const ab=airbnbFin(s,e,eNext).marge;
+      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), wg, ab, marge:wg+ab,
+        future: new Date(cy,cm,1) > new Date(now.getFullYear(),now.getMonth(),1), current: cy===now.getFullYear()&&cm===now.getMonth() });
+      cm++; if(cm>11){cm=0;cy++;}
+    }
+  }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
   const H = 72;
@@ -10087,19 +10109,19 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {hasAb && (
         <>
           <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"32px 0 4px"}}>Airbnb · Serviced Apartments</div>
-          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle (Airbnb, Booking, Direkt), aktualisiert alle 15 Minuten. Auslastung = gebuchte Nächte geteilt durch verfügbare Nächte.</div>
+          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle, aktualisiert alle 15 Minuten. Marge = Umsatz minus Hauptmiete der Objekte, Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten werden dem Anreisemonat zugeordnet.</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(abCur.auslastung*100)}%</div>
             </div>
-            <div style={{background:"var(--green-soft)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"#3d4f2f",fontWeight:600,marginBottom:8}}>Umsatz / Mt.</div>
-              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"#3d4f2f",lineHeight:1}}>{chf(Math.round(abCur.umsatz))}</div>
-            </div>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Ø Preis / Nacht</div>
-              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{chf(Math.round(abCur.adr))}</div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"#3d4f2f",fontWeight:600,marginBottom:8}}>Umsatz / Mt.</div>
+              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{chf(Math.round(abCur.umsatz))}</div>
+            </div>
+            <div style={{background:abCur.marge>=0?"var(--green-soft)":"#f7e4e0",borderRadius:10,padding:"14px 16px"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600,marginBottom:8}}>Marge / Mt.</div>
+              <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",lineHeight:1}}>{abCur.marge>=0?"+":""}{chf(Math.round(abCur.marge))}</div>
             </div>
           </div>
           <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
@@ -10116,8 +10138,68 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
               );
             })}
           </div>
+          <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Umsatz pro Monat</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+22,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
+            {(()=>{ const mx=Math.max(1,...abMonths.map(m=>m.umsatz)); return abMonths.map((m,i)=>{
+              const h=Math.max(2,Math.round(m.umsatz/mx*H));
+              return (
+                <div key={i} title={`${m.full}: ${chf(Math.round(m.umsatz))} · ${m.anz} Buchungen · ADR ${chf(Math.round(m.adr))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                  <div style={{width:"68%",height:h,background:m.future?"#bcd0c0":"#5a8a6a",borderRadius:"3px 3px 0 0"}}/>
+                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+                </div>
+              );
+            }); })()}
+          </div>
+          <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+22,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
+            {(()=>{ const mx=Math.max(1,...abMonths.map(m=>Math.abs(m.marge))); return abMonths.map((m,i)=>{
+              const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
+              return (
+                <div key={i} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} · Umsatz ${chf(Math.round(m.umsatz))} · Miete ${chf(Math.round(m.miete))} · Putzen ${chf(Math.round(m.putzen))} · Wäsche ${chf(Math.round(m.waesche))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                  <div style={{width:"68%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#c5cda8":"#5a6e4a"),borderRadius:"3px 3px 0 0"}}/>
+                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+                </div>
+              );
+            }); })()}
+          </div>
         </>
       )}
+
+      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"34px 0 4px"}}>Gesamt · WG + Airbnb</div>
+      <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Gesamtmarge pro Monat seit Dezember 2025, WGs und Airbnbs zusammen.</div>
+      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+22,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
+        {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
+          const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
+          return (
+            <div key={i} title={`${m.full}: Gesamt ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} (WG ${chf(Math.round(m.wg))} · Airbnb ${chf(Math.round(m.ab))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              <div style={{width:"70%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#a9c088":"#4a6b2f"),borderRadius:"3px 3px 0 0"}}/>
+              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+            </div>
+          );
+        }); })()}
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr style={{color:"var(--muted)",fontSize:9,textTransform:"uppercase",letterSpacing:".15em"}}>
+              <th style={{padding:"6px 8px",textAlign:"left",fontWeight:600}}>Monat</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>WG</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Airbnb</th>
+              <th style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>Gesamt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {combinedMonths.map((m,i)=>(
+              <tr key={i} style={{borderTop:"1px solid var(--line-soft)",background:m.current?"var(--beige-soft)":"transparent"}}>
+                <td style={{padding:"6px 8px",color:m.future?"var(--muted)":"var(--ink)",fontStyle:m.future?"italic":"normal"}}>{m.full}{m.current?" · aktuell":m.future?" · Prognose":""}</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{m.wg>=0?"+":""}{chf(Math.round(m.wg))}</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.future?"var(--muted)":"var(--ink)"}}>{m.ab>=0?"+":""}{chf(Math.round(m.ab))}</td>
+                <td style={{padding:"6px 8px",textAlign:"right",color:m.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{m.marge>=0?"+":""}{chf(Math.round(m.marge))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
