@@ -5983,14 +5983,19 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     });
   }
   if (filterStatus === "Neu") {
+    const recency = (x) => {
+      if (x.created_at) { const t = new Date(x.created_at).getTime(); if (!isNaN(t)) return t; }
+      const m = String(x.id||"").match(/^B(\d+)$/); if (m) return parseInt(m[1],10);
+      return 0;
+    };
     shown = shown.slice().sort((a,b)=>{
       if (bewSort === "monat") {
         const da = a.einzug ? new Date(a.einzug).getTime() : Infinity;
         const db = b.einzug ? new Date(b.einzug).getTime() : Infinity;
         if (da !== db) return da - db;
-        return ((b.eingereichtAm||b.created_at||"")+"").localeCompare((a.eingereichtAm||a.created_at||"")+"");
+        return recency(b) - recency(a);
       }
-      return ((b.eingereichtAm||b.created_at||"")+"").localeCompare((a.eingereichtAm||a.created_at||"")+"");
+      return recency(b) - recency(a);
     });
   }
 
