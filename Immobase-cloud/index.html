@@ -8027,7 +8027,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
       const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
       const html = injectDaanInUMV(buildNachtragHTML(t, nd, fullName, formatDateLong));
       const res = await sendSingleDocForSigning(t, html, {
-        docName:"Verlaengerung", docType:"verlaengerung", contractType:"verlaengerung",
+        docName:"Verlängerung", docType:"verlaengerung", contractType:"verlaengerung",
         aptId: nd.aptId, roomId: nd.roomId, tenantId: t.id,
         onProgress:(msg,p)=>setNachProgress({msg,p}),
       });
