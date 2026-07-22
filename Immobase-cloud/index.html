@@ -5965,6 +5965,14 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       return false;
     });
   }
+  if (filterStatus === "Neu") {
+    shown = shown.slice().sort((a,b)=>{
+      const da = a.einzug ? new Date(a.einzug).getTime() : Infinity;
+      const db = b.einzug ? new Date(b.einzug).getTime() : Infinity;
+      if (da !== db) return da - db;
+      return (b.eingereichtAm||"").localeCompare(a.eingereichtAm||"");
+    });
+  }
 
   async function setStatus(id,status){
     await updateBewerber(id,{status});
@@ -6516,14 +6524,20 @@ www.dthomes.ch`;
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
             {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
           </div>
-          {shown.length===0?<div className="empty">Keine Bewerbungen</div>:shown.map(bw=>{
+          {shown.length===0?<div className="empty">Keine Bewerbungen</div>:shown.map((bw,idx)=>{
             const on = sel===bw.id;
             const wunschRoom = bw.zimmerWunsch ? rooms.find(r=>r.id===bw.zimmerWunsch) : null;
             const zugeteiltRoom = bw.zugeteiltes_zimmer ? rooms.find(r=>r.id===bw.zugeteiltes_zimmer) : null;
             const targetRoom = zugeteiltRoom || wunschRoom;
             const targetApt = targetRoom ? apts.find(a=>a.id===targetRoom.aptId) : null;
+            const mKey = bw.einzug ? new Date(bw.einzug).toLocaleDateString("de-CH",{month:"long",year:"numeric"}) : "Ohne Wunschdatum";
+            const prevB = idx>0 ? shown[idx-1] : null;
+            const prevKey = prevB ? (prevB.einzug ? new Date(prevB.einzug).toLocaleDateString("de-CH",{month:"long",year:"numeric"}) : "Ohne Wunschdatum") : null;
+            const showMonth = filterStatus==="Neu" && mKey !== prevKey;
             return (
-            <div key={bw.id} className={`bewerber-card${on?" selected":""}`} onClick={()=>{setSel(bw.id);setTab("info");}}>
+            <React.Fragment key={bw.id}>
+            {showMonth && <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".2em",color:"#8a8174",fontWeight:600,margin:idx===0?"2px 0 8px":"16px 0 8px",paddingLeft:2}}>{mKey}</div>}
+            <div className={`bewerber-card${on?" selected":""}`} onClick={()=>{setSel(bw.id);setTab("info");}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:3}}>
                 <div style={{fontWeight:600,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0}}>{bw.vorname} {bw.nachname}</div>
                 <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
@@ -6542,7 +6556,7 @@ www.dthomes.ch`;
                   </>
                 ) : <span style={{fontStyle:"italic",color:"#bab2a0"}}>Kein Wunsch-Zimmer</span>}
               </div>
-            </div>);
+            </div></React.Fragment>);
           })}
         </div>
         {b?(
