@@ -5690,18 +5690,21 @@ function buildNachtragHTML(person, nd, fullName, fmtDate){
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Nachtrag Untermietvertrag - ${fullName}</title>
 <style>
-@page{size:A4;margin:20mm 18mm}
+@page{size:A4;margin:0}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{background:#fff}
-body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10.5pt;line-height:1.6;color:#1a1a1a;padding:20mm 18mm;width:210mm;margin:0 auto}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10.5pt;line-height:1.6;color:#1a1a1a}
+.page{min-height:292mm;padding:24mm 18mm 12mm;display:flex;flex-direction:column}
+.content{flex:1 1 auto;display:flex;flex-direction:column}
+.top{flex:0 0 auto}
 h1{font-family:Georgia,serif;font-size:19pt;font-weight:normal;margin-bottom:4pt}
-.sub{font-size:9pt;color:#888;letter-spacing:.22em;text-transform:uppercase}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26pt;gap:20pt}
-.logo{height:30pt;width:auto}
+.sub{font-size:9pt;color:#888;letter-spacing:.22em;text-transform:uppercase;display:block;margin-bottom:26pt}
 h2{font-family:Georgia,serif;font-size:12pt;font-weight:normal;margin:20pt 0 6pt;border-bottom:.5pt solid #ccc;padding-bottom:3pt}
 p{margin-bottom:9pt}
 .box{background:#f7f3ea;border:.5pt solid #ddd0b8;border-radius:5pt;padding:11pt 14pt;margin:14pt 0;font-size:10pt}
-.signatures{margin-top:34pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
+.signatures{margin-top:auto;padding-top:30pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
+.footer{flex:0 0 auto;margin-top:22pt;padding-top:8pt;border-top:.5pt solid #e2ddd0;display:flex;justify-content:flex-end;align-items:center}
+.footer .logo{height:22pt;width:auto;opacity:.85}
 .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
 .sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
 .sig-block .name{font-size:11pt;font-weight:600;margin-bottom:18pt}
@@ -5709,7 +5712,8 @@ p{margin-bottom:9pt}
 .sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:55pt}
 .sig-block .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
 </style></head><body>
-<div class="hdr"><div><h1>Nachtrag zum Untermietvertrag</h1><div class="sub">Verlängerung · D&amp;T Homes</div></div><img class="logo" src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+<div class="page"><div class="content"><div class="top">
+<h1>Nachtrag zum Untermietvertrag</h1><div class="sub">Verlängerung · D&amp;T Homes</div>
 <p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in) betreffend das Mietobjekt ${objekt}.</p>
 <p>Die Parteien haben ${nd.originalDatum?`am <strong>${fmtDate(nd.originalDatum)}</strong> `:""}einen Untermietvertrag betreffend das genannte Mietobjekt${nd.mietbeginn?`, mit Mietbeginn am <strong>${fmtDate(nd.mietbeginn)}</strong>,`:""} abgeschlossen. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
 <h2>1. Verlängerung</h2>
@@ -5717,6 +5721,7 @@ p{margin-bottom:9pt}
 <h2>2. Übrige Bestimmungen</h2>
 <p>Sämtliche übrigen Bestimmungen des Untermietvertrags${nd.originalDatum?` vom ${fmtDate(nd.originalDatum)}`:""} (insbesondere Mietzins, Nebenkosten, Kaution und Hausordnung) bleiben unverändert in Kraft.</p>
 <div class="box">Dieser Nachtrag wird mit der Unterzeichnung durch beide Parteien gültig und bildet einen integrierenden Bestandteil des bestehenden Untermietvertrags.</div>
+</div>
 <div class="signatures">
   <div class="sig-block">
     <div class="role">Untermieter*in</div>
@@ -5742,6 +5747,9 @@ p{margin-bottom:9pt}
       <span class="line"></span>
     </div>
   </div>
+</div>
+</div>
+<div class="footer"><img class="logo" src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
 </div>
 </body></html>`;
 }
@@ -8759,19 +8767,15 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 <div style={{marginTop:14}}><button className="btn btn-p btn-sm" onClick={()=>setNachModal(false)}>Schliessen</button></div>
               </div>
             ) : (<>
-              <div style={{marginBottom:16,padding:"12px 14px",background:"var(--beige-soft)",borderRadius:8,fontSize:12.5,lineHeight:1.7}}>
+              <div style={{marginBottom:14,padding:"12px 14px",background:"var(--beige-soft)",borderRadius:8,fontSize:12.5,lineHeight:1.7}}>
                 <div><span style={{color:"var(--muted)"}}>Objekt:</span> {nd.adresse}{nd.zimmerId?`, Zimmer ${(nd.zimmerId||"").split("-")[1]||""}`:""}</div>
-                <div><span style={{color:"var(--muted)"}}>Ursprungsvertrag vom:</span> {nd.originalDatum?fmtDateDE(nd.originalDatum):"nicht erfasst"}</div>
                 <div><span style={{color:"var(--muted)"}}>Mietverhältnis ab:</span> {nd.mietbeginn?fmtDateDE(nd.mietbeginn):"nicht erfasst"}</div>
-                <div style={{color:"var(--muted)",fontSize:11.5,marginTop:5}}>Übrige Bedingungen bleiben unverändert. Nur das neue Enddatum eingeben.</div>
+                <div style={{color:"var(--muted)",fontSize:11.5,marginTop:5}}>Übrige Bedingungen bleiben unverändert.</div>
               </div>
               <div className="frow">
+                <div className="fg"><label className="fl">Vertrag unterschrieben am</label><input className="fi" type="date" value={toDateInputValue(nd.originalDatum)} onChange={ND("originalDatum")}/><div style={{fontSize:10.5,color:"var(--muted)",marginTop:3,lineHeight:1.4}}>Datum, an dem der Ursprungsvertrag unterschrieben wurde{nd.originalDatum?" (automatisch übernommen)":", bitte angeben"}.</div></div>
                 <div className="fg"><label className="fl">Verlängert bis *</label><input className="fi" type="date" value={toDateInputValue(nd.mietende)} onChange={ND("mietende")}/></div>
-                <div className="fg"/>
               </div>
-              {!nd.originalDatum && (
-                <div className="fg" style={{marginTop:2,marginBottom:6}}><label className="fl">Ursprungsvertrag vom (nicht erfasst, bitte angeben)</label><input className="fi" type="date" value={toDateInputValue(nd.originalDatum)} onChange={ND("originalDatum")}/></div>
-              )}
               {nachProgress && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>{nachProgress.msg}</div>}
               <div className="ma" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                 <button className="btn btn-g btn-sm" disabled={nachBusy} onClick={downloadNachtrag}>{nachBusy?"⏳ …":"📄 Herunterladen"}</button>
