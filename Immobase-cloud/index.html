@@ -5939,6 +5939,12 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("Neu");
   const [bewSort,setBewSort]=useState("neu");
+  const detailRef = useRef(null);
+  useEffect(()=>{
+    if (sel && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [sel]);
   const [nachmieterFor,setNachmieterFor]=useState(null); // wenn aus Dashboard "Nachmieter zuteilen" geklickt
   const [copied,setCopied]=useState(false);
   const [vertragModal,setVertragModal]=useState(false);
@@ -6598,7 +6604,7 @@ www.dthomes.ch`;
         </div>
         {b?(
           <>
-          <div className="card" style={{margin:0}}>
+          <div ref={detailRef} className="card" style={{margin:0,scrollMarginTop:16}}>
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:12,flexWrap:"wrap"}}>
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}>
                 <Av name={b.vorname} size={40}/>
