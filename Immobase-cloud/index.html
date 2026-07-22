@@ -9901,9 +9901,9 @@ function FinanzenSection({ tenants, apts, rooms }){
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
   const H = 72;
   return (
-    <div style={{marginTop:34}}>
-      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,marginBottom:4}}>Finanzen</div>
-      <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>KPIs über die Monate, gerechnet aus den aktuellen Verträgen: Zimmermieten minus Hauptmieten. Zukünftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden.</div>
+    <div>
+      <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:4}}>Finanzen</div>
+      <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:20,lineHeight:1.5}}>KPIs über die Monate, gerechnet aus den aktuellen Verträgen: Zimmermieten minus Hauptmieten. Zukünftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden.</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
           <div key={l} style={{background:bg,borderRadius:10,padding:"14px 16px"}}>
@@ -10030,7 +10030,6 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
           </div>
         ))}
       </div>
-      <FinanzenSection tenants={tenants} apts={apts} rooms={rooms}/>
     </div>
   );
 }
@@ -10045,6 +10044,7 @@ const PAGES=[
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
   {id:"partner",icon:"🏢",label:"Partner"},
   {id:"todos",icon:"✅",label:"To-dos"},
+  {id:"finanzen",icon:"📊",label:"Finanzen"},
 ];
 
 function MainApp() {
@@ -10055,7 +10055,7 @@ function MainApp() {
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
-  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage}[page];
+  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
   // Offene Zahlungen für aktuellen Zahlungs-Monat zählen (ab 25. = nächster Monat)
