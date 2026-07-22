@@ -3067,6 +3067,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
   const [notiz, setNotiz] = useState(tenant.drittmeldungNotiz || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
   useEffect(()=>{ setStatus(tenant.drittmeldungStatus||"offen"); setDatum(tenant.drittmeldungDatum||""); setNotiz(tenant.drittmeldungNotiz||""); }, [tenant.id]);
   const bestDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && d.category==="Drittmeldebestätigung");
@@ -3078,8 +3079,8 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
     catch(e){ alert("Speichern fehlgeschlagen: "+(e.message||e)); }
     finally { setSaving(false); }
   }
-  async function onUpload(e){
-    const file = e.target.files && e.target.files[0]; if(!file) return;
+  async function handleFile(file){
+    if(!file) return;
     setUploading(true);
     try {
       await uploadDocument("tenant", tenant.id, "Drittmeldebestätigung", file);
@@ -3088,6 +3089,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
     } catch(err){ alert("Upload fehlgeschlagen: "+(err.message||err)); }
     finally { setUploading(false); if(fileRef.current) fileRef.current.value=""; }
   }
+  function onUpload(e){ handleFile(e.target.files && e.target.files[0]); }
   const STAT = {offen:{label:"Offen",bg:"#f7e4e0",fg:"#9b4a3e"}, gemeldet:{label:"Gemeldet",bg:"#f5efe0",fg:"#8a6d1f"}, bestaetigt:{label:"Bestätigt",bg:"var(--green-soft)",fg:"#3d4f2f"}};
   const st = STAT[status]||STAT.offen;
   return (
@@ -3127,7 +3129,23 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
         <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:12}}>Noch keine Bestätigung hochgeladen.</div>
       )}
       <input ref={fileRef} type="file" accept="application/pdf,image/*" style={{display:"none"}} onChange={onUpload}/>
-      <button className="btn btn-g btn-sm" disabled={uploading} onClick={()=>fileRef.current&&fileRef.current.click()}>{uploading?"Lädt hoch…":"📎 Bestätigung hochladen"}</button>
+      <div
+        onDragOver={e=>{e.preventDefault(); setDragOver(true);}}
+        onDragLeave={e=>{e.preventDefault(); setDragOver(false);}}
+        onDrop={e=>{e.preventDefault(); setDragOver(false); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) handleFile(f);}}
+        onClick={()=>!uploading&&fileRef.current&&fileRef.current.click()}
+        style={{border:`1.5px dashed ${dragOver?"#a08864":"var(--line-soft)"}`,borderRadius:9,padding:"22px 16px",textAlign:"center",cursor:uploading?"default":"pointer",background:dragOver?"#f5efe4":"var(--surface)",transition:".15s"}}
+      >
+        {uploading ? (
+          <div style={{fontSize:12.5,color:"var(--muted)"}}>Lädt hoch…</div>
+        ) : (
+          <>
+            <div style={{fontSize:22,marginBottom:5}}>📎</div>
+            <div style={{fontSize:12.5,color:"var(--ink)"}}>Bestätigung hierher ziehen oder klicken zum Auswählen</div>
+            <div style={{fontSize:11,marginTop:3,color:"var(--muted)"}}>PDF oder Bild</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
