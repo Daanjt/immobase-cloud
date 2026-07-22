@@ -5938,6 +5938,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [selZimmer,setSelZimmer]=useState(null);
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("Neu");
+  const [bewSort,setBewSort]=useState("neu");
   const [nachmieterFor,setNachmieterFor]=useState(null); // wenn aus Dashboard "Nachmieter zuteilen" geklickt
   const [copied,setCopied]=useState(false);
   const [vertragModal,setVertragModal]=useState(false);
@@ -5983,10 +5984,13 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   }
   if (filterStatus === "Neu") {
     shown = shown.slice().sort((a,b)=>{
-      const da = a.einzug ? new Date(a.einzug).getTime() : Infinity;
-      const db = b.einzug ? new Date(b.einzug).getTime() : Infinity;
-      if (da !== db) return da - db;
-      return (b.eingereichtAm||"").localeCompare(a.eingereichtAm||"");
+      if (bewSort === "monat") {
+        const da = a.einzug ? new Date(a.einzug).getTime() : Infinity;
+        const db = b.einzug ? new Date(b.einzug).getTime() : Infinity;
+        if (da !== db) return da - db;
+        return ((b.eingereichtAm||b.created_at||"")+"").localeCompare((a.eingereichtAm||a.created_at||"")+"");
+      }
+      return ((b.eingereichtAm||b.created_at||"")+"").localeCompare((a.eingereichtAm||a.created_at||"")+"");
     });
   }
 
@@ -6544,6 +6548,14 @@ www.dthomes.ch`;
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
             {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
           </div>
+          {filterStatus==="Neu" && (
+            <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+              <span style={{fontSize:9.5,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".15em",fontWeight:600,marginRight:2}}>Sortieren</span>
+              {[["neu","Neueste"],["monat","Nach Monat"]].map(([k,l])=>(
+                <button key={k} className={`btn btn-sm ${bewSort===k?"btn-p":"btn-g"}`} onClick={()=>setBewSort(k)} style={{fontSize:10}}>{l}</button>
+              ))}
+            </div>
+          )}
           {shown.length===0?<div className="empty">Keine Bewerbungen</div>:shown.map((bw,idx)=>{
             const on = sel===bw.id;
             const wunschRoom = bw.zimmerWunsch ? rooms.find(r=>r.id===bw.zimmerWunsch) : null;
@@ -6553,7 +6565,7 @@ www.dthomes.ch`;
             const mKey = bw.einzug ? new Date(bw.einzug).toLocaleDateString("de-CH",{month:"long",year:"numeric"}) : "Ohne Wunschdatum";
             const prevB = idx>0 ? shown[idx-1] : null;
             const prevKey = prevB ? (prevB.einzug ? new Date(prevB.einzug).toLocaleDateString("de-CH",{month:"long",year:"numeric"}) : "Ohne Wunschdatum") : null;
-            const showMonth = filterStatus==="Neu" && mKey !== prevKey;
+            const showMonth = filterStatus==="Neu" && bewSort==="monat" && mKey !== prevKey;
             return (
             <React.Fragment key={bw.id}>
             {showMonth && <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".2em",color:"#8a8174",fontWeight:600,margin:idx===0?"2px 0 8px":"16px 0 8px",paddingLeft:2}}>{mKey}</div>}
