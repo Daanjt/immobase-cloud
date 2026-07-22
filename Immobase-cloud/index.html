@@ -7983,7 +7983,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
   function openNachtrag(t){
     const data = buildContractDataForTenant(t);
     const room = data && data.v.room, apt = data && data.v.apt;
-    const tContracts = (contracts||[]).filter(c => c.tenantId === t.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+    const tContracts = (contracts||[]).filter(c => c.tenantId === t.id || (c.mieterEmail && t.email && c.mieterEmail.toLowerCase().trim() === t.email.toLowerCase().trim())).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
     const current = tContracts.find(c=>c.status==="signiert") || tContracts[0];
     setNd({
       _tenant: t,
@@ -8395,7 +8395,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               </div>
             </div>
             {(() => {
-              const tContracts = (contracts||[]).filter(c => c.tenantId === tenant.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+              const tContracts = (contracts||[]).filter(c => c.tenantId === tenant.id || (c.mieterEmail && tenant.email && c.mieterEmail.toLowerCase().trim() === tenant.email.toLowerCase().trim())).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
               if (!tContracts.length) return null;
               const statusLabel = {gesendet:"Gesendet", signiert:"Signiert", zurueckgezogen:"Zurückgezogen", abgelaufen:"Abgelaufen", storniert:"Storniert"};
               const current = tContracts.find(c => !["zurueckgezogen","abgelaufen","storniert"].includes(c.status));
