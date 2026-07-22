@@ -2420,12 +2420,19 @@ const APPLICANT_REQUIRED = ["Pass / Ausweis","Betreibungsregister-Auszug"];
 // Bewerber/Applicant: gleiche Kategorien wie Tenant aber ohne Übergabeprotokoll/Kautionsbestätigung
 const APPLICANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Pass / Ausweis","Betreibungsregister-Auszug","Bewerbungsformular","Sonstige"];
 
-function DocumentChecklist({entityType, entityId, documents, onJumpToDocs}){
+function DocumentChecklist({entityType, entityId, documents, onJumpToDocs, tenant, onJumpToDrittmeldung}){
   const docs = (documents||[]).filter(d => d.entity_type === entityType && d.entity_id === entityId);
   const categories = entityType === "apartment" ? APT_REQUIRED : (entityType === "applicant" ? APPLICANT_REQUIRED : TENANT_REQUIRED);
   const present = new Set(docs.map(d => d.category));
-  const completed = categories.filter(c => present.has(c)).length;
-  const total = categories.length;
+  const extra = [];
+  if (entityType === "tenant" && tenant) {
+    extra.push({ label:"Drittmeldung Einzug", ok: (tenant.drittmeldungStatus==="gemeldet") || present.has("Drittmeldebestätigung (Einzug)"), jump:onJumpToDrittmeldung });
+    const ausD = (typeof parseD==="function") ? parseD(tenant.auszug) : null;
+    const ausgezogen = (tenant.status==="archiviert") || (ausD && ausD <= new Date());
+    if (ausgezogen) extra.push({ label:"Drittmeldung Auszug", ok: (tenant.drittmeldungAuszugStatus==="gemeldet") || present.has("Drittmeldebestätigung (Auszug)"), jump:onJumpToDrittmeldung });
+  }
+  const completed = categories.filter(c => present.has(c)).length + extra.filter(e=>e.ok).length;
+  const total = categories.length + extra.length;
   const allDone = completed === total;
   
   return (
@@ -2446,6 +2453,12 @@ function DocumentChecklist({entityType, entityId, documents, onJumpToDocs}){
             </div>
           );
         })}
+        {extra.map(e => (
+          <div key={e.label} onClick={e.jump||undefined} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:e.ok?"#e8eadb":"#ffffff",border:`1px solid ${e.ok?"#c5cda8":"#e8e3d8"}`,borderRadius:6,fontSize:11.5,cursor:e.jump?"pointer":"default"}}>
+            <span style={{fontSize:14,color:e.ok?"#5a6e4a":"#c5b896",flexShrink:0}}>{e.ok?"✓":"○"}</span>
+            <span style={{flex:1,color:e.ok?"#3d4f2f":"#8a8174",fontWeight:e.ok?500:400}}>{e.label}</span>
+          </div>
+        ))}
       </div>
       {onJumpToDocs && (
         <div style={{marginTop:10,textAlign:"right"}}>
@@ -3072,6 +3085,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
   const [az, setAz] = useState({status: tenant.drittmeldungAuszugStatus||"offen", datum: tenant.drittmeldungAuszugDatum||"", notiz: tenant.drittmeldungAuszugNotiz||""});
   const [busy, setBusy] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  const [sub, setSub] = useState("einzug");
   const ezFile = useRef(null), azFile = useRef(null);
   useEffect(()=>{
     setEz({status: tenant.drittmeldungStatus||"offen", datum: tenant.drittmeldungDatum||"", notiz: tenant.drittmeldungNotiz||""});
@@ -3107,7 +3121,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
     return (
       <div style={{border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px",marginBottom:16}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--ink)"}}>Drittmeldung {c.title}</div>
+          <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600}}>Status</span>
           <span style={{padding:"2px 10px",borderRadius:20,background:isGemeldet?"var(--green-soft)":"#f7e4e0",color:isGemeldet?"#3d4f2f":"#9b4a3e",fontSize:11.5,fontWeight:600}}>{isGemeldet?"Gemeldet":"Offen"}</span>
           {docs.length>0 && <span style={{fontSize:11.5,color:"#3d4f2f"}}>· Bestätigung hinterlegt</span>}
         </div>
@@ -3153,8 +3167,12 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
       <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px",marginBottom:16,fontSize:12.5,color:"var(--muted)",lineHeight:1.6}}>
         Die Drittmeldepflicht verlangt, dass die Untermietpartei bei der Gemeinde bzw. Einwohnerkontrolle gemeldet wird, sowohl beim Einzug als auch beim Auszug. Hier trackst du beide Meldungen und legst die jeweilige Bestätigung ab.
       </div>
-      {renderSection("einzug")}
-      {renderSection("auszug")}
+      <div className="tabs" style={{marginBottom:16}}>
+        {[["einzug","Einzug"],["auszug","Auszug"]].map(([k,l])=>(
+          <button key={k} className={`tab${sub===k?" on":""}`} onClick={()=>setSub(k)}>Drittmeldung {l}</button>
+        ))}
+      </div>
+      {renderSection(sub)}
     </div>
   );
 }
@@ -8659,7 +8677,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               
               {tenant.bewerberId&&<div style={{marginTop:14,fontSize:11,color:"#8a8174",fontStyle:"italic"}}>↗ Übernommen aus Bewerbung #{tenant.bewerberId}</div>}
               
-              <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
+              <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")} tenant={tenant} onJumpToDrittmeldung={()=>setTab("drittmeldung")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
             {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol}/>}
