@@ -5325,11 +5325,11 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     const d = new Date(str); return isNaN(d.getTime())?null:d;
   }
   const beginn = parseD(v.einzug);
-  const mietende = parseD(v.apt?.mietende);
+  const mietende = parseD(v.mietende || v.apt?.mietende);
   if (beginn && mietende) {
     const months = (mietende - beginn) / (1000*60*60*24*30.44);
     if (months > 0 && months < 12) {
-      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
+      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.mietende || v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
     }
   }
   return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs",7:"sieben",8:"acht",9:"neun",10:"zehn",11:"elf",12:"zwölf"};return w[n]||String(n);})(v.minMietdauer||6)} Monate.`;
@@ -7836,6 +7836,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
     if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
     setTvData({
       ...data.v, _tenant: t,
+      mietende: (data.v.apt && data.v.apt.mietende) || "",
       moeblierungPauschale: +t.moeblierungPauschale || 990,
       auszug: t.auszug || "",
       ortVertrag: "Zürich",
@@ -8608,9 +8609,25 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
             ) : (<>
               <div className="frow">
                 <div className="fg"><label className="fl">Einzug / Beginn</label><input className="fi" type="date" value={toDateInputValue(tvData.einzug)} onChange={TV("einzug")}/></div>
-                <div className="fg"><label className="fl">Mindest-Mietdauer (Mte)</label><input className="fi" type="number" value={tvData.minMietdauer} onChange={TVn("minMietdauer")}/></div>
-                <div className="fg"><label className="fl">Kündigungsfrist (Mte)</label><input className="fi" type="number" value={tvData.kuendigungsfrist} onChange={TVn("kuendigungsfrist")}/></div>
+                <div className="fg"><label className="fl">Befristet bis</label><input className="fi" type="date" value={toDateInputValue(tvData.mietende)} onChange={TV("mietende")}/></div>
               </div>
+              {(() => {
+                const pd=(s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
+                const bb=pd(tvData.einzug), ee=pd(tvData.mietende);
+                const months = bb&&ee ? (ee-bb)/(1000*60*60*24*30.44) : null;
+                const befristetKurz = months!==null && months>0 && months<12;
+                return befristetKurz ? (
+                  <div style={{margin:"2px 0 14px",padding:"9px 12px",background:"var(--green-soft)",borderRadius:7,fontSize:12,color:"#3d4f2f",lineHeight:1.5}}>
+                    Befristet unter 12 Monaten: automatisch nicht ordentlich kündbar, keine Kündigungsfrist. Der Vertrag endet auf das Enddatum.
+                  </div>
+                ) : (
+                  <div className="frow">
+                    <div className="fg"><label className="fl">Mindest-Mietdauer (Mte)</label><input className="fi" type="number" value={tvData.minMietdauer} onChange={TVn("minMietdauer")}/></div>
+                    <div className="fg"><label className="fl">Kündigungsfrist (Mte)</label><input className="fi" type="number" value={tvData.kuendigungsfrist} onChange={TVn("kuendigungsfrist")}/></div>
+                    <div className="fg"/>
+                  </div>
+                );
+              })()}
               <div className="frow">
                 <div className="fg"><label className="fl">Nettomiete</label><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>setTvData(p=>({...p,nettomiete:+e.target.value||0,bruttomiete:(+e.target.value||0)+(p.nebenkosten||0)}))}/></div>
                 <div className="fg"><label className="fl">Nebenkosten</label><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>setTvData(p=>({...p,nebenkosten:+e.target.value||0,bruttomiete:(p.nettomiete||0)+(+e.target.value||0)}))}/></div>
