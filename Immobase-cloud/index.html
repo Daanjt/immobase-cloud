@@ -9879,8 +9879,9 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 function FinanzenSection({ tenants, apts, rooms }){
   const wgApts = (apts||[]).filter(a=>a.type==="WG" && !a.pipeline);
   const wgAptIds = new Set(wgApts.map(a=>a.id));
-  const wgRoomIds = new Set((rooms||[]).filter(r=>wgAptIds.has(r.aptId)).map(r=>r.id));
-  const roomById = (id) => (rooms||[]).find(x=>x.id===id);
+  const wgRooms = (rooms||[]).filter(r=>wgAptIds.has(r.aptId));
+  const tenantById = (id) => (tenants||[]).find(t=>t.id===id);
+  const aptById = (id) => (apts||[]).find(a=>a.id===id);
   const now = new Date();
   const months = [];
   for (let i=-5; i<=11; i++){
@@ -9893,16 +9894,19 @@ function FinanzenSection({ tenants, apts, rooms }){
       const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
       if ((!ab || ab <= e) && (!bis || bis >= s)) ausgaben += (+a.miete||0);
     });
-    // Einnahmen: Zimmermiete + Strom (CHF 25/belegtes Zimmer) + Kautions-Aufschlag der aktiven WG-Mieter
+    // Einnahmen: belegte WG-Zimmer (Miete) + Strom (25/Zimmer) + Kautions-Aufschlag des Mieters
+    // Aktiv-Fenster pro Zimmer: Einzug/Auszug des Mieters (via Zimmer), sonst Mietbeginn/Mietende der Wohnung
     let miete=0, strom=0, aufschlag=0;
-    (tenants||[]).forEach(t=>{
-      if (!wgRoomIds.has(t.roomId)) return;
-      const ein=parseDMY(t.einzug), aus=parseDMY(t.auszug);
-      if (ein && ein <= e && (!aus || aus >= s)) {
-        const r = roomById(t.roomId);
-        miete += r ? (+r.miete||0) : 0;
+    wgRooms.forEach(r=>{
+      if (!r.occupied) return;
+      const t = r.tenantId ? tenantById(r.tenantId) : null;
+      const apt = aptById(r.aptId);
+      const ein = parseDMY(t && t.einzug) || parseDMY(apt && apt.mietbeginn);
+      const aus = parseDMY(t && t.auszug) || parseDMY(apt && apt.mietende);
+      if ((!ein || ein <= e) && (!aus || aus >= s)) {
+        miete += (+r.miete||0);
         strom += 25;
-        aufschlag += (+t.kautionAufschlag||0);
+        aufschlag += t ? (+t.kautionAufschlag||0) : 0;
       }
     });
     const einnahmen = miete + strom + aufschlag;
