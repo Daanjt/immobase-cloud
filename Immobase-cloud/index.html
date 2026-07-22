@@ -1524,6 +1524,22 @@ function useSupabaseData() {
   // Archiviert Mieter automatisch wenn:
   // 1. Ihr Auszug-Datum (auszug) in der Vergangenheit liegt
   // 2. Das Mietende der Wohnung (apt.mietendeUntermiete oder apt.mietende) abgelaufen ist
+  const autoRejectCheckedRef = useRef(false);
+  useEffect(() => {
+    if (loading || autoRejectCheckedRef.current) return;
+    if (!bewerber || bewerber.length === 0) return;
+    autoRejectCheckedRef.current = true;
+    const cutoff = new Date();
+    cutoff.setHours(0,0,0,0);
+    cutoff.setDate(cutoff.getDate() - 14); // Wunsch-Einzug mehr als 2 Wochen her
+    (bewerber||[]).forEach(b => {
+      if ((b.status === "Neu" || b.status === "In Prüfung") && b.einzug) {
+        const d = new Date(b.einzug);
+        if (!isNaN(d.getTime()) && d < cutoff) updateBewerber(b.id, { status: "Abgelehnt" });
+      }
+    });
+  }, [bewerber, loading]);
+
   const autoArchiveCheckedRef = useRef(false);
   useEffect(() => {
     // Nur einmal pro Session ausführen (nach erstem erfolgreichem Load)
@@ -5976,7 +5992,11 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
 
   async function setStatus(id,status){
     await updateBewerber(id,{status});
-    setFilterStatus(status);  // Auto-switch filter so user sees the result
+    if (status === "Abgelehnt") {
+      setSel(null); // bei Ablehnung auf aktueller Liste bleiben, nicht zu Abgelehnt springen
+    } else {
+      setFilterStatus(status);  // Auto-switch filter so user sees the result
+    }
   }
 
   async function confirmZuteilung(){
