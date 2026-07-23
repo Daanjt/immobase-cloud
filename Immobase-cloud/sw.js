@@ -1,5 +1,5 @@
 // ImmoBase Service Worker — Offline-Fähigkeit + schneller Start
-const CACHE_VERSION = 'immobase-v1';
+const CACHE_VERSION = 'immobase-v2';
 const CACHE_FILES = [
   '/',
   '/index.html',
@@ -41,8 +41,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE_VERSION).then(cache => cache.put(event.request, clone));
+          if (res && res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_VERSION).then(cache => cache.put(event.request, clone));
+          }
           return res;
         })
         .catch(() => caches.match(event.request).then(r => r || caches.match('/')))
