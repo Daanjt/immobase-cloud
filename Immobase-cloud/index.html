@@ -10396,6 +10396,9 @@ function MainApp() {
   const relevantTenants = data.tenants.filter(t => {
     const einzug = parseDate2(t.einzug);
     const auszug = parseDate2(t.auszug);
+    // Abgesagte Miete: Auszug am oder vor dem Einzug, also nie eingezogen.
+    // Nur ausblenden, wenn dazu keine Zahlung erfasst ist (gleiche Regel wie in der Zahlungsseite).
+    if (einzug && auszug && auszug <= einzug && !(data.payments||[]).some(pay => pay.tenantId === t.id)) return false;
     if (!einzug) return (t.status||"aktiv") === "aktiv";
     if (einzug > monatsEnde2) return false;
     if (auszug && auszug < monatsStart2) return false;
