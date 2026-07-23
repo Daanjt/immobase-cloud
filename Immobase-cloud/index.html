@@ -9901,18 +9901,28 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
   const all = [...(partners||[])];
   const verwaltungen = all.filter(p=>p.typ==="Verwaltung"||p.typ==="Beides").sort(byName);
   const eigentuemer = all.filter(p=>!p.typ||p.typ==="Eigentümer"||p.typ==="Beides").sort(byName);
-  // Kautionsversicherungen: Volumen je Anbieter aus dem Feld Kautionsart der Mieter
-  const KAUTIONS_ANBIETER = ["FirstCaution","goCaution","Evorest"];
+  // Kautionsversicherungen: unsere eigene Mietkaution je Wohnung, gruppiert nach Anbieter
   const normA = (v)=>(v||"").toString().trim().toLowerCase().replace(/[^a-z]/g,"");
-  const kautionStats = KAUTIONS_ANBIETER.map(name => {
-    const treffer = (tenants||[]).filter(t => normA(t.kautionType) === normA(name));
-    const aktiv = treffer.filter(t => (t.status||"aktiv") !== "archiviert");
-    const summe = treffer.reduce((s,t)=>s + (parseFloat(String(t.kautionBetrag||"").replace(/[^\d.]/g,""))||0), 0);
-    const summeAktiv = aktiv.reduce((s,t)=>s + (parseFloat(String(t.kautionBetrag||"").replace(/[^\d.]/g,""))||0), 0);
-    const aufschlag = aktiv.reduce((s,t)=>s + (parseFloat(t.kautionAufschlag)||0), 0);
-    return { name, anzahl: treffer.length, aktiv: aktiv.length, summe, summeAktiv, aufschlag };
-  });
-  const ohneAnbieter = (tenants||[]).filter(t => (t.status||"aktiv") !== "archiviert" && !KAUTIONS_ANBIETER.some(n => normA(n) === normA(t.kautionType))).length;
+  const kautionBetragOf = (a)=>parseFloat(String(a.kaution||"").replace(/[^\d.]/g,""))||0;
+  const anbieterListe = (()=>{
+    const bekannt = ["FirstCaution","goCaution","Evorest"];
+    const gefunden = [...new Set((apts||[]).map(a=>(a.kautionType||"").trim()).filter(Boolean))];
+    const extra = gefunden.filter(g => !bekannt.some(b => normA(b)===normA(g)));
+    return [...bekannt, ...extra];
+  })();
+  const kautionStats = anbieterListe.map(name => {
+    const treffer = (apts||[]).filter(a => normA(a.kautionType) === normA(name));
+    const laufend = treffer.filter(a => !a.pipeline);
+    return {
+      name,
+      anzahl: treffer.length,
+      laufend: laufend.length,
+      summe: treffer.reduce((s,a)=>s + kautionBetragOf(a), 0),
+      objekte: treffer.slice().sort((a,b)=>natSort(a.id,b.id)),
+    };
+  }).filter(k => k.anzahl > 0);
+  const kautionGesamt = kautionStats.reduce((s,k)=>s + k.summe, 0);
+  const ohneAnbieter = (apts||[]).filter(a => !a.pipeline && !(a.kautionType||"").trim()).length;
   const chfP = (n)=>"CHF " + Math.round(n||0).toLocaleString("de-CH");
 
   const selPartner = selected ? all.find(p=>p.id===selected) : null;
@@ -9990,28 +10000,34 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
       <div style={{marginTop:26}}>
         <div className="pcol-h" style={{marginBottom:10}}>
           <span className="t">Kautionsversicherungen</span>
-          <span className="c">{kautionStats.filter(k=>k.anzahl>0).length}</span>
+          <span className="c">{chfP(kautionGesamt)}</span>
         </div>
         <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.55}}>
-          Abgewickeltes Kautionsvolumen je Anbieter, ermittelt aus der Kautionsart der Mieter.
+          Unsere hinterlegte Mietkaution je Wohnung, gruppiert nach Anbieter.
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(210px, 100%), 1fr))",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(230px, 100%), 1fr))",gap:10}}>
           {kautionStats.map(k=>(
             <div key={k.name} style={{border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",background:"var(--surface)"}}>
-              <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:16,color:"var(--ink)",marginBottom:10}}>{k.name}</div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Mieter aktiv</span><span style={{color:"var(--ink)"}}>{k.aktiv}</span></div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Mieter gesamt</span><span style={{color:"var(--ink)"}}>{k.anzahl}</span></div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Aufschlag pro Monat</span><span style={{color:"var(--ink)"}}>{chfP(k.aufschlag)}</span></div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"7px 0 0",marginTop:5,borderTop:"1px solid var(--line-soft)"}}>
-                <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>Kautionsvolumen</span>
-                <span style={{fontSize:16,fontFamily:"'Manrope',sans-serif",color:k.summe>0?"#3d4f2f":"var(--muted-light)"}}>{chfP(k.summe)}</span>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}>
+                <span style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:16,color:"var(--ink)"}}>{k.name}</span>
+                <span style={{fontSize:11,color:"var(--muted)"}}>{k.laufend} Wohnung{k.laufend===1?"":"en"}</span>
+              </div>
+              {k.objekte.map(a=>(
+                <div key={a.id} style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11.5,padding:"2px 0",color:"var(--muted)"}}>
+                  <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.id} · {a.adresse}{a.pipeline?" (Pipeline)":""}</span>
+                  <span style={{color:"var(--ink)",whiteSpace:"nowrap"}}>{chfP(kautionBetragOf(a))}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"8px 0 0",marginTop:6,borderTop:"1px solid var(--line-soft)"}}>
+                <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>Total</span>
+                <span style={{fontSize:17,fontFamily:"'Manrope',sans-serif",color:"#3d4f2f"}}>{chfP(k.summe)}</span>
               </div>
             </div>
           ))}
         </div>
         {ohneAnbieter > 0 && (
           <div style={{fontSize:11.5,color:"#8a6d4a",marginTop:10,lineHeight:1.5}}>
-            Bei {ohneAnbieter} aktiven Mietern ist keine Kautionsart hinterlegt. Diese fehlen in der Auswertung, bis der Anbieter beim Mieter erfasst ist.
+            Bei {ohneAnbieter} laufenden Wohnung{ohneAnbieter===1?"":"en"} ist kein Kautionsanbieter hinterlegt.
           </div>
         )}
       </div>
