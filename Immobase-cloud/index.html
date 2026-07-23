@@ -4152,6 +4152,12 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   
   const offene = einzuegeMitStatus.filter(e => e.kategorie !== "done");
   const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
+  const schluesselText = (t) => {
+    const nr = (t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim();
+    const extra = (t.extraSchluessel||"").trim();
+    if (!nr && !extra) return null;
+    return [nr && ("Schlüssel " + nr), extra && ("Zusatz: " + extra)].filter(Boolean).join(" · ");
+  };
   const offeneSchluesselUebergaben = offene; // legacy alias fuer Tab-Badge
   
   function schluesselCat(daysTilEinzug) {
@@ -4279,6 +4285,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       </div>
                       <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
                       <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
+                      {schluesselText(s.tenant) && (
+                        <div style={{fontSize:10.5,color:"#4a4439",marginBottom:8}}>🔑 {schluesselText(s.tenant)}</div>
+                      )}
                       {s.latest && ["sent","in_progress"].includes(s.latest.status) && (
                         <div style={{fontSize:10.5,color:catCfg.color,marginBottom:8,padding:"3px 6px",background:"rgba(255,255,255,.4)",borderRadius:4}}>
                           Deadline: {new Date(s.latest.deadline).toLocaleDateString("de-CH")}
@@ -4317,7 +4326,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 {erledigt.map(s => (
                   <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
                     <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                    <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"}</div>
+                    <div style={{fontSize:10.5,color:"#4a4439",marginBottom:2}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"}</div>
+                    {schluesselText(s.tenant) && <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>🔑 {schluesselText(s.tenant)}</div>}
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       <button
                         onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
@@ -8788,6 +8798,12 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                   <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",padding:"10px 13px",borderRadius:8,marginBottom:16,background:erledigt?"var(--green-soft)":"#f7e4e0",border:`1px solid ${erledigt?"#c5d5b0":"#e0bcb0"}`}}>
                     <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:erledigt?"#3d4f2f":"#9b4a3e",fontWeight:600}}>Übergabe {erledigt?"erledigt":"offen"}</span>
                     {grund && <span style={{fontSize:11,color:"var(--muted)"}}>{grund}</span>}
+                    {(() => {
+                      const nr = (tenant.schluesselNr||"").trim() || (tenant.schluesselAnzahl||"").toString().trim();
+                      const extra = (tenant.extraSchluessel||"").trim();
+                      if (!nr && !extra) return <span style={{fontSize:11,color:"var(--muted)"}}>🔑 keine Schlüsselnummer erfasst</span>;
+                      return <span style={{fontSize:11,color:"var(--ink)"}}>🔑 {[nr && ("Schlüssel " + nr), extra && ("Zusatz: " + extra)].filter(Boolean).join(" · ")}</span>;
+                    })()}
                     {!hatDigital && !hatAltesDok && (
                       <button className="btn btn-sm" style={{marginLeft:"auto"}}
                         onClick={()=>{
