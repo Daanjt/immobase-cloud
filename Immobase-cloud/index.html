@@ -4292,7 +4292,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                         >
                           {s.kategorie === "todo" ? "📋 Protokoll starten" : s.kategorie === "review" ? "📥 Prüfen" : "🔍 Anzeigen"}
                         </button>
-                        {s.kategorie === "todo" && (
+                        {s.kategorie !== "done" && (
                           <button
                             onClick={(e)=>{e.stopPropagation(); if(window.confirm("Übergabe ohne digitales Protokoll als erledigt markieren?")) updateTenant(s.tenant.id, {uebergabeStatus:"erledigt", uebergabeNotiz:"Manuell als erledigt markiert"});}}
                             style={{background:"transparent",color:"var(--muted)",border:"1px solid var(--line)",borderRadius:6,padding:"7px 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}
@@ -4311,27 +4311,29 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           
           {/* ERLEDIGT */}
           {erledigt.length > 0 && (
-            <>
-              <div style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,marginBottom:10}}>Erledigt ({erledigt.length})</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
-                {erledigt.map(s => {
-                  const isAuto = s.latest?.status === "auto_accepted";
-                  return (
-                    <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                        <div style={{fontSize:10,fontWeight:700,color:"#3a5230",letterSpacing:".05em",textTransform:"uppercase"}}>✓ {isAuto ? "Auto-akzeptiert" : "Akzeptiert"}</div>
-                      </div>
-                      <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                      <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"}</div>
+            <details style={{marginTop:4}}>
+              <summary style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,cursor:"pointer",padding:"6px 0"}}>Erledigt ({erledigt.length})</summary>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10,marginTop:10}}>
+                {erledigt.map(s => (
+                  <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{s.tenant.vorname} {s.tenant.nachname}</div>
+                    <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"}</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       <button
                         onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
                         style={{fontSize:10.5,padding:"4px 10px",background:"transparent",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}
                       >🔍 Anzeigen</button>
+                      {(s.tenant.uebergabeStatus||"offen")==="erledigt" && (
+                        <button
+                          onClick={(e)=>{e.stopPropagation(); if(window.confirm("Wieder als offen markieren?")) updateTenant(s.tenant.id, {uebergabeStatus:"offen", uebergabeNotiz:""});}}
+                          style={{fontSize:10.5,padding:"4px 10px",background:"transparent",color:"#8a6d4a",border:"1px solid #d8c9ab",borderRadius:4,cursor:"pointer"}}
+                        >Wieder öffnen</button>
+                      )}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
-            </>
+            </details>
           )}
           
           {offene.length === 0 && erledigt.length === 0 && (
@@ -8775,7 +8777,32 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")} tenant={tenant} onJumpToDrittmeldung={()=>setTab("drittmeldung")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="uebergabe"&&<UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol}/>}
+            {tab==="uebergabe"&&(()=>{
+              const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
+              const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
+              const manuell = (tenant.uebergabeStatus||"offen")==="erledigt";
+              const erledigt = manuell || hatAltesDok || hatDigital;
+              const grund = hatDigital ? "Digitales Protokoll akzeptiert" : hatAltesDok ? "Protokoll als Dokument hinterlegt" : manuell ? (tenant.uebergabeNotiz||"Manuell als erledigt markiert") : "";
+              return (
+                <>
+                  <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",padding:"10px 13px",borderRadius:8,marginBottom:16,background:erledigt?"var(--green-soft)":"#f7e4e0",border:`1px solid ${erledigt?"#c5d5b0":"#e0bcb0"}`}}>
+                    <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:erledigt?"#3d4f2f":"#9b4a3e",fontWeight:600}}>Übergabe {erledigt?"erledigt":"offen"}</span>
+                    {grund && <span style={{fontSize:11,color:"var(--muted)"}}>{grund}</span>}
+                    {!hatDigital && !hatAltesDok && (
+                      <button className="btn btn-sm" style={{marginLeft:"auto"}}
+                        onClick={()=>{
+                          const neuS = manuell ? "offen" : "erledigt";
+                          if (window.confirm(neuS==="erledigt" ? "Übergabe ohne digitales Protokoll als erledigt markieren?" : "Wieder als offen markieren?"))
+                            updateTenant(tenant.id, {uebergabeStatus:neuS, uebergabeNotiz: neuS==="erledigt" ? "Manuell als erledigt markiert" : ""});
+                        }}>
+                        {manuell ? "Wieder öffnen" : "Als erledigt markieren"}
+                      </button>
+                    )}
+                  </div>
+                  <UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol}/>
+                </>
+              );
+            })()}
             {tab==="drittmeldung"&&<DrittmeldungTab tenant={tenant} updateTenant={updateTenant} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
