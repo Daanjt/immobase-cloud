@@ -9144,7 +9144,11 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   const activeTenants = tenants.filter(t => {
     const einzug = parseDate(t.einzug);
     const auszug = parseDate(t.auszug);
-    
+
+    // Abgesagte Miete: Auszug am oder vor dem Einzug, also nie eingezogen.
+    // Nur ausblenden, wenn dazu keine Zahlung erfasst ist.
+    if (einzug && auszug && auszug <= einzug && !(payments||[]).some(p => p.tenantId === t.id)) return false;
+
     // Wenn kein Einzug-Datum → annehmen dass Mieter seit Anfang da ist (aber nur aktiv)
     if (!einzug) {
       return (t.status||"aktiv") === "aktiv";
