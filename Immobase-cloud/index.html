@@ -9998,22 +9998,24 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       const wgF=monthFin(s,e); const abF=airbnbFin(s,e,eNext);
       const wg=floorFut(wgF.marge, fut); const ab=floorFut(abF.marge, fut);
       const umsatz=wgF.einnahmen+abF.umsatz; const mietausgaben=wgF.ausgaben+abF.miete;
-      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab, umsatz, mietausgaben,
+      const uebrige=abF.kommission+abF.putzen+abF.waesche+abF.moeblierung;
+      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab, umsatz, mietausgaben, uebrige,
         future: fut, current: cy===now.getFullYear()&&cm===now.getMonth() });
       cm++; if(cm>11){cm=0;cy++;}
     }
   }
   const combinedYears = [];
   for (let y=2025; y<=now.getFullYear()+1; y++){
-    let wgY=0, abY=0, umsatzY=0, mietausgabenY=0;
+    let wgY=0, abY=0, umsatzY=0, mietausgabenY=0, uebrigeY=0;
     for (let mo=0; mo<12; mo++){
       const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
       const fut = new Date(y,mo,1) > new Date(now.getFullYear(),now.getMonth(),1);
       const wgF=monthFin(s,e); const abF=airbnbFin(s,e,eNext);
       wgY += floorFut(wgF.marge, fut); abY += floorFut(abF.marge, fut);
       umsatzY += wgF.einnahmen + abF.umsatz; mietausgabenY += wgF.ausgaben + abF.miete;
+      uebrigeY += abF.kommission + abF.putzen + abF.waesche + abF.moeblierung;
     }
-    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY, umsatz:umsatzY, mietausgaben:mietausgabenY });
+    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY, umsatz:umsatzY, mietausgaben:mietausgabenY, uebrige:uebrigeY });
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
@@ -10048,6 +10050,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {tblBtn("wg","Monatsdetails WG")}
       {openTbl.wg && (
       <div style={{overflowX:"auto",marginTop:10}}>
+        <div style={{fontSize:10.5,color:"var(--muted)",lineHeight:1.5,marginBottom:8}}>Einnahmen: Zimmermieten inklusive Strom und Aufschlag. Miete: Hauptmiete an die Eigentümer. Marge: Einnahmen minus Miete. Alle Beträge in CHF, k steht für Tausend, ·P für Prognose.</div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11.5}}>
           <thead>
             <tr style={{color:"var(--muted)",fontSize:9,textTransform:"uppercase",letterSpacing:".12em"}}>
@@ -10068,7 +10071,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             ))}
           </tbody>
         </table>
-        <div style={{fontSize:10,color:"var(--muted)",marginTop:6}}>Beträge in CHF, k = Tausend. ·P = Prognose.</div>
       </div>
       )}
 
@@ -10162,12 +10164,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {tblBtn("ges","Monatsdetails Gesamt")}
       {openTbl.ges && (
       <div style={{overflowX:"auto",marginTop:10}}>
+        <div style={{fontSize:10.5,color:"var(--muted)",lineHeight:1.5,marginBottom:8}}>Umsatz: alle Einnahmen aus WGs und Airbnb. Miete: Hauptmieten an die Eigentümer. Übrige: alle weiteren Betriebskosten. Marge: Umsatz minus Miete minus übrige Kosten. Alle Beträge in CHF, k steht für Tausend, ·P für Prognose.</div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11.5}}>
           <thead>
             <tr style={{color:"var(--muted)",fontSize:9,textTransform:"uppercase",letterSpacing:".12em"}}>
               <th style={{padding:"6px 5px",textAlign:"left",fontWeight:600}}>Monat</th>
               <th style={{padding:"6px 5px",textAlign:"right",fontWeight:600}}>Umsatz</th>
               <th style={{padding:"6px 5px",textAlign:"right",fontWeight:600}}>Miete</th>
+              <th style={{padding:"6px 5px",textAlign:"right",fontWeight:600}}>Übrige</th>
               <th style={{padding:"6px 5px",textAlign:"right",fontWeight:600}}>Marge</th>
             </tr>
           </thead>
@@ -10177,12 +10181,12 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
                 <td style={{padding:"6px 5px",whiteSpace:"nowrap",color:m.future?"var(--muted)":"var(--ink)"}}>{m.label}{m.future?" ·P":""}</td>
                 <td style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:m.future?"var(--muted)":"var(--ink)"}}>{kfmt(m.umsatz)}</td>
                 <td style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:m.future?"var(--muted)":"var(--ink)"}}>{kfmt(m.mietausgaben)}</td>
+                <td style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:m.future?"var(--muted)":"var(--ink)"}}>{kfmt(m.uebrige)}</td>
                 <td style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:m.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{m.marge>=0?"+":""}{kfmt(m.marge)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div style={{fontSize:10,color:"var(--muted)",marginTop:6}}>Beträge in CHF, k = Tausend. ·P = Prognose.</div>
       </div>
       )}
 
@@ -10194,6 +10198,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",marginBottom:10}}>{yr.y}</div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Umsatz</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.umsatz))}</span></div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Mietausgaben</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.mietausgaben))}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Übrige Kosten</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.uebrige))}</span></div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,padding:"7px 0 0",marginTop:5,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Marge</span><span style={{color:yr.marge>=0?"#3d4f2f":"#9b4a3e"}}>{yr.marge>=0?"+":""}{chf(Math.round(yr.marge))}</span></div>
           </div>
         ))}
