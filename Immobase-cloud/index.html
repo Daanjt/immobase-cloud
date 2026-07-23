@@ -9994,7 +9994,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const hasAb = (smoobuBookings||[]).length>0;
   const abBookings = (smoobuBookings||[]).filter(x=>!x.cancelled && !x.isBlocked);
   const abApts = (apts||[]).filter(a=>a.type==="Airbnb" && !a.pipeline);
-  const strAptCount = Math.max(1, new Set((smoobuBookings||[]).filter(x=>!x.cancelled).map(x=>x.apartmentId)).size);
   const nightsOverlap = (arr, dep, s, eNext) => {
     if(!arr||!dep) return 0;
     const a=new Date(arr), d=new Date(dep);
@@ -10003,7 +10002,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   };
   const CLEAN_PER_BOOKING = 100, LAUNDRY_PER_GUEST = 12.5;
   const airbnbFin = (s, e, eNext) => {
-    const daysInMonth = Math.round((eNext - s)/86400000);
     let occNights=0, umsatz=0, putzen=0, waesche=0, anz=0, kommission=0;
     abBookings.forEach(bk=>{
       const tot = Math.max(1, bk.nights || Math.round((new Date(bk.departure)-new Date(bk.arrival))/86400000));
@@ -10018,10 +10016,19 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         anz += frac;
       }
     });
-    let miete=0, moeblierung=0;
-    abApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += 900; } });
-    return { occNights, umsatz, anz, kommission, miete, moeblierung, putzen, waesche, marge: umsatz-kommission-miete-putzen-waesche-moeblierung,
-      auslastung: (daysInMonth*strAptCount)? occNights/(daysInMonth*strAptCount):0, adr: occNights? umsatz/occNights:0 };
+    let miete=0, moeblierung=0, availNights=0;
+    abApts.forEach(a=>{
+      const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
+      if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += 900; }
+      // Verfuegbare Naechte: nur solange die Wohnung im Monat tatsaechlich gemietet war
+      const von = (ab && ab>s) ? ab : s;
+      const bisExkl = bis ? new Date(bis.getFullYear(), bis.getMonth(), bis.getDate()+1) : eNext;
+      const zu = bisExkl < eNext ? bisExkl : eNext;
+      const n = Math.round((zu - von)/86400000);
+      if (n>0) availNights += n;
+    });
+    return { occNights, availNights, umsatz, anz, kommission, miete, moeblierung, putzen, waesche, marge: umsatz-kommission-miete-putzen-waesche-moeblierung,
+      auslastung: availNights ? occNights/availNights : 0, adr: occNights? umsatz/occNights:0 };
   };
   const abMonths = [];
   { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+6, 1);
