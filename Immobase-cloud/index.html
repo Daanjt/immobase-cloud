@@ -4105,7 +4105,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // ─── ÜBERGABEN (Einzug + Auszug Tab) ─────────────────────────────────────────
-function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols}){
+function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const heute = new Date();
   heute.setHours(0,0,0,0);
@@ -4132,6 +4132,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       else if (latest.status === "submitted") kategorie = "review";
       else if (["accepted","auto_accepted"].includes(latest.status)) kategorie = "done";
       else kategorie = "todo"; // cancelled -> zurueck auf todo
+      // Altbestand: manuell als erledigt markiert oder altes Protokoll als Dokument hinterlegt
+      const hatAltesProtokoll = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===t.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
+      if ((t.uebergabeStatus||"offen")==="erledigt" || hatAltesProtokoll) kategorie = "done";
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
       return { tenant: t, room, apt, einzugDate, daysTilEinzug, kategorie, latest };
@@ -4289,6 +4292,15 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                         >
                           {s.kategorie === "todo" ? "📋 Protokoll starten" : s.kategorie === "review" ? "📥 Prüfen" : "🔍 Anzeigen"}
                         </button>
+                        {s.kategorie === "todo" && (
+                          <button
+                            onClick={(e)=>{e.stopPropagation(); if(window.confirm("Übergabe ohne digitales Protokoll als erledigt markieren?")) updateTenant(s.tenant.id, {uebergabeStatus:"erledigt", uebergabeNotiz:"Manuell als erledigt markiert"});}}
+                            style={{background:"transparent",color:"var(--muted)",border:"1px solid var(--line)",borderRadius:6,padding:"7px 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}
+                            title="Ohne digitales Protokoll abschliessen, zum Beispiel bei altem Protokoll auf Papier"
+                          >
+                            ✓ Erledigt
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -8643,25 +8655,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                     {badge("Einzug", tenant.drittmeldungStatus||"offen", ezDocs.length>0)}
                     {badge("Auszug", tenant.drittmeldungAuszugStatus||"offen", azDocs.length>0)}
                     <span style={{marginLeft:"auto",color:"var(--muted)",fontSize:12}}>→</span>
-                  </div>
-                );
-              })()}
-              {(() => {
-                const hopDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
-                const erledigt = (tenant.uebergabeStatus||"offen")==="erledigt" || hopDocs.length>0;
-                return (
-                  <div style={{display:"flex",alignItems:"center",gap:14,padding:"9px 13px",background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:8,marginBottom:16,fontSize:12,flexWrap:"wrap"}}>
-                    <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600}}>Übergabeprotokoll</span>
-                    <span style={{padding:"1px 9px",borderRadius:20,background:erledigt?"var(--green-soft)":"#f7e4e0",color:erledigt?"#3d4f2f":"#9b4a3e",fontSize:11,fontWeight:600}}>{erledigt?"Erledigt":"Offen"}</span>
-                    {hopDocs.length>0 && <span style={{color:"#3d4f2f",fontSize:11}} title="Protokoll als Dokument hinterlegt">✓ Dokument</span>}
-                    {tenant.uebergabeNotiz && <span style={{color:"var(--muted)",fontSize:11}}>{tenant.uebergabeNotiz}</span>}
-                    <button className="btn" style={{marginLeft:"auto",fontSize:11,padding:"3px 10px"}}
-                      onClick={()=>{
-                        const neu = (tenant.uebergabeStatus||"offen")==="erledigt" ? "offen" : "erledigt";
-                        updateTenant(tenant.id, {uebergabeStatus:neu, uebergabeNotiz: neu==="erledigt" ? (tenant.uebergabeNotiz||"Manuell als erledigt markiert") : ""});
-                      }}>
-                      {(tenant.uebergabeStatus||"offen")==="erledigt" ? "Als offen markieren" : "Als erledigt markieren"}
-                    </button>
                   </div>
                 );
               })()}
