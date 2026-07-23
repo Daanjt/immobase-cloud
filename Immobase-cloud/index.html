@@ -9887,6 +9887,23 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 // ─── FINANZEN (Monats-KPIs) ──────────────────────────────────────────────────
 function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const [openTbl, setOpenTbl] = useState({});
+  const GrpRow = ({label, value}) => (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"7px 0 3px"}}>
+      <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>{label}</span>
+      <span style={{fontSize:12.5,color:"var(--ink)"}}>{value}</span>
+    </div>
+  );
+  const SubRow = ({label, value}) => (
+    <div style={{display:"flex",justifyContent:"space-between",padding:"1.5px 0 1.5px 12px",fontSize:11.5,color:"var(--muted)"}}>
+      <span>{label}</span><span>{value}</span>
+    </div>
+  );
+  const CardHead = ({title, marge}) => (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",paddingBottom:7,borderBottom:"1px solid var(--line-soft)"}}>
+      <span style={{fontSize:12,color:"var(--ink)"}}>{title}</span>
+      <span style={{fontSize:15,fontFamily:"'Manrope',sans-serif",color:marge>=0?"#3d4f2f":"#9b4a3e"}}>{marge>=0?"+":""}{chf(Math.round(marge))}</span>
+    </div>
+  );
   const toggleTbl = (k) => setOpenTbl(o=>({...o,[k]:!o[k]}));
   const tblBtn = (k, label) => (
     <button onClick={()=>toggleTbl(k)} style={{width:"100%",textAlign:"left",background:"transparent",border:"1px solid var(--line-soft)",borderRadius:8,padding:"9px 12px",fontSize:11.5,color:"var(--muted)",cursor:"pointer",fontFamily:"inherit",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -10052,11 +10069,13 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {openTbl.wg && (
       <div style={{display:"grid",gap:8,marginTop:10}}>
         {months.map((m,i)=>(
-          <div key={i} style={{border:"1px solid var(--line-soft)",borderRadius:8,padding:"10px 12px",background:m.current?"var(--beige-soft)":"transparent"}}>
-            <div style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",marginBottom:6}}>{m.full}{m.current?" · aktuell":m.future?" · Prognose":""}</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Einnahmen</span><span style={{color:"var(--ink)"}}>{chf(m.einnahmen)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Hauptmiete</span><span style={{color:"var(--ink)"}}>{chf(m.ausgaben)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"5px 0 0",marginTop:4,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Marge</span><span style={{color:m.marge>=0?"#3d4f2f":"#9b4a3e"}}>{m.marge>=0?"+":""}{chf(m.marge)}</span></div>
+          <div key={i} style={{border:"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
+            <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} marge={m.marge} />
+            <GrpRow label="Einnahmen" value={chf(m.einnahmen)} />
+            <SubRow label="Zimmermieten" value={chf(m.miete)} />
+            <SubRow label="Strom" value={chf(m.strom)} />
+            <SubRow label="Kautions-Aufschlag" value={chf(m.aufschlag)} />
+            <GrpRow label="Hauptmiete" value={chf(m.ausgaben)} />
           </div>
         ))}
       </div>
@@ -10153,14 +10172,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {openTbl.ges && (
       <div style={{display:"grid",gap:8,marginTop:10}}>
         {combinedMonths.map((m,i)=>(
-          <div key={i} style={{border:"1px solid var(--line-soft)",borderRadius:8,padding:"10px 12px",background:m.current?"var(--beige-soft)":"transparent"}}>
-            <div style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",marginBottom:6}}>{m.full}{m.current?" · aktuell":m.future?" · Prognose":""}</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Umsatz WG</span><span style={{color:"var(--ink)"}}>{chf(Math.round(m.umsatzWg))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Umsatz Airbnb</span><span style={{color:"var(--ink)"}}>{chf(Math.round(m.umsatzAb))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Umsatz gesamt</span><span style={{color:"var(--ink)"}}>{chf(Math.round(m.umsatz))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Mietausgaben</span><span style={{color:"var(--ink)"}}>{chf(Math.round(m.mietausgaben))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",color:"var(--muted)"}}><span>Übrige Kosten</span><span style={{color:"var(--ink)"}}>{chf(Math.round(m.uebrige))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"5px 0 0",marginTop:4,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Marge</span><span style={{color:m.marge>=0?"#3d4f2f":"#9b4a3e"}}>{m.marge>=0?"+":""}{chf(Math.round(m.marge))}</span></div>
+          <div key={i} style={{border:"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
+            <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} marge={m.marge} />
+            <GrpRow label="Umsatz" value={chf(Math.round(m.umsatz))} />
+            <SubRow label="WG" value={chf(Math.round(m.umsatzWg))} />
+            <SubRow label="Airbnb" value={chf(Math.round(m.umsatzAb))} />
+            <GrpRow label="Kosten" value={chf(Math.round(m.mietausgaben+m.uebrige))} />
+            <SubRow label="Mietausgaben" value={chf(Math.round(m.mietausgaben))} />
+            <SubRow label="Übrige Kosten" value={chf(Math.round(m.uebrige))} />
           </div>
         ))}
       </div>
@@ -10170,14 +10189,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Gesamtmarge pro Kalenderjahr. 2025 ab November. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt.</div>
       <div style={{display:"grid",gridTemplateColumns:`repeat(${combinedYears.length},1fr)`,gap:10}}>
         {combinedYears.map(yr=>(
-          <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",marginBottom:10}}>{yr.y}</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Umsatz WG</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.umsatzWg))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Umsatz Airbnb</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.umsatzAb))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Umsatz gesamt</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.umsatz))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Mietausgaben</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.mietausgaben))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0",color:"var(--muted)"}}><span>Übrige Kosten</span><span style={{color:"var(--ink)"}}>{chf(Math.round(yr.uebrige))}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,padding:"7px 0 0",marginTop:5,borderTop:"1px solid var(--line-soft)",fontWeight:600}}><span>Marge</span><span style={{color:yr.marge>=0?"#3d4f2f":"#9b4a3e"}}>{yr.marge>=0?"+":""}{chf(Math.round(yr.marge))}</span></div>
+          <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+            <CardHead title={String(yr.y)} marge={yr.marge} />
+            <GrpRow label="Umsatz" value={chf(Math.round(yr.umsatz))} />
+            <SubRow label="WG" value={chf(Math.round(yr.umsatzWg))} />
+            <SubRow label="Airbnb" value={chf(Math.round(yr.umsatzAb))} />
+            <GrpRow label="Kosten" value={chf(Math.round(yr.mietausgaben+yr.uebrige))} />
+            <SubRow label="Mietausgaben" value={chf(Math.round(yr.mietausgaben))} />
+            <SubRow label="Übrige Kosten" value={chf(Math.round(yr.uebrige))} />
           </div>
         ))}
       </div>
