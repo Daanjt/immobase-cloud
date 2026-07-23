@@ -2103,6 +2103,19 @@ function useSupabaseData() {
 
   // ─── TO-DOS (Kanban) ──────────────────────────────────────────
   const [todos, setTodos] = useState([]);
+  const [todoDismissals, setTodoDismissals] = useState([]);
+  async function loadTodoDismissals() {
+    try {
+      const {data, error} = await supabase.from("todo_dismissals").select("auto_id");
+      if (error) { console.warn("todo_dismissals:", error.message); return; }
+      setTodoDismissals((data||[]).map(x=>x.auto_id));
+    } catch (e) { console.warn("loadTodoDismissals failed:", e); }
+  }
+  async function dismissAutoTodo(autoId) {
+    setTodoDismissals(prev => prev.includes(autoId) ? prev : [...prev, autoId]);
+    const {error} = await supabase.from("todo_dismissals").insert([{auto_id: autoId}]);
+    if (error) { console.error("dismissAutoTodo:", error); await loadTodoDismissals(); }
+  }
   async function loadTodos() {
     try {
       const {data, error} = await supabase.from("todos").select("*").order("created_at", {ascending:false});
@@ -2127,7 +2140,7 @@ function useSupabaseData() {
     const {error} = await supabase.from("todos").delete().eq("id", id);
     if (error) { console.error("deleteTodo:", error); await loadTodos(); }
   }
-  useEffect(() => { loadTodos(); }, []);
+  useEffect(() => { loadTodos(); loadTodoDismissals(); }, []);
   
   async function sendMahnung(payment_id, stufe) {
     try {
@@ -2428,7 +2441,7 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -10274,11 +10287,11 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   );
 }
 
-function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo}){
+function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo, todoDismissals, dismissAutoTodo}){
   const [newTitle, setNewTitle] = useState("");
   const hasDoc = (t, prefix) => (documents||[]).some(d => (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()) && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
   const aptHasDoc = (a, prefix) => (documents||[]).some(d => d.entity_type==="apartment" && d.entity_id===a.id && (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()));
-  const auto = [];
+  let auto = [];
   const dmHeute = new Date(); dmHeute.setHours(23,59,59,999);
   (tenants||[]).filter(t=>t.status!=="archiviert").forEach(t=>{
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
@@ -10302,6 +10315,9 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
       if(!aptHasDoc(a,cat)) auto.push({id:"apt-"+a.id+"-"+cat,icon:"📄",label:cat+" fehlt",sub:an,page:"wohnungen",target:a.id});
     });
   });
+
+  const dismissed = new Set(todoDismissals||[]);
+  auto = auto.filter(a => !dismissed.has(a.id));
 
   const order=["offen","in_arbeit","erledigt"];
   const labels={offen:"Offen",in_arbeit:"In Arbeit",erledigt:"Erledigt"};
@@ -10332,6 +10348,9 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
                   <div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.sub}</div>
                 </div>
                 <span className="kbadge">Auto</span>
+                <span role="button" title="Dauerhaft ausblenden"
+                  onClick={e=>{e.stopPropagation(); if(window.confirm("Dieses automatische To-do dauerhaft ausblenden?")) dismissAutoTodo && dismissAutoTodo(a.id);}}
+                  style={{marginLeft:6,fontSize:13,color:"var(--muted)",padding:"0 4px",cursor:"pointer"}}>×</span>
               </button>
             ))}
 
