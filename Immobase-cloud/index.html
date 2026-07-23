@@ -1488,6 +1488,8 @@ function useSupabaseData() {
       drittmeldungAuszugStatus: x.drittmeldung_auszug_status || "offen",
       drittmeldungAuszugDatum: x.drittmeldung_auszug_datum,
       drittmeldungAuszugNotiz: x.drittmeldung_auszug_notiz,
+      uebergabeStatus: x.uebergabe_status || "offen",
+      uebergabeNotiz: x.uebergabe_notiz,
       aptId: x.apt_id,
       roomId: x.room_id,
       kautionMonate: x.kaution_monate,
@@ -1674,6 +1676,8 @@ function useSupabaseData() {
       drittmeldungAuszugStatus: "drittmeldung_auszug_status",
       drittmeldungAuszugDatum: "drittmeldung_auszug_datum",
       drittmeldungAuszugNotiz: "drittmeldung_auszug_notiz",
+      uebergabeStatus: "uebergabe_status",
+      uebergabeNotiz: "uebergabe_notiz",
       aptId: "apt_id",
       roomId: "room_id",
       kautionMonate: "kaution_monate",
@@ -8642,6 +8646,25 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                   </div>
                 );
               })()}
+              {(() => {
+                const hopDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
+                const erledigt = (tenant.uebergabeStatus||"offen")==="erledigt" || hopDocs.length>0;
+                return (
+                  <div style={{display:"flex",alignItems:"center",gap:14,padding:"9px 13px",background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:8,marginBottom:16,fontSize:12,flexWrap:"wrap"}}>
+                    <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600}}>Übergabeprotokoll</span>
+                    <span style={{padding:"1px 9px",borderRadius:20,background:erledigt?"var(--green-soft)":"#f7e4e0",color:erledigt?"#3d4f2f":"#9b4a3e",fontSize:11,fontWeight:600}}>{erledigt?"Erledigt":"Offen"}</span>
+                    {hopDocs.length>0 && <span style={{color:"#3d4f2f",fontSize:11}} title="Protokoll als Dokument hinterlegt">✓ Dokument</span>}
+                    {tenant.uebergabeNotiz && <span style={{color:"var(--muted)",fontSize:11}}>{tenant.uebergabeNotiz}</span>}
+                    <button className="btn" style={{marginLeft:"auto",fontSize:11,padding:"3px 10px"}}
+                      onClick={()=>{
+                        const neu = (tenant.uebergabeStatus||"offen")==="erledigt" ? "offen" : "erledigt";
+                        updateTenant(tenant.id, {uebergabeStatus:neu, uebergabeNotiz: neu==="erledigt" ? (tenant.uebergabeNotiz||"Manuell als erledigt markiert") : ""});
+                      }}>
+                      {(tenant.uebergabeStatus||"offen")==="erledigt" ? "Als offen markieren" : "Als erledigt markieren"}
+                    </button>
+                  </div>
+                );
+              })()}
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>Persönliche Daten</div>
               <div className="igrid">{[
                 ["E-Mail",tenant.email||"-"],
@@ -10287,7 +10310,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   );
 }
 
-function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo, todoDismissals, dismissAutoTodo}){
+function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo, todoDismissals, dismissAutoTodo, handoverProtocols}){
   const [newTitle, setNewTitle] = useState("");
   const hasDoc = (t, prefix) => (documents||[]).some(d => (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()) && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
   const aptHasDoc = (a, prefix) => (documents||[]).some(d => d.entity_type==="apartment" && d.entity_id===a.id && (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()));
@@ -10300,6 +10323,7 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
     if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
     if((t.drittmeldungStatus||"offen")!=="gemeldet") auto.push({id:"dm-ez-"+t.id,icon:"📮",label:"Drittmeldung Einzug offen",sub:nm,page:"mieter",target:t.id});
+    if((t.uebergabeStatus||"offen")!=="erledigt" && !hasDoc(t,"Übergabeprotokoll") && !(handoverProtocols||[]).some(h=>h.tenant_id===t.id && ["accepted","abgeschlossen","completed"].includes(h.status))) auto.push({id:"hop-"+t.id,icon:"🔑",label:"Übergabeprotokoll fehlt",sub:nm,page:"mieter",target:t.id});
   });
   (tenants||[]).forEach(t=>{
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
