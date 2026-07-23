@@ -10574,6 +10574,20 @@ function MainApp() {
     if (auszug && auszug < monatsStart2) return false;
     return true;
   });
+  const offeneUebergaben = data.tenants.filter(t => {
+    if ((t.status||"aktiv") !== "aktiv") return false;
+    const room = data.rooms.find(r => r.tenantId === t.id);
+    if (!room) return false;
+    const meine = (data.handoverProtocols||[]).filter(h => h.tenantId === t.id)
+      .sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
+    const latest = meine[0];
+    if (latest && ["accepted","auto_accepted"].includes(latest.status)) return false;
+    if ((t.uebergabeStatus||"offen") === "erledigt") return false;
+    const hatAltesProtokoll = (data.documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===t.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
+    if (hatAltesProtokoll) return false;
+    return true;
+  }).length;
+
   const offeneZahlungen = relevantTenants.filter(t => {
     const p = data.payments.find(pay => pay.tenantId === t.id && pay.jahr === aktJ && pay.monat === aktM);
     return !p || p.status === "offen";
@@ -10609,6 +10623,7 @@ function MainApp() {
             {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
             {p.id==="zahlungen"&&offeneZahlungen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneZahlungen}</span>}
+            {p.id==="uebergaben"&&offeneUebergaben>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneUebergaben}</span>}
           </button>))}
         </div>
         <div className="user-info">
