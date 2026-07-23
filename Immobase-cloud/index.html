@@ -4105,7 +4105,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // ─── ÜBERGABEN (Einzug + Auszug Tab) ─────────────────────────────────────────
-function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents}){
+function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const heute = new Date();
   heute.setHours(0,0,0,0);
@@ -4152,6 +4152,16 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   
   const offene = einzuegeMitStatus.filter(e => e.kategorie !== "done");
   const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
+  const [startFor, setStartFor] = useState(null);
+  const [sNr, setSNr] = useState("");
+  const [sExtra, setSExtra] = useState("");
+  const [starting, setStarting] = useState(false);
+  const oeffneStart = (eintrag) => {
+    const t = eintrag.tenant;
+    setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
+    setSExtra((t.extraSchluessel||"").trim());
+    setStartFor(eintrag);
+  };
   const schluesselText = (t) => {
     const nr = (t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim();
     const extra = (t.extraSchluessel||"").trim();
@@ -4295,9 +4305,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       )}
                       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                         <button
-                          onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
+                          onClick={(e)=>{e.stopPropagation(); if(s.kategorie==="todo") oeffneStart(s); else navigateTo&&navigateTo("mieter",s.tenant.id);}}
                           style={{flex:1,minWidth:0,background:"#1a1814",color:"#fefcf7",border:"none",borderRadius:6,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em"}}
-                          title="Mieter oeffnen"
+                          title={s.kategorie==="todo" ? "Protokoll direkt starten" : "Mieter oeffnen"}
                         >
                           {s.kategorie === "todo" ? "📋 Protokoll starten" : s.kategorie === "review" ? "📥 Prüfen" : "🔍 Anzeigen"}
                         </button>
@@ -4411,6 +4421,65 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {startFor && (
+        <div onClick={()=>!starting&&setStartFor(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"20px 20px 16px",maxWidth:420,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+            <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:4}}>Protokoll starten</div>
+            <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>
+              {startFor.tenant.vorname} {startFor.tenant.nachname} · {startFor.room?.id||"-"} · {startFor.apt?.adresse||"-"}<br/>
+              Der Mieter erhält einen Link und hat 14 Tage Zeit, das Protokoll auszufüllen.
+            </div>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Schlüsselnummer</label>
+            <input value={sNr} onChange={e=>setSNr(e.target.value)} placeholder="z.B. 1-LA008031-31.2"
+              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:12,fontFamily:"inherit"}}/>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Zusätzliche Schlüssel</label>
+            <textarea value={sExtra} onChange={e=>setSExtra(e.target.value)} rows={2} placeholder="z.B. Eingangstür Wohnung"
+              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
+              <button className="btn btn-sm" disabled={starting}
+                onClick={async ()=>{
+                  setStarting(true);
+                  try {
+                    const nrTrim = sNr.trim(), extraTrim = sExtra.trim();
+                    const t = startFor.tenant;
+                    await updateTenant(t.id, {
+                      schluessel_nr: nrTrim,
+                      extra_schluessel: extraTrim,
+                      schluessel_uebergeben: !!(nrTrim || extraTrim),
+                    });
+                    const snapshot = [
+                      nrTrim && `Schlüsselnummer: ${nrTrim}`,
+                      extraTrim && `Extra-Schlüssel:\n${extraTrim}`
+                    ].filter(Boolean).join("\n\n");
+                    await startHandoverProtocol({
+                      tenantId: t.id,
+                      aptId: startFor.apt?.id,
+                      roomId: startFor.room?.id,
+                      mieterEmail: t.email,
+                      mieterVorname: t.vorname,
+                      mieterNachname: t.nachname,
+                      mieterGeburtsdatum: t.geburt || null,
+                      mieterNationalitaet: t.nat || null,
+                      mieterTelefon: t.phone || null,
+                      aptAdresse: startFor.apt?.adresse || null,
+                      aptPlz: startFor.apt?.plz || null,
+                      aptOrt: startFor.apt?.ort || null,
+                      roomLabel: startFor.room?.id || null,
+                      einzugDatum: t.einzug || null,
+                      schluesselInfo: snapshot || null,
+                    });
+                    setStartFor(null);
+                  } catch(e) {
+                    alert("Fehler: " + (e.message || e));
+                  }
+                  setStarting(false);
+                }}>{starting ? "Starte..." : "Protokoll starten"}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
