@@ -70,7 +70,14 @@ if ('serviceWorker' in navigator) {
   --error-soft: #f0dcd5;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;font-size:13.5px;font-weight:400;letter-spacing:.005em;min-height:100vh;min-height:-webkit-fill-available}
+html{overflow-x:hidden}
+/* Seitliches Wegrutschen beim Scrollen in Diagrammen und Tabellen verhindern */
+body,.main{overscroll-behavior-x:contain}
+.main > *{max-width:100%}
+/* Lange Zeichenketten (E-Mails, Schluesselnummern, URLs) duerfen umbrechen */
+.main table{max-width:100%}
+.main td,.main th{overflow-wrap:anywhere}
+body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manrope', sans-serif;font-size:13.5px;font-weight:400;letter-spacing:.005em;min-height:100vh;min-height:-webkit-fill-available}
 /* PWA: handle iOS safe area (notch, dynamic island, home indicator) */
 @supports (padding: env(safe-area-inset-top)) {
   body { 
@@ -126,7 +133,7 @@ body{background:var(--bg);color:var(--text);font-family:'Manrope', sans-serif;fo
 .logout-btn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:9.5px;cursor:pointer;font-family:'Manrope', sans-serif;letter-spacing:.18em;text-transform:uppercase;transition:.2s}
 .logout-btn:hover{border-color:var(--ink);color:var(--ink)}
 
-.main{flex:1;overflow-y:auto;padding:48px 56px}
+.main{flex:1;min-width:0;max-width:100%;overflow-y:auto;overflow-x:hidden;padding:48px 56px}
 .pt{font-family:'Manrope', sans-serif;font-size:34px;font-weight:400;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
 .ps{font-size:11px;color:var(--muted);margin-bottom:32px;letter-spacing:.18em;text-transform:uppercase;font-weight:400}
 
@@ -2789,7 +2796,7 @@ function MediaManager({apt, editApt, rooms}){
       
       {/* ─── Fotos Grid ─── */}
       {photos.length > 0 ? (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",gap:10,marginBottom:24}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(200px, 100%), 1fr))",gap:10,marginBottom:24}}>
           {photos.map((p, i) => (
             <div key={p.path} style={{border:`1px solid ${p.category ? "#e1d8c5" : "#e8d2a8"}`,borderRadius:8,overflow:"hidden",background:"#fff",position:"relative",boxShadow: p.category ? "none" : "0 0 0 1px #fdf7e8 inset"}}>
               {p.path.toLowerCase().endsWith(".pdf") ? (
@@ -3979,7 +3986,7 @@ ${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><
             </div>
             
             {photos.length > 0 && (
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(80px, 1fr))",gap:6,marginBottom:10}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(80px, 100%), 1fr))",gap:6,marginBottom:10}}>
                 {photos.map((p,i) => (
                   <div key={i} style={{position:"relative",aspectRatio:"1",border:"1px solid #e1d8c5",borderRadius:4,overflow:"hidden"}}>
                     <img src={p} alt={`Foto ${i+1}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
@@ -4275,7 +4282,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           {offene.length > 0 && (
             <>
               <div style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,marginBottom:10}}>Fällig ({offene.length})</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10,marginBottom:24}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10,marginBottom:24}}>
                 {offene.map(s => {
                   const catCfg = {
                     "todo":    {bg:"#fdebe5",border:"#e0bcb0",color:"#9b4a3e",label:"Nicht gestartet",   icon:"⚠️"},
@@ -4332,7 +4339,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           {erledigt.length > 0 && (
             <details style={{marginTop:4}}>
               <summary style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,cursor:"pointer",padding:"6px 0"}}>Erledigt ({erledigt.length})</summary>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10,marginTop:10}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10,marginTop:10}}>
                 {erledigt.map(s => (
                   <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
                     <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{s.tenant.vorname} {s.tenant.nachname}</div>
@@ -4380,7 +4387,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <div style={{fontSize:11}}>Mieter mit Auszugsdatum erscheinen hier ab 90 Tagen vorher.</div>
             </div>
           ) : (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10}}>
               {reminders.map(r => {
                 const cat = reminderCat(r.daysLeft, r.aptEndsToo);
                 return (
@@ -4929,7 +4936,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
             return (
               <div style={{marginTop:18,paddingTop:14,borderTop:"1px dashed #d4c7a8"}}>
                 <div style={{fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",fontWeight:500,marginBottom:10}}>Aufschläge pro Wohnung</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:8}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(220px, 100%), 1fr))",gap:8}}>
                   {aptArr.map(({apt, total, count}) => (
                     <div key={apt?.id || "noapt"} onClick={()=>apt && navigateTo && navigateTo("wohnungen", apt.id)} style={{background:"#f9f6ef",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",cursor:apt?"pointer":"default"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
@@ -9549,7 +9556,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       </div>
       
       {/* STAT-CARDS: Status-Übersicht */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,margin:"18px 0 10px"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(180px, 100%), 1fr))",gap:12,margin:"18px 0 10px"}}>
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Bezahlt</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#5a6e4a"}}>{anzahlBezahlt} <span style={{fontSize:13,color:"#8a8174",fontWeight:400}}>/ {rows.length}</span></div>
@@ -9575,7 +9582,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       </div>
       
       {/* STAT-CARDS: Finanz-Übersicht */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(220px, 100%), 1fr))",gap:12,marginBottom:18}}>
         <div className="card" style={{margin:0,background:"#f5f8f1",borderColor:"#d4ddc8"}}>
           <div style={{fontSize:9.5,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>💰 Eingenommen</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:"#3a5230"}}>CHF {totalBezahlt.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
@@ -9983,7 +9990,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
             </div>
           </div>
           <div style={{height:1,background:"var(--line-soft)",margin:"18px 0"}}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:28}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(230px, 100%), 1fr))",gap:28}}>
             <div>
               <div className="psec">Adresse</div>
               <div style={{fontSize:13.5,color:"var(--text)",lineHeight:1.55}}>{addrOf(selPartner)||<span style={{color:"var(--muted-light)"}}>keine Adresse hinterlegt</span>}</div>
@@ -10221,7 +10228,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:18}}>Finanzen</div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
           <div key={l} style={{background:bg,borderRadius:10,padding:"14px 16px"}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:fg,fontWeight:600,marginBottom:8,opacity:.85}}>{l}</div>
@@ -10261,7 +10268,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       )}
 
       <SubHead title="Jährliche Ergebnisse WGs" />
-      <div style={{display:"grid",gridTemplateColumns:`repeat(${years.length},1fr)`,gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(200px, 100%), 1fr))",gap:10}}>
         {years.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--ink)",marginBottom:10}}>{yr.y}{yr.future?" · Prognose":""}</div>
@@ -10277,7 +10284,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         <>
           <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
           <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(abCur.auslastung*100)}%</div>
@@ -10368,7 +10375,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       )}
 
       <SubHead title="Jährlich · WGs und Airbnb" sub="Gesamtmarge pro Kalenderjahr. 2025 ab November." />
-      <div style={{display:"grid",gridTemplateColumns:`repeat(${combinedYears.length},1fr)`,gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(200px, 100%), 1fr))",gap:10}}>
         {combinedYears.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
             <CardHead title={String(yr.y)} />
@@ -10386,7 +10393,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="Bewohner" sub="Aktuelle Mieterinnen und Mieter der WGs." />
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:18}}>
         <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Anzahl Bewohner</div>
           <div style={{fontSize:24,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)"}}>{activeTenants.length}</div>
@@ -10523,6 +10530,14 @@ function MainApp() {
   const [navTarget, setNavTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const data = useSupabaseData();
+
+  // Bei jedem Seitenwechsel wieder nach ganz oben, sonst startet die neue Seite mitten drin
+  useEffect(() => {
+    const el = document.querySelector(".main");
+    if (el && el.scrollTo) el.scrollTo({top:0, left:0, behavior:"auto"});
+    else if (el) el.scrollTop = 0;
+    if (window.scrollTo) window.scrollTo(0,0);
+  }, [page]);
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
