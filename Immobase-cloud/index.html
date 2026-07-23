@@ -9891,6 +9891,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 // ─── FINANZEN (Monats-KPIs) ──────────────────────────────────────────────────
 function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const [openTbl, setOpenTbl] = useState({});
+  const curMonthRef = useRef({});
   const GrpRow = ({label, value}) => (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"7px 0 3px"}}>
       <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>{label}</span>
@@ -9925,7 +9926,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       <span style={{fontSize:19,fontFamily:"'Manrope',sans-serif",color:marge>=0?"#3d4f2f":"#9b4a3e"}}>{marge>=0?"+":""}{chf(Math.round(marge))}</span>
     </div>
   );
-  const toggleTbl = (k) => setOpenTbl(o=>({...o,[k]:!o[k]}));
+  const toggleTbl = (k) => setOpenTbl(o=>{
+    const next = {...o, [k]: !o[k]};
+    if (next[k]) setTimeout(()=>{
+      const el = curMonthRef.current[k];
+      if (el && el.scrollIntoView) el.scrollIntoView({behavior:"smooth", block:"center"});
+    }, 80);
+    return next;
+  });
   const tblBtn = (k, label) => (
     <button onClick={()=>toggleTbl(k)} style={{width:"100%",textAlign:"left",background:"transparent",border:"1px solid var(--line-soft)",borderRadius:8,padding:"9px 12px",fontSize:11.5,color:"var(--muted)",cursor:"pointer",fontFamily:"inherit",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <span>{label}</span><span style={{fontSize:10}}>{openTbl[k]?"▲":"▼"}</span>
@@ -10063,7 +10071,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   return (
     <div>
       <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:18}}>Finanzen</div>
-      <div style={{border:"1px solid var(--line-soft)",borderRadius:12,padding:"20px 18px",marginBottom:16}}>
+      <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
@@ -10091,7 +10099,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {openTbl.wg && (
       <div style={{display:"grid",gap:8,marginTop:10}}>
         {months.map((m,i)=>(
-          <div key={i} style={{border:"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
+          <div key={i} ref={m.current?(el=>{curMonthRef.current.wg=el;}):null} style={{border:m.current?"1px solid var(--line)":"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
             <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} />
             <GrpRow label="Einnahmen" value={chf(m.einnahmen)} />
             <SubRow label="Zimmermieten" value={chf(m.miete)} />
@@ -10119,7 +10127,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
       {hasAb && (
         <>
-          <div style={{border:"1px solid var(--line-soft)",borderRadius:12,padding:"20px 18px",marginBottom:16}}>
+          <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
           <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
@@ -10179,7 +10187,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         </>
       )}
 
-      <div style={{border:"1px solid var(--line-soft)",borderRadius:12,padding:"20px 18px",marginBottom:16}}>
+      <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="Gesamt" sub="WGs und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
       <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
@@ -10197,7 +10205,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {openTbl.ges && (
       <div style={{display:"grid",gap:8,marginTop:10}}>
         {combinedMonths.map((m,i)=>(
-          <div key={i} style={{border:"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
+          <div key={i} ref={m.current?(el=>{curMonthRef.current.ges=el;}):null} style={{border:m.current?"1px solid var(--line)":"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
             <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} />
             <GrpRow label="Umsatz" value={chf(Math.round(m.umsatz))} />
             <SubRow label="WG" value={chf(Math.round(m.umsatzWg))} />
@@ -10228,7 +10236,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
 
       </div>
-      <div style={{border:"1px solid var(--line-soft)",borderRadius:12,padding:"20px 18px",marginBottom:16}}>
+      <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="Bewohner" sub="Aktuelle Mieterinnen und Mieter der WGs." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
         <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
