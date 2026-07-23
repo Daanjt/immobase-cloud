@@ -9907,6 +9907,21 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       <span style={{fontSize:12,color:"var(--ink)"}}>{title}</span>
     </div>
   );
+  const SectionHead = ({num, title, sub, first}) => (
+    <div style={{marginTop:first?0:34,marginBottom:14,padding:"14px 16px",background:"var(--beige-soft)",borderLeft:"3px solid var(--ink)",borderRadius:"0 9px 9px 0"}}>
+      <div style={{display:"flex",alignItems:"baseline",gap:9}}>
+        <span style={{fontSize:10,letterSpacing:".2em",color:"var(--muted)"}}>{num}</span>
+        <span style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:20,color:"var(--ink)",lineHeight:1.2}}>{title}</span>
+      </div>
+      {sub && <div style={{fontSize:11.5,color:"var(--muted)",marginTop:6,lineHeight:1.55}}>{sub}</div>}
+    </div>
+  );
+  const SubHead = ({title, sub}) => (
+    <div style={{margin:"26px 0 12px"}}>
+      <div style={{fontSize:13.5,fontFamily:"Georgia,'Times New Roman',serif",color:"var(--ink)",paddingBottom:5,borderBottom:"1px solid var(--line-soft)"}}>{title}</div>
+      {sub && <div style={{fontSize:11.5,color:"var(--muted)",marginTop:7,lineHeight:1.55}}>{sub}</div>}
+    </div>
+  );
   const CardFoot = ({marge}) => (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginTop:9,paddingTop:9,borderTop:"1px solid var(--line-soft)"}}>
       <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>Marge</span>
@@ -10050,8 +10065,8 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const kfmt = (v)=>{ const a=Math.abs(v); const sg=v<0?"-":""; if(a>=10000) return sg+Math.round(a/1000)+"k"; if(a>=1000) return sg+(a/1000).toFixed(1)+"k"; return Math.round(v).toString(); };
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:4}}>Finanzen</div>
-      <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:20,lineHeight:1.5}}>KPIs über die Monate für die WGs, ohne Airbnb. Einnahmen inklusive Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Zukünftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden.</div>
+      <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:18}}>Finanzen</div>
+      <SectionHead first num="1" title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
           <div key={l} style={{background:bg,borderRadius:10,padding:"14px 16px"}}>
@@ -10091,7 +10106,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
       )}
 
-      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"30px 0 12px"}}>Jährliche Ergebnisse</div>
+      <SubHead title="Jährliche Ergebnisse WGs" />
       <div style={{display:"grid",gridTemplateColumns:`repeat(${years.length},1fr)`,gap:10}}>
         {years.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"16px 18px"}}>
@@ -10105,8 +10120,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
 
       {hasAb && (
         <>
-          <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"32px 0 4px"}}>Airbnb · Serviced Apartments</div>
-          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (Airbnb, Booking; bei Direktbuchungen keine), Hauptmiete der Objekte, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt.</div>
+          <SectionHead num="2" title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
@@ -10164,8 +10178,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         </>
       )}
 
-      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"34px 0 4px"}}>Gesamt · WG + Airbnb</div>
-      <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>Gesamtmarge pro Monat seit November 2025, WGs und Airbnbs zusammen. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt.</div>
+      <SectionHead num="3" title="Gesamt" sub="WGs und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
       <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
           const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
@@ -10196,8 +10209,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
       )}
 
-      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"30px 0 4px"}}>Jährlich · WG + Airbnb</div>
-      <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Gesamtmarge pro Kalenderjahr. 2025 ab November. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt.</div>
+      <SubHead title="Jährlich · WGs und Airbnb" sub="Gesamtmarge pro Kalenderjahr. 2025 ab November." />
       <div style={{display:"grid",gridTemplateColumns:`repeat(${combinedYears.length},1fr)`,gap:10}}>
         {combinedYears.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
@@ -10213,7 +10225,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         ))}
       </div>
 
-      <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".22em",color:"var(--muted)",fontWeight:600,margin:"34px 0 12px"}}>Bewohner</div>
+      <SectionHead num="4" title="Bewohner" sub="Aktuelle Mieterinnen und Mieter der WGs." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
         <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Anzahl Bewohner</div>
