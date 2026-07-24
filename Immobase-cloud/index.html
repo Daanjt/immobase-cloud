@@ -10730,7 +10730,7 @@ function MainApp() {
   );
 }
 
-function PasswortAendern({onClose}) {
+function PasswortAendern({onClose, pflicht}) {
   const [pw1, setPw1] = useState("");
   const [pw2, setPw2] = useState("");
   const [msg, setMsg] = useState(null);
@@ -10745,16 +10745,18 @@ function PasswortAendern({onClose}) {
     else { setMsg({t:"ok", m:"Passwort geändert."}); setPw1(""); setPw2(""); setTimeout(onClose, 1200); }
   }
   return (
-    <div onClick={()=>!busy&&onClose()} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+    <div onClick={()=>{ if(!busy && !pflicht) onClose(); }} style={{position:"fixed",inset:0,background:pflicht?"var(--bg)":"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:400,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
-        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:14}}>Passwort ändern</div>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:pflicht?8:14}}>{pflicht ? "Neues Passwort festlegen" : "Passwort ändern"}</div>
+        {pflicht && <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.55,marginBottom:14}}>Du bist über den Link aus der E-Mail angemeldet. Bitte lege jetzt ein neues Passwort fest, danach steht die App zur Verfügung.</div>}
         <input type="password" placeholder="Neues Passwort" autoComplete="new-password" value={pw1} onChange={e=>setPw1(e.target.value)}
           style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:10,fontFamily:"inherit"}}/>
         <input type="password" placeholder="Neues Passwort wiederholen" autoComplete="new-password" value={pw2} onChange={e=>setPw2(e.target.value)}
           style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:12,fontFamily:"inherit"}}/>
         {msg && <div style={{fontSize:12,marginBottom:10,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <button className="btn btn-g btn-sm" disabled={busy} onClick={onClose}>Abbrechen</button>
+          {!pflicht && <button className="btn btn-g btn-sm" disabled={busy} onClick={onClose}>Abbrechen</button>}
+          {pflicht && <button className="btn btn-g btn-sm" disabled={busy} onClick={async()=>{ await supabase.auth.signOut(); window.location.href = window.location.pathname; }}>Abmelden</button>}
           <button className="btn btn-sm" disabled={busy||!pw1||!pw2} onClick={speichern}>{busy?"Speichere…":"Speichern"}</button>
         </div>
       </div>
@@ -10764,6 +10766,9 @@ function PasswortAendern({onClose}) {
 
 function App() {
   const [authed, setAuthed] = useState(undefined);
+  const [recovery, setRecovery] = useState(
+    typeof window !== "undefined" && /type=recovery/.test(window.location.hash || "")
+  );
 
   useEffect(() => {
     // Alte Passwort-Merker aufraeumen
@@ -10773,14 +10778,23 @@ function App() {
     supabase.auth.getSession().then(({data}) => {
       if (aktiv) setAuthed(!!data?.session);
     });
-    const {data: sub} = supabase.auth.onAuthStateChange((_e, session) => {
-      if (aktiv) setAuthed(!!session);
+    const {data: sub} = supabase.auth.onAuthStateChange((ereignis, session) => {
+      if (!aktiv) return;
+      // Der Link aus der Zuruecksetzen-Mail meldet direkt an.
+      // Deshalb erzwingen wir hier ein neues Passwort, bevor die App nutzbar ist.
+      if (ereignis === "PASSWORD_RECOVERY") setRecovery(true);
+      if (ereignis === "SIGNED_OUT") setRecovery(false);
+      setAuthed(!!session);
     });
     return () => { aktiv = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
   if (authed === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
   if (!authed) return <Login onLogin={()=>setAuthed(true)}/>;
+  if (recovery) return <PasswortAendern pflicht onClose={()=>{
+    setRecovery(false);
+    if (window.history.replaceState) window.history.replaceState(null, "", window.location.pathname);
+  }}/>;
   return <MainApp/>;
 }
 
