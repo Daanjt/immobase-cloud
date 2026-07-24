@@ -2189,18 +2189,30 @@ function useSupabaseData() {
     try {
       const {data, error} = await supabase.from("todos").select("*").order("created_at", {ascending:false});
       if (error) { console.warn("Todos-Tabelle noch nicht eingerichtet:", error.message); return; }
-      setTodos((data||[]).map(t => ({id:t.id, title:t.title, notiz:t.notiz, status:t.status, prioritaet:t.prioritaet, createdAt:t.created_at})));
+      setTodos((data||[]).map(t => ({id:t.id, title:t.title, notiz:t.notiz, status:t.status, prioritaet:t.prioritaet, zustaendig:t.zustaendig||"", faelligAm:t.faellig_am||"", createdAt:t.created_at})));
     } catch (e) { console.warn("loadTodos failed:", e); }
   }
-  async function insertTodo(title, notiz) {
-    const row = { id:`TD${Date.now()}`, title:(title||"").trim()||"Neues To-do", notiz:notiz||"", status:"offen", prioritaet:"" };
+  async function insertTodo(title, notiz, extras) {
+    const e = extras || {};
+    const row = {
+      id:`TD${Date.now()}`,
+      title:(title||"").trim()||"Neues To-do",
+      notiz:notiz||"",
+      status:"offen",
+      prioritaet:e.prioritaet||"",
+      zustaendig:e.zustaendig||null,
+      faellig_am:e.faelligAm||null,
+    };
     const {error} = await supabase.from("todos").insert([row]);
     if (error) { console.error("insertTodo:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
     await loadTodos();
   }
   async function updateTodo(id, fields) {
     setTodos(p => p.map(t => t.id===id ? {...t, ...fields} : t));
-    const dbFields = {...fields}; delete dbFields.createdAt; dbFields.updated_at = new Date().toISOString();
+    const dbFields = {...fields}; delete dbFields.createdAt;
+    if ('faelligAm' in dbFields) { dbFields.faellig_am = dbFields.faelligAm || null; delete dbFields.faelligAm; }
+    if ('zustaendig' in dbFields) dbFields.zustaendig = dbFields.zustaendig || null;
+    dbFields.updated_at = new Date().toISOString();
     const {error} = await supabase.from("todos").update(dbFields).eq("id", id);
     if (error) { console.error("updateTodo:", error); await loadTodos(); }
   }
@@ -10541,6 +10553,25 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
 
 function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTodo, deleteTodo, navigateTo, todoDismissals, dismissAutoTodo, handoverProtocols}){
   const [newTitle, setNewTitle] = useState("");
+  const [neuOffen, setNeuOffen] = useState(false);
+  const [neuNotiz, setNeuNotiz] = useState("");
+  const [neuWer, setNeuWer] = useState("");
+  const [neuFaellig, setNeuFaellig] = useState("");
+  const [neuPrio, setNeuPrio] = useState("");
+  const [bearbeite, setBearbeite] = useState(null);
+  const ZUSTAENDIG = ["Daan", "Martijn", "Gemeinsam"];
+  const PRIOS = [["", "keine"], ["hoch", "Hoch"], ["mittel", "Mittel"], ["tief", "Tief"]];
+  const prioFarbe = (p) => p === "hoch" ? "#9b4a3e" : p === "mittel" ? "#8a6d4a" : "#5a6e4a";
+  const fmtFaellig = (v) => {
+    if (!v) return "";
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? `${+m[3]}.${+m[2]}.${m[1]}` : String(v);
+  };
+  const istUeberfaellig = (t) => {
+    if (!t.faelligAm || t.status === "erledigt") return false;
+    const heute = new Date(); heute.setHours(0,0,0,0);
+    return new Date(t.faelligAm) < heute;
+  };
   const hasDoc = (t, prefix) => (documents||[]).some(d => (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()) && ((d.entity_type==="tenant" && d.entity_id===t.id) || (d.entity_type==="applicant" && d.entity_id===t.bewerberId)));
   const aptHasDoc = (a, prefix) => (documents||[]).some(d => d.entity_type==="apartment" && d.entity_id===a.id && (d.category||"").toLowerCase().startsWith(prefix.toLowerCase()));
   let auto = [];
@@ -10576,16 +10607,63 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
   const labels={offen:"Offen",in_arbeit:"In Arbeit",erledigt:"Erledigt"};
   const manual=(s)=>(todos||[]).filter(t=>t.status===s);
   const move=(t,dir)=>{const i=order.indexOf(t.status);const ni=Math.max(0,Math.min(2,i+dir));if(ni!==i)updateTodo(t.id,{status:order[ni]});};
-  const add=()=>{ if(!newTitle.trim())return; insertTodo(newTitle.trim()).then(()=>setNewTitle("")).catch(()=>{}); };
+  const add=()=>{
+    if(!newTitle.trim())return;
+    insertTodo(newTitle.trim(), neuNotiz.trim(), {zustaendig:neuWer, faelligAm:neuFaellig, prioritaet:neuPrio})
+      .then(()=>{ setNewTitle(""); setNeuNotiz(""); setNeuWer(""); setNeuFaellig(""); setNeuPrio(""); setNeuOffen(false); })
+      .catch(()=>{});
+  };
 
   return (
     <div className="ph">
       <div className="pt">To-dos</div>
       <p style={{fontSize:12,color:"var(--muted)",margin:"4px 0 16px"}}>Automatisch erkannte Datenlücken (mit Auto-Markierung, klickbar) und eigene Aufgaben. Eigene To-dos verschiebst du mit den Pfeilen zwischen den Spalten.</p>
 
-      <div style={{display:"flex",gap:8,marginBottom:20,maxWidth:520}}>
-        <input className="fi" placeholder="Neues To-do…" value={newTitle} onChange={e=>setNewTitle(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")add();}}/>
-        <button className="btn btn-p" onClick={add}>Hinzufügen</button>
+      <div style={{maxWidth:560,marginBottom:20,border:"1px solid var(--line-soft)",borderRadius:10,padding:"12px 14px",background:"var(--surface)"}}>
+        <div style={{display:"flex",gap:8}}>
+          <input className="fi" placeholder="Neues To-do…" value={newTitle}
+            onChange={e=>setNewTitle(e.target.value)}
+            onFocus={()=>setNeuOffen(true)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!neuOffen)add();}}/>
+          <button className="btn btn-p" onClick={add}>Hinzufügen</button>
+        </div>
+        {!neuOffen && (
+          <button onClick={()=>setNeuOffen(true)}
+            style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,marginTop:8,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit",padding:0}}>
+            Details hinzufügen
+          </button>
+        )}
+        {neuOffen && (
+          <div style={{marginTop:12,display:"grid",gap:10}}>
+            <textarea className="fi" rows={3} placeholder="Beschreibung, Hintergrund, nächste Schritte…"
+              value={neuNotiz} onChange={e=>setNeuNotiz(e.target.value)} style={{resize:"vertical",fontFamily:"inherit"}}/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10}}>
+              <div>
+                <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Zuständig</div>
+                <select className="fi" value={neuWer} onChange={e=>setNeuWer(e.target.value)}>
+                  <option value="">Niemand</option>
+                  {ZUSTAENDIG.map(z=><option key={z} value={z}>{z}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Fällig am</div>
+                <input className="fi" type="date" value={neuFaellig} onChange={e=>setNeuFaellig(e.target.value)}/>
+              </div>
+              <div>
+                <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Priorität</div>
+                <select className="fi" value={neuPrio} onChange={e=>setNeuPrio(e.target.value)}>
+                  {PRIOS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <button onClick={()=>{setNeuOffen(false);setNeuNotiz("");setNeuWer("");setNeuFaellig("");setNeuPrio("");}}
+                style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit",padding:0}}>
+                Details ausblenden
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-start"}}>
@@ -10609,11 +10687,37 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
 
             {manual(s).map(t=>(
               <div key={t.id} className="kcard">
-                <div style={{fontSize:13,color:"var(--ink)",lineHeight:1.4}}>{t.title}</div>
-                {t.notiz&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:3}}>{t.notiz}</div>}
+                <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
+                  {t.prioritaet && <span title={`Priorität ${t.prioritaet}`} style={{flex:"0 0 auto",width:6,height:6,borderRadius:"50%",background:prioFarbe(t.prioritaet),marginTop:5}}/>}
+                  <div style={{fontSize:13,color:"var(--ink)",lineHeight:1.4,flex:1,minWidth:0}}>{t.title}</div>
+                </div>
+                {t.notiz&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:4,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{t.notiz}</div>}
+                {(t.zustaendig||t.faelligAm) && (
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:7}}>
+                    {t.zustaendig && <span style={{fontSize:10,color:"var(--muted)",background:"var(--beige-soft)",borderRadius:20,padding:"2px 8px"}}>{t.zustaendig}</span>}
+                    {t.faelligAm && <span style={{fontSize:10,borderRadius:20,padding:"2px 8px",background:istUeberfaellig(t)?"#f7e4e0":"var(--beige-soft)",color:istUeberfaellig(t)?"#9b4a3e":"var(--muted)"}}>
+                      {istUeberfaellig(t)?"überfällig ":"fällig "}{fmtFaellig(t.faelligAm)}
+                    </span>}
+                  </div>
+                )}
+                {bearbeite===t.id && (
+                  <div style={{marginTop:10,display:"grid",gap:8,paddingTop:10,borderTop:"1px solid var(--line-soft)"}}>
+                    <textarea className="fi" rows={3} placeholder="Beschreibung…" defaultValue={t.notiz||""}
+                      onBlur={e=>updateTodo(t.id,{notiz:e.target.value})} style={{resize:"vertical",fontFamily:"inherit",fontSize:12}}/>
+                    <select className="fi" style={{fontSize:12}} value={t.zustaendig||""} onChange={e=>updateTodo(t.id,{zustaendig:e.target.value})}>
+                      <option value="">Niemand zuständig</option>
+                      {ZUSTAENDIG.map(z=><option key={z} value={z}>{z}</option>)}
+                    </select>
+                    <input className="fi" style={{fontSize:12}} type="date" value={t.faelligAm||""} onChange={e=>updateTodo(t.id,{faelligAm:e.target.value})}/>
+                    <select className="fi" style={{fontSize:12}} value={t.prioritaet||""} onChange={e=>updateTodo(t.id,{prioritaet:e.target.value})}>
+                      {PRIOS.map(([v,l])=><option key={v} value={v}>Priorität: {l}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div style={{display:"flex",alignItems:"center",gap:5,marginTop:9}}>
                   <button className="kmini" disabled={s==="offen"} onClick={()=>move(t,-1)} title="Zurück">◀</button>
                   <button className="kmini" disabled={s==="erledigt"} onClick={()=>move(t,1)} title="Weiter">▶</button>
+                  <button className="kmini" onClick={()=>setBearbeite(bearbeite===t.id?null:t.id)} title="Details bearbeiten">{bearbeite===t.id?"✕":"✎"}</button>
                   <div style={{flex:1}}/>
                   <button className="kmini" onClick={()=>{if(confirm("To-do löschen?"))deleteTodo(t.id);}} title="Löschen" style={{color:"var(--error)"}}>✕</button>
                 </div>
