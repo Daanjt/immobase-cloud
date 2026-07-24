@@ -6718,11 +6718,13 @@ www.dthomes.ch`;
         );
       })()}
       
-      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"var(--bg)",border:"1px solid var(--line-soft)",borderRadius:8,padding:"7px 10px 7px 12px",marginBottom:14}}>
-        <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",whiteSpace:"nowrap"}}>Formular-Link</span>
-        <a href={formLink} target="_blank" rel="noreferrer" title={formLink}
-          style={{flex:1,minWidth:120,fontSize:11.5,fontFamily:"monospace",color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:"none"}}>{formLink.replace(/^https?:\/\//,"")}</a>
-        <button className="btn btn-sm" onClick={copyLink} style={{fontSize:10.5,padding:"4px 10px",whiteSpace:"nowrap"}}>{copied?"✓ Kopiert":"Kopieren"}</button>
+      <div className="card" style={{marginBottom:20}}>
+        <div className="ct">📋 Bewerbungsformular-Link</div>
+        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden - Bewerbungen erscheinen automatisch hier.</div>
+        <div className="link-box">
+          <span className="link-text">{formLink}</span>
+          <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
+        </div>
       </div>
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
         <div>
