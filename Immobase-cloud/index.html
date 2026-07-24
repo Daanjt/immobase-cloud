@@ -1107,6 +1107,12 @@ function TypeBadge({type}){
   if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
 }
 function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
+function fmtDatum(v){
+  const t=(v||"").toString().trim();
+  if(!t) return "-";
+  const m=t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${+m[3]}.${+m[2]}.${m[1]}` : t;
+}
 function parseDMY(s){if(!s)return null;const parts=s.split(".");if(parts.length===3)return new Date(+parts[2],+parts[1]-1,+parts[0]);return new Date(s);}
 // ─── EVOREST KAUTION (URL-Vorausfüllung) ─────────────────────────────────────
 // Baut den Evorest import-deposit-Link mit vorausgefüllten Mieterdaten.
@@ -1703,6 +1709,10 @@ function useSupabaseData() {
       if (fields[k] === undefined) continue;
       const dbKey = map[k] || k;
       dbFields[dbKey] = fields[k];
+    }
+    // Leere Zahlenfelder muessen null sein, sonst schlaegt das Speichern fehl
+    for (const nf of ["einkommen","kaution_aufschlag","kaution_betrag","moeblierung_pauschale"]) {
+      if (dbFields[nf] === "" || dbFields[nf] === undefined) dbFields[nf] = null;
     }
     // Strip system fields
     delete dbFields.created_at;
@@ -4868,7 +4878,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
           </div>
           {bewerber.length===0?<div className="empty">Noch keine Bewerbungen</div>:bewerber.slice(0,5).map(b=>(
             <div key={b.id} onClick={()=>navigateTo&&navigateTo("bewerber",b.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,cursor:"pointer",padding:"6px 8px",margin:"-6px -8px 5px",borderRadius:6,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#f5efe4"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#8a8478"}}>{b.eingereichtAm} · {b.type||"-"}</div></div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><Av name={b.vorname} size={26}/><div><div style={{fontSize:12.5,fontWeight:500}}>{b.vorname} {b.nachname}</div><div style={{fontSize:10.5,color:"#8a8478"}}>{fmtDatum(b.eingereichtAm)} · {b.type||"-"}</div></div></div>
               <StatusBdg status={b.status}/>
             </div>
           ))}
@@ -6737,7 +6747,7 @@ www.dthomes.ch`;
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{b.vorname} {b.nachname}</div>
                   <div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                    <span>Eingereicht: {b.eingereichtAm}</span>
+                    <span>Eingereicht: {fmtDatum(b.eingereichtAm)}</span>
                     <span>·</span>
                     <StatusBdg status={b.status}/>
                     {b.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:b.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:b.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {b.owner}</span>}
