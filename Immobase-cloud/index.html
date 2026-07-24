@@ -74,9 +74,8 @@ html{overflow-x:hidden}
 /* Seitliches Wegrutschen beim Scrollen in Diagrammen und Tabellen verhindern */
 body,.main{overscroll-behavior-x:contain}
 .main > *{max-width:100%}
-/* Lange Zeichenketten (E-Mails, Schluesselnummern, URLs) duerfen umbrechen */
-.main table{max-width:100%}
-.main td,.main th{overflow-wrap:anywhere}
+/* Tabellen duerfen breiter sein als der Bildschirm, ihre Huelle scrollt seitlich */
+.main table{max-width:none}
 body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manrope', sans-serif;font-size:13.5px;font-weight:400;letter-spacing:.005em;min-height:100vh;min-height:-webkit-fill-available}
 /* PWA: handle iOS safe area (notch, dynamic island, home indicator) */
 @supports (padding: env(safe-area-inset-top)) {
@@ -470,6 +469,7 @@ a:hover{border-bottom-color:var(--gold)}
     vertical-align: middle !important;
     white-space: nowrap !important;
   }
+  .finance-scroll-table thead th { white-space: nowrap !important; }
   .finance-scroll-table td:before {
     display: none !important;
     content: '' !important;
