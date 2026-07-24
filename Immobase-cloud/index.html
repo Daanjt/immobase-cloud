@@ -128,10 +128,20 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manro
 .nb.on::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:2px;background:var(--gold)}
 .ni{font-size:13px;width:18px;text-align:center;color:var(--muted-light)}
 .nb.on .ni{color:var(--gold)}
-.user-info{padding:18px 24px;border-top:1px solid var(--line-soft);font-size:10.5px;color:var(--muted)}
-.user-info .uemail{color:var(--ink);font-weight:500;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px;letter-spacing:.01em}
-.logout-btn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:9.5px;cursor:pointer;font-family:'Manrope', sans-serif;letter-spacing:.18em;text-transform:uppercase;transition:.2s}
-.logout-btn:hover{border-color:var(--ink);color:var(--ink)}
+.user-info{position:relative;padding:12px 16px;border-top:1px solid var(--line-soft)}
+.acct-btn{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;border-radius:9px;padding:9px 10px;cursor:pointer;font-family:'Manrope', sans-serif;text-align:left;transition:background .18s}
+.acct-btn:hover,.acct-btn.on{background:var(--beige-soft)}
+.acct-av{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--surface);display:flex;align-items:center;justify-content:center;font-size:11.5px;letter-spacing:.02em}
+.acct-txt{min-width:0;flex:1}
+.acct-name{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-sub{font-size:9.5px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;margin-top:1px}
+.acct-caret{flex:0 0 auto;color:var(--muted-light);font-size:10px;transition:transform .18s}
+.acct-btn.on .acct-caret{transform:rotate(180deg)}
+.acct-menu{position:absolute;left:16px;right:16px;bottom:calc(100% - 6px);background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(90,70,40,.14);overflow:hidden;z-index:60}
+.acct-menu button{width:100%;display:block;text-align:left;background:none;border:none;padding:11px 14px;font-size:12px;color:var(--ink);cursor:pointer;font-family:'Manrope', sans-serif;transition:background .15s}
+.acct-menu button:hover{background:var(--beige-soft)}
+.acct-menu button+button{border-top:1px solid var(--line-soft)}
+.acct-menu .gefahr{color:#9b4a3e}
 
 .main{flex:1;min-width:0;max-width:100%;overflow-y:auto;overflow-x:hidden;padding:48px 56px}
 .pt{font-family:'Manrope', sans-serif;font-size:34px;font-weight:400;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
@@ -1107,6 +1117,14 @@ function TypeBadge({type}){
   if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
 }
 function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
+function initialen(mail){
+  const name = (mail||"").split("@")[0].replace(/[._-]+/g," ").trim();
+  if (!name) return "DT";
+  const teile = name.split(/\s+/).filter(Boolean);
+  const a = (teile[0] || "")[0] || "";
+  const b = (teile[1] || "")[0] || "";
+  return ((a + b) || "DT").toUpperCase();
+}
 function fmtDatum(v){
   const t=(v||"").toString().trim();
   if(!t) return "-";
@@ -10617,12 +10635,24 @@ function MainApp() {
   const [navTarget, setNavTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [acctOpen, setAcctOpen] = useState(false);
   const [benutzerMail, setBenutzerMail] = useState("");
+  const acctRef = useRef(null);
   const data = useSupabaseData();
 
   useEffect(() => {
     supabase.auth.getUser().then(({data}) => setBenutzerMail(data?.user?.email || ""));
   }, []);
+
+  // Menue schliessen, wenn daneben geklickt oder Escape gedrueckt wird
+  useEffect(() => {
+    if (!acctOpen) return;
+    const beiKlick = (e) => { if (acctRef.current && !acctRef.current.contains(e.target)) setAcctOpen(false); };
+    const beiTaste = (e) => { if (e.key === "Escape") setAcctOpen(false); };
+    document.addEventListener("mousedown", beiKlick);
+    document.addEventListener("keydown", beiTaste);
+    return () => { document.removeEventListener("mousedown", beiKlick); document.removeEventListener("keydown", beiTaste); };
+  }, [acctOpen]);
 
   // Bei jedem Seitenwechsel wieder nach ganz oben, sonst startet die neue Seite mitten drin
   useEffect(() => {
@@ -10718,10 +10748,21 @@ function MainApp() {
             {p.id==="uebergaben"&&offeneUebergaben>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneUebergaben}</span>}
           </button>))}
         </div>
-        <div className="user-info">
-          <div className="uemail">{benutzerMail || "D&T Homes"} <span style={{fontSize:9,opacity:.5,fontFamily:"monospace"}}>v260709-1404</span></div>
-          <button className="logout-btn" onClick={()=>setPwOpen(true)} style={{marginBottom:6}}>Passwort ändern</button>
-          <button className="logout-btn" onClick={logout}>Abmelden</button>
+        <div className="user-info" ref={acctRef}>
+          {acctOpen && (
+            <div className="acct-menu">
+              <button onClick={()=>{setAcctOpen(false);setPwOpen(true);}}>Passwort ändern</button>
+              <button className="gefahr" onClick={()=>{setAcctOpen(false);logout();}}>Abmelden</button>
+            </div>
+          )}
+          <button className={`acct-btn${acctOpen?" on":""}`} onClick={()=>setAcctOpen(o=>!o)} title={benutzerMail||""}>
+            <span className="acct-av">{initialen(benutzerMail)}</span>
+            <span className="acct-txt">
+              <span className="acct-name">{benutzerMail ? benutzerMail.split("@")[0] : "Konto"}</span>
+              <span className="acct-sub">Konto</span>
+            </span>
+            <span className="acct-caret">▲</span>
+          </button>
         </div>
       </div>
       <div className="main"><Page {...data} navigateTo={navigateTo} navTarget={navTarget}/></div>
