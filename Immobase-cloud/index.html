@@ -1418,26 +1418,33 @@ const NATIONALITAETEN_REST = [
 const NATIONALITAETEN = [...NATIONALITAETEN_TOP, ...NATIONALITAETEN_REST];
 
 // ─── LOGIN ───────────────────────────────────────────────────────────────────
-// Geteiltes Passwort für D&T Homes Team
-const APP_PASSWORD = "Massivecock69";
+// Echte Anmeldung ueber Supabase Auth. Kein Passwort mehr im Quelltext.
 
 function Login({onLogin}) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [resetMode, setResetMode] = useState(false);
 
   async function handleLogin(e) {
     e.preventDefault();
     setLoading(true); setMsg(null);
-    // Kurze Verzögerung gegen Brute-Force
-    await new Promise(r => setTimeout(r, 400));
-    if (password === APP_PASSWORD) {
-      localStorage.setItem("immobase_auth", "ok");
-      localStorage.setItem("immobase_auth_time", String(Date.now()));
-      onLogin();
-    } else {
-      setMsg({type:"error", text:"Falsches Passwort. Bitte erneut versuchen."});
+    if (resetMode) {
+      const {error} = await supabase.auth.resetPasswordForEmail(email.trim(), {redirectTo: window.location.origin});
+      setMsg(error ? {type:"error", text:"Konnte nicht gesendet werden: " + error.message}
+                   : {type:"ok", text:"Wenn die Adresse hinterlegt ist, wurde eine E-Mail zum Zuruecksetzen verschickt."});
+      setLoading(false);
+      return;
+    }
+    const {data, error} = await supabase.auth.signInWithPassword({email: email.trim(), password});
+    if (error || !data?.session) {
+      setMsg({type:"error", text: error?.message === "Invalid login credentials"
+        ? "E-Mail oder Passwort stimmt nicht."
+        : ("Anmeldung fehlgeschlagen: " + (error?.message || "unbekannt"))});
       setPassword("");
+    } else {
+      onLogin();
     }
     setLoading(false);
   }
@@ -1446,15 +1453,26 @@ function Login({onLogin}) {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
-        <h2>Anmelden</h2>
-        <p className="desc">Gib das Passwort ein um auf das System zuzugreifen.</p>
+        <h2>{resetMode ? "Passwort zuruecksetzen" : "Anmelden"}</h2>
+        <p className="desc">{resetMode
+          ? "Gib deine E-Mail-Adresse ein, wir schicken dir einen Link."
+          : "Melde dich mit deiner D&T-Adresse an."}</p>
         <form onSubmit={handleLogin}>
-          <input className="login-input" type="password" required placeholder="Passwort" autoFocus value={password} onChange={e=>setPassword(e.target.value)} disabled={loading}/>
-          <button className="login-btn" type="submit" disabled={loading||!password}>
-            {loading?"Prüfe…":"Anmelden →"}
+          <input className="login-input" type="email" required placeholder="E-Mail" autoFocus autoComplete="username"
+            value={email} onChange={e=>setEmail(e.target.value)} disabled={loading}/>
+          {!resetMode && (
+            <input className="login-input" type="password" required placeholder="Passwort" autoComplete="current-password"
+              value={password} onChange={e=>setPassword(e.target.value)} disabled={loading}/>
+          )}
+          <button className="login-btn" type="submit" disabled={loading||!email||(!resetMode&&!password)}>
+            {loading ? "Bitte warten…" : (resetMode ? "Link senden" : "Anmelden →")}
           </button>
         </form>
         {msg && <div className={`login-msg ${msg.type}`}>{msg.text}</div>}
+        <button onClick={()=>{setResetMode(!resetMode);setMsg(null);}}
+          style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,marginTop:14,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
+          {resetMode ? "Zurueck zur Anmeldung" : "Passwort vergessen?"}
+        </button>
         <div className="login-foot">D&T Homes Verwaltungs-System</div>
       </div>
     </div>
@@ -10669,8 +10687,7 @@ function MainApp() {
   }
 
   async function logout() {
-    localStorage.removeItem("immobase_auth");
-    localStorage.removeItem("immobase_auth_time");
+    try { await supabase.auth.signOut(); } catch (e) { console.warn("signOut:", e); }
     window.location.reload();
   }
 
@@ -10709,17 +10726,17 @@ function App() {
   const [authed, setAuthed] = useState(undefined);
 
   useEffect(() => {
-    // Check if user is logged in (and session not older than 30 days)
-    const ok = localStorage.getItem("immobase_auth");
-    const t = +localStorage.getItem("immobase_auth_time") || 0;
-    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-    if (ok === "ok" && (Date.now() - t) < thirtyDays) {
-      setAuthed(true);
-    } else {
-      localStorage.removeItem("immobase_auth");
-      localStorage.removeItem("immobase_auth_time");
-      setAuthed(false);
-    }
+    // Alte Passwort-Merker aufraeumen
+    localStorage.removeItem("immobase_auth");
+    localStorage.removeItem("immobase_auth_time");
+    let aktiv = true;
+    supabase.auth.getSession().then(({data}) => {
+      if (aktiv) setAuthed(!!data?.session);
+    });
+    const {data: sub} = supabase.auth.onAuthStateChange((_e, session) => {
+      if (aktiv) setAuthed(!!session);
+    });
+    return () => { aktiv = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
   if (authed === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
