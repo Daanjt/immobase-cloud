@@ -163,7 +163,16 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manro
 .plink{display:block;width:100%;text-align:left;padding:9px 12px;border-radius:8px;border:1px solid var(--line-soft);background:var(--surface);cursor:pointer;transition:.15s all}
 .plink:hover{border-color:var(--beige);background:var(--beige-soft)}
 .psec{font-size:9.5px;text-transform:uppercase;letter-spacing:.22em;color:var(--muted);font-weight:600;margin-bottom:7px}
-.kcol{flex:1;min-width:240px;background:var(--bg);border:1px solid var(--line-soft);border-radius:12px;padding:12px}
+.kcol{min-width:0;background:var(--bg);border:1px solid var(--line-soft);border-radius:12px;padding:12px}
+.kcard{box-sizing:border-box;max-width:100%}
+.fi{box-sizing:border-box;max-width:100%}
+.kcard .fi{font-size:12px;padding:8px 10px}
+@media (max-width:768px){
+  .kcol{padding:10px}
+  .kcard{padding:10px 11px}
+  .kcard .fi{font-size:12px !important;padding:8px 10px !important}
+  .kauto{font-size:12px}
+}
 .kcol-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;padding:0 2px}
 .kcol-h .t{font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:var(--ink);letter-spacing:.02em}
 .kcol-h .c{font-size:11px;color:var(--muted-light)}
@@ -10619,54 +10628,48 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
       <div className="pt">To-dos</div>
       <p style={{fontSize:12,color:"var(--muted)",margin:"4px 0 16px"}}>Automatisch erkannte Datenlücken (mit Auto-Markierung, klickbar) und eigene Aufgaben. Eigene To-dos verschiebst du mit den Pfeilen zwischen den Spalten.</p>
 
-      <div style={{maxWidth:560,marginBottom:20,border:"1px solid var(--line-soft)",borderRadius:10,padding:"12px 14px",background:"var(--surface)"}}>
-        <div style={{display:"flex",gap:8}}>
-          <input className="fi" placeholder="Neues To-do…" value={newTitle}
+      {!neuOffen ? (
+        <button onClick={()=>setNeuOffen(true)}
+          style={{display:"inline-flex",alignItems:"center",gap:8,background:"var(--ink)",color:"var(--surface)",border:"none",borderRadius:9,padding:"10px 16px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",marginBottom:20}}>
+          <span style={{fontSize:14,lineHeight:1}}>+</span> Aufgabe hinzufügen
+        </button>
+      ) : (
+      <div style={{maxWidth:560,marginBottom:20,border:"1px solid var(--line)",borderRadius:10,padding:"14px 15px",background:"var(--surface)"}}>
+        <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:10}}>Neue Aufgabe</div>
+        <div style={{display:"grid",gap:10}}>
+          <input className="fi" placeholder="Titel der Aufgabe" autoFocus value={newTitle}
             onChange={e=>setNewTitle(e.target.value)}
-            onFocus={()=>setNeuOffen(true)}
-            onKeyDown={e=>{if(e.key==="Enter"&&!neuOffen)add();}}/>
-          <button className="btn btn-p" onClick={add}>Hinzufügen</button>
-        </div>
-        {!neuOffen && (
-          <button onClick={()=>setNeuOffen(true)}
-            style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,marginTop:8,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit",padding:0}}>
-            Details hinzufügen
-          </button>
-        )}
-        {neuOffen && (
-          <div style={{marginTop:12,display:"grid",gap:10}}>
-            <textarea className="fi" rows={3} placeholder="Beschreibung, Hintergrund, nächste Schritte…"
-              value={neuNotiz} onChange={e=>setNeuNotiz(e.target.value)} style={{resize:"vertical",fontFamily:"inherit"}}/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10}}>
-              <div>
-                <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Zuständig</div>
-                <select className="fi" value={neuWer} onChange={e=>setNeuWer(e.target.value)}>
-                  <option value="">Niemand</option>
-                  {ZUSTAENDIG.map(z=><option key={z} value={z}>{z}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Fällig am</div>
-                <input className="fi" type="date" value={neuFaellig} onChange={e=>setNeuFaellig(e.target.value)}/>
-              </div>
-              <div>
-                <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Priorität</div>
-                <select className="fi" value={neuPrio} onChange={e=>setNeuPrio(e.target.value)}>
-                  {PRIOS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
+            onKeyDown={e=>{if(e.key==="Enter"&&e.metaKey)add();}}/>
+          <textarea className="fi" rows={3} placeholder="Beschreibung, Hintergrund, nächste Schritte…"
+            value={neuNotiz} onChange={e=>setNeuNotiz(e.target.value)} style={{resize:"vertical",fontFamily:"inherit"}}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10}}>
+            <div>
+              <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Zuständig</div>
+              <select className="fi" value={neuWer} onChange={e=>setNeuWer(e.target.value)}>
+                <option value="">Niemand</option>
+                {ZUSTAENDIG.map(z=><option key={z} value={z}>{z}</option>)}
+              </select>
             </div>
             <div>
-              <button onClick={()=>{setNeuOffen(false);setNeuNotiz("");setNeuWer("");setNeuFaellig("");setNeuPrio("");}}
-                style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit",padding:0}}>
-                Details ausblenden
-              </button>
+              <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Fällig am</div>
+              <input className="fi" type="date" value={neuFaellig} onChange={e=>setNeuFaellig(e.target.value)}/>
+            </div>
+            <div>
+              <div style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:4}}>Priorität</div>
+              <select className="fi" value={neuPrio} onChange={e=>setNeuPrio(e.target.value)}>
+                {PRIOS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+              </select>
             </div>
           </div>
-        )}
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",flexWrap:"wrap"}}>
+            <button className="btn btn-g btn-sm" onClick={()=>{setNeuOffen(false);setNewTitle("");setNeuNotiz("");setNeuWer("");setNeuFaellig("");setNeuPrio("");}}>Abbrechen</button>
+            <button className="btn btn-p btn-sm" disabled={!newTitle.trim()} onClick={add}>Hinzufügen</button>
+          </div>
+        </div>
       </div>
+      )}
 
-      <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-start"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(260px, 100%), 1fr))",gap:14,alignItems:"start"}}>
         {order.map(s=>(
           <div key={s} className="kcol">
             <div className="kcol-h"><span className="t">{labels[s]}</span><span className="c">{manual(s).length + (s==="offen"?auto.length:0)}</span></div>
