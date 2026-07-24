@@ -10616,7 +10616,13 @@ function MainApp() {
   const [page, setPage] = useState("dashboard");
   const [navTarget, setNavTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [benutzerMail, setBenutzerMail] = useState("");
   const data = useSupabaseData();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({data}) => setBenutzerMail(data?.user?.email || ""));
+  }, []);
 
   // Bei jedem Seitenwechsel wieder nach ganz oben, sonst startet die neue Seite mitten drin
   useEffect(() => {
@@ -10685,12 +10691,6 @@ function MainApp() {
     setNavTarget({id: targetId, type: targetPage});
     setSidebarOpen(false); // close sidebar after navigation on mobile
   }
-
-  const [pwOpen, setPwOpen] = useState(false);
-  const [benutzerMail, setBenutzerMail] = useState("");
-  useEffect(() => {
-    supabase.auth.getUser().then(({data}) => setBenutzerMail(data?.user?.email || ""));
-  }, []);
 
   async function logout() {
     try { await supabase.auth.signOut(); } catch (e) { console.warn("signOut:", e); }
