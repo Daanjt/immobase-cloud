@@ -10054,14 +10054,17 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(230px, 100%), 1fr))",gap:10}}>
           {kautionStats.map(k=>(
             <div key={k.name} style={{border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",background:"var(--surface)"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
                 <span style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:16,color:"var(--ink)"}}>{k.name}</span>
                 <span style={{fontSize:11,color:"var(--muted)"}}>{k.laufend} Wohnung{k.laufend===1?"":"en"}</span>
               </div>
               {k.objekte.map(a=>(
-                <div key={a.id} style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11.5,padding:"2px 0",color:"var(--muted)"}}>
-                  <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.id} · {a.adresse}{a.pipeline?" (Pipeline)":""}</span>
-                  <span style={{color:"var(--ink)",whiteSpace:"nowrap"}}>{chfP(kautionBetragOf(a))}</span>
+                <div key={a.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"5px 0",borderTop:"1px solid var(--line-soft)"}}>
+                  <span style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+                    <span style={{flex:"0 0 auto",fontSize:9.5,letterSpacing:".08em",color:"var(--muted)",background:"var(--beige-soft)",borderRadius:5,padding:"2px 6px"}}>{a.id}</span>
+                    <span style={{minWidth:0,fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={a.adresse}>{a.adresse}{a.pipeline?" · Pipeline":""}</span>
+                  </span>
+                  <span style={{flex:"0 0 auto",fontSize:12,color:"var(--ink)",whiteSpace:"nowrap"}}>{chfP(kautionBetragOf(a))}</span>
                 </div>
               ))}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"8px 0 0",marginTop:6,borderTop:"1px solid var(--line-soft)"}}>
