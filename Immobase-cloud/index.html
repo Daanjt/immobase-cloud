@@ -10686,6 +10686,12 @@ function MainApp() {
     setSidebarOpen(false); // close sidebar after navigation on mobile
   }
 
+  const [pwOpen, setPwOpen] = useState(false);
+  const [benutzerMail, setBenutzerMail] = useState("");
+  useEffect(() => {
+    supabase.auth.getUser().then(({data}) => setBenutzerMail(data?.user?.email || ""));
+  }, []);
+
   async function logout() {
     try { await supabase.auth.signOut(); } catch (e) { console.warn("signOut:", e); }
     window.location.reload();
@@ -10713,11 +10719,45 @@ function MainApp() {
           </button>))}
         </div>
         <div className="user-info">
-          <div className="uemail">D&T Homes <span style={{fontSize:9,opacity:.5,fontFamily:"monospace"}}>v260709-1404</span></div>
+          <div className="uemail">{benutzerMail || "D&T Homes"} <span style={{fontSize:9,opacity:.5,fontFamily:"monospace"}}>v260709-1404</span></div>
+          <button className="logout-btn" onClick={()=>setPwOpen(true)} style={{marginBottom:6}}>Passwort ändern</button>
           <button className="logout-btn" onClick={logout}>Abmelden</button>
         </div>
       </div>
       <div className="main"><Page {...data} navigateTo={navigateTo} navTarget={navTarget}/></div>
+      {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
+    </div>
+  );
+}
+
+function PasswortAendern({onClose}) {
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  async function speichern() {
+    if (pw1.length < 10) { setMsg({t:"err", m:"Bitte mindestens 10 Zeichen verwenden."}); return; }
+    if (pw1 !== pw2) { setMsg({t:"err", m:"Die beiden Eingaben stimmen nicht überein."}); return; }
+    setBusy(true); setMsg(null);
+    const {error} = await supabase.auth.updateUser({password: pw1});
+    setBusy(false);
+    if (error) setMsg({t:"err", m:"Fehler: " + error.message});
+    else { setMsg({t:"ok", m:"Passwort geändert."}); setPw1(""); setPw2(""); setTimeout(onClose, 1200); }
+  }
+  return (
+    <div onClick={()=>!busy&&onClose()} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:400,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:14}}>Passwort ändern</div>
+        <input type="password" placeholder="Neues Passwort" autoComplete="new-password" value={pw1} onChange={e=>setPw1(e.target.value)}
+          style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:10,fontFamily:"inherit"}}/>
+        <input type="password" placeholder="Neues Passwort wiederholen" autoComplete="new-password" value={pw2} onChange={e=>setPw2(e.target.value)}
+          style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:12,fontFamily:"inherit"}}/>
+        {msg && <div style={{fontSize:12,marginBottom:10,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button className="btn btn-g btn-sm" disabled={busy} onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-sm" disabled={busy||!pw1||!pw2} onClick={speichern}>{busy?"Speichere…":"Speichern"}</button>
+        </div>
+      </div>
     </div>
   );
 }
