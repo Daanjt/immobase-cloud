@@ -632,7 +632,15 @@ a:hover{border-bottom-color:var(--gold)}
   /* Inputs: groesser, besser tippbar */
   .fi { padding: 12px 14px !important; font-size: 16px !important; min-height: 44px; }
   /* (16px Schriftgröße verhindert Auto-Zoom auf iOS) */
-  input[type="date"].fi { min-width: 0 !important; max-width: 100% !important; }
+  input[type="date"].fi {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: block !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
 
   /* To-dos: "Neue Aufgabe"-Felder (Zuständig / Fällig am / Priorität) auf 1 Spalte,
      sonst schiebt das native Datumsfeld die Spalte über den Rand hinaus */
