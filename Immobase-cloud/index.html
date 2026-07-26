@@ -1272,18 +1272,28 @@ function parseD(s) {
   return null;
 }
 // fmtDateDE: zeigt Datum als TT.MM.JJJJ, akzeptiert beliebige Input-Formate
+// Zentrale Datums-Parsing-Logik fuer toDateInputValue/fmtDateDE (vorher dupliziert).
+// Erkennt ISO (YYYY-MM-DD, ggf. mit Zeitanteil) oder deutsches Format (T.M.JJJJ).
+// validate=true prueft Wertebereiche (Monat 1-12, Tag 1-31) bei deutschem Format.
+function _parseDateParts(s, validate){
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return {y:+m[1], mo:+m[2], d:+m[3]};
+  m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (m) {
+    const d=+m[1], mo=+m[2], y=+m[3];
+    if (validate && (mo<1||mo>12||d<1||d>31)) return null;
+    return {y, mo, d};
+  }
+  return null;
+}
+
 function toDateInputValue(v) {
   // Normalisiert verschiedene Datumsformate zu YYYY-MM-DD fuer <input type="date">
   if (!v) return "";
   const s = String(v).trim();
   if (!s) return "";
-  // ISO 2020-05-15 oder 2020-05-15T12:00:00
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
-  // Deutsches Format: 15.05.2020
-  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (m) {
-    return `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
-  }
+  const p = _parseDateParts(s, false);
+  if (p) return `${p.y}-${String(p.mo).padStart(2,"0")}-${String(p.d).padStart(2,"0")}`;
   // Fallback: als Date parsen
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d.toISOString().substring(0, 10);
@@ -1294,20 +1304,8 @@ function fmtDateDE(input) {
   if (!input) return "";
   const s = String(input).trim();
   if (!s) return "";
-  // Bereits im TT.MM.JJJJ Format?
-  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(s)) {
-    const [d,m,y] = s.split(".").map(n => parseInt(n,10));
-    if (m>=1 && m<=12 && d>=1 && d<=31) {
-      return `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
-    }
-  }
-  // YYYY-MM-DD Format?
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const [y,m,d] = s.substring(0,10).split("-").map(n => parseInt(n,10));
-    if (m>=1 && m<=12 && d>=1 && d<=31) {
-      return `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
-    }
-  }
+  const p = _parseDateParts(s, true);
+  if (p) return `${String(p.d).padStart(2,'0')}.${String(p.mo).padStart(2,'0')}.${p.y}`;
   // Fallback: versuche Date-Parsing
   const dt = new Date(s);
   if (!isNaN(dt) && dt.getFullYear() > 1900 && dt.getFullYear() < 2100) {
@@ -3319,885 +3317,214 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
 }
 
 function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll, handoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol}){
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  const hasDraft = !!loadDraft();
   
-  // Protokolle für diesen Mieter
-  const myProtokolle = (protokolle || []).filter(p => p.tenantId === tenant?.id);
+  // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
+  const [showStartModal, setShowStartModal] = React.useState(false);
+  const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
+  const [startExtraSchluessel, setStartExtraSchluessel] = React.useState("");
+  const [starting, setStarting] = React.useState(false);
   
-  // localStorage-Key für Draft (nur für unfertige neue Protokolle, vor erstem Speichern)
-  const draftKey = tenant ? `uebergabe_draft_${tenant.id}` : null;
-  
-  const loadDraft = () => {
-    if (!draftKey) return null;
-    try {
-      const raw = localStorage.getItem(draftKey);
-      if (raw) return JSON.parse(raw);
-    } catch (e) { console.warn(e); }
-    return null;
-  };
-  
-  const [data, setData] = useState(() => {
-    const draft = loadDraft();
-    return draft || {
-      datum: new Date().toISOString().split("T")[0],
-      raume: {}, customRaume: [],
-      bemerkungen: "",
-      signature_mieter: "", signature_vermieter: "",
-    };
-  });
-  
-  // Auto-Save: Draft nur in localStorage solange nicht in DB gespeichert
-  useEffect(() => {
-    if (!draftKey || !showForm || editingId) return;
-    try { localStorage.setItem(draftKey, JSON.stringify(data)); }
-    catch (e) { console.warn(e); }
-  }, [data, draftKey, showForm, editingId]);
-  
-  function resetData() {
-    setData({
-      datum: new Date().toISOString().split("T")[0],
-      raume: {}, customRaume: [], bemerkungen: "",
-      signature_mieter: "", signature_vermieter: "",
-    });
-  }
-  
-  function clearDraft() {
-    if (draftKey) localStorage.removeItem(draftKey);
-    resetData();
-  }
-  
-  // Lade existierende Übergabe zum Bearbeiten
-  function loadRecord(p) {
-    setData({
-      datum: p.datum || new Date().toISOString().split("T")[0],
-      raume: p.raume || {},
-      customRaume: p.customRaume || [],
-      bemerkungen: p.bemerkungen || "",
-      signature_mieter: p.signatureMieter || "",
-      signature_vermieter: p.signatureVermieter || "",
-    });
-    setEditingId(p.id);
-    setShowForm(true);
-  }
-  
-  // Generiert PDF via html2pdf, uploaded in documents bucket, schickt Email an Mieter
-  async function generateAndSendProtokoll(protokollId) {
-    if (!window.html2pdf) throw new Error("html2pdf nicht geladen (Seite neu laden)");
-    if (!tenant?.email) throw new Error("Mieter hat keine Email-Adresse hinterlegt");
-    
-    // 1. HTML in unsichtbarem iframe rendern (für saubere Page-Breaks)
-    const html = buildPDF();
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:absolute;left:-9999px;top:0;width:210mm;height:297mm;border:none;visibility:hidden;";
-    document.body.appendChild(iframe);
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    
-    // Warte auf Bilder
-    await new Promise(r => setTimeout(r, 1000));
-    
-    let pdfBlob;
-    try {
-      pdfBlob = await window.html2pdf().set({
-        margin: 0,
-        filename: "Uebergabeprotokoll.pdf",
-        image: { type: "jpeg", quality: 0.92 },
-        html2canvas: { scale: 1.5, useCORS: true, logging: false, backgroundColor: "#ffffff" },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
-        pagebreak: { mode: ["css", "legacy"] }
-      }).from(iframe.contentDocument.body).outputPdf("blob");
-    } finally {
-      document.body.removeChild(iframe);
+  // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
+  React.useEffect(() => {
+    if (showStartModal && tenant) {
+      setStartSchluesselNr(tenant.schluesselNr || tenant.schluessel_nr || "");
+      setStartExtraSchluessel(tenant.extraSchluessel || tenant.extra_schluessel || "");
     }
-    
-    if (!pdfBlob || pdfBlob.size < 1000) throw new Error("PDF-Generierung fehlgeschlagen");
-    
-    // 2. Upload via existing uploadDocument
-    const file = new File([pdfBlob], "Uebergabeprotokoll.pdf", { type: "application/pdf" });
-    const docRecord = await uploadDocument("tenant", tenant.id, "Übergabeprotokoll", file);
-    if (!docRecord?.storage_path) throw new Error("Upload returned no path");
-    
-    // 3. Update protokoll mit pdf_storage_path (via updateProtokoll für state-refresh)
-    await updateProtokoll(protokollId, { pdfStoragePath: docRecord.storage_path });
-    
-    // 4. Call edge function send-protocol-email
-    const aptAdresse = apt?.adresse 
-      ? `${apt.adresse}${(apt.plz || apt.ort) ? `, ${apt.plz || ""} ${apt.ort || ""}`.trim() : ""}` 
-      : "";
-    
-    const { data: result, error: fnErr } = await supabase.functions.invoke("send-protocol-email", {
-      body: {
-        protokoll_id: protokollId,
-        storage_path: docRecord.storage_path,
-        tenant_email: tenant.email,
-        tenant_vorname: tenant.vorname,
-        tenant_nachname: tenant.nachname,
-        datum: data.datum,
-        apt_adresse: aptAdresse,
-      }
-    });
-    
-    if (fnErr) throw new Error("Edge function: " + (fnErr.message || fnErr));
-    if (result?.error) throw new Error(result.error);
-    
-    // 5. State refresh: emailSentAt wurde von Edge function gesetzt, lokal nachziehen
-    await updateProtokoll(protokollId, { emailSentAt: new Date().toISOString() });
-    
-    return true;
-  }
-  
-  // Speichern (Insert oder Update)
-  async function save() {
-    if (!tenant) return;
-    setSaving(true);
-    try {
-      const willBeSigned = !!(data.signature_mieter && data.signature_vermieter);
-      
-      // Prüfe ob Email schon gesendet wurde (bei Update)
-      const existingProtokoll = editingId 
-        ? (protokolle || []).find(p => p.id === editingId) 
-        : null;
-      const prevEmailSent = !!(existingProtokoll?.emailSentAt || existingProtokoll?.email_sent_at);
-      
-      const payload = {
-        tenantId: tenant.id,
-        aptId: apt?.id || null,
-        roomId: room?.id || null,
-        datum: data.datum,
-        schluesselNr: schluesselNr,
-        extraSchluessel: extraSchluessel,
-        bemerkungen: data.bemerkungen,
-        raume: data.raume,
-        customRaume: data.customRaume,
-        signatureMieter: data.signature_mieter || null,
-        signatureVermieter: data.signature_vermieter || null,
-        signedAt: willBeSigned ? new Date().toISOString() : null,
-        status: willBeSigned ? "unterschrieben" : "entwurf",
-      };
-      
-      let savedId = editingId;
-      if (editingId) {
-        await updateProtokoll(editingId, payload);
-      } else {
-        const created = await insertProtokoll(payload);
-        if (created?.id) {
-          savedId = created.id;
-          setEditingId(created.id);
-        }
-        if (draftKey) localStorage.removeItem(draftKey);
-      }
-      
-      // Email senden wenn: beide signaturen + noch nicht versendet + tenant.email vorhanden
-      let emailResult = null; // null = nicht versucht, true = success, string = error message
-      if (willBeSigned && !prevEmailSent && savedId) {
-        if (!tenant.email) {
-          emailResult = "Mieter hat keine Email-Adresse hinterlegt";
-        } else {
-          try {
-            await generateAndSendProtokoll(savedId);
-            emailResult = true;
-          } catch (e) {
-            console.error("generateAndSendProtokoll failed:", e);
-            emailResult = e.message || String(e);
-          }
-        }
-      }
-      
-      // User feedback
-      if (emailResult === true) {
-        alert(`✓ Übergabe gespeichert + PDF per Email an ${tenant.email} gesendet!`);
-      } else if (typeof emailResult === "string") {
-        alert(`✓ Übergabe gespeichert.\n\n⚠️ Email-Versand fehlgeschlagen: ${emailResult}\n\nDu kannst das PDF manuell via "Protokoll-PDF ansehen" erstellen und an den Mieter senden.`);
-      } else {
-        alert(editingId ? "✓ Übergabe aktualisiert." : "✓ Übergabe gespeichert! Du findest sie jetzt in der Übersicht.");
-      }
-      
-      // Zurück zur Übersicht
-      setShowForm(false);
-      setEditingId(null);
-      resetData();
-    } catch (e) {
-      // Fehler wurde bereits in CRUD-Funktion angezeigt
-      console.error("save error:", e);
-    }
-    setSaving(false);
-  }
-  
-  async function deleteRecord(p) {
-    if (!confirm(`Übergabe vom ${fmtDateDE(p.datum)} wirklich löschen?`)) return;
-    try { await deleteProtokoll(p.id); }
-    catch (e) {}
-  }
-  
-  const [generating, setGenerating] = useState(false);
-  
-  // Schlüssel-Daten: editable state, initialisiert aus Mieter-Stammdaten
-  // (verwendet schluesselAnzahl da das Mieter-Edit-Form ebenfalls dieses Feld nutzt)
-  const [schluesselNr, setSchluesselNr] = useState(tenant?.schluesselAnzahl || tenant?.schluessel_anzahl || tenant?.schluesselNr || tenant?.schluessel_nr || "");
-  const [extraSchluessel, setExtraSchluessel] = useState(tenant?.extraSchluessel || tenant?.extra_schluessel || "");
-  const [keysSaved, setKeysSaved] = useState(false);
-  const initialKeysRef = useRef({nr: schluesselNr, extra: extraSchluessel});
-  
-  // Auto-Save: speichert Schlüssel-Daten automatisch 800ms nach letzter Änderung
-  useEffect(() => {
-    if (!tenant || !updateTenant) return;
-    // Skip wenn Werte gleich sind wie Initial
-    if (schluesselNr === initialKeysRef.current.nr && extraSchluessel === initialKeysRef.current.extra) return;
-    
-    const timer = setTimeout(async () => {
-      try {
-        await updateTenant(tenant.id, {
-          schluesselAnzahl: schluesselNr,    // Hauptfeld (matches Mieter-Edit)
-          schluesselNr: schluesselNr,        // Backup-Feld (falls verwendet)
-          extraSchluessel: extraSchluessel,
-        });
-        initialKeysRef.current = {nr: schluesselNr, extra: extraSchluessel};
-        setKeysSaved(true);
-        setTimeout(() => setKeysSaved(false), 2000);
-      } catch (e) {
-        console.error("Auto-save keys failed:", e);
-      }
-    }, 800);
-    
-    return () => clearTimeout(timer);
-  }, [schluesselNr, extraSchluessel]);
-  
-  // Wenn tenant sich von aussen ändert, synchronisiere state
-  useEffect(() => {
-    const newNr = tenant?.schluesselAnzahl || tenant?.schluessel_anzahl || tenant?.schluesselNr || tenant?.schluessel_nr || "";
-    const newExtra = tenant?.extraSchluessel || tenant?.extra_schluessel || "";
-    // Nur sync wenn user nichts eingetippt hat (= Werte gleich wie initialRef)
-    if (schluesselNr === initialKeysRef.current.nr && newNr !== schluesselNr) {
-      setSchluesselNr(newNr);
-      initialKeysRef.current.nr = newNr;
-    }
-    if (extraSchluessel === initialKeysRef.current.extra && newExtra !== extraSchluessel) {
-      setExtraSchluessel(newExtra);
-      initialKeysRef.current.extra = newExtra;
-    }
-  }, [tenant?.schluesselAnzahl, tenant?.schluessel_anzahl, tenant?.extraSchluessel, tenant?.extra_schluessel]);
-  
-  function updateRaum(name, key, val) {
-    setData(p => ({
-      ...p,
-      raume: {
-        ...p.raume,
-        [name]: { ...(p.raume[name]||{}), [key]: val }
-      }
-    }));
-  }
-  
-  async function addPhoto(raumName, file) {
-    if (!file) return;
-    // Compress image to ~1024px max dimension
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX = 1280;
-        let w = img.width, h = img.height;
-        if (w > MAX || h > MAX) {
-          if (w > h) { h = h * (MAX/w); w = MAX; }
-          else { w = w * (MAX/h); h = MAX; }
-        }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        const dataUri = canvas.toDataURL("image/jpeg", 0.85);
-        setData(p => ({
-          ...p,
-          raume: {
-            ...p.raume,
-            [raumName]: {
-              ...(p.raume[raumName]||{}),
-              photos: [...((p.raume[raumName]||{}).photos || []), dataUri]
-            }
-          }
-        }));
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-  
-  function removePhoto(raumName, idx) {
-    setData(p => ({
-      ...p,
-      raume: {
-        ...p.raume,
-        [raumName]: {
-          ...(p.raume[raumName]||{}),
-          photos: (p.raume[raumName]||{}).photos.filter((_,i) => i !== idx)
-        }
-      }
-    }));
-  }
-  
-  function buildPDF() {
-    const fullName = `${tenant.vorname} ${tenant.nachname}`;
-    const datumLong = new Date(data.datum).toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
-    
-    const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN, ...(data.customRaume||[])];
-    const raumeHTML = allRooms.map(r => {
-      const d = data.raume[r] || {};
-      const photos = d.photos || [];
-      const isPrivat = UEBERGABE_RAUME_PRIVAT.includes(r);
-      const titel = isPrivat && room ? `${r} (${room.id})` : r;
-      return `
-        <div class="raum-block">
-          <h3>${titel}</h3>
-          <div class="raum-grid">
-            <div class="raum-info">
-              ${d.bemerkung ? `<div class="info-row"><span class="lbl">Bemerkung:</span></div><div class="bemerkung">${d.bemerkung}</div>` : ''}
-            </div>
-          </div>
-          ${photos.length > 0 ? `
-            <div class="photo-grid">
-              ${photos.map((p,i)=>`<div class="photo-item"><img src="${p}" alt="Foto ${i+1}"/><div class="photo-cap">${titel} - Foto ${i+1}</div></div>`).join('')}
-            </div>
-          ` : ''}
-        </div>`;
-    }).join('');
-    
-    return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Übergabeprotokoll - ${fullName}</title>
-<style>
-  @page{size:A4;margin:18mm 18mm 22mm 18mm;@bottom-center{content:counter(page) " / " counter(pages);font-family:Arial;font-size:9pt;color:#888}}
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.5;color:#1a1a1a;background:#fff;padding:18mm}
-  @media print{body{padding:0}.print-banner{display:none!important}}
-  .print-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:12px 20px;text-align:center;font-size:13px;z-index:9999}
-  .print-banner button{background:#fff;color:#1a1a1a;border:none;padding:7px 18px;margin-left:14px;font-weight:600;border-radius:4px;cursor:pointer}
-  .doc-header{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14pt;border-bottom:1.5pt solid #1a1a1a;margin-bottom:20pt}
-  .doc-header .label{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:500;margin-bottom:5pt}
-  .doc-header h1{font-size:22pt;font-weight:300;color:#1a1a1a;letter-spacing:-.3pt}
-  .doc-header .logo{width:42mm}
-  .doc-header .logo img{width:100%;display:block}
-  .person-card{background:#faf8f3;border-left:3pt solid #1a1a1a;padding:14pt 18pt;margin-bottom:18pt}
-  .ph{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:600;margin-bottom:10pt}
-  .person-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:7pt 18pt;font-size:10pt}
-  .pl{font-weight:600;color:#444}
-  .raum-block{margin-bottom:18pt;page-break-inside:avoid}
-  .raum-block h3{font-size:13pt;font-weight:700;color:#1a1a1a;padding:8pt 12pt;background:#f5efe4;border-left:3pt solid #1a1a1a;margin-bottom:10pt}
-  .raum-info .info-row{margin-bottom:4pt;font-size:10pt}
-  .raum-info .lbl{font-weight:600;display:inline-block;min-width:70pt}
-  .bemerkung{padding:6pt 10pt;background:#fafafa;border:.5pt solid #e0e0e0;border-radius:3pt;margin-top:3pt;min-height:20pt;font-size:10pt}
-  .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-top:12pt}
-  .photo-item{break-inside:avoid;page-break-inside:avoid}
-  .photo-item img{width:100%;height:auto;max-height:90mm;object-fit:contain;border:.5pt solid #ccc;background:#f8f8f8;display:block}
-  .photo-cap{font-size:8pt;color:#666;text-align:center;padding-top:3pt}
-  .info-section{background:#fafafa;border:.5pt solid #e0e0e0;border-radius:3pt;padding:12pt 16pt;margin:14pt 0}
-  .info-section h3{font-size:10pt;font-weight:700;margin-bottom:8pt}
-  .info-section .row{display:grid;grid-template-columns:1fr 1fr;gap:6pt 16pt;font-size:10pt}
-  .info-section .row .lbl{font-weight:600}
-  .signatures{margin-top:24pt;display:flex;gap:30pt;page-break-inside:avoid}
-  .schluss-erklaerung{margin-top:24pt;padding:14pt 18pt;background:#faf8f3;border-left:3pt solid #1a1a1a;page-break-inside:avoid}
-  .schluss-erklaerung h3{font-size:10pt;font-weight:700;color:#1a1a1a;margin-bottom:10pt;text-transform:uppercase;letter-spacing:.15em}
-  .erklaerung-list{margin:0;padding-left:16pt;font-size:9.5pt;line-height:1.55;color:#2a2823}
-  .erklaerung-list li{margin-bottom:6pt}
-  .erklaerung-list li:last-child{margin-bottom:0}
-  .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
-  .sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
-  .sig-block .name{font-size:11pt;font-weight:600;margin-bottom:24pt}
-  .sig-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt}
-  .sig-row .lbl{font-weight:600;min-width:55pt}
-  .sig-row .line{flex:1;border-bottom:.5pt solid #888;min-height:14pt}
-  .sig-image-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt;align-items:flex-end}
-  .sig-image-row .lbl{font-weight:600;min-width:55pt}
-  .sig-image-row .line{flex:1;border-bottom:.5pt solid #888;min-height:36pt}
-  .sig-image{flex:1;max-width:160pt;height:auto;max-height:50pt;object-fit:contain;border-bottom:.5pt solid #888;padding-bottom:2pt}
-</style></head>
-<body>
-<div class="print-banner">
-  Übergabeprotokoll bereit · Wähle <strong>"Als PDF speichern"</strong>
-  <button onclick="window.print()">📄 PDF speichern</button>
-  <button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button>
-</div>
-
-<div class="doc-header">
-  <div>
-    <div class="label">Einzug</div>
-    <h1>Übergabeprotokoll</h1>
-  </div>
-  <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
-</div>
-
-<div class="person-card">
-  <div class="ph">Mieter*in</div>
-  <div class="person-grid">
-    <span class="pl">Vorname:</span><span>${tenant.vorname||"-"}</span>
-    <span class="pl">Nachname:</span><span>${tenant.nachname||"-"}</span>
-    <span class="pl">E-Mail:</span><span>${tenant.email||"-"}</span>
-    <span class="pl">Telefon:</span><span>${tenant.phone||"-"}</span>
-    <span class="pl">Wohnung:</span><span>${apt?.adresse||"-"}, ${apt?.plz||""} ${apt?.ort||""}</span>
-    <span class="pl">Zimmer:</span><span>${room?.id||"-"}</span>
-    <span class="pl">Einzug am:</span><span>${datumLong}</span>
-    <span class="pl">Mietbeginn:</span><span>${tenant.einzug||"-"}</span>
-  </div>
-</div>
-
-<div class="info-section">
-  <h3>Schlüsselübergabe</h3>
-  <div class="row">
-    <div><span class="lbl">Schlüsselnummer:</span> ${schluesselNr||"-"}</div>
-    <div><span class="lbl">Extra-Schlüssel:</span> ${extraSchluessel||"-"}</div>
-  </div>
-</div>
-
-${raumeHTML}
-
-${data.bemerkungen ? `<div class="info-section"><h3>Allgemeine Bemerkungen</h3><div class="bemerkung">${data.bemerkungen}</div></div>` : ''}
-
-<div class="schluss-erklaerung">
-  <h3>Erklärung der Vertragsparteien</h3>
-  <ol class="erklaerung-list">
-    <li>Die Mietpartei bestätigt den Erhalt der unter «Schlüsselübergabe» aufgeführten Schlüssel${schluesselNr ? ` (Schlüsselnummer: <strong>${schluesselNr}</strong>${extraSchluessel ? `; zusätzlich: ${extraSchluessel}` : ''})` : ''} und verpflichtet sich, diese sorgfältig zu verwahren, nicht an unberechtigte Dritte weiterzugeben und am Ende des Mietverhältnisses vollzählig zurückzugeben. Bei Verlust trägt die Mietpartei die Kosten für Ersatz und allfällige Schliessanlagen-Anpassungen.</li>
-    <li>Die Mietpartei bestätigt, dass die Wohnung bzw. das Zimmer im obenstehend protokollierten Zustand übergeben wurde. Nicht aufgeführte Mängel und Schäden gelten als nicht vorhanden.</li>
-    <li>Allfällige verdeckte Mängel, die bei der Übergabe nicht erkennbar waren, werden der Hauptmieterin (D&amp;T Partners GmbH) innert <strong>10 Tagen ab Entdeckung</strong> schriftlich gemeldet (Art. 256 OR).</li>
-    <li>Die Mietpartei verpflichtet sich, das Mietobjekt sorgfältig zu nutzen und am Ende des Mietverhältnisses in vergleichbarem Zustand zurückzugeben (vorbehaltlich normaler Abnutzung gemäss Schweizer Mietrecht und Lebensdauertabelle MV/HEV).</li>
-    <li>Beide Parteien bestätigen mit ihrer Unterschrift, dass die Angaben im Protokoll richtig sind und dass sie je ein unterzeichnetes Exemplar (digital oder gedruckt) erhalten haben.</li>
-    <li>Bei Streitigkeiten gilt schweizerisches Recht; Gerichtsstand ist Chur.</li>
-  </ol>
-</div>
-
-<div class="signatures">
-  <div class="sig-block">
-    <div class="role">Mieter*in</div>
-    <div class="name">${tenant.vorname} ${tenant.nachname}</div>
-    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line">${data.signature_mieter ? `Zürich, ${datumLong}` : ''}</span></div>
-    <div class="sig-image-row">
-      <span class="lbl">Unterschrift:</span>
-      ${data.signature_mieter 
-        ? `<img src="${data.signature_mieter}" alt="Unterschrift Mieter" class="sig-image"/>` 
-        : `<span class="line"></span>`}
-    </div>
-  </div>
-  <div class="sig-block">
-    <div class="role">Hauptmieter</div>
-    <div class="name">D&amp;T Partners GmbH</div>
-    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line">${data.signature_vermieter ? `Zürich, ${datumLong}` : ''}</span></div>
-    <div class="sig-image-row">
-      <span class="lbl">Unterschrift:</span>
-      ${data.signature_vermieter 
-        ? `<img src="${data.signature_vermieter}" alt="Unterschrift Vermieter" class="sig-image"/>` 
-        : `<span class="line"></span>`}
-    </div>
-  </div>
-</div>
-
-</body></html>`;
-  }
-  
-  async function generatePDF() {
-    setGenerating(true);
-    try {
-      const html = buildPDF();
-      const win = window.open("", "_blank");
-      if (!win) {
-        alert("Popup blockiert. Bitte Popups erlauben.");
-        return;
-      }
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-      win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 400);
-    } finally {
-      setGenerating(false);
-    }
-  }
-  
-  if (!showForm) {
-    const hasDraft = !!loadDraft();
-    
-    // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
-    const [showStartModal, setShowStartModal] = React.useState(false);
-    const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
-    const [startExtraSchluessel, setStartExtraSchluessel] = React.useState("");
-    const [starting, setStarting] = React.useState(false);
-    
-    // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
-    React.useEffect(() => {
-      if (showStartModal && tenant) {
-        setStartSchluesselNr(tenant.schluesselNr || tenant.schluessel_nr || "");
-        setStartExtraSchluessel(tenant.extraSchluessel || tenant.extra_schluessel || "");
-      }
-    }, [showStartModal, tenant?.id]);
-    const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
-    const activeHandover = myHandovers.find(h => ["sent","in_progress"].includes(h.status));
-    
-    return (
-      <div>
-        {/* SELBST-ÜBERNAHMEPROTOKOLL (Mieter erfasst per Link) */}
-        <div style={{background:"#fafaf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:myHandovers.length>0?12:0,gap:8,flexWrap:"wrap"}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:600,color:"#3a352d"}}>📋 Übernahmeprotokoll</div>
-              <div style={{fontSize:10.5,color:"#8a8478",marginTop:2}}>Digitale Schlüsselübergabe + Mängel-Dokumentation durch den Mieter. 14 Tage Frist.</div>
-            </div>
-            {!activeHandover && (
-              <button onClick={()=>setShowStartModal(true)} style={{fontSize:12,padding:"7px 14px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:5,cursor:"pointer",fontWeight:600}}>
-                📋 Protokoll starten
-              </button>
-            )}
-          </div>
-          
-          {myHandovers.map((h, idx) => {
-            const statusColors = {
-              "sent": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Eingeladen"},
-              "in_progress": {bg:"#e0ecf5",color:"#3a5570",border:"#a8c0d5",label:"✎ In Arbeit"},
-              "submitted": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"📤 Eingereicht"},
-              "auto_accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Auto-akzeptiert"},
-              "accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Akzeptiert"},
-              "cancelled": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Abgebrochen"},
-            };
-            const sc = statusColors[h.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:h.status};
-            const isActive = ["sent","in_progress"].includes(h.status);
-            const isSubmitted = h.status === "submitted";
-            const now = new Date();
-            const dl = new Date(h.deadline);
-            const daysLeft = Math.ceil((dl - now) / (1000*60*60*24));
-            return (
-              <div key={h.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<myHandovers.length-1?8:0}}>
-                {/* Email-Status: gruener Haken wenn versendet, rote Warnung bei Error */}
-                {h.inviteSentAt ? (
-                  <div style={{fontSize:10.5,color:"#3a5230",background:"#e8efde",border:"1px solid #c5d5b0",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
-                    ✉️ Einladung versendet {new Date(h.inviteSentAt).toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}
-                  </div>
-                ) : h.inviteEmailError ? (
-                  <div style={{fontSize:10.5,color:"#9b4a3e",background:"#fdebe5",border:"1px solid #e0bcb0",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
-                    ⚠️ Email-Fehler: {h.inviteEmailError.substring(0,60)}
-                  </div>
-                ) : (
-                  <div style={{fontSize:10.5,color:"#8a6a2e",background:"#fdf7e8",border:"1px solid #e8d2a8",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
-                    ⏳ Email wird versendet ...
-                  </div>
-                )}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
-                  <span style={{fontSize:11.5,color:"#3a352d"}}>
-                    Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")}
-                    {isActive && daysLeft >= 0 && <span style={{marginLeft:8,color:daysLeft <= 3 ? "#8a3a2e" : "#8a8478",fontWeight:daysLeft <= 3 ? 600 : 400}}> · Deadline in {daysLeft} Tagen</span>}
-                    {isActive && daysLeft < 0 && <span style={{marginLeft:8,color:"#8a3a2e",fontWeight:600}}> · ⌛ Abgelaufen</span>}
-                  </span>
-                  <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10.5,fontWeight:600}}>{sc.label}</span>
-                </div>
-                {h.signUrl && isActive && (
-                  <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
-                    <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{h.signUrl}</div>
-                    <button onClick={()=>{navigator.clipboard.writeText(h.signUrl).then(()=>alert("Link kopiert!")).catch(()=>{});}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
-                    <a href={h.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
-                  </div>
-                )}
-                {isSubmitted && h.submittedAt && (
-                  <div style={{fontSize:11,color:"#3a352d",marginBottom:6}}>
-                    Eingereicht am {new Date(h.submittedAt).toLocaleDateString("de-CH")} · {(h.photos||[]).length} Fotos {h.mangelNotes ? `· Mängel angegeben` : `· Keine Mängel`}
-                  </div>
-                )}
-                <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
-                  {isActive && (
-                    <>
-                      <button onClick={async()=>{
-                        if (!confirm(`Frist um 7 Tage verlängern?`)) return;
-                        try { await extendHandoverDeadline(h.id, 7); } catch(e){alert("Fehler: "+e.message);}
-                      }} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
-                        +7 Tage
-                      </button>
-                      <button onClick={async()=>{
-                        if (!confirm(`Protokoll abbrechen?\n\nDer Link wird ungültig.`)) return;
-                        try { await cancelHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
-                      }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
-                        ✕ Abbrechen
-                      </button>
-                    </>
-                  )}
-                  {isSubmitted && (
-                    <button onClick={async()=>{
-                      if (!confirm(`Protokoll akzeptieren und abschliessen?`)) return;
-                      try { await acceptHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
-                    }} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}>
-                      ✓ Akzeptieren
-                    </button>
-                  )}
-                  <button onClick={async()=>{
-                    if (!confirm(`Protokoll komplett löschen?`)) return;
-                    try { await deleteHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
-                  }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
-                    🗑
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        
-        {/* START-MODAL fuer Uebernahmeprotokoll */}
-        {showStartModal && (
-          <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget && !starting && setShowStartModal(false)}>
-            <div style={{background:"#fefcf7",borderRadius:10,padding:"22px 26px",maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}}>
-              <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>📋 Übernahmeprotokoll starten</div>
-              <div style={{fontSize:12,color:"#8a8174",marginBottom:18}}>Für {tenant?.vorname||""} {tenant?.nachname||""} · {apt?.adresse||""}{room?.id ? ", Zimmer "+room.id : ""}</div>
-              
-              <div style={{background:"#fdf2e0",border:"1px solid #e8c89c",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.5,color:"#5a5044"}}>
-                Nach dem Start erhält der Mieter einen Link mit 14 Tagen Frist für die Fotos und Mängel-Angabe.
-                Nach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.
-              </div>
-              
-              <div style={{marginBottom:12}}>
-                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Schlüsselnummer</label>
-                <input
-                  type="text"
-                  value={startSchluesselNr}
-                  onChange={e=>setStartSchluesselNr(e.target.value)}
-                  placeholder="z.B. 123-456"
-                  style={{width:"100%",padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}
-                />
-              </div>
-              <div style={{marginBottom:16}}>
-                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Extra-Schlüssel (optional)</label>
-                <textarea
-                  value={startExtraSchluessel}
-                  onChange={e=>setStartExtraSchluessel(e.target.value)}
-                  placeholder={"z.B.\nBriefkastenschlüssel Nr. 4711\nWaschküche Nr. 89"}
-                  style={{width:"100%",minHeight:70,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
-                />
-                <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
-                  Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
-                </div>
-              </div>
-              
-              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-                <button onClick={()=>!starting && setShowStartModal(false)} disabled={starting} style={{fontSize:12.5,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:starting?"not-allowed":"pointer"}}>
-                  Abbrechen
-                </button>
-                <button onClick={async()=>{
-                  setStarting(true);
-                  try {
-                    const nrTrim = startSchluesselNr.trim();
-                    const extraTrim = startExtraSchluessel.trim();
-                    // 1. Update tenant fields
-                    await updateTenant(tenant.id, {
-                      schluessel_nr: nrTrim,
-                      extra_schluessel: extraTrim,
-                      schluessel_uebergeben: !!(nrTrim || extraTrim),
-                    });
-                    // 2. Build snapshot for handover_protocol (fuer Sign-Portal + PDF)
-                    const snapshot = [
-                      nrTrim && `Schlüsselnummer: ${nrTrim}`,
-                      extraTrim && `Extra-Schlüssel:\n${extraTrim}`
-                    ].filter(Boolean).join("\n\n");
-                    // 3. Start the protocol mit vollem Snapshot
-                    await startHandoverProtocol({
-                      tenantId: tenant.id,
-                      aptId: apt?.id,
-                      roomId: room?.id,
-                      mieterEmail: tenant.email,
-                      mieterVorname: tenant.vorname,
-                      mieterNachname: tenant.nachname,
-                      mieterGeburtsdatum: tenant.geburt || null,
-                      mieterNationalitaet: tenant.nat || null,
-                      mieterTelefon: tenant.phone || null,
-                      aptAdresse: apt?.adresse || null,
-                      aptPlz: apt?.plz || null,
-                      aptOrt: apt?.ort || null,
-                      roomLabel: room?.id || null,
-                      einzugDatum: tenant.einzug || null,
-                      schluesselInfo: snapshot || null,
-                    });
-                    setShowStartModal(false);
-                  } catch(e) {
-                    alert("Fehler: " + (e.message || e));
-                  }
-                  setStarting(false);
-                }} disabled={starting} style={{fontSize:12.5,padding:"8px 16px",background:starting?"#f0ebe1":"#3a5230",color:starting?"#8a8174":"#fff",border:"1px solid "+(starting?"#d8d0c0":"#3a5230"),borderRadius:5,cursor:starting?"not-allowed":"pointer",fontWeight:600}}>
-                  {starting ? "Starte..." : "📋 Protokoll starten"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-      </div>
-    );
-  }
-  
-  const allRooms = [...UEBERGABE_RAUME_PRIVAT, ...UEBERGABE_RAUME_GEMEIN, ...(data.customRaume||[])];
-  const totalPhotos = Object.values(data.raume).reduce((s,r) => s + ((r.photos||[]).length), 0);
+  }, [showStartModal, tenant?.id]);
+  const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
+  const activeHandover = myHandovers.find(h => ["sent","in_progress"].includes(h.status));
   
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-        <div>
-          <div style={{fontSize:14,fontWeight:600}}>{editingId ? "✏️ Übergabe bearbeiten" : "📋 Neue Übergabe"}</div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:2}}>
-            {totalPhotos} Foto{totalPhotos!==1?"s":""} · {editingId ? "Gespeichert in DB" : "Noch nicht gespeichert"}
-          </div>
-        </div>
-        <button className="btn btn-g btn-sm" onClick={()=>{setShowForm(false);setEditingId(null);}}>← Zurück</button>
-      </div>
-      
-      <div className="frow">
-        <div className="fg"><label className="fl">Datum der Übergabe</label><input className="fi" type="date" value={data.datum} onChange={e=>setData(p=>({...p,datum:e.target.value}))}/></div>
-      </div>
-      
-      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🔑 Schlüsselübergabe</div>
-        <div className="frow">
-          <div className="fg">
-            <label className="fl">Schlüsselnummer</label>
-            <input className="fi" type="text" value={schluesselNr} onChange={e=>setSchluesselNr(e.target.value)} placeholder="z.B. 4711-A, K12, oder 3"/>
-          </div>
-          <div className="fg">
-            <label className="fl">Extra-Schlüssel</label>
-            <input className="fi" type="text" value={extraSchluessel} onChange={e=>setExtraSchluessel(e.target.value)} placeholder="z.B. Briefkasten, Garage"/>
-          </div>
-        </div>
-      </div>
-      
-      {allRooms.map((rname, idx) => {
-        const isPrivat = UEBERGABE_RAUME_PRIVAT.includes(rname);
-        const isCustom = (data.customRaume||[]).includes(rname);
-        const titel = isPrivat && room ? `${rname} (${room.id})` : rname;
-        const rdata = data.raume[rname] || {};
-        const photos = rdata.photos || [];
-        return (
-          <div key={rname} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{isPrivat?"🛏️ ":isCustom?"➕ ":"🏠 "}{titel}</div>
-              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <span style={{fontSize:10,color:photos.length>0?"#5a6e4a":"#8a8174",fontWeight:600}}>{photos.length} Foto{photos.length!==1?"s":""}</span>
-                {isCustom && (
-                  <button onClick={()=>setData(p=>({...p,customRaume:p.customRaume.filter(r=>r!==rname),raume:Object.fromEntries(Object.entries(p.raume).filter(([k])=>k!==rname))}))} style={{background:"transparent",border:"1px solid #e1d8c5",borderRadius:4,fontSize:11,padding:"2px 6px",cursor:"pointer",color:"#9b4a3e"}}>✕ Entfernen</button>
-                )}
-              </div>
-            </div>
-            <div className="fg">
-              <label className="fl">Bemerkung / Mängel <span style={{fontWeight:400,color:"#bab2a0"}}>(optional)</span></label>
-              <textarea className="fi" rows={2} value={rdata.bemerkung||""} onChange={e=>updateRaum(rname,"bemerkung",e.target.value)} placeholder="z.B. kleiner Kratzer am Fenster..."/>
-            </div>
-            
-            {photos.length > 0 && (
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(80px, 100%), 1fr))",gap:6,marginBottom:10}}>
-                {photos.map((p,i) => (
-                  <div key={i} style={{position:"relative",aspectRatio:"1",border:"1px solid #e1d8c5",borderRadius:4,overflow:"hidden"}}>
-                    <img src={p} alt={`Foto ${i+1}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                    <button onClick={()=>removePhoto(rname,i)} style={{position:"absolute",top:2,right:2,background:"rgba(0,0,0,.7)",color:"#fff",border:"none",borderRadius:"50%",width:22,height:22,cursor:"pointer",fontSize:12}}>×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
-                📷 Fotos aufnehmen
-                <input type="file" accept="image/*" capture="environment" multiple style={{display:"none"}} onChange={e=>{[...e.target.files].forEach(f=>addPhoto(rname,f));e.target.value="";}}/>
-              </label>
-              <label className="btn btn-g btn-sm" style={{cursor:"pointer",margin:0}}>
-                📎 Aus Galerie wählen
-                <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{[...e.target.files].forEach(f=>addPhoto(rname,f));e.target.value="";}}/>
-              </label>
-            </div>
-          </div>
-        );
-      })}
-      
-      {/* Custom-Raum hinzufügen */}
-      <button 
-        onClick={()=>{
-          const name = prompt("Name des zusätzlichen Raums:", "");
-          if (!name || !name.trim()) return;
-          const trimmed = name.trim();
-          if (allRooms.includes(trimmed)) { alert("Raum existiert bereits."); return; }
-          setData(p=>({...p,customRaume:[...(p.customRaume||[]),trimmed]}));
-        }}
-        className="btn btn-g btn-sm" 
-        style={{width:"100%",marginBottom:14,padding:"10px",borderStyle:"dashed"}}
-      >
-        ➕ Weiteren Raum hinzufügen (z.B. Balkon, Estrich)
-      </button>
-      
-      <div className="fg">
-        <label className="fl">Allgemeine Bemerkungen</label>
-        <textarea className="fi" rows={3} value={data.bemerkungen} onChange={e=>setData(p=>({...p,bemerkungen:e.target.value}))} placeholder="Weitere Notizen oder Vereinbarungen..."/>
-      </div>
-      
-      {/* UNTERSCHRIFTEN - nur sichtbar wenn man ein gespeichertes Protokoll bearbeitet (vor Ort) */}
-      {editingId ? (
-        <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:14,marginTop:14}}>
-          <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:14,fontWeight:500}}>✍️ Unterschriften (vor Ort)</div>
-          
-          <div style={{marginBottom:18}}>
-            <label className="fl">Mieter: {tenant.vorname} {tenant.nachname}</label>
-            <SignaturePad 
-              value={data.signature_mieter} 
-              onChange={(v)=>setData(p=>({...p,signature_mieter:v}))}
-              placeholder="Hier mit dem Finger unterschreiben"
-            />
-          </div>
-          
+      {/* SELBST-ÜBERNAHMEPROTOKOLL (Mieter erfasst per Link) */}
+      <div style={{background:"#fafaf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:myHandovers.length>0?12:0,gap:8,flexWrap:"wrap"}}>
           <div>
-            <label className="fl">Hauptmieter: D&T Partners GmbH</label>
-            <SignaturePad 
-              value={data.signature_vermieter} 
-              onChange={(v)=>setData(p=>({...p,signature_vermieter:v}))}
-              placeholder="Hier mit dem Finger unterschreiben"
-            />
+            <div style={{fontSize:14,fontWeight:600,color:"#3a352d"}}>📋 Übernahmeprotokoll</div>
+            <div style={{fontSize:10.5,color:"#8a8478",marginTop:2}}>Digitale Schlüsselübergabe + Mängel-Dokumentation durch den Mieter. 14 Tage Frist.</div>
           </div>
+          {!activeHandover && (
+            <button onClick={()=>setShowStartModal(true)} style={{fontSize:12,padding:"7px 14px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:5,cursor:"pointer",fontWeight:600}}>
+              📋 Protokoll starten
+            </button>
+          )}
         </div>
-      ) : (
-        <div style={{background:"#f5f0e6",border:"1px dashed #d4c7a8",borderRadius:8,padding:"12px 14px",marginTop:14,fontSize:11.5,color:"#8a7e5e",lineHeight:1.5,textAlign:"center"}}>
-          ✍️ <strong>Unterschriften kommen später</strong> - speichere erst die Übergabe. Vor Ort kannst du sie öffnen, Mieter unterschreibt direkt am Handy, dann PDF erstellen.
+        
+        {myHandovers.map((h, idx) => {
+          const statusColors = {
+            "sent": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Eingeladen"},
+            "in_progress": {bg:"#e0ecf5",color:"#3a5570",border:"#a8c0d5",label:"✎ In Arbeit"},
+            "submitted": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"📤 Eingereicht"},
+            "auto_accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Auto-akzeptiert"},
+            "accepted": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Akzeptiert"},
+            "cancelled": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Abgebrochen"},
+          };
+          const sc = statusColors[h.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:h.status};
+          const isActive = ["sent","in_progress"].includes(h.status);
+          const isSubmitted = h.status === "submitted";
+          const now = new Date();
+          const dl = new Date(h.deadline);
+          const daysLeft = Math.ceil((dl - now) / (1000*60*60*24));
+          return (
+            <div key={h.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<myHandovers.length-1?8:0}}>
+              {/* Email-Status: gruener Haken wenn versendet, rote Warnung bei Error */}
+              {h.inviteSentAt ? (
+                <div style={{fontSize:10.5,color:"#3a5230",background:"#e8efde",border:"1px solid #c5d5b0",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
+                  ✉️ Einladung versendet {new Date(h.inviteSentAt).toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+                </div>
+              ) : h.inviteEmailError ? (
+                <div style={{fontSize:10.5,color:"#9b4a3e",background:"#fdebe5",border:"1px solid #e0bcb0",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
+                  ⚠️ Email-Fehler: {h.inviteEmailError.substring(0,60)}
+                </div>
+              ) : (
+                <div style={{fontSize:10.5,color:"#8a6a2e",background:"#fdf7e8",border:"1px solid #e8d2a8",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block"}}>
+                  ⏳ Email wird versendet ...
+                </div>
+              )}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
+                <span style={{fontSize:11.5,color:"#3a352d"}}>
+                  Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")}
+                  {isActive && daysLeft >= 0 && <span style={{marginLeft:8,color:daysLeft <= 3 ? "#8a3a2e" : "#8a8478",fontWeight:daysLeft <= 3 ? 600 : 400}}> · Deadline in {daysLeft} Tagen</span>}
+                  {isActive && daysLeft < 0 && <span style={{marginLeft:8,color:"#8a3a2e",fontWeight:600}}> · ⌛ Abgelaufen</span>}
+                </span>
+                <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10.5,fontWeight:600}}>{sc.label}</span>
+              </div>
+              {h.signUrl && isActive && (
+                <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{h.signUrl}</div>
+                  <button onClick={()=>{navigator.clipboard.writeText(h.signUrl).then(()=>alert("Link kopiert!")).catch(()=>{});}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
+                  <a href={h.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
+                </div>
+              )}
+              {isSubmitted && h.submittedAt && (
+                <div style={{fontSize:11,color:"#3a352d",marginBottom:6}}>
+                  Eingereicht am {new Date(h.submittedAt).toLocaleDateString("de-CH")} · {(h.photos||[]).length} Fotos {h.mangelNotes ? `· Mängel angegeben` : `· Keine Mängel`}
+                </div>
+              )}
+              <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                {isActive && (
+                  <>
+                    <button onClick={async()=>{
+                      if (!confirm(`Frist um 7 Tage verlängern?`)) return;
+                      try { await extendHandoverDeadline(h.id, 7); } catch(e){alert("Fehler: "+e.message);}
+                    }} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
+                      +7 Tage
+                    </button>
+                    <button onClick={async()=>{
+                      if (!confirm(`Protokoll abbrechen?\n\nDer Link wird ungültig.`)) return;
+                      try { await cancelHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
+                    }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
+                      ✕ Abbrechen
+                    </button>
+                  </>
+                )}
+                {isSubmitted && (
+                  <button onClick={async()=>{
+                    if (!confirm(`Protokoll akzeptieren und abschliessen?`)) return;
+                    try { await acceptHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
+                  }} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}>
+                    ✓ Akzeptieren
+                  </button>
+                )}
+                <button onClick={async()=>{
+                  if (!confirm(`Protokoll komplett löschen?`)) return;
+                  try { await deleteHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
+                }} style={{fontSize:10.5,padding:"4px 10px",background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0",borderRadius:4,cursor:"pointer"}}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* START-MODAL fuer Uebernahmeprotokoll */}
+      {showStartModal && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget && !starting && setShowStartModal(false)}>
+          <div style={{background:"#fefcf7",borderRadius:10,padding:"22px 26px",maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}}>
+            <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>📋 Übernahmeprotokoll starten</div>
+            <div style={{fontSize:12,color:"#8a8174",marginBottom:18}}>Für {tenant?.vorname||""} {tenant?.nachname||""} · {apt?.adresse||""}{room?.id ? ", Zimmer "+room.id : ""}</div>
+            
+            <div style={{background:"#fdf2e0",border:"1px solid #e8c89c",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.5,color:"#5a5044"}}>
+              Nach dem Start erhält der Mieter einen Link mit 14 Tagen Frist für die Fotos und Mängel-Angabe.
+              Nach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.
+            </div>
+            
+            <div style={{marginBottom:12}}>
+              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Schlüsselnummer</label>
+              <input
+                type="text"
+                value={startSchluesselNr}
+                onChange={e=>setStartSchluesselNr(e.target.value)}
+                placeholder="z.B. 123-456"
+                style={{width:"100%",padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}
+              />
+            </div>
+            <div style={{marginBottom:16}}>
+              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Extra-Schlüssel (optional)</label>
+              <textarea
+                value={startExtraSchluessel}
+                onChange={e=>setStartExtraSchluessel(e.target.value)}
+                placeholder={"z.B.\nBriefkastenschlüssel Nr. 4711\nWaschküche Nr. 89"}
+                style={{width:"100%",minHeight:70,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
+              />
+              <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
+                Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
+              </div>
+            </div>
+            
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button onClick={()=>!starting && setShowStartModal(false)} disabled={starting} style={{fontSize:12.5,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:starting?"not-allowed":"pointer"}}>
+                Abbrechen
+              </button>
+              <button onClick={async()=>{
+                setStarting(true);
+                try {
+                  const nrTrim = startSchluesselNr.trim();
+                  const extraTrim = startExtraSchluessel.trim();
+                  // 1. Update tenant fields
+                  await updateTenant(tenant.id, {
+                    schluessel_nr: nrTrim,
+                    extra_schluessel: extraTrim,
+                    schluessel_uebergeben: !!(nrTrim || extraTrim),
+                  });
+                  // 2. Build snapshot for handover_protocol (fuer Sign-Portal + PDF)
+                  const snapshot = [
+                    nrTrim && `Schlüsselnummer: ${nrTrim}`,
+                    extraTrim && `Extra-Schlüssel:\n${extraTrim}`
+                  ].filter(Boolean).join("\n\n");
+                  // 3. Start the protocol mit vollem Snapshot
+                  await startHandoverProtocol({
+                    tenantId: tenant.id,
+                    aptId: apt?.id,
+                    roomId: room?.id,
+                    mieterEmail: tenant.email,
+                    mieterVorname: tenant.vorname,
+                    mieterNachname: tenant.nachname,
+                    mieterGeburtsdatum: tenant.geburt || null,
+                    mieterNationalitaet: tenant.nat || null,
+                    mieterTelefon: tenant.phone || null,
+                    aptAdresse: apt?.adresse || null,
+                    aptPlz: apt?.plz || null,
+                    aptOrt: apt?.ort || null,
+                    roomLabel: room?.id || null,
+                    einzugDatum: tenant.einzug || null,
+                    schluesselInfo: snapshot || null,
+                  });
+                  setShowStartModal(false);
+                } catch(e) {
+                  alert("Fehler: " + (e.message || e));
+                }
+                setStarting(false);
+              }} disabled={starting} style={{fontSize:12.5,padding:"8px 16px",background:starting?"#f0ebe1":"#3a5230",color:starting?"#8a8174":"#fff",border:"1px solid "+(starting?"#d8d0c0":"#3a5230"),borderRadius:5,cursor:starting?"not-allowed":"pointer",fontWeight:600}}>
+                {starting ? "Starte..." : "📋 Protokoll starten"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       
-      <div style={{display:"flex",gap:8,marginTop:18,paddingTop:14,borderTop:"1px solid #e1d8c5",flexWrap:"wrap"}}>
-        <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditingId(null);}} style={{flex:"0 0 auto"}}>← Zurück</button>
-        {editingId ? (
-          <>
-            <button className="btn btn-g" onClick={save} disabled={saving} style={{flex:"1 1 140px",fontWeight:600}}>
-              {saving ? "⏳ Speichert…" : "💾 Änderungen speichern"}
-            </button>
-            {(() => {
-              const existing = (protokolle || []).find(x => x.id === editingId);
-              const isSignedInDb = !!existing?.signedAt;
-              const emailSent = !!existing?.emailSentAt;
-              if (isSignedInDb && !emailSent && tenant?.email) {
-                return (
-                  <button className="btn btn-p" onClick={async () => {
-                    if (!confirm(`PDF generieren und an ${tenant.email} senden?`)) return;
-                    setSaving(true);
-                    try {
-                      await generateAndSendProtokoll(editingId);
-                      alert(`✓ PDF per Email an ${tenant.email} gesendet!`);
-                    } catch (e) {
-                      console.error(e);
-                      alert("⚠️ Versand fehlgeschlagen: " + (e.message || e));
-                    }
-                    setSaving(false);
-                  }} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
-                    {saving ? "⏳ Sendet…" : "📧 PDF an Mieter senden"}
-                  </button>
-                );
-              }
-              return null;
-            })()}
-            <button className="btn btn-p" onClick={generatePDF} disabled={generating} style={{flex:"1 1 200px"}}>
-              {generating?"⏳ Erstellt…":"📄 Protokoll-PDF erstellen"}
-            </button>
-          </>
-        ) : (
-          <button className="btn btn-p" onClick={save} disabled={saving} style={{flex:"1 1 200px",fontWeight:600}}>
-            {saving ? "⏳ Speichert…" : "💾 Übergabe speichern"}
-          </button>
-        )}
-      </div>
-      
-      <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,lineHeight:1.5,fontStyle:"italic",textAlign:"center"}}>
-        {editingId 
-          ? "💡 Vor Ort: Unterschriften ergänzen, Änderungen speichern, dann Protokoll-PDF erstellen."
-          : "💡 Übergabe mit allen Daten und Fotos wird in der Datenbank gespeichert. Vor Ort kannst du sie öffnen, Unterschriften ergänzen und das Protokoll-PDF erstellen."}
-      </div>
     </div>
   );
 }
