@@ -649,6 +649,15 @@ a:hover{border-bottom-color:var(--gold)}
   /* Zahlungen: Monats-Navigation nimmt auf Mobile die volle Breite,
      "Aktueller Monat"-Button faellt sauber in eine zweite Zeile statt ueberzulaufen */
   .zahlungen-monatsnav { width: 100%; justify-content: center; }
+
+  /* Globale Sicherheitsregel gegen Rand-Ueberlauf: alle Flex-Reihen duerfen auf
+     Mobile umbrechen statt ueber den Rand hinauszulaufen. Das aendert nichts,
+     solange Inhalte in eine Zeile passen (dann bleibt es optisch identisch),
+     greift nur als Fallback, wenn eine Reihe zu breit wird. Ausgenommen sind
+     bewusst seitwaerts scrollende Reihen (Balkendiagramme mit overflow-x). */
+  div[style*="display: flex"]:not([style*="overflow-x"]) {
+    flex-wrap: wrap !important;
+  }
   .fl { font-size: 10px !important; margin-bottom: 4px !important; }
   
   /* ════════════════════════════════════════
