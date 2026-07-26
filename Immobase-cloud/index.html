@@ -645,6 +645,10 @@ a:hover{border-bottom-color:var(--gold)}
   /* To-dos: "Neue Aufgabe"-Felder (Zuständig / Fällig am / Priorität) auf 1 Spalte,
      sonst schiebt das native Datumsfeld die Spalte über den Rand hinaus */
   .aufgabe-grid { grid-template-columns: 1fr !important; }
+
+  /* Zahlungen: Monats-Navigation nimmt auf Mobile die volle Breite,
+     "Aktueller Monat"-Button faellt sauber in eine zweite Zeile statt ueberzulaufen */
+  .zahlungen-monatsnav { width: 100%; justify-content: center; }
   .fl { font-size: 10px !important; margin-bottom: 4px !important; }
   
   /* ════════════════════════════════════════
@@ -8966,11 +8970,11 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
           <div className="ps">Monatliche Mietzahlungen tracken</div>
         </div>
         {/* MONATS-NAVIGATION */}
-        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"6px 8px"}}>
+        <div className="zahlungen-monatsnav" style={{display:"flex",alignItems:"center",gap:8,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"6px 8px",flexWrap:"wrap",maxWidth:"100%",boxSizing:"border-box"}}>
           <button onClick={()=>changeMonth(-1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>‹</button>
-          <div style={{minWidth:150,textAlign:"center",fontWeight:600,fontSize:14}}>{MONATS_NAMEN[monat-1]} {jahr}</div>
+          <div style={{minWidth:0,textAlign:"center",fontWeight:600,fontSize:14,flex:"1 1 auto"}}>{MONATS_NAMEN[monat-1]} {jahr}</div>
           <button onClick={()=>changeMonth(1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>›</button>
-          <button onClick={()=>{const pm = getPaymentMonth(new Date()); setMonat(pm.monat); setJahr(pm.jahr);}} className="btn btn-g btn-sm" style={{fontSize:11}}>Aktueller Monat</button>
+          <button onClick={()=>{const pm = getPaymentMonth(new Date()); setMonat(pm.monat); setJahr(pm.jahr);}} className="btn btn-g btn-sm" style={{fontSize:11,flex:"1 1 100%"}}>Aktueller Monat</button>
         </div>
       </div>
       
