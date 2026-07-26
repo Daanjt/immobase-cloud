@@ -10126,7 +10126,7 @@ function MainApp() {
   const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection}[page];
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
-  // Offene Zahlungen für aktuellen Zahlungs-Monat zählen (ab 25. = nächster Monat)
+  // Offene Zahlungen für aktuellen + vorherigen Zahlungs-Monat zählen (ab 25. = nächster Monat)
   const now2 = new Date();
   let aktJ = now2.getFullYear();
   let aktM = now2.getMonth() + 1;
@@ -10134,8 +10134,8 @@ function MainApp() {
     aktM += 1;
     if (aktM > 12) { aktM = 1; aktJ += 1; }
   }
-  const monatsStart2 = new Date(aktJ, aktM-1, 1);
-  const monatsEnde2 = new Date(aktJ, aktM, 0, 23, 59, 59);
+  let vorJ = aktJ, vorM = aktM - 1;
+  if (vorM < 1) { vorM = 12; vorJ -= 1; }
   const parseDate2 = (s) => {
     if (!s) return null;
     const str = String(s).trim();
@@ -10145,17 +10145,27 @@ function MainApp() {
     const d = new Date(str);
     return isNaN(d) ? null : d;
   };
-  const relevantTenants = data.tenants.filter(t => {
-    const einzug = parseDate2(t.einzug);
-    const auszug = parseDate2(t.auszug);
-    // Abgesagte Miete: Auszug am oder vor dem Einzug, also nie eingezogen.
-    // Nur ausblenden, wenn dazu keine Zahlung erfasst ist (gleiche Regel wie in der Zahlungsseite).
-    if (einzug && auszug && auszug <= einzug && !(data.payments||[]).some(pay => pay.tenantId === t.id)) return false;
-    if (!einzug) return (t.status||"aktiv") === "aktiv";
-    if (einzug > monatsEnde2) return false;
-    if (auszug && auszug < monatsStart2) return false;
-    return true;
-  });
+  // Mieter die im gegebenen Zahlungs-Monat (j/m) aktiv waren, also Miete schulden
+  const relevantTenantsForMonth = (j, m) => {
+    const monatsStart = new Date(j, m-1, 1);
+    const monatsEnde = new Date(j, m, 0, 23, 59, 59);
+    return data.tenants.filter(t => {
+      const einzug = parseDate2(t.einzug);
+      const auszug = parseDate2(t.auszug);
+      // Abgesagte Miete: Auszug am oder vor dem Einzug, also nie eingezogen.
+      // Nur ausblenden, wenn dazu keine Zahlung erfasst ist (gleiche Regel wie in der Zahlungsseite).
+      if (einzug && auszug && auszug <= einzug && !(data.payments||[]).some(pay => pay.tenantId === t.id)) return false;
+      if (!einzug) return (t.status||"aktiv") === "aktiv";
+      if (einzug > monatsEnde) return false;
+      if (auszug && auszug < monatsStart) return false;
+      return true;
+    });
+  };
+  // Zaehlt offene Zahlungen (kein Payment-Datensatz oder Status "offen") fuer einen Zahlungs-Monat
+  const countOffeneZahlungen = (j, m) => relevantTenantsForMonth(j, m).filter(t => {
+    const p = data.payments.find(pay => pay.tenantId === t.id && pay.jahr === j && pay.monat === m);
+    return !p || p.status === "offen";
+  }).length;
   const offeneUebergaben = data.tenants.filter(t => {
     if ((t.status||"aktiv") !== "aktiv") return false;
     const room = data.rooms.find(r => r.tenantId === t.id);
@@ -10170,10 +10180,7 @@ function MainApp() {
     return true;
   }).length;
 
-  const offeneZahlungen = relevantTenants.filter(t => {
-    const p = data.payments.find(pay => pay.tenantId === t.id && pay.jahr === aktJ && pay.monat === aktM);
-    return !p || p.status === "offen";
-  }).length;
+  const offeneZahlungen = countOffeneZahlungen(aktJ, aktM) + countOffeneZahlungen(vorJ, vorM);
 
   function navigateTo(targetPage, targetId) {
     setPage(targetPage);
