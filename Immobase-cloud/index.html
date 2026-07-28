@@ -5495,6 +5495,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("Neu");
   const [bewSort,setBewSort]=useState("neu");
+  const [bewSearch,setBewSearch]=useState("");
   const detailRef = useRef(null);
   useEffect(()=>{
     if (sel && detailRef.current) {
@@ -5559,6 +5560,10 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       }
       return recency(b) - recency(a);
     });
+  }
+  if (bewSearch.trim()) {
+    const q = bewSearch.trim().toLowerCase();
+    shown = shown.filter(x => `${x.vorname||""} ${x.nachname||""}`.toLowerCase().includes(q));
   }
 
   async function setStatus(id,status){
@@ -6112,6 +6117,16 @@ www.dthomes.ch`;
       </div>
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
         <div>
+          <div style={{marginBottom:10}}>
+            <input
+              type="text"
+              className="fi"
+              placeholder="🔎 Bewerber nach Name suchen..."
+              value={bewSearch}
+              onChange={e=>setBewSearch(e.target.value)}
+              style={{width:"100%",fontSize:12.5}}
+            />
+          </div>
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
             {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
           </div>
