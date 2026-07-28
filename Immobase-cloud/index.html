@@ -3330,8 +3330,6 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
 }
 
 function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll, handoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol}){
-  const hasDraft = !!loadDraft();
-  
   // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
   const [showStartModal, setShowStartModal] = React.useState(false);
   const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
