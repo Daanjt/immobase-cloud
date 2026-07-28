@@ -9341,6 +9341,12 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(null);
   const [f, setF] = useState({});
+  const partnerDetailRef = useRef(null);
+  useEffect(()=>{
+    if (selected && partnerDetailRef.current) {
+      partnerDetailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selected]);
   const F = (k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
   function startNew(){ setF({typ:"Eigentümer",kontakte:[]}); setEditing({}); }
   function startEdit(p){
@@ -9468,43 +9474,8 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
         ))}
       </div>
 
-      <div style={{marginTop:26}}>
-        <div className="pcol-h" style={{marginBottom:10}}>
-          <span className="t">Kautionsversicherungen</span>
-          <span className="c">{chfP(kautionGesamt)}</span>
-        </div>
-        <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.55}}>
-          Unsere hinterlegte Mietkaution je Wohnung, gruppiert nach Anbieter.
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(230px, 100%), 1fr))",gap:10}}>
-          {kautionStats.map(k=>(
-            <div key={k.name} style={{border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",background:"var(--surface)"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}>
-                <span style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:16,color:"var(--ink)"}}>{k.name}</span>
-                <span style={{fontSize:11,color:"var(--muted)"}}>{k.laufend} Wohnung{k.laufend===1?"":"en"}</span>
-              </div>
-              {k.objekte.map(a=>(
-                <div key={a.id} style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11.5,padding:"2px 0",color:"var(--muted)"}}>
-                  <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.id} · {a.adresse}{a.pipeline?" (Pipeline)":""}</span>
-                  <span style={{color:"var(--ink)",whiteSpace:"nowrap"}}>{chfP(kautionBetragOf(a))}</span>
-                </div>
-              ))}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"8px 0 0",marginTop:6,borderTop:"1px solid var(--line-soft)"}}>
-                <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>Total</span>
-                <span style={{fontSize:17,fontFamily:"'Manrope',sans-serif",color:"#3d4f2f"}}>{chfP(k.summe)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        {ohneAnbieter > 0 && (
-          <div style={{fontSize:11.5,color:"#8a6d4a",marginTop:10,lineHeight:1.5}}>
-            Bei {ohneAnbieter} laufenden Wohnung{ohneAnbieter===1?"":"en"} ist kein Kautionsanbieter hinterlegt.
-          </div>
-        )}
-      </div>
-
       {selPartner && (
-        <div className="card" style={{marginTop:22,padding:24}}>
+        <div className="card" style={{marginTop:16,padding:24}} ref={partnerDetailRef}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
             <div style={{display:"flex",alignItems:"center",gap:14,minWidth:0}}>
               <Av name={selPartner.name} size={46}/>
@@ -9562,6 +9533,41 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
           </div>
         </div>
       )}
+
+      <div style={{marginTop:26}}>
+        <div className="pcol-h" style={{marginBottom:10}}>
+          <span className="t">Kautionsversicherungen</span>
+          <span className="c">{chfP(kautionGesamt)}</span>
+        </div>
+        <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.55}}>
+          Unsere hinterlegte Mietkaution je Wohnung, gruppiert nach Anbieter.
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(230px, 100%), 1fr))",gap:10}}>
+          {kautionStats.map(k=>(
+            <div key={k.name} style={{border:"1px solid var(--line)",borderRadius:10,padding:"14px 16px",background:"var(--surface)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}>
+                <span style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:16,color:"var(--ink)"}}>{k.name}</span>
+                <span style={{fontSize:11,color:"var(--muted)"}}>{k.laufend} Wohnung{k.laufend===1?"":"en"}</span>
+              </div>
+              {k.objekte.map(a=>(
+                <div key={a.id} style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11.5,padding:"2px 0",color:"var(--muted)"}}>
+                  <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.id} · {a.adresse}{a.pipeline?" (Pipeline)":""}</span>
+                  <span style={{color:"var(--ink)",whiteSpace:"nowrap"}}>{chfP(kautionBetragOf(a))}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"8px 0 0",marginTop:6,borderTop:"1px solid var(--line-soft)"}}>
+                <span style={{fontSize:9.5,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>Total</span>
+                <span style={{fontSize:17,fontFamily:"'Manrope',sans-serif",color:"#3d4f2f"}}>{chfP(k.summe)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {ohneAnbieter > 0 && (
+          <div style={{fontSize:11.5,color:"#8a6d4a",marginTop:10,lineHeight:1.5}}>
+            Bei {ohneAnbieter} laufenden Wohnung{ohneAnbieter===1?"":"en"} ist kein Kautionsanbieter hinterlegt.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
