@@ -1567,7 +1567,7 @@ function useSupabaseData() {
         isBlocked:!!x.is_blocked, cancelled:!!x.cancelled
       })));
     });
-    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline})));
+    setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline, ausschreiben:!!x.ausschreiben})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
     setTenants((t.data||[]).map(x=>({
       ...x,
@@ -6850,6 +6850,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       schluesselAnzahl:form.schluesselAnzahl,
       extraSchluessel:form.extraSchluessel,
       pipeline:!!form.pipeline,
+      ausschreiben:!!form.ausschreiben,
     });
     setEditing(false);
   }
@@ -6884,6 +6885,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       schluesselAnzahl: newForm.schluesselAnzahl || "",
       extraSchluessel: newForm.extraSchluessel || "",
       pipeline: !!newForm.pipeline,
+      ausschreiben: !!newForm.ausschreiben,
     };
     await insertApt(apt, newForm.type === "WG" ? roomList : null);
     setAdding(false);
@@ -6902,7 +6904,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
     const meta=[a.zimmer?`${a.zimmer} Zi.`:null,a.stockwerk||null].filter(Boolean).join(" · ");
     return(
       <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#8a8174",background:"#f5f2ea",border:"1px solid #e1d8c5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}</span><TypeBadge type={a.type}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#8a8174",background:"#f5f2ea",border:"1px solid #e1d8c5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}{a.ausschreiben&&<span style={{marginLeft:6,fontSize:8.5,color:"#5a7c5e",background:"#eaeee2",border:"1px solid #c5d5b0",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>AUSSCHREIBEN</span>}</span><TypeBadge type={a.type}/></div>
         <div style={{fontSize:11,color:"#8a8478"}}>{a.adresse}</div>
         {meta&&<div style={{fontSize:10.5,color:"#a89e8b",marginTop:2,letterSpacing:".05em"}}>{meta}</div>}
         {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
@@ -7056,6 +7058,17 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
           </label>
         </div>
 
+        <div style={{background:"#faf8f3",border:"1px solid #e8e3d8",borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>Ausschreiben</div>
+            <div style={{fontSize:11.5,color:"#6a604f",lineHeight:1.45}}>Auch aktiv schaltbar, wenn die Wohnung/das Zimmer noch vermietet ist (Vorvermietung bei laufender Kündigung).</div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
+            <input type="checkbox" checked={!!newForm.ausschreiben} onChange={e=>setNewForm(p=>({...p,ausschreiben:e.target.checked}))} style={{width:18,height:18,cursor:"pointer"}}/>
+            <span style={{fontSize:12,fontWeight:500,color:newForm.ausschreiben?"#7a6a4a":"#8a8174"}}>{newForm.ausschreiben?"Aktiv":"Aus"}</span>
+          </label>
+        </div>
+
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="frow">
           <div className="fg"><label className="fl">ID *</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. A9"/></div>
@@ -7147,6 +7160,17 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
             <input type="checkbox" checked={!!form.pipeline} onChange={e=>setForm(p=>({...p,pipeline:e.target.checked}))} style={{width:18,height:18,cursor:"pointer"}}/>
             <span style={{fontSize:12,fontWeight:500,color:form.pipeline?"#7a6a4a":"#8a8174"}}>{form.pipeline?"Aktiv":"Aus"}</span>
+          </label>
+        </div>
+
+        <div style={{background:"#faf8f3",border:"1px solid #e8e3d8",borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#1a1814",marginBottom:2}}>Ausschreiben</div>
+            <div style={{fontSize:11.5,color:"#6a604f",lineHeight:1.45}}>Auch aktiv schaltbar, wenn die Wohnung/das Zimmer noch vermietet ist (Vorvermietung bei laufender Kündigung).</div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flexShrink:0}}>
+            <input type="checkbox" checked={!!form.ausschreiben} onChange={e=>setForm(p=>({...p,ausschreiben:e.target.checked}))} style={{width:18,height:18,cursor:"pointer"}}/>
+            <span style={{fontSize:12,fontWeight:500,color:form.ausschreiben?"#7a6a4a":"#8a8174"}}>{form.ausschreiben?"Aktiv":"Aus"}</span>
           </label>
         </div>
 
