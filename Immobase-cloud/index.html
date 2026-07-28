@@ -171,6 +171,7 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manro
   .kcol{padding:10px}
   .kcard{padding:10px 11px}
   .kcard .fi{font-size:12px !important;padding:8px 10px !important}
+  .bewerber-search{font-size:9px !important;padding:6px 9px !important}
   .kauto{font-size:12px}
 }
 .kcol-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;padding:0 2px}
@@ -218,6 +219,7 @@ tr:hover td{background:var(--beige-soft)}
 .fg{margin-bottom:14px}
 .fl{font-size:9.5px;color:var(--muted);margin-bottom:6px;display:block;letter-spacing:.25em;text-transform:uppercase;font-weight:500}
 .fi{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 13px;color:var(--ink);font-family:'Manrope', sans-serif;font-size:12.5px;outline:none;transition:.2s;letter-spacing:.01em}
+.bewerber-search{font-size:11px !important;padding:7px 10px !important}
 .fi:focus{border-color:var(--gold)}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .ma{display:flex;gap:12px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
@@ -6120,11 +6122,11 @@ www.dthomes.ch`;
           <div style={{marginBottom:10}}>
             <input
               type="text"
-              className="fi"
+              className="fi bewerber-search"
               placeholder="🔎 Bewerber nach Name suchen..."
               value={bewSearch}
               onChange={e=>setBewSearch(e.target.value)}
-              style={{width:"100%",fontSize:11,padding:"7px 10px"}}
+              style={{width:"100%"}}
             />
           </div>
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
