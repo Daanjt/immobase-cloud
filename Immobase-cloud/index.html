@@ -2919,7 +2919,7 @@ function MediaManager({apt, editApt, rooms}){
                   </div>
                 </div>
                 <select value={p.category||""} onChange={e=>changeCategory(i, e.target.value)} style={{width:"100%",fontSize:11,padding:"3px 5px",border:"1px solid #d8c9a4",borderRadius:4,background:"#fff",color:"#1a1814"}}>
-                  <option value="">– keine Zuordnung –</option>
+                  <option value="">- keine Zuordnung -</option>
                   {categoryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
@@ -3731,7 +3731,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                         <div style={{fontSize:10,color:catCfg.color,fontWeight:600}}>{dayHint}</div>
                       </div>
                       <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                      <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "–"}</div>
+                      <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "-"}</div>
                       {schluesselText(s.tenant) && (
                         <div style={{fontSize:10.5,color:"#4a4439",marginBottom:8}}>🔑 {schluesselText(s.tenant)}</div>
                       )}
@@ -9493,7 +9493,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
               <Av name={selPartner.name} size={46}/>
               <div style={{minWidth:0}}>
                 <div style={{fontFamily:"'Manrope',sans-serif",fontSize:20,fontWeight:500,color:"var(--ink)",letterSpacing:".01em"}}>{selPartner.name}</div>
-                <span className="bx b-x" style={{marginTop:5,display:"inline-block"}}>{selPartner.typ||"–"}</span>
+                <span className="bx b-x" style={{marginTop:5,display:"inline-block"}}>{selPartner.typ||"-"}</span>
               </div>
             </div>
             <div style={{display:"flex",gap:6}}>
@@ -9514,7 +9514,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
                     <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
                       <Av name={k.name||"?"} size={28}/>
                       <div style={{minWidth:0}}>
-                        <div style={{fontSize:13,color:"var(--ink)"}}>{k.name||"–"}{k.funktion&&<span style={{color:"var(--muted)"}}> · {k.funktion}</span>}</div>
+                        <div style={{fontSize:13,color:"var(--ink)"}}>{k.name||"-"}{k.funktion&&<span style={{color:"var(--muted)"}}> · {k.funktion}</span>}</div>
                         {(k.email||k.telefon)&&<div style={{fontSize:11,color:"var(--muted)"}}>{[k.email,k.telefon].filter(Boolean).join(" · ")}</div>}
                       </div>
                     </div>
@@ -9913,11 +9913,11 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         </div>
         <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Ø Alter</div>
-          <div style={{fontSize:24,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)"}}>{avgAge!=null?`${avgAge} J.`:"—"}</div>
+          <div style={{fontSize:24,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)"}}>{avgAge!=null?`${avgAge} J.`:"-"}</div>
         </div>
         <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Geschlecht</div>
-          <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.5}}>{genderList.map(([g,n])=>`${g}: ${n}`).join(" · ")||"—"}</div>
+          <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.5}}>{genderList.map(([g,n])=>`${g}: ${n}`).join(" · ")||"-"}</div>
         </div>
       </div>
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Herkunft</div>
@@ -10103,7 +10103,7 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
             ))}
 
             {s==="offen" && auto.length===0 && manual("offen").length===0 && <div style={{fontSize:12,color:"var(--muted-light)",padding:"8px 2px"}}>Alles erledigt 🎉</div>}
-            {s!=="offen" && manual(s).length===0 && <div style={{fontSize:12,color:"var(--muted-light)",padding:"8px 2px"}}>—</div>}
+            {s!=="offen" && manual(s).length===0 && <div style={{fontSize:12,color:"var(--muted-light)",padding:"8px 2px"}}>-</div>}
           </div>
         ))}
       </div>
