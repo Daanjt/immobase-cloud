@@ -10147,8 +10147,36 @@ const PAGES=[
   {id:"finanzen",icon:"📊",label:"Finanzen"},
 ];
 
-function MainApp() {
-  const [page, setPage] = useState("dashboard");
+// Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
+// Die Datenbank setzt die Grenzen unabhaengig davon nochmals durch, diese Liste
+// dient nur einer aufgeraeumten Oberflaeche.
+const ROLLEN_SEITEN = {
+  admin: null,
+  operations: ["bewerber","wohnungen","zimmer","mieter","uebergaben","todos"],
+};
+
+function seitenFuerRolle(rolle) {
+  const erlaubt = ROLLEN_SEITEN[rolle];
+  if (erlaubt === null || erlaubt === undefined) return PAGES;
+  return PAGES.filter(p => erlaubt.includes(p.id));
+}
+
+// Wird angezeigt, wenn eine Rolle eine Seite oeffnet, die sie nicht sehen darf.
+function KeinZugriff() {
+  return (
+    <div style={{padding:"40px 8px",maxWidth:520}}>
+      <div style={{fontSize:34,marginBottom:14}}>🔒</div>
+      <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:22,color:"var(--ink)",marginBottom:10}}>Kein Zugriff</div>
+      <div style={{fontSize:13.5,color:"var(--muted)",lineHeight:1.6}}>
+        Für diesen Bereich fehlt deinem Konto die Berechtigung. Wende dich an Daan oder Tijn, wenn du Zugriff brauchst.
+      </div>
+    </div>
+  );
+}
+
+function MainApp({rolle}) {
+  const sichtbareSeiten = seitenFuerRolle(rolle);
+  const [page, setPage] = useState(sichtbareSeiten[0]?.id || "dashboard");
   const [navTarget, setNavTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -10181,7 +10209,10 @@ function MainApp() {
 
   if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
 
-  const Page = {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection}[page];
+  const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
+  const Page = seiteErlaubt
+    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection}[page]
+    : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
   // Offene Zahlungen für aktuellen + vorherigen Zahlungs-Monat zählen (ab 25. = nächster Monat)
@@ -10241,6 +10272,7 @@ function MainApp() {
   const offeneZahlungen = countOffeneZahlungen(aktJ, aktM) + countOffeneZahlungen(vorJ, vorM);
 
   function navigateTo(targetPage, targetId) {
+    if (!sichtbareSeiten.some(p => p.id === targetPage)) return;
     setPage(targetPage);
     setNavTarget({id: targetId, type: targetPage});
     setSidebarOpen(false); // close sidebar after navigation on mobile
@@ -10264,7 +10296,7 @@ function MainApp() {
           <button onClick={()=>setSidebarOpen(false)} style={{display:"none",background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",padding:"0 4px"}} className="sidebar-close" aria-label="Menü schliessen">✕</button>
         </div>
         <div className="nav">
-          {PAGES.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);setSidebarOpen(false);}}>
+          {sichtbareSeiten.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);setSidebarOpen(false);}}>
             <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
             {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
@@ -10289,7 +10321,7 @@ function MainApp() {
           </button>
         </div>
       </div>
-      <div className="main"><Page {...data} navigateTo={navigateTo} navTarget={navTarget}/></div>
+      <div className="main"><Page {...data} rolle={rolle} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
     </div>
   );
@@ -10331,6 +10363,7 @@ function PasswortAendern({onClose, pflicht}) {
 
 function App() {
   const [authed, setAuthed] = useState(undefined);
+  const [rolle, setRolle] = useState(null);
   const [recovery, setRecovery] = useState(
     typeof window !== "undefined" && /type=recovery/.test(window.location.hash || "")
   );
@@ -10354,13 +10387,29 @@ function App() {
     return () => { aktiv = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
+  // Rolle des angemeldeten Nutzers laden. Die Datenbank setzt die Rechte
+  // ohnehin selbst durch, das hier steuert nur, was in der Oberflaeche
+  // angezeigt wird. Bei einem Fehler zeigen wir bewusst alles an, sonst
+  // wuerde ein kurzer Netzwerkaussetzer die Navigation leeren.
+  useEffect(() => {
+    if (!authed) { setRolle(null); return; }
+    let aktiv = true;
+    supabase.rpc("current_user_role").then(({data, error}) => {
+      if (!aktiv) return;
+      if (error) { console.warn("Rolle konnte nicht geladen werden:", error); setRolle("admin"); }
+      else setRolle(data || "admin");
+    });
+    return () => { aktiv = false; };
+  }, [authed]);
+
   if (authed === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
   if (!authed) return <Login onLogin={()=>setAuthed(true)}/>;
   if (recovery) return <PasswortAendern pflicht onClose={()=>{
     setRecovery(false);
     if (window.history.replaceState) window.history.replaceState(null, "", window.location.pathname);
   }}/>;
-  return <MainApp/>;
+  if (rolle === null) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
+  return <MainApp rolle={rolle}/>;
 }
 
 class ErrorBoundary extends React.Component {
