@@ -6818,7 +6818,7 @@ www.dthomes.ch`;
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget}){
+function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -7001,8 +7001,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
                   ["Typ",<TypeBadge type={apt.type}/>],
                   ["Zimmer",apt.zimmer+" Zi."],
                   ["Stockwerk",apt.stockwerk||"-"],
-                  ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
-                  ["Kaution",chf(apt.kaution)],
+                  istAdmin && ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
+                  istAdmin && ["Kaution",chf(apt.kaution)],
                   ["Kautionstyp",apt.kautionType||apt.kaution_type],
                   ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"-"],
                   ["Referenz-Nr.",apt.refnr||"-"],
@@ -7010,11 +7010,11 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
                   ["Extra-Schlüssel",apt.extraSchluessel||"-"],
                   ["Mietbeginn",apt.mietbeginn],
                   ["Mietende",apt.mietende||"-"],
-                  ["Verwaltung",apt.verwaltung],
-                  ["Eigentümer",apt.eigentuemer]
-                ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+                  istAdmin && ["Verwaltung",apt.verwaltung],
+                  istAdmin && ["Eigentümer",apt.eigentuemer]
+                ].filter(Boolean).map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
                 
-                {isWG && (
+                {isWG && istAdmin && (
                   <div style={{marginTop:18,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"16px 18px"}}>
                     <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:12,fontWeight:500,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <span>Finanz-Übersicht</span>
@@ -7043,7 +7043,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
                   </div>
                 )}
                 
-                {!isWG && (
+                {!isWG && istAdmin && (
                   <div style={{marginTop:18,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"16px 18px"}}>
                     <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:12,fontWeight:500}}>Finanz-Übersicht (Airbnb)</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10}}>
@@ -7243,7 +7243,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
 }
 
 // ─── ZIMMER ──────────────────────────────────────────────────────────────────
-function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant,navigateTo,navTarget}){
+function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant,navigateTo,navTarget,istAdmin=true}){
   const [filter,setFilter]=useState("alle");
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
@@ -7579,7 +7579,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol}){
+function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -8142,9 +8142,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}{tenant.status==="archiviert"&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIVIERT</span>}</div></div></div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
-                <button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>
-                <button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>
-                <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>
+                {istAdmin && <button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>}
+                {istAdmin && <button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>}
+                {istAdmin && <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>}
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
                 )}
@@ -8237,27 +8237,28 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               <div className="igrid">{[
                 ["Beruf",tenant.beruf||"-"],
                 ["Arbeitgeber",tenant.arbeitgeber||"-"],
-                ["Einkommen",tenant.einkommen?`CHF ${tenant.einkommen}`:"-"],
+                istAdmin && ["Einkommen",tenant.einkommen?`CHF ${tenant.einkommen}`:"-"],
                 ["Beschäftigung",tenant.type||"-"],
-              ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+              ].filter(Boolean).map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Mietverhältnis</div>
               <div className="igrid">{[
                 ["Einzug",tenant.einzug||"-"],
                 ["Auszug",tenant.auszug||"-"],
-                ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"-")],
-                ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
-                ["Aufschlag/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
-                ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
-                ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
+                istAdmin && ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"-")],
+                istAdmin && ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
+                istAdmin && ["Aufschlag/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
+                istAdmin && ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
+                istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
+                !istAdmin && ["Möbliert",tenant.moebliert?"Ja":"Nein"],
                 ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
                 ["Extra-Schlüssel",tenant.extraSchluessel||"-"],
                 ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>- Nein</span>],
                 ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
-              ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+              ].filter(Boolean).map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               {/* QR-Einzahlungsschein Sektion */}
-              {room && room.miete > 0 && (() => {
+              {istAdmin && room && room.miete > 0 && (() => {
                 const miete = Number(room.miete);
                 const hasQR = !!tenant.qrReference;
                 const sentAt = tenant.qrBillSentAt;
