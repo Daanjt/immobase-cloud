@@ -6502,8 +6502,11 @@ www.dthomes.ch`;
       {vertragModal&&b&&vertragData&&(
         <div className="ov" onClick={e=>e.target===e.currentTarget&&setVertragModal(false)}>
           <div className="modal" style={{width:600}}>
-            <div className="mt">📄 Untermietvertrag erstellen</div>
-
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:4}}>
+              <div className="mt" style={{marginBottom:0}}>📄 Untermietvertrag erstellen</div>
+              <button className="btn btn-g btn-sm" onClick={()=>{ setVertragModal(false); setSendResult(null); }} disabled={sending} title="Schliessen" style={{flexShrink:0}}>✕ Abbrechen</button>
+            </div>
+            <div style={{height:14}}/>
             <div style={{background:"#f5efe4",border:"1px solid #ddd0b8",borderRadius:8,padding:"12px 16px",marginBottom:18,fontSize:12.5}}>
               <strong style={{color:"#1a1814"}}>{b.vorname} {b.nachname}</strong>
               <div style={{color:"#8a8174",fontSize:11.5,marginTop:3}}>{b.email} · {b.phone}</div>
@@ -6754,46 +6757,18 @@ www.dthomes.ch`;
             )}
             {!vertragData.moebliert && <div style={{marginBottom:18}}/>}
 
+            <div style={{fontSize:11,color:"#6e6a62",marginBottom:8,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>⬇ Einzeln herunterladen (ohne Versand)</div>
             <div className="ma" style={{flexWrap:"wrap"}}>
               <button className="btn btn-g" onClick={()=>{ setVertragModal(false); setSendResult(null); }} disabled={sending}>Abbrechen</button>
               <button className="btn btn-s" onClick={generateContract} disabled={sending||dlBusy==="umv"}>{dlBusy==="umv"?"⏳ …":"📄 UMV herunterladen"}</button>
               <button className="btn btn-s" onClick={generateAnfangsmietzins} disabled={sending||dlBusy==="amz"}>{dlBusy==="amz"?"⏳ …":"📄 AMZ herunterladen"}</button>
             </div>
             <div style={{height:1,background:"#e8e3d8",margin:"12px 0"}}/>
-            <div style={{fontSize:11,color:"#6e6a62",marginBottom:6,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>📤 Digital senden zum Online-Unterzeichnen</div>
-            <div className="ma" style={{flexWrap:"wrap"}}>
-              <button className="btn btn-p" style={{background:"#5a5448"}} onClick={async()=>{
+            <div style={{fontSize:11,color:"#6e6a62",marginBottom:10,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>📤 Digital senden zum Online-Unterzeichnen</div>
+            <button className="btn btn-p" style={{width:"100%",justifyContent:"center",padding:"12px 18px",fontSize:13.5}} onClick={async()=>{
                 if (!b || !vertragData) return;
                 if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
-                if (!confirm(`Untermietvertrag digital an ${b.email} senden?`)) return;
-                setSending(true); setSendResult(null);
-                setSendProgress({message:"Starte...",pct:0});
-                try {
-                  const result = await sendContractForSigning(b, vertragData, (msg,pct)=>setSendProgress({message:msg,pct}), ["umv"]);
-                  setSendResult({success:true, ...result});
-                } catch(err) {
-                  console.error("sendContractForSigning UMV failed:", err);
-                  setSendResult({success:false, error: err.message});
-                } finally { setSending(false); }
-              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Nur UMV"}</button>
-              <button className="btn btn-p" style={{background:"#5a5448"}} onClick={async()=>{
-                if (!b || !vertragData) return;
-                if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
-                if (!confirm(`Anfangsmietzinsformular digital an ${b.email} senden?`)) return;
-                setSending(true); setSendResult(null);
-                setSendProgress({message:"Starte...",pct:0});
-                try {
-                  const result = await sendContractForSigning(b, vertragData, (msg,pct)=>setSendProgress({message:msg,pct}), ["amz"]);
-                  setSendResult({success:true, ...result});
-                } catch(err) {
-                  console.error("sendContractForSigning AMZ failed:", err);
-                  setSendResult({success:false, error: err.message});
-                } finally { setSending(false); }
-              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Nur AMZ"}</button>
-              <button className="btn btn-p" onClick={async()=>{
-                if (!b || !vertragData) return;
-                if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
-                if (!confirm(`Beide Verträge digital an ${b.email} senden?\n\nDer Mieter erhält einen Link zur Online-Unterzeichnung.`)) return;
+                if (!confirm(`Untermietvertrag und Anfangsmietzinsformular digital an ${b.email} senden?\n\nDer Mieter erhält einen Link zur Online-Unterzeichnung.`)) return;
                 setSending(true);
                 setSendResult(null);
                 setSendProgress({message:"Starte...",pct:0});
@@ -6806,8 +6781,7 @@ www.dthomes.ch`;
                 } finally {
                   setSending(false);
                 }
-              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Beide senden"}</button>
-            </div>
+              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Vertrag digital senden"}</button>
             
             {sending && (
               <div style={{marginTop:14,padding:"10px 12px",background:"#f5efe4",border:"1px solid #e1d8c5",borderRadius:8}}>
