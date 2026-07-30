@@ -172,6 +172,7 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manro
   .kcard{padding:10px 11px}
   .kcard .fi{font-size:12px !important;padding:8px 10px !important}
   .fi.bewerber-search{font-size:15px !important;padding:10px 12px !important;min-height:0 !important}
+  input.team-fi, select.team-fi{font-size:13px !important;padding:9px 12px !important;min-height:0 !important}
   .kauto{font-size:12px}
 }
 .kcol-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;padding:0 2px}
@@ -10440,7 +10441,7 @@ function TeamVerwaltung({onClose, eigeneMail}) {
               <div style={{fontSize:13.5,color:"var(--ink)",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}{istIch(u.email) && <span style={{marginLeft:6,fontSize:10,color:"var(--muted)"}}>(du)</span>}</div>
               {u.added_at && <div style={{fontSize:10.5,color:"var(--muted-light)"}}>seit {new Date(u.added_at).toLocaleDateString("de-CH")}</div>}
             </div>
-            <select value={u.role || "admin"} onChange={e=>rolleAendern(u.email, e.target.value)}
+            <select className="team-fi" value={u.role || "admin"} onChange={e=>rolleAendern(u.email, e.target.value)}
               style={{fontSize:12,padding:"6px 8px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--ink)",fontFamily:"inherit",maxWidth:220}}>
               {Object.entries(ROLLEN_LABELS).map(([wert, label]) => <option key={wert} value={wert}>{label}</option>)}
             </select>
@@ -10453,9 +10454,9 @@ function TeamVerwaltung({onClose, eigeneMail}) {
         <div style={{marginTop:18}}>
           <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500}}>Neue Person freischalten</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <input type="email" placeholder="E-Mail-Adresse" value={neuMail} onChange={e=>setNeuMail(e.target.value)}
+            <input className="team-fi" type="email" placeholder="E-Mail-Adresse" value={neuMail} onChange={e=>setNeuMail(e.target.value)}
               style={{flex:1,minWidth:200,padding:"9px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
-            <select value={neuRolle} onChange={e=>setNeuRolle(e.target.value)}
+            <select className="team-fi" value={neuRolle} onChange={e=>setNeuRolle(e.target.value)}
               style={{fontSize:12,padding:"6px 8px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--ink)",fontFamily:"inherit"}}>
               {Object.entries(ROLLEN_LABELS).map(([wert, label]) => <option key={wert} value={wert}>{label}</option>)}
             </select>
