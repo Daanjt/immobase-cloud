@@ -1491,6 +1491,7 @@ function Login({onLogin}) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
   const [resetMode, setResetMode] = useState(false);
+  const [registerMode, setRegisterMode] = useState(false);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -1499,6 +1500,27 @@ function Login({onLogin}) {
       const {error} = await supabase.auth.resetPasswordForEmail(email.trim(), {redirectTo: window.location.origin});
       setMsg(error ? {type:"error", text:"Konnte nicht gesendet werden: " + error.message}
                    : {type:"ok", text:"Wenn die Adresse hinterlegt ist, wurde eine E-Mail zum Zuruecksetzen verschickt."});
+      setLoading(false);
+      return;
+    }
+    if (registerMode) {
+      if (password.length < 10) {
+        setMsg({type:"error", text:"Bitte mindestens 10 Zeichen fuer das Passwort verwenden."});
+        setLoading(false);
+        return;
+      }
+      const {data, error} = await supabase.auth.signUp({email: email.trim(), password});
+      if (error) {
+        setMsg({type:"error", text: /freigeschaltet/i.test(error.message || "")
+          ? "Diese E-Mail-Adresse ist nicht freigeschaltet. Bitte wende dich an Daan oder Tijn."
+          : ("Konto konnte nicht erstellt werden: " + (error.message || "unbekannt"))});
+      } else if (data?.session) {
+        onLogin();
+      } else {
+        setMsg({type:"ok", text:"Konto erstellt. Bitte bestaetige deine E-Mail-Adresse ueber den Link, den wir dir geschickt haben, und melde dich danach an."});
+        setRegisterMode(false);
+        setPassword("");
+      }
       setLoading(false);
       return;
     }
@@ -1518,26 +1540,36 @@ function Login({onLogin}) {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-logo"><h1>ImmoBase</h1><p>D&T HOMES</p></div>
-        <h2>{resetMode ? "Passwort zuruecksetzen" : "Anmelden"}</h2>
+        <h2>{resetMode ? "Passwort zuruecksetzen" : (registerMode ? "Konto erstellen" : "Anmelden")}</h2>
         <p className="desc">{resetMode
           ? "Gib deine E-Mail-Adresse ein, wir schicken dir einen Link."
-          : "Melde dich mit deiner D&T-Adresse an."}</p>
+          : (registerMode
+            ? "Nur fuer freigeschaltete Adressen. Waehle ein Passwort mit mindestens 10 Zeichen."
+            : "Melde dich mit deiner D&T-Adresse an.")}</p>
         <form onSubmit={handleLogin}>
           <input className="login-input" type="email" required placeholder="E-Mail" autoFocus autoComplete="username"
             value={email} onChange={e=>setEmail(e.target.value)} disabled={loading}/>
           {!resetMode && (
-            <input className="login-input" type="password" required placeholder="Passwort" autoComplete="current-password"
+            <input className="login-input" type="password" required placeholder="Passwort" autoComplete={registerMode?"new-password":"current-password"}
               value={password} onChange={e=>setPassword(e.target.value)} disabled={loading}/>
           )}
           <button className="login-btn" type="submit" disabled={loading||!email||(!resetMode&&!password)}>
-            {loading ? "Bitte warten…" : (resetMode ? "Link senden" : "Anmelden →")}
+            {loading ? "Bitte warten…" : (resetMode ? "Link senden" : (registerMode ? "Konto erstellen →" : "Anmelden →"))}
           </button>
         </form>
         {msg && <div className={`login-msg ${msg.type}`}>{msg.text}</div>}
-        <button onClick={()=>{setResetMode(!resetMode);setMsg(null);}}
-          style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,marginTop:14,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
-          {resetMode ? "Zurueck zur Anmeldung" : "Passwort vergessen?"}
-        </button>
+        <div style={{display:"flex",gap:16,justifyContent:"center"}}>
+          <button onClick={()=>{setResetMode(!resetMode);setRegisterMode(false);setMsg(null);}}
+            style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,marginTop:14,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
+            {resetMode ? "Zurueck zur Anmeldung" : "Passwort vergessen?"}
+          </button>
+          {!resetMode && (
+            <button onClick={()=>{setRegisterMode(!registerMode);setMsg(null);}}
+              style={{background:"none",border:"none",color:"var(--muted)",fontSize:11.5,marginTop:14,cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
+              {registerMode ? "Zurueck zur Anmeldung" : "Neu hier? Konto erstellen"}
+            </button>
+          )}
+        </div>
         <div className="login-foot">D&T Homes Verwaltungs-System</div>
       </div>
     </div>
@@ -10180,6 +10212,7 @@ function MainApp({rolle}) {
   const [navTarget, setNavTarget] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const [benutzerMail, setBenutzerMail] = useState("");
   const acctRef = useRef(null);
@@ -10307,6 +10340,7 @@ function MainApp({rolle}) {
         <div className="user-info" ref={acctRef}>
           {acctOpen && (
             <div className="acct-menu">
+              {rolle === "admin" && <button onClick={()=>{setAcctOpen(false);setTeamOpen(true);}}>Team verwalten</button>}
               <button onClick={()=>{setAcctOpen(false);setPwOpen(true);}}>Passwort ändern</button>
               <button className="gefahr" onClick={()=>{setAcctOpen(false);logout();}}>Abmelden</button>
             </div>
@@ -10323,6 +10357,114 @@ function MainApp({rolle}) {
       </div>
       <div className="main"><Page {...data} rolle={rolle} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
+      {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail}/>}
+    </div>
+  );
+}
+
+// Team-Verwaltung: Admins schalten Mitarbeiter frei, aendern Rollen und
+// entfernen Zugaenge. Die Person registriert sich danach selbst ueber
+// "Konto erstellen" im Login, der Datenbank-Trigger laesst nur
+// freigeschaltete Adressen durch.
+const ROLLEN_LABELS = {
+  admin: "Admin (Vollzugriff)",
+  operations: "Operations (Besichtigungen & Übergaben)",
+};
+
+function TeamVerwaltung({onClose, eigeneMail}) {
+  const [liste, setListe] = useState(null);
+  const [neuMail, setNeuMail] = useState("");
+  const [neuRolle, setNeuRolle] = useState("operations");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function laden() {
+    const {data, error} = await supabase.from("allowed_users").select("*").order("added_at", {ascending: true});
+    if (error) setMsg({t:"err", m:"Team konnte nicht geladen werden: " + error.message});
+    else setListe(data || []);
+  }
+  useEffect(() => { laden(); }, []);
+
+  async function hinzufuegen() {
+    const mail = neuMail.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { setMsg({t:"err", m:"Bitte eine gültige E-Mail-Adresse eingeben."}); return; }
+    setBusy(true); setMsg(null);
+    const {error} = await supabase.from("allowed_users").insert([{email: mail, role: neuRolle}]);
+    setBusy(false);
+    if (error) {
+      setMsg({t:"err", m: error.code === "23505" ? "Diese Adresse ist bereits freigeschaltet." : "Fehler: " + error.message});
+    } else {
+      setNeuMail("");
+      setMsg({t:"ok", m:`${mail} ist freigeschaltet. Die Person kann sich jetzt im Login über "Konto erstellen" registrieren.`});
+      laden();
+    }
+  }
+
+  async function rolleAendern(mail, rolle) {
+    if (mail.toLowerCase() === (eigeneMail || "").toLowerCase() && rolle !== "admin") {
+      const ok = confirm("Achtung: du stufst gerade deine eigene Rolle herab und verlierst damit den Admin-Zugriff. Wirklich fortfahren?");
+      if (!ok) { laden(); return; }
+    }
+    const {error} = await supabase.from("allowed_users").update({role: rolle}).eq("email", mail);
+    if (error) setMsg({t:"err", m:"Fehler: " + error.message});
+    else setMsg(null);
+    laden();
+  }
+
+  async function entfernen(mail) {
+    if (!confirm(`${mail} wirklich entfernen? Die Person sieht danach keine Daten mehr.`)) return;
+    const {error} = await supabase.from("allowed_users").delete().eq("email", mail);
+    if (error) setMsg({t:"err", m:"Fehler: " + error.message});
+    else setMsg({t:"ok", m:`${mail} wurde entfernt.`});
+    laden();
+  }
+
+  const istIch = (mail) => mail.toLowerCase() === (eigeneMail || "").toLowerCase();
+
+  return (
+    <div onClick={()=>{ if(!busy) onClose(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:560,width:"100%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>Team verwalten</div>
+          <button className="btn btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.55,marginBottom:16}}>
+          Freigeschaltete Personen registrieren sich selbst über "Konto erstellen" im Login. Die Rolle bestimmt, welche Bereiche sichtbar sind.
+        </div>
+
+        {liste === null && <div style={{fontSize:13,color:"var(--muted)",padding:"14px 0"}}>Lade…</div>}
+
+        {liste && liste.map(u => (
+          <div key={u.email} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid var(--line-soft)",flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{fontSize:13.5,color:"var(--ink)",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}{istIch(u.email) && <span style={{marginLeft:6,fontSize:10,color:"var(--muted)"}}>(du)</span>}</div>
+              {u.added_at && <div style={{fontSize:10.5,color:"var(--muted-light)"}}>seit {new Date(u.added_at).toLocaleDateString("de-CH")}</div>}
+            </div>
+            <select value={u.role || "admin"} onChange={e=>rolleAendern(u.email, e.target.value)}
+              style={{fontSize:12,padding:"6px 8px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--ink)",fontFamily:"inherit",maxWidth:220}}>
+              {Object.entries(ROLLEN_LABELS).map(([wert, label]) => <option key={wert} value={wert}>{label}</option>)}
+            </select>
+            {!istIch(u.email) && (
+              <button className="btn btn-sm" onClick={()=>entfernen(u.email)} style={{color:"var(--error)",borderColor:"var(--error-soft)"}}>Entfernen</button>
+            )}
+          </div>
+        ))}
+
+        <div style={{marginTop:18}}>
+          <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500}}>Neue Person freischalten</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <input type="email" placeholder="E-Mail-Adresse" value={neuMail} onChange={e=>setNeuMail(e.target.value)}
+              style={{flex:1,minWidth:200,padding:"9px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+            <select value={neuRolle} onChange={e=>setNeuRolle(e.target.value)}
+              style={{fontSize:12,padding:"6px 8px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--ink)",fontFamily:"inherit"}}>
+              {Object.entries(ROLLEN_LABELS).map(([wert, label]) => <option key={wert} value={wert}>{label}</option>)}
+            </select>
+            <button className="btn btn-sm" disabled={busy || !neuMail.trim()} onClick={hinzufuegen}>{busy ? "Speichere…" : "Freischalten"}</button>
+          </div>
+        </div>
+
+        {msg && <div style={{fontSize:12,marginTop:12,lineHeight:1.5,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
+      </div>
     </div>
   );
 }
