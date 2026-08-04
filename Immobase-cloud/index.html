@@ -4221,16 +4221,40 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <th>Mietbeginn</th>
                   <th>Mietende</th>
                   <th style={{textAlign:"right"}}>Ausgabe</th>
+                  <th style={{textAlign:"right"}}>Einnahme Ist</th>
                   <th style={{textAlign:"right"}}>Einnahme Max</th>
+                  <th style={{textAlign:"right"}}>Marge Ist</th>
                   <th style={{textAlign:"right"}}>Marge Max</th>
+                  <th style={{textAlign:"right"}}>Aufschlag</th>
+                  <th style={{textAlign:"right"}}>Marge Total</th>
+                  <th>Belegung</th>
                 </tr>
               </thead>
               <tbody>
                 {wgAptsZukunft.map(a=>{
                   const rs=rooms.filter(r=>r.aptId===a.id);
+                  const aOcc=rs.filter(r=>r.occupied).length;
+                  const aStromIst = aOcc * 25;
                   const aStromMax = rs.length * 25;
+                  const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + aStromIst;
                   const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax;
+                  const aAufschlag = tenants
+                    .filter(t => (t.status||"aktiv") === "aktiv")
+                    .filter(t => {
+                      if (t.aptId === a.id) return true;
+                      if (t.roomId) { const tRoom = rooms.find(r => r.id === t.roomId); if (tRoom && tRoom.aptId === a.id) return true; }
+                      const myRoom = rooms.find(r => r.tenantId === t.id);
+                      if (myRoom && myRoom.aptId === a.id) return true;
+                      return false;
+                    })
+                    .reduce((s, t) => {
+                      let auf = +t.kautionAufschlag || 0;
+                      if (!auf) { if (t.kautionOpt === "0x") auf = 150; else if (t.kautionOpt === "1x") auf = 100; else if (t.kautionOpt === "2x") auf = 50; }
+                      return s + auf;
+                    }, 0);
+                  const aMargeIst = aIst - (+a.miete||0);
                   const aMargeMax = aMax - (+a.miete||0);
+                  const aMargeTotal = aMargeMax + aAufschlag;
                   return (
                     <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer",opacity:.85}}>
                       <td style={{fontWeight:600}}>{a.id}</td>
@@ -4240,8 +4264,18 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                       <td data-label="Mietbeginn" style={{fontSize:11.5,color:"#3d4f2f",fontWeight:500}}>{a.mietbeginn||"-"}</td>
                       <td data-label="Mietende" style={{fontSize:11.5,color:"#4a4439"}}>{a.mietende||"-"}</td>
                       <td data-label="Ausgabe" style={{textAlign:"right"}}>{chf(a.miete)}</td>
-                      <td data-label="Einnahme Max" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
-                      <td data-label="Marge Max" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                      <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
+                      <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
+                      <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
+                      <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                      <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
+                      <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
+                      <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{flex:"1 1 0",minWidth:0}}><Prog val={aOcc} max={rs.length}/></div>
+                          <span style={{fontSize:10.5,color:"#8a8174"}}>{aOcc}/{rs.length}</span>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
