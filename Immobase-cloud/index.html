@@ -3960,10 +3960,22 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
 
 function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom}){
   const heute=new Date();
+  heute.setHours(0,0,0,0);
+
+  // Eine Wohnung zaehlt nur, wenn die Miete bereits begonnen hat (Mietbeginn
+  // heute oder in der Vergangenheit). Kuenftige Objekte wie A13 (Start 1.11.)
+  // fallen komplett aus den oberen Zahlen (Ausgaben, Einnahmen, Marge), bis
+  // ihre Miete laeuft. Ohne Datum wird die Wohnung als aktiv behandelt.
+  const istInMiete = (a) => {
+    const start = parseDMY(a.mietbeginn);
+    if (!start || isNaN(start.getTime())) return true;
+    start.setHours(0,0,0,0);
+    return start <= heute;
+  };
   
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
-  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
-  const airbnbApts = apts.filter(a=>a.type==="Airbnb" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline && istInMiete(a)).sort((a,b)=>natSort(a.id, b.id));
+  const airbnbApts = apts.filter(a=>a.type==="Airbnb" && !a.pipeline && istInMiete(a)).sort((a,b)=>natSort(a.id, b.id));
   const wgIds = wgApts.map(a=>a.id);
   const airbnbIds = airbnbApts.map(a=>a.id);
   const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
@@ -5059,7 +5071,7 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
   if (beginn && mietende) {
     const months = (mietende - beginn) / (1000*60*60*24*30.44);
     if (months > 0 && months < 12) {
-      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.mietende || v.apt.mietende)}</strong>. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
+      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.mietende || v.apt.mietende)}</strong>. Die Befristung erfolgt aufgrund ${v.befristungsgrund || "eines geplanten Umbaus bzw. einer geplanten Sanierung der Liegenschaft"}. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
     }
   }
   return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs",7:"sieben",8:"acht",9:"neun",10:"zehn",11:"elf",12:"zwölf"};return w[n]||String(n);})(v.minMietdauer||6)} Monate.`;
