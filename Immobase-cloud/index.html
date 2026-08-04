@@ -3976,6 +3976,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   // ─── SEPARATE WG vs AIRBNB ─────────────────────────────────────
   const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline && istInMiete(a)).sort((a,b)=>natSort(a.id, b.id));
   const airbnbApts = apts.filter(a=>a.type==="Airbnb" && !a.pipeline && istInMiete(a)).sort((a,b)=>natSort(a.id, b.id));
+  // WG-Wohnungen mit Mietbeginn in der Zukunft: nicht in den oberen Zahlen, aber
+  // in der Finanzuebersicht separat sichtbar (mit Mietbeginn/Mietende).
+  const wgAptsZukunft = apts.filter(a=>a.type==="WG" && !a.pipeline && !istInMiete(a)).sort((a,b)=>natSort(a.id, b.id));
   const wgIds = wgApts.map(a=>a.id);
   const airbnbIds = airbnbApts.map(a=>a.id);
   const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
@@ -4203,6 +4206,51 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
         </table>
         </div>
         </div>
+        {wgAptsZukunft.length > 0 && (
+          <div style={{marginTop:22}}>
+            <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:4}}>Wohnungen in der Zukunft</div>
+            <div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Mietbeginn liegt noch bevor, deshalb nicht in den oberen Zahlen enthalten.</div>
+            <div className="finance-scroll-table-wrap">
+            <div className="finance-scroll-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>Adresse</th>
+                  <th>Zimmer</th>
+                  <th>Stock</th>
+                  <th>Mietbeginn</th>
+                  <th>Mietende</th>
+                  <th style={{textAlign:"right"}}>Ausgabe</th>
+                  <th style={{textAlign:"right"}}>Einnahme Max</th>
+                  <th style={{textAlign:"right"}}>Marge Max</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wgAptsZukunft.map(a=>{
+                  const rs=rooms.filter(r=>r.aptId===a.id);
+                  const aStromMax = rs.length * 25;
+                  const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax;
+                  const aMargeMax = aMax - (+a.miete||0);
+                  return (
+                    <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer",opacity:.85}}>
+                      <td style={{fontWeight:600}}>{a.id}</td>
+                      <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
+                      <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"-"}</td>
+                      <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"-"}</td>
+                      <td data-label="Mietbeginn" style={{fontSize:11.5,color:"#3d4f2f",fontWeight:500}}>{a.mietbeginn||"-"}</td>
+                      <td data-label="Mietende" style={{fontSize:11.5,color:"#4a4439"}}>{a.mietende||"-"}</td>
+                      <td data-label="Ausgabe" style={{textAlign:"right"}}>{chf(a.miete)}</td>
+                      <td data-label="Einnahme Max" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
+                      <td data-label="Marge Max" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card finance-card-compact" style={{marginBottom:24}}>
