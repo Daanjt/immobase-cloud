@@ -4111,6 +4111,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               <th>ID</th><th>Adresse</th>
               <th>Zimmer</th>
               <th>Stock</th>
+              <th>Mietbeginn</th>
+              <th>Mietende</th>
               <th style={{textAlign:"right"}}>Ausgabe</th>
               <th style={{textAlign:"right"}}>Einnahme Ist</th>
               <th style={{textAlign:"right"}}>Einnahme Max</th>
@@ -4169,6 +4171,8 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
                   <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"-"}</td>
                   <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"-"}</td>
+                  <td data-label="Mietbeginn" style={{fontSize:11.5,color:"#4a4439"}}>{a.mietbeginn||"-"}</td>
+                  <td data-label="Mietende" style={{fontSize:11.5,color:"#4a4439"}}>{a.mietende||"-"}</td>
                   <td data-label="Kosten" style={{textAlign:"right"}}>{chf(a.miete)}</td>
                   <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(aIst)}</td>
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
@@ -4188,7 +4192,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
           </tbody>
           <tfoot>
             <tr style={{borderTop:"2px solid #1a1814"}}>
-              <td colSpan={4} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
+              <td colSpan={6} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
               {/* Einnahmen IST/MAX: inkl. Strom, ohne Aufschlag (Aufschlag steht separat) */}
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst - wgAufschlag)}</td>
