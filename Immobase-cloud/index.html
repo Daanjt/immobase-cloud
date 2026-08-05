@@ -5629,7 +5629,6 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [filterStatus,setFilterStatus]=useState("Neu");
   const [bewSort,setBewSort]=useState("neu");
   const [bewSearch,setBewSearch]=useState("");
-  const [nachrichtOpen,setNachrichtOpen]=useState(false);
   const detailRef = useRef(null);
   useEffect(()=>{
     if (sel && detailRef.current) {
@@ -6324,58 +6323,6 @@ www.dthomes.ch`;
                 </div>
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                {b.phone && (() => {
-                  const cleanPhone = String(b.phone).replace(/\D/g, "");
-                  const zimmerRef = b.zugeteiltes_zimmer || b.zimmerWunsch;
-                  const roomObj = zimmerRef ? rooms.find(r => r.id === zimmerRef) : null;
-                  const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
-                  let zimmerLabel;
-                  if (zimmerRef && aptObj) {
-                    const ortTeil = [aptObj.plz, aptObj.ort].filter(Boolean).join(" ").trim();
-                    const adressTeil = ortTeil ? `${aptObj.adresse}, ${ortTeil}` : aptObj.adresse;
-                    zimmerLabel = `Zimmer ${zimmerRef} (${adressTeil})`;
-                  } else if (zimmerRef) {
-                    zimmerLabel = `Zimmer ${zimmerRef}`;
-                  } else {
-                    zimmerLabel = "eines unserer Zimmer";
-                  }
-                  
-                  // Konditionen zusammenstellen
-                  const miete = roomObj?.miete || 0;
-                  const strom = 25;
-                  const kautionAufschlag = Number(b.kautionAufschlag || 0);
-                  const totalMonat = miete + strom + kautionAufschlag;
-                  const moebPauschale = Number(b.moeblierungPauschale || 0);
-                  
-                  const konditionen = [];
-                  if (miete > 0) konditionen.push(`- Bruttomiete: CHF ${miete.toLocaleString("de-CH")}.-/Mt.`);
-                  if (b.kautionType) {
-                    let kautionLine = `- Kaution: ${b.kautionType}`;
-                    if (kautionAufschlag > 0) kautionLine += ` (+ CHF ${kautionAufschlag}.- pro Monat)`;
-                    konditionen.push(kautionLine);
-                  }
-                  if (b.moebliert === "ja") {
-                    let moebLine = "- Zimmer möbliert";
-                    if (moebPauschale > 0) moebLine += ` (CHF ${moebPauschale.toLocaleString("de-CH")}.- einmalig)`;
-                    konditionen.push(moebLine);
-                  } else if (b.moebliert === "nein") {
-                    konditionen.push("- Zimmer unmöbliert");
-                  }
-                  if (totalMonat > 0) konditionen.push(`- Total monatlich: CHF ${totalMonat.toLocaleString("de-CH")}.- (inkl. Strom-Pauschale)`);
-                  
-                  const konditionenBlock = konditionen.length > 0 
-                    ? `\n\nDeine gewählten Konditionen:\n${konditionen.join("\n")}`
-                    : "";
-                  
-                  const text = `Hallo ${b.vorname}, hier ist Daan von D&T Homes.\n\nVielen Dank für deine Bewerbung für ${zimmerLabel}.${konditionenBlock}\n\nIch wollte kurz nachfragen, ob du noch Interesse hast?`;
-                  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
-                  return (
-                    <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:5,fontWeight:500}}>
-                      💬 WhatsApp
-                    </a>
-                  );
-                })()}
-                <button className="btn btn-g btn-sm" onClick={()=>setNachrichtOpen(true)}>✉ Nachricht</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
@@ -6389,7 +6336,7 @@ www.dthomes.ch`;
               </div>
             </div>
             
-            <div className="tabs">{[["info","Profil"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             
             {tab==="info"&&<>
 
@@ -6520,21 +6467,21 @@ www.dthomes.ch`;
             </>}
             
             {tab==="docs"&&<DocumentsManager entityType="applicant" entityId={String(b.id)} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
+            {tab==="komm"&&(()=>{
+              const zimmerRef = b.zugeteiltes_zimmer || b.zimmerWunsch;
+              const roomObj = zimmerRef ? rooms.find(r => r.id === zimmerRef) : null;
+              const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
+              const empf = {
+                vorname: b.vorname, nachname: b.nachname, email: b.email, phone: b.phone,
+                adresse: aptObj?.adresse || "", zimmer: roomObj?.id || "", einzug: b.einzug || "", auszug: "",
+              };
+              return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
+            })()}
           </div>
           </>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
       </div>
 
-      {nachrichtOpen&&b&&(()=>{
-        const zimmerRef = b.zugeteiltes_zimmer || b.zimmerWunsch;
-        const roomObj = zimmerRef ? rooms.find(r => r.id === zimmerRef) : null;
-        const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
-        const empf = {
-          vorname: b.vorname, nachname: b.nachname, email: b.email, phone: b.phone,
-          adresse: aptObj?.adresse || "", zimmer: roomObj?.id || "", einzug: b.einzug || "", auszug: "",
-        };
-        return <NachrichtModal empfaenger={empf} zielgruppe="bewerber" onClose={()=>setNachrichtOpen(false)}/>;
-      })()}
       {zuteilModal&&b&&(
         <div className="ov" onClick={e=>e.target===e.currentTarget&&setZuteilModal(false)}>
           <div className="modal">
@@ -7695,7 +7642,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
   const [tab,setTab]=useState("info");
-  const [nachrichtOpen,setNachrichtOpen]=useState(false);
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({});
   const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
@@ -8249,18 +8195,10 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
         </div>
         {tenant?(
           <div className="card" style={{margin:0}}>
-            {nachrichtOpen&&(()=>{
-              const empf = {
-                vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
-                adresse: apt?.adresse || "", zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
-              };
-              return <NachrichtModal empfaenger={empf} zielgruppe="mieter" onClose={()=>setNachrichtOpen(false)}/>;
-            })()}
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:12,flexWrap:"wrap"}}>
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}{tenant.status==="archiviert"&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIVIERT</span>}</div></div></div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
-                <button className="btn btn-g btn-sm" onClick={()=>setNachrichtOpen(true)}>✉ Nachricht</button>
                 {istAdmin && <button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>}
                 {istAdmin && <button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>}
                 {istAdmin && <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>}
@@ -8321,7 +8259,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",room.id)} style={{fontSize:9}}>→ Zimmer</button>
               </div>
             </div>}
-            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["uebergabe","Übergabe"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
               {(() => {
                 const ezDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && d.category==="Drittmeldebestätigung (Einzug)");
@@ -8461,6 +8399,13 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")} tenant={tenant} onJumpToDrittmeldung={()=>setTab("drittmeldung")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
+            {tab==="komm"&&(()=>{
+              const empf = {
+                vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
+                adresse: apt?.adresse || "", zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
+              };
+              return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
+            })()}
             {tab==="uebergabe"&&(()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
@@ -10477,7 +10422,7 @@ function platzhalterFuellen(text, empfaenger) {
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
 
-function NachrichtModal({empfaenger, zielgruppe, onClose}) {
+function KommunikationTab({empfaenger, zielgruppe}) {
   const [templates, setTemplates] = useState(null);
   const [selId, setSelId] = useState("");
   const [betreff, setBetreff] = useState("");
@@ -10499,9 +10444,7 @@ function NachrichtModal({empfaenger, zielgruppe, onClose}) {
     if (v) {
       setBetreff(platzhalterFuellen(v.betreff||"", empfaenger));
       setText(platzhalterFuellen(v.inhalt||"", empfaenger));
-    } else {
-      setBetreff(""); setText("");
-    }
+    } else { setBetreff(""); setText(""); }
   }
 
   const cleanPhone = String(empfaenger.phone||"").replace(/\D/g, "");
@@ -10512,58 +10455,50 @@ function NachrichtModal({empfaenger, zielgruppe, onClose}) {
     if (!text.trim()) { setMsg({t:"err", m:"Der Text ist leer."}); return; }
     setSending(true); setMsg(null);
     try {
-      const { data, error } = await supabase.functions.invoke("send-message", {
+      const { error } = await supabase.functions.invoke("send-message", {
         body: { to: empfaenger.email, betreff: betreff || "Mitteilung von D&T Homes", text, empfaengerName: `${empfaenger.vorname||""} ${empfaenger.nachname||""}`.trim() }
       });
       if (error) throw error;
       setMsg({t:"ok", m:`E-Mail an ${empfaenger.email} verschickt.`});
     } catch(err) {
       setMsg({t:"err", m:"Konnte nicht gesendet werden: " + (err.message||err)});
-    } finally {
-      setSending(false);
-    }
+    } finally { setSending(false); }
   }
 
   return (
-    <div onClick={()=>{ if(!sending) onClose(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:540,width:"100%",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>Nachricht senden</div>
-          <button className="btn btn-sm" onClick={onClose}>✕</button>
-        </div>
-        <div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>
-          An {empfaenger.vorname} {empfaenger.nachname}{empfaenger.email?` · ${empfaenger.email}`:""}{cleanPhone?` · ☏ vorhanden`:""}
-        </div>
-
-        <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Vorlage</div>
-        <select className="fi" value={selId} onChange={e=>waehle(e.target.value)} style={{width:"100%",marginBottom:14,fontSize:13}}>
-          <option value="">Vorlage wählen oder frei schreiben…</option>
-          {(templates||[]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
-
-        <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Betreff (nur E-Mail)</div>
-        <input className="fi" value={betreff} onChange={e=>setBetreff(e.target.value)} placeholder="Betreff" style={{width:"100%",marginBottom:14,fontSize:13}}/>
-
-        <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Nachricht</div>
-        <textarea className="fi" value={text} onChange={e=>setText(e.target.value)} rows={10} placeholder="Text der Nachricht…" style={{width:"100%",marginBottom:16,fontSize:13,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
-
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button className="btn btn-p" onClick={sendeEmail} disabled={sending||!empfaenger.email} style={{flex:1,minWidth:150,justifyContent:"center"}}>
-            {sending ? "Sende…" : "✉ Per E-Mail senden"}
-          </button>
-          <a href={cleanPhone && text ? waUrl : undefined}
-             target="_blank" rel="noopener noreferrer"
-             onClick={e=>{ if(!cleanPhone||!text){ e.preventDefault(); setMsg({t:"err", m:"Für WhatsApp braucht es eine Nummer und Text."}); } }}
-             className="btn"
-             style={{flex:1,minWidth:150,justifyContent:"center",textDecoration:"none",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",display:"inline-flex",alignItems:"center",gap:6,opacity:(cleanPhone&&text)?1:.5}}>
-            💬 WhatsApp öffnen
-          </a>
-        </div>
-        <div style={{fontSize:10.5,color:"var(--muted-light)",marginTop:10,lineHeight:1.5}}>
-          WhatsApp öffnet die App mit vorbereitetem Text, gesendet wird erst mit deinem Tippen dort.
-        </div>
-        {msg && <div style={{fontSize:12,marginTop:12,lineHeight:1.5,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
+    <div>
+      <div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>
+        An {empfaenger.vorname} {empfaenger.nachname}{empfaenger.email?` · ${empfaenger.email}`:" · keine E-Mail"}{cleanPhone?" · ☏ vorhanden":" · keine Nummer"}
       </div>
+
+      <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Vorlage</div>
+      <select className="fi" value={selId} onChange={e=>waehle(e.target.value)} style={{width:"100%",marginBottom:14,fontSize:13}}>
+        <option value="">Vorlage wählen oder frei schreiben…</option>
+        {(templates||[]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+      </select>
+
+      <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Betreff (nur E-Mail)</div>
+      <input className="fi" value={betreff} onChange={e=>setBetreff(e.target.value)} placeholder="Betreff" style={{width:"100%",marginBottom:14,fontSize:13}}/>
+
+      <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Nachricht</div>
+      <textarea className="fi" value={text} onChange={e=>setText(e.target.value)} rows={11} placeholder="Text der Nachricht…" style={{width:"100%",marginBottom:16,fontSize:13,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
+
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <button className="btn btn-p" onClick={sendeEmail} disabled={sending||!empfaenger.email} style={{flex:1,minWidth:150,justifyContent:"center"}}>
+          {sending ? "Sende…" : "✉ Per E-Mail senden"}
+        </button>
+        <a href={cleanPhone && text ? waUrl : undefined}
+           target="_blank" rel="noopener noreferrer"
+           onClick={e=>{ if(!cleanPhone||!text){ e.preventDefault(); setMsg({t:"err", m:"Für WhatsApp braucht es eine Nummer und Text."}); } }}
+           className="btn"
+           style={{flex:1,minWidth:150,justifyContent:"center",textDecoration:"none",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",display:"inline-flex",alignItems:"center",gap:6,opacity:(cleanPhone&&text)?1:.5}}>
+          💬 WhatsApp öffnen
+        </a>
+      </div>
+      <div style={{fontSize:10.5,color:"var(--muted-light)",marginTop:10,lineHeight:1.5}}>
+        WhatsApp öffnet die App mit vorbereitetem Text, gesendet wird erst mit deinem Tippen dort.
+      </div>
+      {msg && <div style={{fontSize:12,marginTop:12,lineHeight:1.5,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
     </div>
   );
 }
