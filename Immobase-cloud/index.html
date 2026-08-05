@@ -8400,9 +8400,15 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
             {tab==="komm"&&(()=>{
+              // Neuestes Uebergabeprotokoll des Mieters finden, dessen Link als
+              // Platzhalter {uebergabe_link} bereitstellen (falls vorhanden).
+              const hps = (handoverProtocols||[]).filter(h => h.tenantId === tenant.id && h.signUrl);
+              hps.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+              const uebergabeLink = hps[0]?.signUrl || "";
               const empf = {
                 vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
                 adresse: apt?.adresse || "", zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
+                uebergabe_link: uebergabeLink,
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
@@ -10418,6 +10424,7 @@ function platzhalterFuellen(text, empfaenger) {
     zimmer: empfaenger.zimmer || "",
     einzug: empfaenger.einzug || "",
     auszug: empfaenger.auszug || "",
+    uebergabe_link: empfaenger.uebergabe_link || "",
   };
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
@@ -10444,7 +10451,12 @@ function KommunikationTab({empfaenger, zielgruppe}) {
     if (v) {
       setBetreff(platzhalterFuellen(v.betreff||"", empfaenger));
       setText(platzhalterFuellen(v.inhalt||"", empfaenger));
-    } else { setBetreff(""); setText(""); }
+      if ((v.inhalt||"").includes("{uebergabe_link}") && !empfaenger.uebergabe_link) {
+        setMsg({t:"err", m:"Achtung: Diese Vorlage enthält einen Übergabe-Link, aber für diesen Mieter läuft noch kein Übergabeprotokoll. Starte es zuerst im Tab Übergabe."});
+      } else {
+        setMsg(null);
+      }
+    } else { setBetreff(""); setText(""); setMsg(null); }
   }
 
   const cleanPhone = String(empfaenger.phone||"").replace(/\D/g, "");
