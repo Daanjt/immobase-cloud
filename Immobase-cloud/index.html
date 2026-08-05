@@ -9654,6 +9654,22 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const [openTbl, setOpenTbl] = useState({});
   const curMonthRef = useRef({});
+  const margeChartRef = useRef(null);
+  const margeCurrentRef = useRef(null);
+  // Beim ersten Anzeigen den aktuellen Monat horizontal in die Mitte des
+  // Balkendiagramms scrollen, damit man nicht erst hinscrollen muss.
+  useEffect(() => {
+    const c = margeChartRef.current, b = margeCurrentRef.current;
+    if (c && b) {
+      // Position des aktuellen Balkens relativ zum Scroll-Container plus
+      // dessen aktueller Scroll-Offset, dann so verschieben, dass der Balken
+      // horizontal mittig sitzt.
+      const cRect = c.getBoundingClientRect();
+      const bRect = b.getBoundingClientRect();
+      const ziel = (bRect.left - cRect.left) + c.scrollLeft - (c.clientWidth / 2) + (bRect.width / 2);
+      c.scrollTo({ left: Math.max(0, ziel), behavior: "auto" });
+    }
+  }, []);
   const GrpRow = ({label, value}) => (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"7px 0 3px"}}>
       <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)"}}>{label}</span>
@@ -9851,12 +9867,12 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         ))}
       </div>
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
-      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
+      <div ref={margeChartRef} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
         {months.map((m,i)=>{
           const h = Math.max(2, Math.round(Math.abs(m.marge)/maxAbs*H));
           const neg = m.marge<0;
           return (
-            <div key={i} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(m.marge)} · Einnahmen ${chf(m.einnahmen)} (Strom ${chf(m.strom)}, Aufschlag ${chf(m.aufschlag)}) · Hauptmiete ${chf(m.ausgaben)}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+            <div key={i} ref={m.current?margeCurrentRef:null} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(m.marge)} · Einnahmen ${chf(m.einnahmen)} (Strom ${chf(m.strom)}, Aufschlag ${chf(m.aufschlag)}) · Hauptmiete ${chf(m.ausgaben)}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
               <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
               <div style={{width:"68%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#c5cda8":"#5a6e4a"),borderRadius:"3px 3px 0 0"}}/>
               <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
