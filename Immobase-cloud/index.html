@@ -6975,6 +6975,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       photos: Array.isArray(quelle.photos) ? quelle.photos.map(p => ({...p, _copyFrom: p.path})) : [],
       floorplanPath: quelle.floorplanPath || "",
       _floorplanCopyFrom: quelle.floorplanPath || "",
+      _srcAptId: quelle.id,
     });
     if ((quelle.type||"WG") === "WG") {
       const quellRooms = rooms.filter(r => r.aptId === quelle.id)
@@ -7023,6 +7024,16 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
     // Wohnung eigene, unabhaengige Dateien hat (Loeschen betrifft nicht die Quelle).
     const zuKopieren = (apt.photos || []).filter(p => p._copyFrom);
     if (zuKopieren.length > 0) {
+      const srcAptId = newForm._srcAptId;
+      // Kategorie eines Zimmerfotos von der Quell-Wohnung auf die neue umbiegen,
+      // z.B. "room:A5-1" -> "room:A9-1" (gleiche Position, neue Wohnungs-ID).
+      const remapKat = (kat) => {
+        if (srcAptId && typeof kat === "string" && kat.startsWith(`room:${srcAptId}-`)) {
+          const pos = kat.substring(`room:${srcAptId}-`.length);
+          return `room:${id}-${pos}`;
+        }
+        return kat;
+      };
       const kopierte = [];
       for (const p of apt.photos) {
         if (!p._copyFrom) { kopierte.push(p); continue; }
@@ -7031,10 +7042,10 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
         const neuerPfad = `apartments/${id}/${ts}.${ext}`;
         try {
           const { error: copyErr } = await supabase.storage.from("assets").copy(p._copyFrom, neuerPfad);
-          if (copyErr) { console.warn("Foto-Kopie fehlgeschlagen:", copyErr); const {_copyFrom, ...rest} = p; kopierte.push(rest); }
-          else { const {_copyFrom, ...rest} = p; kopierte.push({...rest, path: neuerPfad}); }
+          if (copyErr) { console.warn("Foto-Kopie fehlgeschlagen:", copyErr); const {_copyFrom, ...rest} = p; kopierte.push({...rest, category: remapKat(rest.category)}); }
+          else { const {_copyFrom, ...rest} = p; kopierte.push({...rest, path: neuerPfad, category: remapKat(rest.category)}); }
         } catch(e) {
-          console.warn("Foto-Kopie Ausnahme:", e); const {_copyFrom, ...rest} = p; kopierte.push(rest);
+          console.warn("Foto-Kopie Ausnahme:", e); const {_copyFrom, ...rest} = p; kopierte.push({...rest, category: remapKat(rest.category)});
         }
       }
       apt.photos = kopierte;
