@@ -6471,9 +6471,14 @@ www.dthomes.ch`;
               const zimmerRef = b.zugeteiltes_zimmer || b.zimmerWunsch;
               const roomObj = zimmerRef ? rooms.find(r => r.id === zimmerRef) : null;
               const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
+              const kautionText = b.kautionOpt==="0x"?"keine Kaution":b.kautionOpt==="1x"?"1 Monatsmiete":b.kautionOpt==="2x"?"2 Monatsmieten":b.kautionOpt==="3x"?"3 Monatsmieten":"";
+              const moeblText = b.moebliert==="ja"?"möbliert":b.moebliert==="nein"?"unmöbliert":"";
               const empf = {
                 vorname: b.vorname, nachname: b.nachname, email: b.email, phone: b.phone,
                 adresse: aptObj?.adresse || "", zimmer: roomObj?.id || "", einzug: b.einzug || "", auszug: "",
+                zimmerpreis: roomObj?.miete ? `CHF ${(+roomObj.miete).toLocaleString('de-CH')}` : "",
+                moeblierung: moeblText,
+                kautionswahl: kautionText,
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
             })()}
@@ -10440,6 +10445,9 @@ function platzhalterFuellen(text, empfaenger) {
     einzug: empfaenger.einzug || "",
     auszug: empfaenger.auszug || "",
     uebergabe_link: empfaenger.uebergabe_link || "",
+    zimmerpreis: empfaenger.zimmerpreis || "",
+    moeblierung: empfaenger.moeblierung || "",
+    kautionswahl: empfaenger.kautionswahl || "",
   };
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
