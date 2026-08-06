@@ -5627,6 +5627,86 @@ async function sendSingleDocForSigning(person, html, opts) {
   return { contractId: contractRow.id, token, signUrl: `https://mieter.dthomes.ch/${token}`, emailSent: emailRes.ok };
 }
 
+// ─── Gegenzeichnung: Button + Vorschau-Modal (wiederverwendbar) ─────────
+// Sichtbar nur bei Status "mieter_signiert". Zeigt das final unterzeichnete
+// PDF (beide Unterschriften) in einer Vorschau; erst mit Bestaetigen wird der
+// Vertrag gueltig und die Bestaetigungsmail geht an den Mieter.
+function CountersignButton({contract, onDone}){
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const c = contract;
+  if (!c || c.status !== "mieter_signiert") return null;
+
+  async function openPreview(){
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("countersign-contract", { body: { token: c.token, preview: true } });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      if (!data || !Array.isArray(data.pdfs)) throw new Error("Keine Vorschau erhalten");
+      const urls = data.pdfs.map(p => {
+        const bin = atob(p.base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+        const blob = new Blob([bytes], {type:"application/pdf"});
+        return { name: p.name, url: URL.createObjectURL(blob) };
+      });
+      setPreview({urls});
+    } catch(e){
+      console.error("countersign preview:", e);
+      alert("Vorschau fehlgeschlagen: " + (e.message || e));
+    } finally { setBusy(false); }
+  }
+
+  function closePreview(){
+    if (preview) preview.urls.forEach(u => { try { URL.revokeObjectURL(u.url); } catch(_){} });
+    setPreview(null);
+  }
+
+  async function confirmSend(){
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("countersign-contract", { body: { token: c.token } });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      closePreview();
+      if (onDone) await onDone();
+      alert("Vertrag gegengezeichnet. Die Bestaetigung wurde an den Mieter gesendet.");
+    } catch(e){
+      console.error("countersign confirm:", e);
+      alert("Gegenzeichnung fehlgeschlagen: " + (e.message || e));
+    } finally { setBusy(false); }
+  }
+
+  return (<>
+    <button onClick={openPreview} disabled={busy} style={{fontSize:10.5,padding:"4px 10px",background:"#2c4a6e",color:"#fefcf7",border:"1px solid #24405f",borderRadius:4,cursor:busy?"wait":"pointer",fontWeight:600}}>
+      {busy && !preview ? "lädt…" : "✍ Gegenzeichnen"}
+    </button>
+    {preview && (
+      <div onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid #e8e3d8"}}>
+            <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Gegenzeichnung · Vorschau</div>
+            <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Final unterzeichnetes Dokument mit beiden Unterschriften. Mit Bestaetigen wird der Vertrag gültig und die Bestaetigung geht an den Mieter.</div>
+          </div>
+          <div style={{flex:1,overflow:"auto",padding:16,display:"flex",flexDirection:"column",gap:14,background:"#efe9dd"}}>
+            {preview.urls.map((u,i)=>(
+              <div key={i}>
+                <div style={{fontSize:10.5,color:"#8a8478",marginBottom:5,fontWeight:600}}>{u.name}</div>
+                <iframe src={u.url} title={u.name} style={{width:"100%",height:520,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>
+              </div>
+            ))}
+          </div>
+          <div style={{padding:"14px 20px",borderTop:"1px solid #e8e3d8",display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button onClick={()=>!busy&&closePreview()} disabled={busy} style={{fontSize:12,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:busy?"wait":"pointer"}}>Abbrechen</button>
+            <button onClick={confirmSend} disabled={busy} style={{fontSize:12,padding:"8px 18px",background:"#3a5230",color:"#fefcf7",border:"1px solid #2f4527",borderRadius:5,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"Wird gesendet…":"Bestaetigen und senden"}</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
+}
+
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
@@ -6445,6 +6525,7 @@ www.dthomes.ch`;
                           </div>
                         )}
                         <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                          <CountersignButton contract={c} onDone={loadContracts} />
                           {isWithdrawable && (
                             <button onClick={async()=>{
                               if (!confirm(`Vertrag zurueckziehen?\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Kann nicht rueckgaengig gemacht werden.`)) return;
@@ -6632,6 +6713,11 @@ www.dthomes.ch`;
                             }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
                               ✕ Zurückziehen
                             </button>
+                          </div>
+                        )}
+                        {c.status === "mieter_signiert" && (
+                          <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
+                            <CountersignButton contract={c} onDone={loadContracts} />
                           </div>
                         )}
                       </div>
