@@ -6967,10 +6967,13 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       ausschreiben: false,
       mietbeginn: "",
       mietende: "",
-      // Medien uebernehmen: gleiche Bilddateien im Storage referenzieren
+      // Medien uebernehmen: Matterport ist nur ein Link (unkritisch).
+      // Fotos werden beim Speichern physisch kopiert, damit spaeteres Loeschen
+      // die Quell-Wohnung nicht beschaedigt. Hier nur die Quellpfade merken.
       matterportUrl: quelle.matterportUrl || "",
-      photos: Array.isArray(quelle.photos) ? quelle.photos.map(p => ({...p})) : [],
+      photos: Array.isArray(quelle.photos) ? quelle.photos.map(p => ({...p, _copyFrom: p.path})) : [],
       floorplanPath: quelle.floorplanPath || "",
+      _floorplanCopyFrom: quelle.floorplanPath || "",
     });
     if ((quelle.type||"WG") === "WG") {
       const quellRooms = rooms.filter(r => r.aptId === quelle.id)
@@ -7015,6 +7018,36 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       photos: Array.isArray(newForm.photos) ? newForm.photos : [],
       floorplanPath: newForm.floorplanPath || "",
     };
+    // Aus einem Duplikat stammende Fotos physisch kopieren, damit die neue
+    // Wohnung eigene, unabhaengige Dateien hat (Loeschen betrifft nicht die Quelle).
+    const zuKopieren = (apt.photos || []).filter(p => p._copyFrom);
+    if (zuKopieren.length > 0) {
+      const kopierte = [];
+      for (const p of apt.photos) {
+        if (!p._copyFrom) { kopierte.push(p); continue; }
+        const ext = (p._copyFrom.split(".").pop() || "jpg").toLowerCase();
+        const ts = Date.now() + "-" + Math.random().toString(36).substr(2,7);
+        const neuerPfad = `apartments/${id}/${ts}.${ext}`;
+        try {
+          const { error: copyErr } = await supabase.storage.from("assets").copy(p._copyFrom, neuerPfad);
+          if (copyErr) { console.warn("Foto-Kopie fehlgeschlagen:", copyErr); const {_copyFrom, ...rest} = p; kopierte.push(rest); }
+          else { const {_copyFrom, ...rest} = p; kopierte.push({...rest, path: neuerPfad}); }
+        } catch(e) {
+          console.warn("Foto-Kopie Ausnahme:", e); const {_copyFrom, ...rest} = p; kopierte.push(rest);
+        }
+      }
+      apt.photos = kopierte;
+    }
+    // Grundriss ebenfalls kopieren, falls aus einem Duplikat uebernommen.
+    if (apt.floorplanPath && newForm._floorplanCopyFrom) {
+      const ext = (newForm._floorplanCopyFrom.split(".").pop() || "pdf").toLowerCase();
+      const ts = Date.now() + "-" + Math.random().toString(36).substr(2,7);
+      const neuerPfad = `apartments/${id}/grundriss-${ts}.${ext}`;
+      try {
+        const { error: fpErr } = await supabase.storage.from("assets").copy(newForm._floorplanCopyFrom, neuerPfad);
+        apt.floorplanPath = fpErr ? "" : neuerPfad;
+      } catch(e) { apt.floorplanPath = ""; }
+    }
     await insertApt(apt, newForm.type === "WG" ? roomList : null);
     setAdding(false);
     setNewForm({type:"WG",ort:"Zürich"});
