@@ -6963,14 +6963,14 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       kautionType: quelle.kautionType || "",
       verwaltung: quelle.verwaltung || "",
       eigentuemer: quelle.eigentuemer || "",
-      refzins: quelle.refzins || "",
-      refnr: quelle.refnr || "",
-      schluesselAnzahl: quelle.schluesselAnzahl || "",
-      extraSchluessel: quelle.extraSchluessel || "",
       pipeline: !!quelle.pipeline,
       ausschreiben: false,
       mietbeginn: "",
       mietende: "",
+      // Medien uebernehmen: gleiche Bilddateien im Storage referenzieren
+      matterportUrl: quelle.matterportUrl || "",
+      photos: Array.isArray(quelle.photos) ? quelle.photos.map(p => ({...p})) : [],
+      floorplanPath: quelle.floorplanPath || "",
     });
     if ((quelle.type||"WG") === "WG") {
       const quellRooms = rooms.filter(r => r.aptId === quelle.id)
@@ -7011,6 +7011,9 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       extraSchluessel: newForm.extraSchluessel || "",
       pipeline: !!newForm.pipeline,
       ausschreiben: !!newForm.ausschreiben,
+      matterportUrl: newForm.matterportUrl || "",
+      photos: Array.isArray(newForm.photos) ? newForm.photos : [],
+      floorplanPath: newForm.floorplanPath || "",
     };
     await insertApt(apt, newForm.type === "WG" ? roomList : null);
     setAdding(false);
