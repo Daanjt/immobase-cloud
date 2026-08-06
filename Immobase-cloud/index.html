@@ -5455,8 +5455,10 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   const amzData = { ...vertragData, strom: stromFix, total: (vertragData.nettomiete||0) + (vertragData.nebenkosten||0) + stromFix };
 
   progress("Verträge generieren...", 0.1);
-  const umvHtml = wantUmv ? injectDaanInUMV(buildContractHTML(b, vertragData, fullName, formatDateLong)) : null;
-  const amzHtml = wantAmz ? injectDaanInAMZ(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong)) : null;
+  // Neuer Ablauf: Der Vertrag geht OHNE D&T-Faksimile raus. Der Mieter
+  // unterschreibt zuerst; die Gegenzeichnung durch D&T erfolgt danach separat.
+  const umvHtml = wantUmv ? buildContractHTML(b, vertragData, fullName, formatDateLong) : null;
+  const amzHtml = wantAmz ? buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong) : null;
 
   const totalSteps = (wantUmv ? 1 : 0) + (wantAmz ? 1 : 0);
   let step = 0, umvBlob = null, amzBlob = null;
@@ -6135,8 +6137,8 @@ www.dthomes.ch`;
     };
 
     progress("Verträge generieren...", 0.1);
-    const umvHtml = wantUmv ? injectDaanInUMV(buildContractHTML(b, vertragData, fullName, formatDateLong)) : null;
-    const amzHtml = wantAmz ? injectDaanInAMZ(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong)) : null;
+    const umvHtml = wantUmv ? buildContractHTML(b, vertragData, fullName, formatDateLong) : null;
+    const amzHtml = wantAmz ? buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong) : null;
 
     const totalSteps = (wantUmv ? 1 : 0) + (wantAmz ? 1 : 0);
     let step = 0;
@@ -6406,6 +6408,7 @@ www.dthomes.ch`;
                       "gesendet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Gesendet"},
                       "geoeffnet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
                       "geoeffnet_ungelesen": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
+                      "mieter_signiert": {bg:"#e6eef6",color:"#2c4a6e",border:"#b0c8e0",label:"✍ Wartet auf Gegenzeichnung"},
                       "signiert": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Signiert"},
                       "abgeschlossen": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Abgeschlossen"},
                       "zurueckgezogen": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Zurückgezogen"},
@@ -6594,6 +6597,7 @@ www.dthomes.ch`;
                       "gesendet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Gesendet"},
                       "geoeffnet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
                       "geoeffnet_ungelesen": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
+                      "mieter_signiert": {bg:"#e6eef6",color:"#2c4a6e",border:"#b0c8e0",label:"✍ Wartet auf Gegenzeichnung"},
                       "signiert": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Signiert"},
                       "abgeschlossen": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Abgeschlossen"},
                       "zurueckgezogen": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Zurückgezogen"},
@@ -7961,7 +7965,8 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
     setNachBusy(true); setNachResult(null);
     try {
       const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
-      const html = injectDaanInUMV(buildNachtragHTML(t, nd, fullName, formatDateLong));
+      // Neuer Ablauf: ohne D&T-Faksimile verschicken, Mieter zeichnet zuerst.
+      const html = buildNachtragHTML(t, nd, fullName, formatDateLong);
       const cdata = buildContractDataForTenant(t);
       const vFull = cdata ? { ...cdata.v, einzug: nd.mietbeginn || cdata.v.einzug, auszug: nd.mietende, mietende: nd.mietende } : null;
       const res = await sendSingleDocForSigning(t, html, {
