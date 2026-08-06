@@ -9816,7 +9816,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const wgRooms = (rooms||[]).filter(r=>wgAptIds.has(r.aptId));
   const tenantById = (id) => (tenants||[]).find(t=>t.id===id);
   const aptById = (id) => (apts||[]).find(a=>a.id===id);
-  const monthFin = (s, e) => {
+  const monthFin = (s, e, annahmeVoll=false) => {
     let ausgaben=0;
     const activeApts = new Set();
     wgApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)){ ausgaben+=(+a.miete||0); activeApts.add(a.id);} });
@@ -9829,7 +9829,9 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       const ein = parseDMY(t && t.einzug) || parseDMY(apt && apt.mietbeginn);
       const aus = parseDMY(t && t.auszug) || parseDMY(apt && apt.mietende);
       const isOcc = !!r.occupied && (!ein || ein <= e) && (!aus || aus >= s);
-      if (isOcc) { belegt++; miete+=(+r.miete||0); strom+=25; aufschlag += t?(+t.kautionAufschlag||0):0; }
+      // In Prognosemonaten wird Vollbelegung angenommen: jedes aktive Zimmer
+      // gilt als vermietet, damit Umsatz und Marge das volle Potenzial zeigen.
+      if (isOcc || annahmeVoll) { belegt++; miete+=(+r.miete||0); strom+=25; aufschlag += (isOcc && t)?(+t.kautionAufschlag||0):0; }
       else { leerstandskosten += (+r.miete||0); }
     });
     const einnahmen=miete+strom+aufschlag;
@@ -9842,14 +9844,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
     const s = new Date(d.getFullYear(), d.getMonth(), 1);
     const e = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
-    const f = monthFin(s, e);
+    const f = monthFin(s, e, i>0);
     months.push({ label: s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full: s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f, future: i>0, current: i===0 });
   }
   // Jährliche Ergebnisse (Summe über 12 Monate)
   const years = [];
   for (let y=now.getFullYear(); y<=now.getFullYear()+1; y++){
     let einnahmen=0, ausgaben=0, marge=0;
-    for (let m=0;m<12;m++){ const s=new Date(y,m,1); const e=new Date(y,m+1,0,23,59,59,999); const f=monthFin(s,e); einnahmen+=f.einnahmen; ausgaben+=f.ausgaben; marge+=f.marge; }
+    for (let m=0;m<12;m++){ const s=new Date(y,m,1); const e=new Date(y,m+1,0,23,59,59,999); const futM=new Date(y,m,1)>new Date(now.getFullYear(),now.getMonth(),1); const f=monthFin(s,e,futM); einnahmen+=f.einnahmen; ausgaben+=f.ausgaben; marge+=f.marge; }
     years.push({ y, einnahmen, ausgaben, marge, future: y>now.getFullYear() });
   }
   // Bewohner-Kennzahlen (aktive Mieter)
@@ -9920,7 +9922,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     while (new Date(cy,cm,1) <= endD){
       const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
       const fut = new Date(cy,cm,1) > new Date(now.getFullYear(),now.getMonth(),1);
-      const wgF=monthFin(s,e); const abF=airbnbFin(s,e,eNext);
+      const wgF=monthFin(s,e,fut); const abF=airbnbFin(s,e,eNext);
       const wg=floorFut(wgF.marge, fut); const ab=floorFut(abF.marge, fut);
       const umsatz=wgF.einnahmen+abF.umsatz; const mietausgaben=wgF.ausgaben+abF.miete;
       const uebrige=abF.kommission+abF.putzen+abF.waesche+abF.moeblierung;
@@ -9935,7 +9937,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     for (let mo=0; mo<12; mo++){
       const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
       const fut = new Date(y,mo,1) > new Date(now.getFullYear(),now.getMonth(),1);
-      const wgF=monthFin(s,e); const abF=airbnbFin(s,e,eNext);
+      const wgF=monthFin(s,e,fut); const abF=airbnbFin(s,e,eNext);
       wgY += floorFut(wgF.marge, fut); abY += floorFut(abF.marge, fut);
       umsatzY += wgF.einnahmen + abF.umsatz; umsatzWgY += wgF.einnahmen; umsatzAbY += abF.umsatz;
       mietausgabenY += wgF.ausgaben + abF.miete;
