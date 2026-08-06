@@ -5631,7 +5631,7 @@ async function sendSingleDocForSigning(person, html, opts) {
 // Sichtbar nur bei Status "mieter_signiert". Zeigt das final unterzeichnete
 // PDF (beide Unterschriften) in einer Vorschau; erst mit Bestaetigen wird der
 // Vertrag gueltig und die Bestaetigungsmail geht an den Mieter.
-function CountersignButton({contract, onDone}){
+function CountersignButton({contract, onDone, light}){
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
   const c = contract;
@@ -5679,7 +5679,7 @@ function CountersignButton({contract, onDone}){
   }
 
   return (<>
-    <button onClick={openPreview} disabled={busy} style={{fontSize:10.5,padding:"4px 10px",background:"#2c4a6e",color:"#fefcf7",border:"1px solid #24405f",borderRadius:4,cursor:busy?"wait":"pointer",fontWeight:600}}>
+    <button onClick={openPreview} disabled={busy} style={{fontSize:10.5,padding:"4px 10px",background:light?"#fefcf7":"#2c4a6e",color:light?"#2c4a6e":"#fefcf7",border:light?"1px solid #fefcf7":"1px solid #24405f",borderRadius:4,cursor:busy?"wait":"pointer",fontWeight:600,flexShrink:0}}>
       {busy && !preview ? "lädt…" : "✍ Gegenzeichnen"}
     </button>
     {preview && (
@@ -6323,6 +6323,32 @@ www.dthomes.ch`;
               <div style={{fontSize:11,color:"#b8af9f"}}>{targetApt?.adresse||"-"} {targetRoom?.miete?`· CHF ${targetRoom.miete}/Mt.`:""} · {shown.length} passende{shown.length===1?"r":""} Bewerber</div>
             </div>
             <button onClick={()=>setNachmieterFor(null)} style={{background:"transparent",color:"#fefcf7",border:"1px solid #b8af9f",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em"}}>✕ Filter aufheben</button>
+          </div>
+        );
+      })()}
+      
+      {/* GEGENZEICHNUNG-BANNER: Vertraege, die auf die Gegenzeichnung durch D&T warten */}
+      {(() => {
+        const wartend = contracts.filter(c => c.status === "mieter_signiert");
+        if (wartend.length === 0) return null;
+        const typLabel = (ct) => ct === "untermietvertrag" ? "Untermietvertrag"
+          : ct === "anfangsmietzins" ? "Anfangsmietzins"
+          : (ct === "verlaengerung" || ct === "nachtrag") ? "Verlängerung"
+          : "Untermietvertrag + Anfangsmietzins";
+        return (
+          <div style={{background:"#2c4a6e",color:"#fefcf7",borderRadius:8,padding:"14px 18px",marginBottom:16}}>
+            <div style={{fontSize:10,letterSpacing:".25em",textTransform:"uppercase",color:"#b0c8e0",marginBottom:10,fontWeight:600}}>✍ Wartet auf Gegenzeichnung ({wartend.length})</div>
+            <div style={{display:"flex",flexDirection:"column",gap:9}}>
+              {wartend.map(c => (
+                <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                  <div style={{fontSize:13.5,fontWeight:600,minWidth:0}}>
+                    {`${c.mieterVorname||""} ${c.mieterNachname||""}`.trim() || "Unbenannt"}
+                    <span style={{fontSize:11,color:"#b0c8e0",fontWeight:400,marginLeft:8}}>{typLabel(c.contractType)}</span>
+                  </div>
+                  <CountersignButton contract={c} onDone={loadContracts} light />
+                </div>
+              ))}
+            </div>
           </div>
         );
       })()}
