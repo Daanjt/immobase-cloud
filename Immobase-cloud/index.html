@@ -5692,8 +5692,15 @@ function CountersignButton({contract, onDone, light}){
           <div style={{flex:1,overflow:"auto",padding:16,display:"flex",flexDirection:"column",gap:14,background:"#efe9dd"}}>
             {preview.urls.map((u,i)=>(
               <div key={i}>
-                <div style={{fontSize:10.5,color:"#8a8478",marginBottom:5,fontWeight:600}}>{u.name}</div>
-                <iframe src={u.url} title={u.name} style={{width:"100%",height:520,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:5,flexWrap:"wrap"}}>
+                  <div style={{fontSize:10.5,color:"#8a8478",fontWeight:600}}>{u.name}</div>
+                  <button onClick={()=>window.open(u.url,"_blank")} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer",flexShrink:0}}>↗ In neuem Tab öffnen</button>
+                </div>
+                {(typeof window!=="undefined" && window.innerWidth < 640) ? (
+                  <button onClick={()=>window.open(u.url,"_blank")} style={{width:"100%",padding:"22px 16px",background:"#fff",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer",fontSize:13,color:"#2c4a6e",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 {u.name} als PDF öffnen</button>
+                ) : (
+                  <iframe src={u.url} title={u.name} style={{width:"100%",height:520,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>
+                )}
               </div>
             ))}
           </div>
