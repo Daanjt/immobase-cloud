@@ -2310,7 +2310,7 @@ function useSupabaseData() {
   
   async function loadContracts() {
     try {
-      const { data, error } = await supabase.from("contracts").select("id, token, bewerber_id, tenant_id, room_id, apt_id, contract_type, status, mieter_email, mieter_vorname, mieter_nachname, sent_at, opened_at, signed_at, expires_at, created_at, updated_at, bemerkung").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("contracts").select("id, token, bewerber_id, tenant_id, room_id, apt_id, contract_type, status, mieter_email, mieter_vorname, mieter_nachname, sent_at, opened_at, signed_at, expires_at, created_at, updated_at, bemerkung, signed_pdf_path, signed_pdfs, mieter_signature_png, signed_ip, signed_user_agent").order("created_at", { ascending: false });
       if (error) throw error;
       setContracts((data || []).map(c => ({
         id: c.id,
@@ -2331,6 +2331,11 @@ function useSupabaseData() {
         createdAt: c.created_at,
         updatedAt: c.updated_at,
         bemerkung: c.bemerkung,
+        signedPdfPath: c.signed_pdf_path,
+        signedPdfs: c.signed_pdfs,
+        mieterSignaturePng: c.mieter_signature_png,
+        signedIp: c.signed_ip,
+        signedUserAgent: c.signed_user_agent,
         signUrl: c.token ? `https://mieter.dthomes.ch/${c.token}` : null,
       })));
     } catch (e) {
