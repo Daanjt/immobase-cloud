@@ -6944,6 +6944,46 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
     while(apts.find(a=>a.id===`A${n}`)) n++;
     return `A${n}`;
   }
+  function duplicateApt(quelle){
+    const neueId = nextAptId();
+    // Alle wiederverwendbaren Stammdaten uebernehmen. Bewusst NICHT uebernommen:
+    // Mietbeginn/Mietende, Vertrag und Belegung, weil diese pro Wohnung
+    // individuell sind. ID wird frisch vergeben.
+    setNewForm({
+      id: neueId,
+      adresse: quelle.adresse || "",
+      plz: quelle.plz || "",
+      ort: quelle.ort || "Zürich",
+      type: quelle.type || "WG",
+      zimmer: quelle.zimmer || "",
+      units: quelle.units || "",
+      stockwerk: quelle.stockwerk || "",
+      miete: quelle.miete || "",
+      kaution: quelle.kaution || "",
+      kautionType: quelle.kautionType || "",
+      verwaltung: quelle.verwaltung || "",
+      eigentuemer: quelle.eigentuemer || "",
+      refzins: quelle.refzins || "",
+      refnr: quelle.refnr || "",
+      schluesselAnzahl: quelle.schluesselAnzahl || "",
+      extraSchluessel: quelle.extraSchluessel || "",
+      pipeline: !!quelle.pipeline,
+      ausschreiben: false,
+      mietbeginn: "",
+      mietende: "",
+    });
+    if ((quelle.type||"WG") === "WG") {
+      const quellRooms = rooms.filter(r => r.aptId === quelle.id)
+        .sort((a,b)=>natSort(a.id, b.id))
+        .map(r => ({ groesse: r.groesse || "", miete: r.miete || "", balkon: !!r.balkon }));
+      setRoomList(quellRooms);
+    } else {
+      setRoomList([]);
+    }
+    setAdding(true);
+    setSel(null);
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
   async function saveNew(){
     if (!newForm.adresse) { alert("Bitte Adresse angeben."); return; }
     const id = newForm.id || nextAptId();
@@ -7037,6 +7077,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
               <div style={{minWidth:0,flex:"1 1 auto"}}><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18",wordBreak:"break-word"}}>{apt.id} - {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div></div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
+                {istAdmin && <button className="btn btn-g btn-sm" onClick={()=>duplicateApt(apt)}>⧉ Duplizieren</button>}
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
