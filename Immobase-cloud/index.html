@@ -6479,6 +6479,7 @@ www.dthomes.ch`;
                 zimmerpreis: roomObj?.miete ? `CHF ${(+roomObj.miete).toLocaleString('de-CH')}` : "",
                 moeblierung: moeblText,
                 kautionswahl: kautionText,
+                tour_link: aptObj?.matterportUrl || "",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
             })()}
@@ -10448,6 +10449,7 @@ function platzhalterFuellen(text, empfaenger) {
     zimmerpreis: empfaenger.zimmerpreis || "",
     moeblierung: empfaenger.moeblierung || "",
     kautionswahl: empfaenger.kautionswahl || "",
+    tour_link: empfaenger.tour_link || "",
   };
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
