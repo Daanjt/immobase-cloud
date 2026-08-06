@@ -6963,10 +6963,11 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       kautionType: quelle.kautionType || "",
       verwaltung: quelle.verwaltung || "",
       eigentuemer: quelle.eigentuemer || "",
+      refzins: quelle.refzins || "",
       pipeline: !!quelle.pipeline,
       ausschreiben: false,
       mietbeginn: "",
-      mietende: "",
+      mietende: quelle.mietende || "",
       // Medien uebernehmen: Matterport ist nur ein Link (unkritisch).
       // Fotos werden beim Speichern physisch kopiert, damit spaeteres Loeschen
       // die Quell-Wohnung nicht beschaedigt. Hier nur die Quellpfade merken.
