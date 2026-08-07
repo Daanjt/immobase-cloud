@@ -5684,6 +5684,7 @@ async function sendSingleDocForSigning(person, html, opts) {
 function CountersignButton({contract, onDone, light}){
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [activeIdx, setActiveIdx] = useState(0);
   const c = contract;
   if (!c || c.status !== "mieter_signiert") return null;
 
@@ -5702,6 +5703,7 @@ function CountersignButton({contract, onDone, light}){
         return { name: p.name, url: URL.createObjectURL(blob) };
       });
       setPreview({urls});
+      setActiveIdx(0);
     } catch(e){
       console.error("countersign preview:", e);
       alert("Vorschau fehlgeschlagen: " + (e.message || e));
@@ -5739,20 +5741,37 @@ function CountersignButton({contract, onDone, light}){
             <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Gegenzeichnung · Vorschau</div>
             <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Final unterzeichnetes Dokument mit beiden Unterschriften. Mit Bestaetigen wird der Vertrag gültig und die Bestaetigung geht an den Mieter.</div>
           </div>
-          <div style={{flex:1,overflow:"auto",padding:16,display:"flex",flexDirection:"column",gap:14,background:"#efe9dd"}}>
-            {preview.urls.map((u,i)=>(
-              <div key={i}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:5,flexWrap:"wrap"}}>
-                  <div style={{fontSize:10.5,color:"#8a8478",fontWeight:600}}>{u.name}</div>
-                  <button onClick={()=>window.open(u.url,"_blank")} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer",flexShrink:0}}>↗ In neuem Tab öffnen</button>
-                </div>
-                {(typeof window!=="undefined" && window.innerWidth < 640) ? (
-                  <button onClick={()=>window.open(u.url,"_blank")} style={{width:"100%",padding:"22px 16px",background:"#fff",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer",fontSize:13,color:"#2c4a6e",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 {u.name} als PDF öffnen</button>
-                ) : (
-                  <iframe src={u.url} title={u.name} style={{width:"100%",height:520,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>
-                )}
+          <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column",background:"#efe9dd"}}>
+            {(typeof window!=="undefined" && window.innerWidth < 640) ? (
+              <div style={{flex:1,overflow:"auto",padding:16,display:"flex",flexDirection:"column",gap:14}}>
+                {preview.urls.map((u,i)=>(
+                  <button key={i} onClick={()=>window.open(u.url,"_blank")} style={{width:"100%",padding:"22px 16px",background:"#fff",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer",fontSize:13,color:"#2c4a6e",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 {u.name} als PDF öffnen</button>
+                ))}
               </div>
-            ))}
+            ) : (
+              <>
+                {preview.urls.length > 1 && (
+                  <div style={{display:"flex",gap:6,padding:"12px 16px 0",flexWrap:"wrap",flexShrink:0}}>
+                    {preview.urls.map((u,i)=>(
+                      <button key={i} onClick={()=>setActiveIdx(i)} style={{fontSize:11.5,padding:"7px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,border:"1px solid",borderColor:activeIdx===i?"#2c4a6e":"#d8d0c0",background:activeIdx===i?"#2c4a6e":"#fefcf7",color:activeIdx===i?"#fefcf7":"#4a4439"}}>{u.name}</button>
+                    ))}
+                  </div>
+                )}
+                {(()=>{
+                  const u = preview.urls[Math.min(activeIdx, preview.urls.length-1)];
+                  if (!u) return null;
+                  return (
+                    <div style={{flex:1,overflow:"auto",padding:16,display:"flex",flexDirection:"column",gap:8,minHeight:0}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",flexShrink:0}}>
+                        <div style={{fontSize:10.5,color:"#8a8478",fontWeight:600}}>{u.name}</div>
+                        <button onClick={()=>window.open(u.url,"_blank")} style={{fontSize:10.5,padding:"4px 10px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer",flexShrink:0}}>↗ In neuem Tab öffnen</button>
+                      </div>
+                      <iframe src={u.url} title={u.name} style={{width:"100%",flex:1,minHeight:420,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
           </div>
           <div style={{padding:"14px 20px",borderTop:"1px solid #e8e3d8",display:"flex",justifyContent:"flex-end",gap:8}}>
             <button onClick={()=>!busy&&closePreview()} disabled={busy} style={{fontSize:12,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:busy?"wait":"pointer"}}>Abbrechen</button>
