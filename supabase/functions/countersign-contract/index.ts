@@ -248,23 +248,28 @@ async function detectAnchors(pdfBytes, side) {
   try {
     const { getDocumentProxy } = await import("https://esm.sh/unpdf@1.6.2");
     const pdf = await getDocumentProxy(pdfBytes);
-    const page = await pdf.getPage(pdf.numPages);
-    const pageW = page.getViewport({ scale: 1 }).width;
-    const items = (await page.getTextContent()).items
-      .filter((i) => i && i.str && i.str.trim())
-      .map((i) => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5], w: i.width || 0 }));
-    const inSide = (i) => side === "left" ? i.x < pageW / 2 : i.x >= pageW / 2;
-    const findLabel = (labels) => {
-      for (const L of labels) {
-        const c = items.filter((i) => i.str === L && inSide(i)).sort((a, b) => b.y - a.y)[0];
-        if (c) return c;
-      }
-      return null;
-    };
-    const datum = findLabel(["Ort, Datum:", "Datum:"]);
-    const sig = findLabel(["Unterschrift:"]);
-    if (!datum || !sig) return null;
-    return { datumX: datum.x, datumY: datum.y, datumW: datum.w, sigX: sig.x, sigY: sig.y, sigW: sig.w };
+    // Von hinten nach vorne suchen: die erste Seite mit BEIDEN Labels gewinnt.
+    // So sitzt die Unterschrift auch dann richtig, wenn der Signaturblock nicht
+    // auf der allerletzten Seite liegt (z.B. Anhang nach den Unterschriften).
+    for (let p = pdf.numPages; p >= 1; p--) {
+      const page = await pdf.getPage(p);
+      const pageW = page.getViewport({ scale: 1 }).width;
+      const items = (await page.getTextContent()).items
+        .filter((i) => i && i.str && i.str.trim())
+        .map((i) => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5], w: i.width || 0 }));
+      const inSide = (i) => side === "left" ? i.x < pageW / 2 : i.x >= pageW / 2;
+      const findLabel = (labels) => {
+        for (const L of labels) {
+          const c = items.filter((i) => i.str === L && inSide(i)).sort((a, b) => b.y - a.y)[0];
+          if (c) return c;
+        }
+        return null;
+      };
+      const datum = findLabel(["Ort, Datum:", "Datum:"]);
+      const sig = findLabel(["Unterschrift:"]);
+      if (datum && sig) return { datumX: datum.x, datumY: datum.y, datumW: datum.w, sigX: sig.x, sigY: sig.y, sigW: sig.w, page: p };
+    }
+    return null;
   } catch (e) {
     console.error("detectAnchors failed, using fallback:", e?.message);
     return null;
@@ -361,6 +366,7 @@ Deno.serve(async (req) => {
       // direkt rechts neben das jeweilige Label.
       const side = (isUmv || isNachtrag) ? "right" : "left";
       const anchors = await detectAnchors(pdfBytes, side);
+      const targetPage = (anchors && anchors.page) ? pages[anchors.page - 1] : lastPage;
       const ortDatumStr = `Z\u00fcrich, ${formatDateLongDE(now)}`;
 
       // Fallback-Koordinaten, falls die Anker-Erkennung fehlschlaegt.
@@ -374,14 +380,14 @@ Deno.serve(async (req) => {
       const sigLineY = anchors ? anchors.sigY : fb.sigY;
 
       // Ort und Datum als Text neben "Ort, Datum:".
-      lastPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
+      targetPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
 
       // Faksimile neben "Unterschrift:", tiefer gesetzt, damit es auf der
       // Signaturlinie sitzt statt darueber zu schweben.
       const dims = faksImage.scaleToFit(150, 26);
       // D&T-Faksimile pro Formular: AMZ-Zeile sitzt enger, daher hoeher setzen.
       const faksOffset = (isUmv || isNachtrag) ? 15 : 12;
-      lastPage.drawImage(faksImage, { x: sigLineX, y: sigLineY - faksOffset, width: dims.width, height: dims.height });
+      targetPage.drawImage(faksImage, { x: sigLineX, y: sigLineY - faksOffset, width: dims.width, height: dims.height });
 
       const countersignedBytes = await pdfDoc.save();
 

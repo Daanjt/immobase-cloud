@@ -241,23 +241,28 @@ async function detectAnchors(pdfBytes, isUmv) {
   try {
     const { getDocumentProxy } = await import("https://esm.sh/unpdf@1.6.2");
     const pdf = await getDocumentProxy(pdfBytes);
-    const page = await pdf.getPage(pdf.numPages);
-    const pageW = page.getViewport({ scale: 1 }).width;
-    const items = (await page.getTextContent()).items
-      .filter((i) => i && i.str && i.str.trim())
-      .map((i) => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5], w: i.width || 0 }));
-    const inSide = (i) => isUmv ? i.x < pageW / 2 : i.x >= pageW / 2;
-    const findLabel = (labels) => {
-      for (const L of labels) {
-        const c = items.filter((i) => i.str === L && inSide(i)).sort((a, b) => b.y - a.y)[0];
-        if (c) return c;
-      }
-      return null;
-    };
-    const datum = findLabel(isUmv ? ["Ort, Datum:", "Datum:"] : ["Datum:"]);
-    const sig = findLabel(["Unterschrift:"]);
-    if (!datum || !sig) return null;
-    return { datumX: datum.x, datumW: datum.w, datumY: datum.y, sigX: sig.x, sigW: sig.w, sigY: sig.y };
+    // Von hinten nach vorne suchen: die erste Seite mit BEIDEN Labels gewinnt.
+    // So sitzt die Unterschrift auch dann richtig, wenn der Signaturblock nicht
+    // auf der allerletzten Seite liegt (z.B. Anhang nach den Unterschriften).
+    for (let p = pdf.numPages; p >= 1; p--) {
+      const page = await pdf.getPage(p);
+      const pageW = page.getViewport({ scale: 1 }).width;
+      const items = (await page.getTextContent()).items
+        .filter((i) => i && i.str && i.str.trim())
+        .map((i) => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5], w: i.width || 0 }));
+      const inSide = (i) => isUmv ? i.x < pageW / 2 : i.x >= pageW / 2;
+      const findLabel = (labels) => {
+        for (const L of labels) {
+          const c = items.filter((i) => i.str === L && inSide(i)).sort((a, b) => b.y - a.y)[0];
+          if (c) return c;
+        }
+        return null;
+      };
+      const datum = findLabel(isUmv ? ["Ort, Datum:", "Datum:"] : ["Datum:"]);
+      const sig = findLabel(["Unterschrift:"]);
+      if (datum && sig) return { datumX: datum.x, datumW: datum.w, datumY: datum.y, sigX: sig.x, sigW: sig.w, sigY: sig.y, page: p };
+    }
+    return null;
   } catch (e) {
     console.error("detectAnchors failed, using fallback:", e?.message);
     return null;
@@ -341,22 +346,23 @@ Deno.serve(async (req) => {
       // sonst feste Fallback-Werte. pdf-lib: bottom-left origin, A4 (595 x 842 pt).
       let sigPlaced = false;
       const anchors = await detectAnchors(pdfBytes, isUmv || isNachtrag);
+      const targetPage = (anchors && anchors.page) ? pages[anchors.page - 1] : lastPage;
 
       if (isUmv || isNachtrag) {
         // UMV / Nachtrag: Untermieter*in sig-block LINKS auf der letzten Seite
         const datumX = anchors ? anchors.datumX + 74 : 125, datumY = anchors ? anchors.datumY : 601;
         const sigX = anchors ? anchors.sigX + 74 : 125, sigY = (anchors ? anchors.sigY - 13 : 580), sigMaxW = 150, sigMaxH = 24;
         const dims = sigImage.scaleToFit(sigMaxW, sigMaxH);
-        lastPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
-        lastPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
+        targetPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
+        targetPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
         sigPlaced = true;
       } else if (isAmz) {
         // AMZ: Mieter*in block RECHTS auf der letzten Seite
         const datumX = anchors ? anchors.datumX + 74 : 385, datumY = anchors ? anchors.datumY : 545;
         const sigX = anchors ? anchors.sigX + 74 : 390, sigY = (anchors ? anchors.sigY - 8 : 523), sigMaxW = 150, sigMaxH = 22;
         const dims = sigImage.scaleToFit(sigMaxW, sigMaxH);
-        lastPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
-        lastPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
+        targetPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
+        targetPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
         sigPlaced = true;
       }
 
@@ -367,8 +373,8 @@ Deno.serve(async (req) => {
       }
 
       // Audit trail at very bottom (subtle, gray)
-      lastPage.drawText(auditText, { x: 51, y: 50, size: 6.5, font: helvetica, color: rgb(0.55, 0.55, 0.55) });
-      lastPage.drawText(auditText2, { x: 51, y: 41, size: 6.5, font: helvetica, color: rgb(0.55, 0.55, 0.55) });
+      targetPage.drawText(auditText, { x: 51, y: 50, size: 6.5, font: helvetica, color: rgb(0.55, 0.55, 0.55) });
+      targetPage.drawText(auditText2, { x: 51, y: 41, size: 6.5, font: helvetica, color: rgb(0.55, 0.55, 0.55) });
 
       const signedBytes = await pdfDoc.save();
 
