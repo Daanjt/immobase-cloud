@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.countersign-contract]
 verify_jwt = false
+
+[functions.process-handover-deadlines]
+verify_jwt = false
