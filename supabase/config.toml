@@ -1,0 +1,9 @@
+project_id = "aohcqrxpsqronlcwssrk"
+
+# Beide Functions werden ohne JWT aufgerufen (oeffentliche Signatur bzw.
+# Gegenzeichnung mit eigener Absicherung), daher verify_jwt = false.
+[functions.finalize-contract]
+verify_jwt = false
+
+[functions.countersign-contract]
+verify_jwt = false
