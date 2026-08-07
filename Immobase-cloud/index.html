@@ -6201,7 +6201,7 @@ www.dthomes.ch`;
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     setDlBusy("umv");
     try {
-      const html = injectDaanInUMV(buildContractHTML(b, v, fullName, formatDateLong));
+      const html = buildContractHTML(b, v, fullName, formatDateLong);
       const fn = `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`;
       downloadBlob(await htmlToPdf(html, fn), fn);
     } catch (e) { alert("PDF konnte nicht erstellt werden: " + (e.message || e)); }
@@ -6215,7 +6215,7 @@ www.dthomes.ch`;
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     setDlBusy("amz");
     try {
-      const html = injectDaanInAMZ(buildAnfangsmietzinsHTML(b, v, fullName, formatDateLong));
+      const html = buildAnfangsmietzinsHTML(b, v, fullName, formatDateLong);
       const fn = `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`;
       downloadBlob(await htmlToPdf(html, fn), fn);
     } catch (e) { alert("PDF konnte nicht erstellt werden: " + (e.message || e)); }
