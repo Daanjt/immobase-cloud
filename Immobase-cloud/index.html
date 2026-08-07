@@ -6397,6 +6397,8 @@ www.dthomes.ch`;
             const zugeteiltRoom = bw.zugeteiltes_zimmer ? rooms.find(r=>r.id===bw.zugeteiltes_zimmer) : null;
             const targetRoom = zugeteiltRoom || wunschRoom;
             const targetApt = targetRoom ? apts.find(a=>a.id===targetRoom.aptId) : null;
+            const bwContracts = (contracts||[]).filter(c => c.bewerberId === bw.id);
+            const contractMark = bwContracts.length===0 ? null : (bwContracts.some(c=>c.status==="signiert") ? {bg:"#e8efde",color:"#3a5230",label:"✓ Vertrag"} : {bg:"#fdf2e0",color:"#7a5c3c",label:"📄 Vertrag"});
             const mKey = bw.einzug ? new Date(bw.einzug).toLocaleDateString("de-CH",{month:"long",year:"numeric"}) : "Ohne Wunschdatum";
             const prevB = idx>0 ? shown[idx-1] : null;
             const prevKey = prevB ? (prevB.einzug ? new Date(prevB.einzug).toLocaleDateString("de-CH",{month:"long",year:"numeric"}) : "Ohne Wunschdatum") : null;
@@ -6409,6 +6411,7 @@ www.dthomes.ch`;
                 <div style={{fontWeight:600,fontSize:12.5,color:on?"#a08864":"#1f1d18",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0}}>{bw.vorname} {bw.nachname}</div>
                 <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
                   {bw.owner&&<span style={{fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:3,background:bw.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:bw.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>{bw.owner}</span>}
+                  {contractMark&&<span title="Vertrag ausgestellt" style={{fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:3,background:contractMark.bg,color:contractMark.color,letterSpacing:".05em",whiteSpace:"nowrap"}}>{contractMark.label}</span>}
                   <StatusBdg status={bw.status}/>
                 </div>
               </div>
