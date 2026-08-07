@@ -10225,6 +10225,69 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     <div>
       <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:18}}>Finanzen</div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
+      <SectionHead title="Gesamt" sub="WGs und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
+      <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
+      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
+        {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
+          const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
+          return (
+            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Gesamt ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} (WG ${chf(Math.round(m.wg))} · Airbnb ${chf(Math.round(m.ab))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
+              <div style={{width:"70%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#a9c088":"#4a6b2f"),borderRadius:"3px 3px 0 0"}}/>
+              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+            </div>
+          );
+        }); })()}
+      </div>
+      <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Umsatz pro Monat</div>
+      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
+        {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>m.umsatz)); return combinedMonths.map((m,i)=>{
+          const h=Math.max(2,Math.round(m.umsatz/mx*H));
+          return (
+            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Umsatz ${chf(Math.round(m.umsatz))} (WG ${chf(Math.round(m.umsatzWg))} · Airbnb ${chf(Math.round(m.umsatzAb))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.umsatz)}</div>
+              <div style={{width:"70%",height:h,background:m.future?"#cbb896":"#8a6d4a",borderRadius:"3px 3px 0 0"}}/>
+              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+            </div>
+          );
+        }); })()}
+      </div>
+      {tblBtn("ges","Monatsdetails Gesamt")}
+      {openTbl.ges && (
+      <div style={{display:"grid",gap:8,marginTop:10}}>
+        {combinedMonths.map((m,i)=>(
+          <div key={i} ref={m.current?(el=>{curMonthRef.current.ges=el;}):null} style={{border:m.current?"1px solid var(--line)":"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
+            <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} />
+            <GrpRow label="Umsatz" value={chf(Math.round(m.umsatz))} />
+            <SubRow label="WG" value={chf(Math.round(m.umsatzWg))} />
+            <SubRow label="Airbnb" value={chf(Math.round(m.umsatzAb))} />
+            <GrpRow label="Kosten" value={chf(Math.round(m.mietausgaben+m.uebrige))} />
+            <SubRow label="Mietausgaben" value={chf(Math.round(m.mietausgaben))} />
+            <SubRow label="Übrige Kosten" value={chf(Math.round(m.uebrige))} />
+            <CardFoot marge={m.marge} />
+          </div>
+        ))}
+      </div>
+      )}
+
+      <SubHead title="Jährlich · WGs und Airbnb" sub="Gesamtmarge pro Kalenderjahr. 2025 ab November." />
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(200px, 100%), 1fr))",gap:10}}>
+        {combinedYears.map(yr=>(
+          <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
+            <CardHead title={String(yr.y)} />
+            <GrpRow label="Umsatz" value={chf(Math.round(yr.umsatz))} />
+            <SubRow label="WG" value={chf(Math.round(yr.umsatzWg))} />
+            <SubRow label="Airbnb" value={chf(Math.round(yr.umsatzAb))} />
+            <GrpRow label="Kosten" value={chf(Math.round(yr.mietausgaben+yr.uebrige))} />
+            <SubRow label="Mietausgaben" value={chf(Math.round(yr.mietausgaben))} />
+            <SubRow label="Übrige Kosten" value={chf(Math.round(yr.uebrige))} />
+            <CardFoot marge={yr.marge} />
+          </div>
+        ))}
+      </div>
+
+      </div>
+      <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
@@ -10340,55 +10403,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         </>
       )}
 
-      <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-      <SectionHead title="Gesamt" sub="WGs und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
-      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+30,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
-        {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
-          const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
-          return (
-            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Gesamt ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} (WG ${chf(Math.round(m.wg))} · Airbnb ${chf(Math.round(m.ab))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
-              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
-              <div style={{width:"70%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#a9c088":"#4a6b2f"),borderRadius:"3px 3px 0 0"}}/>
-              <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
-            </div>
-          );
-        }); })()}
-      </div>
-      {tblBtn("ges","Monatsdetails Gesamt")}
-      {openTbl.ges && (
-      <div style={{display:"grid",gap:8,marginTop:10}}>
-        {combinedMonths.map((m,i)=>(
-          <div key={i} ref={m.current?(el=>{curMonthRef.current.ges=el;}):null} style={{border:m.current?"1px solid var(--line)":"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
-            <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} />
-            <GrpRow label="Umsatz" value={chf(Math.round(m.umsatz))} />
-            <SubRow label="WG" value={chf(Math.round(m.umsatzWg))} />
-            <SubRow label="Airbnb" value={chf(Math.round(m.umsatzAb))} />
-            <GrpRow label="Kosten" value={chf(Math.round(m.mietausgaben+m.uebrige))} />
-            <SubRow label="Mietausgaben" value={chf(Math.round(m.mietausgaben))} />
-            <SubRow label="Übrige Kosten" value={chf(Math.round(m.uebrige))} />
-            <CardFoot marge={m.marge} />
-          </div>
-        ))}
-      </div>
-      )}
-
-      <SubHead title="Jährlich · WGs und Airbnb" sub="Gesamtmarge pro Kalenderjahr. 2025 ab November." />
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(200px, 100%), 1fr))",gap:10}}>
-        {combinedYears.map(yr=>(
-          <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
-            <CardHead title={String(yr.y)} />
-            <GrpRow label="Umsatz" value={chf(Math.round(yr.umsatz))} />
-            <SubRow label="WG" value={chf(Math.round(yr.umsatzWg))} />
-            <SubRow label="Airbnb" value={chf(Math.round(yr.umsatzAb))} />
-            <GrpRow label="Kosten" value={chf(Math.round(yr.mietausgaben+yr.uebrige))} />
-            <SubRow label="Mietausgaben" value={chf(Math.round(yr.mietausgaben))} />
-            <SubRow label="Übrige Kosten" value={chf(Math.round(yr.uebrige))} />
-            <CardFoot marge={yr.marge} />
-          </div>
-        ))}
-      </div>
-
-      </div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="Bewohner" sub="Aktuelle Mieterinnen und Mieter der WGs." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:18}}>
