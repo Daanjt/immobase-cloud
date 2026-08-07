@@ -5855,6 +5855,20 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   async function confirmZuteilung(){
     if(!selZimmer||!b)return;
     const room=rooms.find(r=>r.id===selZimmer);
+    // Kautionsvariante und Aufschlag aus dem Bewerber ableiten (gleiche Logik wie im
+    // Vertrag), damit Mieter und Vertrag uebereinstimmen und nichts manuell nachgetragen
+    // werden muss.
+    let zutKautionMonate = 3, zutKautionAufschlag = 0;
+    if (b.kautionOpt === "0x" || b.kautionAufschlag === 150 || (b.kautionType||"").toLowerCase().includes("keine")) {
+      zutKautionMonate = 0; zutKautionAufschlag = 150;
+    } else if (b.kautionOpt === "1x" || b.kautionAufschlag === 100 || (b.kautionType||"").startsWith("1")) {
+      zutKautionMonate = 1; zutKautionAufschlag = 100;
+    } else if (b.kautionOpt === "2x" || b.kautionAufschlag === 50 || (b.kautionType||"").startsWith("2")) {
+      zutKautionMonate = 2; zutKautionAufschlag = 50;
+    } else {
+      zutKautionMonate = 3; zutKautionAufschlag = 0;
+    }
+    const zutKautionBetrag = (Number(room?.miete||0) + 25) * zutKautionMonate;
     // Sequenzielle ID: T01, T02, ... (nicht random!)
     // Finde höchste existierende T-Nummer und nehme +1 (auch wenn alte IDs gelöscht wurden)
     let n = 1;
@@ -5872,7 +5886,14 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       adresse:b.adresse||"",plz:b.plz||"",ort:b.ort||"",
       type:b.type==="AOZ / Sozialhilfe"?"AOZ":b.type||"",
       job:b.job||"",einkommen:b.einkommen||"",
-      kautionArt:b.kautionType||"",deposit:false,
+      kautionArt:b.kautionType||"",
+      kautionType:b.kautionType||"",
+      kautionOpt:`${zutKautionMonate}x`,
+      kautionMonate:zutKautionMonate,
+      kautionAufschlag:zutKautionAufschlag,
+      kautionBetrag:zutKautionBetrag,
+      moeblierungPauschale:(b.moeblierungPauschale===""||b.moeblierungPauschale==null)?null:b.moeblierungPauschale,
+      deposit:false,
       schluessel:false,furnished:b.moebliert==="ja",betreibung:false,
       einzug:einzugDate?new Date(einzugDate).toLocaleDateString("de-CH"):(b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):""),
       auszug:"",schluessel_nr:"",
