@@ -5208,11 +5208,22 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     const d = new Date(str); return isNaN(d.getTime())?null:d;
   }
   const beginn = parseD(v.einzug);
-  const mietende = parseD(v.mietende || v.apt?.mietende);
-  if (beginn && mietende) {
-    const months = (mietende - beginn) / (1000*60*60*24*30.44);
-    if (months > 0 && months < 12) {
-      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${fmtDate(v.mietende || v.apt.mietende)}</strong>. Die Befristung erfolgt aufgrund ${v.befristungsgrund || "eines geplanten Umbaus bzw. einer geplanten Sanierung der Liegenschaft"}. Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird. Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`;
+  const userEnde = v.mietende;
+  const aptEnde = v.apt?.mietende;
+  const endeDate = parseD(userEnde || aptEnde);
+  if (beginn && endeDate && endeDate > beginn) {
+    const months = (endeDate - beginn) / (1000*60*60*24*30.44);
+    const endeStr = fmtDate(userEnde || aptEnde);
+    const istManuell = !!userEnde;
+    // Manuell gesetztes Enddatum: immer befristet. Aus der Wohnung abgeleitet: nur wenn unter 12 Monaten.
+    if (istManuell || (months > 0 && months < 12)) {
+      let grundSatz = "";
+      if (v.befristungsgrund) grundSatz = ` Die Befristung erfolgt aufgrund ${v.befristungsgrund}.`;
+      else if (!istManuell) grundSatz = ` Die Befristung erfolgt aufgrund eines geplanten Umbaus bzw. einer geplanten Sanierung der Liegenschaft.`;
+      const kuendigungSatz = months < 12
+        ? ` Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`
+        : ` Eine ordentliche Kündigung durch den Untermieter richtet sich nach Ziffer 11.1; in den letzten sechs Monaten der Vertragslaufzeit ist eine Kündigung ausgeschlossen.`;
+      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${endeStr}</strong>.${grundSatz} Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.${kuendigungSatz}`;
     }
   }
   return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs",7:"sieben",8:"acht",9:"neun",10:"zehn",11:"elf",12:"zwölf"};return w[n]||String(n);})(v.minMietdauer||6)} Monate.`;
@@ -6170,6 +6181,7 @@ www.dthomes.ch`;
       moeblierungPauschale: +b.moeblierungPauschale || 990,
       einzug: b.einzug || "",
       auszug: b.auszug || "",
+      mietende: "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
       minMietdauer: 6,
@@ -6896,6 +6908,10 @@ www.dthomes.ch`;
               <label className="fl">Einzugsdatum</label>
               <input className="fi" type="date" value={vertragData.einzug?vertragData.einzug.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,einzug:e.target.value}))}/>
             </div>
+            <div className="fg" style={{marginBottom:8}}>
+              <label className="fl">Enddatum · optional, macht den Vertrag befristet</label>
+              <input className="fi" type="date" value={vertragData.mietende?vertragData.mietende.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,mietende:e.target.value}))}/>
+            </div>
             <div style={{marginBottom:18,padding:"10px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,fontSize:11.5,color:"#4a4439"}}>
               {(() => {
                 function parseD(s) {
@@ -6907,13 +6923,17 @@ www.dthomes.ch`;
                   if (m) { const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime())?null:d; }
                   const d = new Date(str); return isNaN(d.getTime())?null:d;
                 }
-                const mietende = parseD(vertragData.apt?.mietende);
                 const einzug = parseD(vertragData.einzug);
+                const userEnde = parseD(vertragData.mietende);
+                const aptEnde = parseD(vertragData.apt?.mietende);
+                const ende = userEnde || aptEnde;
                 if (!einzug) return "ℹ Bitte Einzugsdatum setzen";
-                if (!mietende) return "→ Vertrag ist UNBEFRISTET (Wohnung hat kein Mietende)";
-                const m = (mietende - einzug) / (1000*60*60*24*30.44);
-                if (m > 0 && m < 12) return `→ Vertrag ist BEFRISTET bis ${mietende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate)`;
-                return `→ Vertrag ist UNBEFRISTET (Restlaufzeit ${Math.round(m)} Monate ≥ 12)`;
+                if (!ende) return "→ Vertrag ist UNBEFRISTET (kein Enddatum gesetzt)";
+                const m = (ende - einzug) / (1000*60*60*24*30.44);
+                if (ende <= einzug) return "⚠ Enddatum liegt vor dem Einzug";
+                const istManuell = !!userEnde;
+                if (istManuell || (m > 0 && m < 12)) return `→ Vertrag ist BEFRISTET bis ${ende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate${istManuell?", manuell gesetzt":", aus Wohnung"})`;
+                return `→ Vertrag ist UNBEFRISTET (Wohnung endet in ${Math.round(m)} Monaten, mindestens 12)`;
               })()}
             </div>
 
