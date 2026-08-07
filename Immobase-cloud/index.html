@@ -2593,9 +2593,59 @@ function useSupabaseData() {
     return { migrated: (data || []).length, error: null };
   }
 
+  // Mieter zurueck in die Bewerber-Sektion verschieben. Reaktiviert einen noch
+  // vorhandenen Bewerber (Status Zugeteilt) oder legt aus den Mieterdaten einen
+  // neuen an, migriert Dokumente zurueck, gibt das Zimmer frei und entfernt den
+  // Mieter (deleteTenant loescht auch dessen Zahlungen und Uebergabeprotokolle).
+  async function convertTenantToBewerber(tenant) {
+    if (!tenant) return { ok: false };
+    const norm = (s) => (s || "").trim().toLowerCase();
+    const room = rooms.find(r => r.tenantId === tenant.id) || null;
+    let applicant = null;
+    if (tenant.email) applicant = bewerber.find(b => b.email && norm(b.email) === norm(tenant.email));
+    if (!applicant && room) applicant = bewerber.find(b => b.zugeteiltes_zimmer === room.id && b.status === "Zugeteilt");
+    let applicantId;
+    if (applicant) {
+      await updateBewerber(applicant.id, { status: "Neu", zugeteiltes_zimmer: null });
+      applicantId = applicant.id;
+    } else {
+      applicantId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `B${Date.now()}`;
+      const einkNum = (tenant.einkommen === "" || tenant.einkommen === null || tenant.einkommen === undefined) ? null : Number(tenant.einkommen);
+      const dbApplicant = {
+        id: applicantId,
+        vorname: tenant.vorname || "", nachname: tenant.nachname || "",
+        email: tenant.email || "", phone: tenant.phone || "",
+        geburt: tenant.geburt || "", gender: tenant.gender || "", nat: tenant.nat || "",
+        adresse: tenant.adresse || "", plz: tenant.plz || "", ort: tenant.ort || "",
+        type: tenant.type === "AOZ" ? "AOZ / Sozialhilfe" : (tenant.type || ""),
+        job: tenant.job || "",
+        einkommen: (einkNum !== null && !isNaN(einkNum)) ? einkNum : null,
+        kaution_type: tenant.kautionArt || "",
+        moebliert: tenant.furnished ? "ja" : "nein",
+        einzug: tenant.einzug || "",
+        owner: tenant.owner || "",
+        status: "Neu",
+      };
+      const { error } = await supabase.from("applicants").insert([dbApplicant]);
+      if (error) { console.error("convertTenantToBewerber insert error:", error); alert("Anlegen des Bewerbers fehlgeschlagen: " + error.message); return { ok: false, error }; }
+    }
+    // Dokumente zurueck migrieren: tenant -> applicant (bleiben so erhalten)
+    try {
+      await supabase.from("documents").update({ entity_type: "applicant", entity_id: String(applicantId) })
+        .eq("entity_type", "tenant").eq("entity_id", tenant.id);
+      setDocuments(prev => prev.map(d => (d.entity_type === "tenant" && d.entity_id === tenant.id) ? { ...d, entity_type: "applicant", entity_id: String(applicantId) } : d));
+    } catch (e) { console.error("Dokument-Ruecklauf fehlgeschlagen:", e); }
+    // Zimmer freigeben
+    if (room) await updateRoom(room.id, { occupied: false, tenantId: null });
+    // Mieter entfernen
+    await deleteTenant(tenant.id);
+    await loadAll();
+    return { ok: true, applicantId };
+  }
+
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -7862,7 +7912,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenant,insertTenant,renameTenantId,deleteTenant,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
+function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenant,insertTenant,renameTenantId,deleteTenant,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -8431,6 +8481,23 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 {istAdmin && <button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>}
                 {tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
+                )}
+                {convertTenantToBewerber && (
+                  <button className="btn btn-g btn-sm" title="Diesen Mieter zurueck in die Bewerber-Sektion verschieben" onClick={async()=>{
+                    const name = `${tenant.vorname} ${tenant.nachname}`;
+                    const myContracts = (contracts||[]).filter(c=>c.tenantId===tenant.id);
+                    let msg = `${name} zurück in die Bewerber-Sektion verschieben?\n\nDer Bewerber erscheint wieder unter "Neu", das zugeteilte Zimmer wird freigegeben, und die Dokumente werden zurück zum Bewerber verschoben.\n\nAchtung: der Mieter-Eintrag inklusive erfasster Zahlungen und Übergabeprotokolle wird dabei entfernt. Dokumente bleiben erhalten.`;
+                    if (myContracts.length>0) msg += `\n\nHinweis: für diesen Mieter existieren ${myContracts.length} Vertrag/Verträge. Diese bleiben bestehen, verweisen danach aber auf einen entfernten Mieter.`;
+                    if (!confirm(msg)) return;
+                    try {
+                      const res = await convertTenantToBewerber(tenant);
+                      if (res && res.ok) {
+                        setSel(null);
+                        alert(`✓ ${name} wurde zurück in die Bewerber-Sektion verschoben.`);
+                        navigateTo && navigateTo("bewerber", res.applicantId || null);
+                      }
+                    } catch(e) { alert("Fehler: " + (e.message||e)); }
+                  }} style={{color:"#3a4d66",borderColor:"#c0cdde"}}>↩ Zu Bewerber</button>
                 )}
                 {tenant.status==="archiviert" ? (
                   <>
