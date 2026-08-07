@@ -6194,6 +6194,10 @@ www.dthomes.ch`;
   async function generateContract(){
     if (!vertragData || !b) return;
     const v = vertragData;
+    if (v.mietende && v.apt?.mietende) {
+      const es = toDateInputValue(v.mietende), as = toDateInputValue(v.apt.mietende);
+      if (es && as && es > as) { alert(`Das Enddatum (${v.mietende}) darf nicht nach dem Mietende der Wohnung (${v.apt.mietende}) liegen.`); return; }
+    }
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     setDlBusy("umv");
     try {
@@ -6318,6 +6322,10 @@ www.dthomes.ch`;
     if (!wantUmv && !wantAmz) throw new Error("Keine Vertragsart ausgewählt");
     if (!b || !vertragData) throw new Error("Bewerber oder Vertragsdaten fehlen");
     if (!b.email) throw new Error("Bewerber hat keine Email-Adresse");
+    if (vertragData.mietende && vertragData.apt?.mietende) {
+      const es = toDateInputValue(vertragData.mietende), as = toDateInputValue(vertragData.apt.mietende);
+      if (es && as && es > as) throw new Error(`Das Enddatum (${vertragData.mietende}) darf nicht nach dem Mietende der Wohnung (${vertragData.apt.mietende}) liegen.`);
+    }
 
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     if (!fullName) throw new Error("Bewerber hat keinen Namen");
@@ -6910,7 +6918,8 @@ www.dthomes.ch`;
             </div>
             <div className="fg" style={{marginBottom:8}}>
               <label className="fl">Enddatum · optional, macht den Vertrag befristet</label>
-              <input className="fi" type="date" value={vertragData.mietende?vertragData.mietende.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,mietende:e.target.value}))}/>
+              <input className="fi" type="date" max={vertragData.apt?.mietende?toDateInputValue(vertragData.apt.mietende):undefined} value={vertragData.mietende?vertragData.mietende.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,mietende:e.target.value}))}/>
+              {vertragData.apt?.mietende && <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Die Wohnung endet am {vertragData.apt.mietende}. Ein späteres Enddatum ist nicht möglich.</div>}
             </div>
             <div style={{marginBottom:18,padding:"10px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,fontSize:11.5,color:"#4a4439"}}>
               {(() => {
@@ -6929,6 +6938,7 @@ www.dthomes.ch`;
                 const ende = userEnde || aptEnde;
                 if (!einzug) return "ℹ Bitte Einzugsdatum setzen";
                 if (!ende) return "→ Vertrag ist UNBEFRISTET (kein Enddatum gesetzt)";
+                if (userEnde && aptEnde && userEnde > aptEnde) return `⚠ Enddatum darf nicht nach dem Mietende der Wohnung (${aptEnde.toLocaleDateString("de-CH")}) liegen`;
                 const m = (ende - einzug) / (1000*60*60*24*30.44);
                 if (ende <= einzug) return "⚠ Enddatum liegt vor dem Einzug";
                 const istManuell = !!userEnde;
