@@ -2657,7 +2657,7 @@ const APT_CATEGORIES = ["Hauptmietvertrag","Anfangsmietzinsformular","Einzahlung
 const TENANT_CATEGORIES = ["Untermietvertrag (unterzeichnet)","Verlängerung (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Einzahlungsschein","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug","Übergabeprotokoll","Drittmeldebestätigung (Einzug)","Drittmeldebestätigung (Auszug)","Sonstige"];
 
 // Required categories that should be tracked in the checklist (excluding "Sonstige")
-const APT_REQUIRED = ["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"];
+const APT_REQUIRED = ["Hauptmietvertrag","Anfangsmietzinsformular","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"];
 const TENANT_REQUIRED = ["Untermietvertrag (unterzeichnet)","Anfangsmietzinsformular (unterzeichnet)","Kautionsbestätigung","Pass / Ausweis","Betreibungsregister-Auszug"];
 const APPLICANT_REQUIRED = ["Pass / Ausweis","Betreibungsregister-Auszug"];
 
@@ -10481,7 +10481,7 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
     if(!(a.refnr||"").toString().trim()) auto.push({id:"ref-"+a.id,icon:"🏠",label:"Referenznummer fehlt",sub:an,page:"wohnungen",target:a.id});
     if(!(a.eigentuemer||"").trim()) auto.push({id:"own-"+a.id,icon:"🏢",label:"Eigentümer fehlt",sub:an,page:"wohnungen",target:a.id});
     if(!(a.verwaltung||"").trim()) auto.push({id:"verw-"+a.id,icon:"🏢",label:"Verwaltung fehlt",sub:an,page:"wohnungen",target:a.id});
-    (typeof APT_REQUIRED!=="undefined"?APT_REQUIRED:["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"]).forEach(cat=>{
+    (typeof APT_REQUIRED!=="undefined"?APT_REQUIRED:["Hauptmietvertrag","Einzahlungsschein","Kautionsversicherung","Übergabeprotokoll"]).filter(cat=>cat!=="Anfangsmietzinsformular").forEach(cat=>{
       if(!aptHasDoc(a,cat)) auto.push({id:"apt-"+a.id+"-"+cat,icon:"📄",label:cat+" fehlt",sub:an,page:"wohnungen",target:a.id});
     });
   });
