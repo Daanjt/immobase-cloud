@@ -1584,6 +1584,8 @@ function useSupabaseData() {
   const [tenants, setTenants] = useState([]);
   const [bewerber, setBewerber] = useState([]);
   const [smoobuBookings, setSmoobuBookings] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [timeEntries, setTimeEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
   async function loadAll() {
@@ -1601,6 +1603,12 @@ function useSupabaseData() {
         adults:+x.adults||0, children:+x.children||0,
         isBlocked:!!x.is_blocked, cancelled:!!x.cancelled
       })));
+    });
+    supabase.from("employees").select("*").order("nachname").then(({data})=>{
+      setEmployees((data||[]).map(x=>({...x})));
+    });
+    supabase.from("time_entries").select("*").order("datum",{ascending:false}).then(({data})=>{
+      setTimeEntries((data||[]).map(x=>({...x, employeeId:x.employee_id, startZeit:x.start_zeit, endZeit:x.end_zeit, pauseMin:x.pause_min, dauerMin:x.dauer_min, aptId:x.apt_id, roomId:x.room_id})));
     });
     setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline, ausschreiben:!!x.ausschreiben})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
@@ -2647,7 +2655,64 @@ function useSupabaseData() {
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol};
+  async function insertEmployee(e) {
+    const row = {vorname:e.vorname||"", nachname:e.nachname||"", email:e.email||null, phone:e.phone||null, funktion:e.funktion||null, stundenlohn:(e.stundenlohn===""||e.stundenlohn==null)?null:+e.stundenlohn, pensum:(e.pensum===""||e.pensum==null)?null:+e.pensum, aktiv:e.aktiv!==false, notiz:e.notiz||null};
+    const {data, error} = await supabase.from("employees").insert([row]).select();
+    if (error) { console.error("insertEmployee", error); alert("Mitarbeiter konnte nicht angelegt werden: "+error.message); throw error; }
+    const rec = (data&&data[0])||row;
+    setEmployees(p => [...p, {...rec}]);
+    return rec;
+  }
+  async function updateEmployee(id, fields) {
+    const db = {};
+    ["vorname","nachname","email","phone","funktion","aktiv","notiz"].forEach(k=>{ if(k in fields) db[k]=fields[k]; });
+    if ("stundenlohn" in fields) db.stundenlohn = (fields.stundenlohn===""||fields.stundenlohn==null)?null:+fields.stundenlohn;
+    if ("pensum" in fields) db.pensum = (fields.pensum===""||fields.pensum==null)?null:+fields.pensum;
+    db.updated_at = new Date().toISOString();
+    const {error} = await supabase.from("employees").update(db).eq("id", id);
+    if (error) { console.error("updateEmployee", error); alert("Speichern fehlgeschlagen: "+error.message); return; }
+    setEmployees(p => p.map(x => x.id===id ? {...x, ...fields} : x));
+  }
+  async function deleteEmployee(id) {
+    const {error} = await supabase.from("employees").delete().eq("id", id);
+    if (error) { console.error("deleteEmployee", error); alert("Löschen fehlgeschlagen: "+error.message); return; }
+    setEmployees(p => p.filter(x => x.id!==id));
+    setTimeEntries(p => p.filter(t => t.employeeId!==id));
+  }
+  const TE_MAP = {employeeId:"employee_id", datum:"datum", startZeit:"start_zeit", endZeit:"end_zeit", pauseMin:"pause_min", dauerMin:"dauer_min", aptId:"apt_id", roomId:"room_id", kategorie:"kategorie", notiz:"notiz", createdBy:"created_by"};
+  function toDbTimeEntry(t, onlyPresent) {
+    const db = {};
+    for (const k in TE_MAP) {
+      if (onlyPresent && !(k in t)) continue;
+      let v = t[k];
+      if (k==="pauseMin") v = (v===""||v==null)?0:+v;
+      else if (k==="dauerMin") v = (v===""||v==null)?null:+v;
+      else if (["startZeit","endZeit","aptId","roomId","kategorie","notiz","createdBy"].includes(k)) v = v||null;
+      db[TE_MAP[k]] = v;
+    }
+    return db;
+  }
+  async function insertTimeEntry(t) {
+    const {data, error} = await supabase.from("time_entries").insert([toDbTimeEntry(t, false)]).select();
+    if (error) { console.error("insertTimeEntry", error); alert("Zeiteintrag konnte nicht gespeichert werden: "+error.message); throw error; }
+    const rec = (data&&data[0])||{};
+    setTimeEntries(p => [{...rec, employeeId:rec.employee_id, startZeit:rec.start_zeit, endZeit:rec.end_zeit, pauseMin:rec.pause_min, dauerMin:rec.dauer_min, aptId:rec.apt_id, roomId:rec.room_id}, ...p]);
+    return rec;
+  }
+  async function updateTimeEntry(id, fields) {
+    const db = toDbTimeEntry(fields, true);
+    db.updated_at = new Date().toISOString();
+    const {error} = await supabase.from("time_entries").update(db).eq("id", id);
+    if (error) { console.error("updateTimeEntry", error); alert("Speichern fehlgeschlagen: "+error.message); return; }
+    setTimeEntries(p => p.map(x => x.id===id ? {...x, ...fields} : x));
+  }
+  async function deleteTimeEntry(id) {
+    const {error} = await supabase.from("time_entries").delete().eq("id", id);
+    if (error) { console.error("deleteTimeEntry", error); alert("Löschen fehlgeschlagen: "+error.message); return; }
+    setTimeEntries(p => p.filter(x => x.id!==id));
+  }
+
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -10613,6 +10678,187 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
   );
 }
 
+function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry}) {
+  const [monat, setMonat] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [empModal, setEmpModal] = useState(null);
+  const [entryModal, setEntryModal] = useState(null);
+  const [offen, setOffen] = useState(null);
+  const KATEGORIEN = ["Reinigung","Handwerk / Reparatur","Wohnungsübergabe","Administration","Besichtigung","Sonstiges"];
+  const parseHM = (s) => { if(!s) return null; const m=String(s).match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; return (+m[1])*60+(+m[2]); };
+  const berechneDauer = (start,ende,pause) => { const a=parseHM(start),b=parseHM(ende); if(a==null||b==null) return null; let d=b-a; if(d<0) d+=1440; d-=(+pause||0); return d>0?d:0; };
+  const fmtDauer = (min) => { if(min==null) return "-"; const h=Math.floor(min/60),m=min%60; return m?`${h}h ${m}min`:`${h}h`; };
+  const fmtStd = (min) => (min/60).toFixed(2).replace(".",",")+" h";
+  const imMonat = (d) => { const dt=new Date(d); return dt.getFullYear()===monat.getFullYear() && dt.getMonth()===monat.getMonth(); };
+  const monatLabel = monat.toLocaleDateString("de-CH",{month:"long",year:"numeric"});
+  const eintraege = (timeEntries||[]).filter(t=>t.datum&&imMonat(t.datum)).sort((a,b)=>(a.datum<b.datum?1:a.datum>b.datum?-1:0));
+  const dauerOf = (t) => t.dauerMin!=null?t.dauerMin:berechneDauer(t.startZeit,t.endZeit,t.pauseMin);
+  const totalEmp = (id) => eintraege.filter(t=>t.employeeId===id).reduce((s,t)=>s+(dauerOf(t)||0),0);
+  const aptLabel = (id) => { const a=(apts||[]).find(x=>x.id===id); return a?(a.adresse||a.id):id; };
+  const proObjekt = {}; eintraege.forEach(t=>{ if(t.aptId) proObjekt[t.aptId]=(proObjekt[t.aptId]||0)+(dauerOf(t)||0); });
+  const monatTotal = eintraege.reduce((s,t)=>s+(dauerOf(t)||0),0);
+  const aktive = (employees||[]).filter(e=>e.aktiv!==false);
+  const inaktive = (employees||[]).filter(e=>e.aktiv===false);
+  const card = {border:"1px solid var(--line)",borderRadius:12,padding:"18px 18px",marginBottom:18,background:"var(--surface)"};
+  const eyebrow = {fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500};
+
+  async function speichereEmp(){ const f=empModal; if(!(f.vorname||f.nachname)){alert("Bitte einen Namen angeben.");return;} if(f.id) await updateEmployee(f.id,f); else await insertEmployee(f); setEmpModal(null); }
+  async function speichereEntry(){ const f=entryModal; if(!f.employeeId){alert("Bitte Mitarbeiter wählen.");return;} if(!f.datum){alert("Bitte Datum angeben.");return;} const payload={...f,dauerMin:berechneDauer(f.startZeit,f.endZeit,f.pauseMin)}; if(f.id) await updateTimeEntry(f.id,payload); else await insertTimeEntry(payload); setEntryModal(null); }
+  function neuerEintrag(empId){ const t=new Date(); const iso=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; setEntryModal({employeeId:empId||"",datum:iso,startZeit:"",endZeit:"",pauseMin:"",aptId:"",kategorie:"",notiz:""}); }
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:18}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:26,color:"var(--ink)"}}>Zeiterfassung</div>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn btn-sm" onClick={()=>setEmpModal({vorname:"",nachname:"",funktion:"",stundenlohn:"",email:"",phone:"",aktiv:true})}>+ Mitarbeiter</button>
+          <button className="btn btn-p btn-sm" onClick={()=>neuerEintrag("")} disabled={aktive.length===0}>+ Zeit erfassen</button>
+        </div>
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
+        <button className="btn btn-sm" onClick={()=>setMonat(new Date(monat.getFullYear(),monat.getMonth()-1,1))}>‹</button>
+        <div style={{minWidth:150,textAlign:"center",fontWeight:600,color:"var(--ink)",textTransform:"capitalize"}}>{monatLabel}</div>
+        <button className="btn btn-sm" onClick={()=>setMonat(new Date(monat.getFullYear(),monat.getMonth()+1,1))}>›</button>
+        <div style={{marginLeft:"auto",fontSize:12,color:"var(--muted)"}}>Total Monat: <strong style={{color:"var(--ink)"}}>{fmtStd(monatTotal)}</strong></div>
+      </div>
+
+      {employees.length===0 && <div style={{...card,color:"var(--muted)",fontSize:13}}>Noch keine Mitarbeiter. Lege oben rechts einen an, dann kannst du Zeit erfassen.</div>}
+
+      {aktive.map(e=>{
+        const empEintraege = eintraege.filter(t=>t.employeeId===e.id);
+        const total = totalEmp(e.id);
+        const auf = offen===e.id;
+        return (
+          <div key={e.id} style={card}>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:180,cursor:"pointer"}} onClick={()=>setOffen(auf?null:e.id)}>
+                <div style={{fontSize:15,color:"var(--ink)",fontWeight:500}}>{`${e.vorname||""} ${e.nachname||""}`.trim()||"Ohne Name"}</div>
+                <div style={{fontSize:11.5,color:"var(--muted)"}}>{e.funktion||"—"}{e.stundenlohn?` · ${e.stundenlohn} CHF/h`:""}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:16,color:"var(--ink)",fontWeight:600}}>{fmtStd(total)}</div>
+                <div style={{fontSize:10.5,color:"var(--muted)"}}>{empEintraege.length} Einträge</div>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-sm" onClick={()=>neuerEintrag(e.id)}>+ Zeit</button>
+                <button className="btn btn-sm" onClick={()=>setEmpModal({...e})}>Bearbeiten</button>
+                <button className="btn btn-sm" onClick={()=>setOffen(auf?null:e.id)}>{auf?"▲":"▼"}</button>
+              </div>
+            </div>
+            {auf && (
+              <div style={{marginTop:14,borderTop:"1px solid var(--line)",paddingTop:12}}>
+                {empEintraege.length===0 && <div style={{fontSize:12,color:"var(--muted)"}}>Keine Einträge in diesem Monat.</div>}
+                {empEintraege.map(t=>(
+                  <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line, #f0ece3)",fontSize:12.5}}>
+                    <div style={{width:70,color:"var(--ink)"}}>{new Date(t.datum).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"2-digit"})}</div>
+                    <div style={{width:120,color:"var(--muted)"}}>{t.startZeit&&t.endZeit?`${t.startZeit}–${t.endZeit}`:"—"}{t.pauseMin?` (${t.pauseMin}′)`:""}</div>
+                    <div style={{width:78,fontWeight:600,color:"var(--ink)"}}>{fmtDauer(dauerOf(t))}</div>
+                    <div style={{flex:1,color:"var(--muted)",minWidth:110}}>{[t.kategorie, t.aptId?aptLabel(t.aptId):null].filter(Boolean).join(" · ")||"—"}{t.notiz?` — ${t.notiz}`:""}</div>
+                    <button className="btn btn-sm" onClick={()=>setEntryModal({...t})}>✎</button>
+                    <button className="btn btn-sm" onClick={()=>{ if(confirm("Eintrag löschen?")) deleteTimeEntry(t.id); }}>🗑</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {Object.keys(proObjekt).length>0 && (
+        <div style={card}>
+          <div style={eyebrow}>Stunden pro Objekt · <span style={{textTransform:"capitalize"}}>{monatLabel}</span></div>
+          {Object.entries(proObjekt).sort((a,b)=>b[1]-a[1]).map(([id,min])=>(
+            <div key={id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--line)",fontSize:13}}>
+              <span style={{color:"var(--ink)"}}>{aptLabel(id)}</span>
+              <span style={{fontWeight:600,color:"var(--ink)"}}>{fmtStd(min)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {inaktive.length>0 && (
+        <div style={{...card,opacity:.7}}>
+          <div style={eyebrow}>Inaktive Mitarbeiter</div>
+          {inaktive.map(e=>(
+            <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",fontSize:13}}>
+              <span>{`${e.vorname||""} ${e.nachname||""}`.trim()}</span>
+              <button className="btn btn-sm" onClick={()=>setEmpModal({...e})}>Bearbeiten</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {empModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setEmpModal(null)}>
+          <div style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontFamily:"Georgia,serif",fontSize:19,color:"var(--ink)",marginBottom:16}}>{empModal.id?"Mitarbeiter bearbeiten":"Neuer Mitarbeiter"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label className="fl">Vorname</label><input className="fi" value={empModal.vorname||""} onChange={e=>setEmpModal(p=>({...p,vorname:e.target.value}))}/></div>
+              <div><label className="fl">Nachname</label><input className="fi" value={empModal.nachname||""} onChange={e=>setEmpModal(p=>({...p,nachname:e.target.value}))}/></div>
+              <div><label className="fl">Funktion</label><input className="fi" value={empModal.funktion||""} onChange={e=>setEmpModal(p=>({...p,funktion:e.target.value}))} placeholder="z.B. Reinigung"/></div>
+              <div><label className="fl">Stundenlohn (CHF)</label><input className="fi" type="number" value={empModal.stundenlohn??""} onChange={e=>setEmpModal(p=>({...p,stundenlohn:e.target.value}))}/></div>
+              <div><label className="fl">E-Mail</label><input className="fi" value={empModal.email||""} onChange={e=>setEmpModal(p=>({...p,email:e.target.value}))}/></div>
+              <div><label className="fl">Telefon</label><input className="fi" value={empModal.phone||""} onChange={e=>setEmpModal(p=>({...p,phone:e.target.value}))}/></div>
+            </div>
+            <label style={{display:"flex",alignItems:"center",gap:8,marginTop:12,fontSize:13,color:"var(--ink)"}}><input type="checkbox" checked={empModal.aktiv!==false} onChange={e=>setEmpModal(p=>({...p,aktiv:e.target.checked}))}/> Aktiv</label>
+            <div style={{display:"flex",gap:8,marginTop:18,justifyContent:"space-between"}}>
+              <div>{empModal.id && <button className="btn btn-sm" style={{color:"var(--error)"}} onClick={()=>{ if(confirm("Mitarbeiter und alle Zeiteinträge löschen?")){ deleteEmployee(empModal.id); setEmpModal(null); } }}>Löschen</button>}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-sm" onClick={()=>setEmpModal(null)}>Abbrechen</button>
+                <button className="btn btn-p btn-sm" onClick={speichereEmp}>Speichern</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {entryModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setEntryModal(null)}>
+          <div style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontFamily:"Georgia,serif",fontSize:19,color:"var(--ink)",marginBottom:16}}>{entryModal.id?"Zeiteintrag bearbeiten":"Zeit erfassen"}</div>
+            <label className="fl">Mitarbeiter</label>
+            <select className="fi" style={{width:"100%",marginBottom:10}} value={entryModal.employeeId||""} onChange={e=>setEntryModal(p=>({...p,employeeId:e.target.value}))}>
+              <option value="">Wählen…</option>
+              {aktive.map(e=><option key={e.id} value={e.id}>{`${e.vorname||""} ${e.nachname||""}`.trim()}</option>)}
+            </select>
+            <label className="fl">Datum</label>
+            <input className="fi" type="date" style={{width:"100%",marginBottom:10}} value={entryModal.datum||""} onChange={e=>setEntryModal(p=>({...p,datum:e.target.value}))}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              <div><label className="fl">Start</label><input className="fi" type="time" value={entryModal.startZeit||""} onChange={e=>setEntryModal(p=>({...p,startZeit:e.target.value}))}/></div>
+              <div><label className="fl">Ende</label><input className="fi" type="time" value={entryModal.endZeit||""} onChange={e=>setEntryModal(p=>({...p,endZeit:e.target.value}))}/></div>
+              <div><label className="fl">Pause (min)</label><input className="fi" type="number" value={entryModal.pauseMin??""} onChange={e=>setEntryModal(p=>({...p,pauseMin:e.target.value}))}/></div>
+            </div>
+            <div style={{fontSize:12,color:"var(--muted)",margin:"8px 0 12px"}}>Dauer: <strong style={{color:"var(--ink)"}}>{fmtDauer(berechneDauer(entryModal.startZeit,entryModal.endZeit,entryModal.pauseMin))}</strong></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label className="fl">Aufgabe</label>
+                <select className="fi" value={entryModal.kategorie||""} onChange={e=>setEntryModal(p=>({...p,kategorie:e.target.value}))}>
+                  <option value="">—</option>
+                  {KATEGORIEN.map(k=><option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div><label className="fl">Wohnung (optional)</label>
+                <select className="fi" value={entryModal.aptId||""} onChange={e=>setEntryModal(p=>({...p,aptId:e.target.value}))}>
+                  <option value="">—</option>
+                  {(apts||[]).map(a=><option key={a.id} value={a.id}>{a.adresse||a.id}</option>)}
+                </select>
+              </div>
+            </div>
+            <label className="fl" style={{marginTop:10,display:"block"}}>Notiz</label>
+            <textarea className="fi" rows={2} style={{width:"100%",fontFamily:"inherit"}} value={entryModal.notiz||""} onChange={e=>setEntryModal(p=>({...p,notiz:e.target.value}))}/>
+            <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"space-between"}}>
+              <div>{entryModal.id && <button className="btn btn-sm" style={{color:"var(--error)"}} onClick={()=>{ if(confirm("Eintrag löschen?")){ deleteTimeEntry(entryModal.id); setEntryModal(null); } }}>Löschen</button>}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-sm" onClick={()=>setEntryModal(null)}>Abbrechen</button>
+                <button className="btn btn-p btn-sm" onClick={speichereEntry}>Speichern</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -10624,6 +10870,7 @@ const PAGES=[
   {id:"partner",icon:"🏢",label:"Partner"},
   {id:"todos",icon:"✅",label:"To-dos"},
   {id:"finanzen",icon:"📊",label:"Finanzen"},
+  {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
 ];
 
 // Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
@@ -10691,7 +10938,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:Zeiterfassung}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
