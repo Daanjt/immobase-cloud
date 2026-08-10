@@ -10889,16 +10889,16 @@ function KommunikationTab({empfaenger, zielgruppe}) {
       </div>
 
       <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Vorlage</div>
-      <select className="fi" value={selId} onChange={e=>waehle(e.target.value)} style={{width:"100%",marginBottom:14,fontSize:13}}>
+      <select className="fi" value={selId} onChange={e=>waehle(e.target.value)} style={{width:"100%",marginBottom:14,fontSize:11.5}}>
         <option value="">Vorlage wählen oder frei schreiben…</option>
         {(templates||[]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
       </select>
 
       <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Betreff (nur E-Mail)</div>
-      <input className="fi" value={betreff} onChange={e=>setBetreff(e.target.value)} placeholder="Betreff" style={{width:"100%",marginBottom:14,fontSize:13}}/>
+      <input className="fi" value={betreff} onChange={e=>setBetreff(e.target.value)} placeholder="Betreff" style={{width:"100%",marginBottom:14,fontSize:11.5}}/>
 
       <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Nachricht</div>
-      <textarea className="fi" value={text} onChange={e=>setText(e.target.value)} rows={11} placeholder="Text der Nachricht…" style={{width:"100%",marginBottom:16,fontSize:13,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
+      <textarea className="fi" value={text} onChange={e=>setText(e.target.value)} rows={11} placeholder="Text der Nachricht…" style={{width:"100%",marginBottom:16,fontSize:11.5,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <button className="btn btn-p" onClick={sendeEmail} disabled={sending||!empfaenger.email} style={{flex:1,minWidth:150,justifyContent:"center"}}>
