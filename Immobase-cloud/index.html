@@ -10693,6 +10693,61 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
   );
 }
 
+function ZeitTimeline({entries, onEdit, locked}) {
+  const parseHM=(s)=>{ if(!s) return null; const m=String(s).match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; return (+m[1])*60+(+m[2]); };
+  const fmtDur=(min)=>{ if(min==null) return "-"; const h=Math.floor(min/60),m=min%60; return m?`${h}h ${m}min`:`${h}h`; };
+  const dauerOf=(t)=>{ if(t.dauerMin!=null) return t.dauerMin; const a=parseHM(t.startZeit),b=parseHM(t.endZeit); if(a==null||b==null) return null; let d=b-a; if(d<0)d+=1440; d-=(+t.pauseMin||0); return d>0?d:0; };
+  if(!entries||entries.length===0) return <div style={{fontSize:12.5,color:"var(--muted)",padding:"4px 0"}}>Keine Einträge in diesem Monat.</div>;
+  let minM=7*60, maxM=19*60;
+  entries.forEach(t=>{ const a=parseHM(t.startZeit), b=parseHM(t.endZeit); if(a!=null) minM=Math.min(minM,a); if(b!=null) maxM=Math.max(maxM,b); });
+  minM=Math.max(0,Math.floor(minM/60)*60); maxM=Math.min(1440,Math.ceil(maxM/60)*60); if(maxM-minM<120) maxM=Math.min(1440,minM+120);
+  const span=(maxM-minM)||1;
+  const pos=(m)=>Math.max(0,Math.min(100,(m-minM)/span*100));
+  const ticks=[]; for(let h=Math.ceil(minM/60); h*60<=maxM; h++){ if(h%2===0) ticks.push(h); }
+  const byDay={}; entries.forEach(t=>{ (byDay[t.datum]=byDay[t.datum]||[]).push(t); });
+  const tage=Object.keys(byDay).sort().reverse();
+  const WD=["So","Mo","Di","Mi","Do","Fr","Sa"];
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"flex-end",marginBottom:3}}>
+        <div style={{width:96,flexShrink:0}}/>
+        <div style={{position:"relative",flex:1,height:12}}>
+          {ticks.map(h=>(<div key={h} style={{position:"absolute",left:pos(h*60)+"%",fontSize:9,color:"var(--muted)",transform:"translateX(-50%)"}}>{h}</div>))}
+        </div>
+      </div>
+      {tage.map(d=>{
+        const dayEntries=byDay[d].slice().sort((a,b)=>(parseHM(a.startZeit)||0)-(parseHM(b.startZeit)||0));
+        const dayTotal=dayEntries.reduce((s,t)=>s+(t.endZeit?(dauerOf(t)||0):0),0);
+        const dt=new Date(d);
+        return (
+          <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--line)"}}>
+            <div style={{width:88,flexShrink:0}}>
+              <div style={{fontSize:11.5,fontWeight:500,color:"var(--ink)"}}>{WD[dt.getDay()]} {dt.toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}</div>
+              <div style={{fontSize:10,color:"var(--muted)"}}>{fmtDur(dayTotal)}</div>
+            </div>
+            <div style={{position:"relative",flex:1,height:26,background:"var(--line-soft, #f3efe6)",borderRadius:5}}>
+              {ticks.map(h=>(<div key={h} style={{position:"absolute",left:pos(h*60)+"%",top:0,bottom:0,width:1,background:"rgba(0,0,0,.05)"}}/>))}
+              {dayEntries.map(t=>{
+                const a=parseHM(t.startZeit); let b=parseHM(t.endZeit);
+                if(a==null) return null;
+                const laufend=b==null;
+                if(b==null) b=a+(dauerOf(t)||30);
+                const left=pos(a), width=Math.max(1.5,pos(b)-pos(a));
+                const title=`${t.startZeit||""}${t.endZeit?"–"+t.endZeit:" (läuft)"} · ${fmtDur(dauerOf(t))}${t.kategorie?" · "+t.kategorie:""}${t.notiz?" · "+t.notiz:""}`;
+                return (
+                  <div key={t.id} title={title} onClick={()=>{ if(!locked && onEdit) onEdit(t); }} style={{position:"absolute",left:left+"%",width:width+"%",top:3,bottom:3,background:laufend?"repeating-linear-gradient(45deg,#8a6d4a,#8a6d4a 6px,#a2855f 6px,#a2855f 12px)":"#8a6d4a",borderRadius:4,cursor:locked?"default":"pointer",display:"flex",alignItems:"center",overflow:"hidden"}}>
+                    <span style={{fontSize:9,color:"#fff",whiteSpace:"nowrap",padding:"0 4px",textOverflow:"ellipsis",overflow:"hidden"}}>{t.kategorie? t.kategorie.split(" ")[0] : (t.startZeit||"")}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth, benutzerMail}) {
   const [monat, setMonat] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [empModal, setEmpModal] = useState(null);
@@ -10769,17 +10824,7 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
             </div>
             {auf && (
               <div style={{marginTop:14,borderTop:"1px solid var(--line)",paddingTop:12}}>
-                {empEintraege.length===0 && <div style={{fontSize:12,color:"var(--muted)"}}>Keine Einträge in diesem Monat.</div>}
-                {empEintraege.map(t=>(
-                  <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line, #f0ece3)",fontSize:12.5}}>
-                    <div style={{width:70,color:"var(--ink)"}}>{new Date(t.datum).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"2-digit"})}</div>
-                    <div style={{width:120,color:"var(--muted)"}}>{t.startZeit&&t.endZeit?`${t.startZeit}–${t.endZeit}`:"—"}{t.pauseMin?` (${t.pauseMin}′)`:""}</div>
-                    <div style={{width:78,fontWeight:600,color:"var(--ink)"}}>{fmtDauer(dauerOf(t))}</div>
-                    <div style={{flex:1,color:"var(--muted)",minWidth:110}}>{[t.kategorie, t.aptId?aptLabel(t.aptId):null].filter(Boolean).join(" · ")||"—"}{t.notiz?` — ${t.notiz}`:""}</div>
-                    <button className="btn btn-sm" onClick={()=>setEntryModal({...t})}>✎</button>
-                    <button className="btn btn-sm" onClick={()=>{ if(confirm("Eintrag löschen?")) deleteTimeEntry(t.id); }}>🗑</button>
-                  </div>
-                ))}
+                <ZeitTimeline entries={empEintraege} onEdit={(t)=>setEntryModal({...t})} locked={false}/>
               </div>
             )}
           </div>
@@ -10954,17 +10999,7 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
       </div>
       {monatGenehmigt && <div style={{border:"1px solid #cdddb8",background:"#eef3e9",borderRadius:12,padding:"12px 16px",marginBottom:14,color:"#3d5230",fontSize:12.5,lineHeight:1.5}}>Dieser Monat ist vom Admin genehmigt und für dich gesperrt. Änderungen sind nicht mehr möglich.</div>}
       <div style={card}>
-        {monEintraege.length===0 && <div style={{fontSize:12.5,color:"var(--muted)"}}>Keine Einträge in diesem Monat.</div>}
-        {monEintraege.map(t=>(
-          <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:12.5}}>
-            <div style={{width:70,color:"var(--ink)"}}>{new Date(t.datum).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"2-digit"})}</div>
-            <div style={{width:120,color:"var(--muted)"}}>{t.startZeit?`${t.startZeit}${t.endZeit?"–"+t.endZeit:" – läuft"}`:"—"}{t.pauseMin?` (${t.pauseMin}′)`:""}</div>
-            <div style={{width:78,fontWeight:600,color:"var(--ink)"}}>{t.endZeit?fmtDauer(dauerOf(t)):"—"}</div>
-            <div style={{flex:1,color:"var(--muted)",minWidth:90}}>{t.kategorie||""}{t.notiz?` — ${t.notiz}`:""}</div>
-            {!monatGenehmigt && <button className="btn btn-sm" onClick={()=>setManModal({...t})}>✎</button>}
-            {!monatGenehmigt && <button className="btn btn-sm" onClick={()=>{ if(confirm("Eintrag löschen?")) deleteTimeEntry(t.id); }}>🗑</button>}
-          </div>
-        ))}
+        <ZeitTimeline entries={monEintraege} onEdit={(t)=>setManModal({...t})} locked={monatGenehmigt}/>
       </div>
 
       {manModal && (
