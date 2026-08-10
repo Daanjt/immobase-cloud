@@ -10992,7 +10992,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","wohnungen","zimmer","mieter","uebergaben","todos"],
+  operations: ["bewerber","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -11053,7 +11053,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="mitarbeiter"?MitarbeiterZeit:Zeiterfassung)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
