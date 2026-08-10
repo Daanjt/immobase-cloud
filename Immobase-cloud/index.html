@@ -10702,6 +10702,7 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
   const eyebrow = {fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500};
 
   async function speichereEmp(){ const f=empModal; if(!(f.vorname||f.nachname)){alert("Bitte einen Namen angeben.");return;} if(f.id) await updateEmployee(f.id,f); else await insertEmployee(f); setEmpModal(null); }
+  async function freischalten(){ const f=empModal; if(!f.email||!f.email.trim()){alert("Bitte zuerst eine E-Mail-Adresse eintragen und speichern.");return;} const mail=f.email.trim().toLowerCase(); const {error}=await supabase.from("allowed_users").upsert([{email:mail,role:"mitarbeiter"}],{onConflict:"email"}); if(error){alert("Freischalten fehlgeschlagen: "+error.message);return;} alert(`${mail} ist als Mitarbeiter freigeschaltet.\n\nDie Person öffnet admin.dthomes.ch, meldet sich mit dieser E-Mail an und setzt über "Passwort vergessen" ein Passwort. Danach sieht sie nur die eigene Zeiterfassung. Wichtig: die E-Mail hier muss mit der Login-Adresse übereinstimmen.`); }
   async function speichereEntry(){ const f=entryModal; if(!f.employeeId){alert("Bitte Mitarbeiter wählen.");return;} if(!f.datum){alert("Bitte Datum angeben.");return;} const payload={...f,dauerMin:berechneDauer(f.startZeit,f.endZeit,f.pauseMin)}; if(f.id) await updateTimeEntry(f.id,payload); else await insertTimeEntry(payload); setEntryModal(null); }
   function neuerEintrag(empId){ const t=new Date(); const iso=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; setEntryModal({employeeId:empId||"",datum:iso,startZeit:"",endZeit:"",pauseMin:"",aptId:"",kategorie:"",notiz:""}); }
 
@@ -10801,6 +10802,10 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
               <div><label className="fl">Telefon</label><input className="fi" value={empModal.phone||""} onChange={e=>setEmpModal(p=>({...p,phone:e.target.value}))}/></div>
             </div>
             <label style={{display:"flex",alignItems:"center",gap:8,marginTop:12,fontSize:13,color:"var(--ink)"}}><input type="checkbox" checked={empModal.aktiv!==false} onChange={e=>setEmpModal(p=>({...p,aktiv:e.target.checked}))}/> Aktiv</label>
+            {empModal.id && <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)"}}>
+              <div style={{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.5}}>Self-Service: schalte den Mitarbeiter frei, damit er sich mit seiner E-Mail einloggen und die eigene Zeit selbst erfassen kann. Ihr seht alles weiterhin hier.</div>
+              <button className="btn btn-sm" onClick={freischalten}>Login freischalten</button>
+            </div>}
             <div style={{display:"flex",gap:8,marginTop:18,justifyContent:"space-between"}}>
               <div>{empModal.id && <button className="btn btn-sm" style={{color:"var(--error)"}} onClick={()=>{ if(confirm("Mitarbeiter und alle Zeiteinträge löschen?")){ deleteEmployee(empModal.id); setEmpModal(null); } }}>Löschen</button>}</div>
               <div style={{display:"flex",gap:8}}>
@@ -10859,6 +10864,115 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
   );
 }
 
+function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry, updateTimeEntry, deleteTimeEntry}) {
+  const [monat, setMonat] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [manModal, setManModal] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const parseHM = (s)=>{ if(!s) return null; const m=String(s).match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; return (+m[1])*60+(+m[2]); };
+  const berechneDauer=(a,b,p)=>{ const x=parseHM(a),y=parseHM(b); if(x==null||y==null) return null; let d=y-x; if(d<0)d+=1440; d-=(+p||0); return d>0?d:0; };
+  const fmtDauer=(min)=>{ if(min==null) return "-"; const h=Math.floor(min/60),m=min%60; return m?`${h}h ${m}min`:`${h}h`; };
+  const fmtStd=(min)=>(min/60).toFixed(2).replace(".",",")+" h";
+  const nowHM=()=>{ const t=new Date(); return `${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`; };
+  const todayISO=()=>{ const t=new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; };
+  const myEmp = (employees||[]).find(e => (e.email||"").toLowerCase() === (benutzerMail||"").toLowerCase()) || (employees||[])[0];
+  const KATEGORIEN = ["Reinigung","Handwerk / Reparatur","Wohnungsübergabe","Administration","Besichtigung","Sonstiges"];
+  const card = {border:"1px solid var(--line)",borderRadius:12,padding:"18px 18px",marginBottom:18,background:"var(--surface)"};
+
+  if (!myEmp) {
+    return (
+      <div>
+        <div style={{fontFamily:"Georgia,serif",fontSize:24,color:"var(--ink)",marginBottom:12}}>Zeiterfassung</div>
+        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:20,color:"var(--muted)",fontSize:13.5,lineHeight:1.6}}>Dein Konto ist noch nicht mit einem Mitarbeiter-Profil verknüpft. Bitte melde dich bei Daan, damit er deine E-Mail-Adresse ({benutzerMail||"—"}) beim Mitarbeiter hinterlegt.</div>
+      </div>
+    );
+  }
+
+  const meine = (timeEntries||[]).filter(t=>t.employeeId===myEmp.id);
+  const laufend = meine.find(t=>t.startZeit && !t.endZeit);
+  const imMonat=(d)=>{ const dt=new Date(d); return dt.getFullYear()===monat.getFullYear()&&dt.getMonth()===monat.getMonth(); };
+  const monatLabel = monat.toLocaleDateString("de-CH",{month:"long",year:"numeric"});
+  const monEintraege = meine.filter(t=>t.datum&&imMonat(t.datum)).sort((a,b)=>(a.datum<b.datum?1:a.datum>b.datum?-1:0));
+  const dauerOf=(t)=>t.dauerMin!=null?t.dauerMin:berechneDauer(t.startZeit,t.endZeit,t.pauseMin);
+  const monTotal = monEintraege.reduce((s,t)=>s+(t.endZeit?(dauerOf(t)||0):0),0);
+
+  async function einstempeln(){ setBusy(true); try{ await insertTimeEntry({employeeId:myEmp.id, datum:todayISO(), startZeit:nowHM(), endZeit:"", pauseMin:"", createdBy:"self"}); } finally { setBusy(false); } }
+  async function ausstempeln(){ if(!laufend) return; setBusy(true); try{ const ende=nowHM(); await updateTimeEntry(laufend.id, {endZeit:ende, dauerMin:berechneDauer(laufend.startZeit, ende, laufend.pauseMin)}); } finally { setBusy(false); } }
+  async function speichereManuell(){ const f=manModal; if(!f.datum){alert("Bitte Datum angeben.");return;} const payload={...f, employeeId:myEmp.id, dauerMin:berechneDauer(f.startZeit,f.endZeit,f.pauseMin), createdBy:"self"}; if(f.id) await updateTimeEntry(f.id,payload); else await insertTimeEntry(payload); setManModal(null); }
+
+  return (
+    <div>
+      <div style={{fontFamily:"Georgia,serif",fontSize:24,color:"var(--ink)",marginBottom:4}}>Zeiterfassung</div>
+      <div style={{fontSize:13,color:"var(--muted)",marginBottom:18}}>Hallo {myEmp.vorname||myEmp.nachname||""}</div>
+
+      <div style={{...card, textAlign:"center", padding:"26px 18px"}}>
+        {laufend ? (
+          <>
+            <div style={{fontSize:13,color:"var(--muted)",marginBottom:4}}>Läuft seit {laufend.startZeit} Uhr{laufend.datum!==todayISO()?` (${new Date(laufend.datum).toLocaleDateString("de-CH")})`:""}</div>
+            <div style={{fontSize:30,fontWeight:600,color:"var(--ink)",marginBottom:16}}>{fmtDauer(berechneDauer(laufend.startZeit, nowHM(), laufend.pauseMin))}</div>
+            <button className="btn btn-p" style={{fontSize:16,padding:"12px 30px"}} disabled={busy} onClick={ausstempeln}>Ausstempeln</button>
+          </>
+        ) : (
+          <>
+            <div style={{fontSize:13,color:"var(--muted)",marginBottom:16}}>Du bist nicht eingestempelt.</div>
+            <button className="btn btn-p" style={{fontSize:16,padding:"12px 34px"}} disabled={busy} onClick={einstempeln}>Einstempeln</button>
+          </>
+        )}
+        <div style={{marginTop:14}}><button className="btn btn-sm" onClick={()=>setManModal({datum:todayISO(),startZeit:"",endZeit:"",pauseMin:"",kategorie:"",notiz:""})}>Zeit manuell nachtragen</button></div>
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+        <button className="btn btn-sm" onClick={()=>setMonat(new Date(monat.getFullYear(),monat.getMonth()-1,1))}>‹</button>
+        <div style={{minWidth:150,textAlign:"center",fontWeight:600,color:"var(--ink)",textTransform:"capitalize"}}>{monatLabel}</div>
+        <button className="btn btn-sm" onClick={()=>setMonat(new Date(monat.getFullYear(),monat.getMonth()+1,1))}>›</button>
+        <div style={{marginLeft:"auto",fontSize:13,color:"var(--muted)"}}>Total: <strong style={{color:"var(--ink)"}}>{fmtStd(monTotal)}</strong></div>
+      </div>
+      <div style={card}>
+        {monEintraege.length===0 && <div style={{fontSize:12.5,color:"var(--muted)"}}>Keine Einträge in diesem Monat.</div>}
+        {monEintraege.map(t=>(
+          <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:12.5}}>
+            <div style={{width:70,color:"var(--ink)"}}>{new Date(t.datum).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"2-digit"})}</div>
+            <div style={{width:120,color:"var(--muted)"}}>{t.startZeit?`${t.startZeit}${t.endZeit?"–"+t.endZeit:" – läuft"}`:"—"}{t.pauseMin?` (${t.pauseMin}′)`:""}</div>
+            <div style={{width:78,fontWeight:600,color:"var(--ink)"}}>{t.endZeit?fmtDauer(dauerOf(t)):"—"}</div>
+            <div style={{flex:1,color:"var(--muted)",minWidth:90}}>{t.kategorie||""}{t.notiz?` — ${t.notiz}`:""}</div>
+            <button className="btn btn-sm" onClick={()=>setManModal({...t})}>✎</button>
+            <button className="btn btn-sm" onClick={()=>{ if(confirm("Eintrag löschen?")) deleteTimeEntry(t.id); }}>🗑</button>
+          </div>
+        ))}
+      </div>
+
+      {manModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setManModal(null)}>
+          <div style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontFamily:"Georgia,serif",fontSize:19,color:"var(--ink)",marginBottom:16}}>{manModal.id?"Eintrag bearbeiten":"Zeit nachtragen"}</div>
+            <label className="fl">Datum</label>
+            <input className="fi" type="date" style={{width:"100%",marginBottom:10}} value={manModal.datum||""} onChange={e=>setManModal(p=>({...p,datum:e.target.value}))}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              <div><label className="fl">Start</label><input className="fi" type="time" value={manModal.startZeit||""} onChange={e=>setManModal(p=>({...p,startZeit:e.target.value}))}/></div>
+              <div><label className="fl">Ende</label><input className="fi" type="time" value={manModal.endZeit||""} onChange={e=>setManModal(p=>({...p,endZeit:e.target.value}))}/></div>
+              <div><label className="fl">Pause (min)</label><input className="fi" type="number" value={manModal.pauseMin??""} onChange={e=>setManModal(p=>({...p,pauseMin:e.target.value}))}/></div>
+            </div>
+            <div style={{fontSize:12,color:"var(--muted)",margin:"8px 0 12px"}}>Dauer: <strong style={{color:"var(--ink)"}}>{fmtDauer(berechneDauer(manModal.startZeit,manModal.endZeit,manModal.pauseMin))}</strong></div>
+            <label className="fl">Aufgabe</label>
+            <select className="fi" style={{width:"100%",marginBottom:10}} value={manModal.kategorie||""} onChange={e=>setManModal(p=>({...p,kategorie:e.target.value}))}>
+              <option value="">—</option>
+              {KATEGORIEN.map(k=><option key={k} value={k}>{k}</option>)}
+            </select>
+            <label className="fl" style={{display:"block"}}>Notiz</label>
+            <textarea className="fi" rows={2} style={{width:"100%",fontFamily:"inherit"}} value={manModal.notiz||""} onChange={e=>setManModal(p=>({...p,notiz:e.target.value}))}/>
+            <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"space-between"}}>
+              <div>{manModal.id && <button className="btn btn-sm" style={{color:"var(--error)"}} onClick={()=>{ if(confirm("Eintrag löschen?")){ deleteTimeEntry(manModal.id); setManModal(null); } }}>Löschen</button>}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-sm" onClick={()=>setManModal(null)}>Abbrechen</button>
+                <button className="btn btn-p btn-sm" onClick={speichereManuell}>Speichern</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -10879,6 +10993,7 @@ const PAGES=[
 const ROLLEN_SEITEN = {
   admin: null,
   operations: ["bewerber","wohnungen","zimmer","mieter","uebergaben","todos"],
+  mitarbeiter: ["zeit"],
 };
 
 function seitenFuerRolle(rolle) {
@@ -10938,7 +11053,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:Zeiterfassung}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="mitarbeiter"?MitarbeiterZeit:Zeiterfassung)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
@@ -11049,7 +11164,7 @@ function MainApp({rolle}) {
           </button>
         </div>
       </div>
-      <div className="main"><Page {...data} rolle={rolle} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
+      <div className="main"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
       {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail}/>}
     </div>
@@ -11170,6 +11285,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
 const ROLLEN_LABELS = {
   admin: "Admin (Vollzugriff)",
   operations: "Operations (Besichtigungen & Übergaben)",
+  mitarbeiter: "Mitarbeiter (nur eigene Zeiterfassung)",
 };
 
 function TeamVerwaltung({onClose, eigeneMail}) {
