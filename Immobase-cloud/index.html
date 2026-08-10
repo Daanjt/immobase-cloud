@@ -1586,6 +1586,7 @@ function useSupabaseData() {
   const [smoobuBookings, setSmoobuBookings] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [timeEntries, setTimeEntries] = useState([]);
+  const [timeApprovals, setTimeApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
 
   async function loadAll() {
@@ -1609,6 +1610,9 @@ function useSupabaseData() {
     });
     supabase.from("time_entries").select("*").order("datum",{ascending:false}).then(({data})=>{
       setTimeEntries((data||[]).map(x=>({...x, employeeId:x.employee_id, startZeit:x.start_zeit, endZeit:x.end_zeit, pauseMin:x.pause_min, dauerMin:x.dauer_min, aptId:x.apt_id, roomId:x.room_id})));
+    });
+    supabase.from("time_approvals").select("*").then(({data})=>{
+      setTimeApprovals((data||[]).map(x=>({id:x.id, employeeId:x.employee_id, jahr:x.jahr, monat:x.monat, approvedAt:x.approved_at, approvedBy:x.approved_by})));
     });
     setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline, ausschreiben:!!x.ausschreiben})));
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
@@ -2711,8 +2715,19 @@ function useSupabaseData() {
     if (error) { console.error("deleteTimeEntry", error); alert("Löschen fehlgeschlagen: "+error.message); return; }
     setTimeEntries(p => p.filter(x => x.id!==id));
   }
+  async function approveMonth(employeeId, jahr, monat, approvedBy) {
+    const {data, error} = await supabase.from("time_approvals").upsert([{employee_id:employeeId, jahr, monat, approved_by:approvedBy||null, approved_at:new Date().toISOString()}], {onConflict:"employee_id,jahr,monat"}).select();
+    if (error) { console.error("approveMonth", error); alert("Genehmigen fehlgeschlagen: "+error.message); return; }
+    const rec = (data&&data[0])||{};
+    setTimeApprovals(p => [...p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)), {id:rec.id, employeeId, jahr, monat, approvedAt:rec.approved_at, approvedBy}]);
+  }
+  async function revokeMonth(employeeId, jahr, monat) {
+    const {error} = await supabase.from("time_approvals").delete().eq("employee_id",employeeId).eq("jahr",jahr).eq("monat",monat);
+    if (error) { console.error("revokeMonth", error); alert("Aufheben fehlgeschlagen: "+error.message); return; }
+    setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
+  }
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -10678,7 +10693,7 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
   );
 }
 
-function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry}) {
+function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth, benutzerMail}) {
   const [monat, setMonat] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [empModal, setEmpModal] = useState(null);
   const [entryModal, setEntryModal] = useState(null);
@@ -10698,6 +10713,8 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
   const monatTotal = eintraege.reduce((s,t)=>s+(dauerOf(t)||0),0);
   const aktive = (employees||[]).filter(e=>e.aktiv!==false);
   const inaktive = (employees||[]).filter(e=>e.aktiv===false);
+  const jahrSel = monat.getFullYear(), monatSel = monat.getMonth()+1;
+  const istGenehmigt = (empId) => (timeApprovals||[]).some(a=>a.employeeId===empId && a.jahr===jahrSel && a.monat===monatSel);
   const card = {border:"1px solid var(--line)",borderRadius:12,padding:"18px 18px",marginBottom:18,background:"var(--surface)"};
   const eyebrow = {fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500};
 
@@ -10729,6 +10746,7 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
         const empEintraege = eintraege.filter(t=>t.employeeId===e.id);
         const total = totalEmp(e.id);
         const auf = offen===e.id;
+        const genehmigt = istGenehmigt(e.id);
         return (
           <div key={e.id} style={card}>
             <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
@@ -10738,11 +10756,14 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:16,color:"var(--ink)",fontWeight:600}}>{fmtStd(total)}</div>
-                <div style={{fontSize:10.5,color:"var(--muted)"}}>{empEintraege.length} Einträge</div>
+                <div style={{fontSize:10.5,color:"var(--muted)"}}>{empEintraege.length} Einträge · {genehmigt?<span style={{color:"#3d6b2f",fontWeight:600}}>genehmigt</span>:<span style={{color:"#a06a2c"}}>offen</span>}</div>
               </div>
-              <div style={{display:"flex",gap:6}}>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-sm" onClick={()=>neuerEintrag(e.id)}>+ Zeit</button>
                 <button className="btn btn-sm" onClick={()=>setEmpModal({...e})}>Bearbeiten</button>
+                {genehmigt
+                  ? <button className="btn btn-sm" onClick={()=>{ if(confirm(`Freigabe für ${monatLabel} aufheben? Der Mitarbeiter kann den Monat dann wieder bearbeiten.`)) revokeMonth(e.id, jahrSel, monatSel); }}>Freigabe aufheben</button>
+                  : <button className="btn btn-p btn-sm" onClick={()=>{ if(confirm(`Zeiten von ${`${e.vorname||""} ${e.nachname||""}`.trim()} für ${monatLabel} genehmigen? Danach ist der Monat für den Mitarbeiter gesperrt.`)) approveMonth(e.id, jahrSel, monatSel, benutzerMail); }}>Monat genehmigen</button>}
                 <button className="btn btn-sm" onClick={()=>setOffen(auf?null:e.id)}>{auf?"▲":"▼"}</button>
               </div>
             </div>
@@ -10864,7 +10885,7 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
   );
 }
 
-function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry, updateTimeEntry, deleteTimeEntry}) {
+function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals}) {
   const [monat, setMonat] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [manModal, setManModal] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -10894,6 +10915,10 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
   const monEintraege = meine.filter(t=>t.datum&&imMonat(t.datum)).sort((a,b)=>(a.datum<b.datum?1:a.datum>b.datum?-1:0));
   const dauerOf=(t)=>t.dauerMin!=null?t.dauerMin:berechneDauer(t.startZeit,t.endZeit,t.pauseMin);
   const monTotal = monEintraege.reduce((s,t)=>s+(t.endZeit?(dauerOf(t)||0):0),0);
+  const jahrSel = monat.getFullYear(), monatSel = monat.getMonth()+1;
+  const monatGenehmigt = (timeApprovals||[]).some(a=>a.employeeId===myEmp.id && a.jahr===jahrSel && a.monat===monatSel);
+  const heuteD = new Date();
+  const heuteGenehmigt = (timeApprovals||[]).some(a=>a.employeeId===myEmp.id && a.jahr===heuteD.getFullYear() && a.monat===heuteD.getMonth()+1);
 
   async function einstempeln(){ setBusy(true); try{ await insertTimeEntry({employeeId:myEmp.id, datum:todayISO(), startZeit:nowHM(), endZeit:"", pauseMin:"", createdBy:"self"}); } finally { setBusy(false); } }
   async function ausstempeln(){ if(!laufend) return; setBusy(true); try{ const ende=nowHM(); await updateTimeEntry(laufend.id, {endZeit:ende, dauerMin:berechneDauer(laufend.startZeit, ende, laufend.pauseMin)}); } finally { setBusy(false); } }
@@ -10909,14 +10934,15 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
           <>
             <div style={{fontSize:13,color:"var(--muted)",marginBottom:4}}>Läuft seit {laufend.startZeit} Uhr{laufend.datum!==todayISO()?` (${new Date(laufend.datum).toLocaleDateString("de-CH")})`:""}</div>
             <div style={{fontSize:30,fontWeight:600,color:"var(--ink)",marginBottom:16}}>{fmtDauer(berechneDauer(laufend.startZeit, nowHM(), laufend.pauseMin))}</div>
-            <button className="btn btn-p" style={{fontSize:16,padding:"12px 30px"}} disabled={busy} onClick={ausstempeln}>Ausstempeln</button>
+            <button className="btn btn-p" style={{fontSize:16,padding:"12px 30px"}} disabled={busy||heuteGenehmigt} onClick={ausstempeln}>Ausstempeln</button>
           </>
         ) : (
           <>
             <div style={{fontSize:13,color:"var(--muted)",marginBottom:16}}>Du bist nicht eingestempelt.</div>
-            <button className="btn btn-p" style={{fontSize:16,padding:"12px 34px"}} disabled={busy} onClick={einstempeln}>Einstempeln</button>
+            <button className="btn btn-p" style={{fontSize:16,padding:"12px 34px"}} disabled={busy||heuteGenehmigt} onClick={einstempeln}>Einstempeln</button>
           </>
         )}
+        {heuteGenehmigt && <div style={{fontSize:11.5,color:"#a06a2c",marginTop:12}}>Der aktuelle Monat ist bereits genehmigt und gesperrt.</div>}
         <div style={{marginTop:14}}><button className="btn btn-sm" onClick={()=>setManModal({datum:todayISO(),startZeit:"",endZeit:"",pauseMin:"",kategorie:"",notiz:""})}>Zeit manuell nachtragen</button></div>
       </div>
 
@@ -10926,6 +10952,7 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
         <button className="btn btn-sm" onClick={()=>setMonat(new Date(monat.getFullYear(),monat.getMonth()+1,1))}>›</button>
         <div style={{marginLeft:"auto",fontSize:13,color:"var(--muted)"}}>Total: <strong style={{color:"var(--ink)"}}>{fmtStd(monTotal)}</strong></div>
       </div>
+      {monatGenehmigt && <div style={{border:"1px solid #cdddb8",background:"#eef3e9",borderRadius:12,padding:"12px 16px",marginBottom:14,color:"#3d5230",fontSize:12.5,lineHeight:1.5}}>Dieser Monat ist vom Admin genehmigt und für dich gesperrt. Änderungen sind nicht mehr möglich.</div>}
       <div style={card}>
         {monEintraege.length===0 && <div style={{fontSize:12.5,color:"var(--muted)"}}>Keine Einträge in diesem Monat.</div>}
         {monEintraege.map(t=>(
@@ -10934,8 +10961,8 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
             <div style={{width:120,color:"var(--muted)"}}>{t.startZeit?`${t.startZeit}${t.endZeit?"–"+t.endZeit:" – läuft"}`:"—"}{t.pauseMin?` (${t.pauseMin}′)`:""}</div>
             <div style={{width:78,fontWeight:600,color:"var(--ink)"}}>{t.endZeit?fmtDauer(dauerOf(t)):"—"}</div>
             <div style={{flex:1,color:"var(--muted)",minWidth:90}}>{t.kategorie||""}{t.notiz?` — ${t.notiz}`:""}</div>
-            <button className="btn btn-sm" onClick={()=>setManModal({...t})}>✎</button>
-            <button className="btn btn-sm" onClick={()=>{ if(confirm("Eintrag löschen?")) deleteTimeEntry(t.id); }}>🗑</button>
+            {!monatGenehmigt && <button className="btn btn-sm" onClick={()=>setManModal({...t})}>✎</button>}
+            {!monatGenehmigt && <button className="btn btn-sm" onClick={()=>{ if(confirm("Eintrag löschen?")) deleteTimeEntry(t.id); }}>🗑</button>}
           </div>
         ))}
       </div>
