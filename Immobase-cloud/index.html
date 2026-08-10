@@ -11222,7 +11222,7 @@ function MainApp({rolle}) {
       </div>
       <div className="main"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
-      {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail} insertEmployee={data.insertEmployee}/>}
+      {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail} insertEmployee={data.insertEmployee} employees={data.employees}/>}
     </div>
   );
 }
@@ -11344,7 +11344,7 @@ const ROLLEN_LABELS = {
   mitarbeiter: "Mitarbeiter (nur eigene Zeiterfassung)",
 };
 
-function TeamVerwaltung({onClose, eigeneMail, insertEmployee}) {
+function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {
   const [liste, setListe] = useState(null);
   const [neuMail, setNeuMail] = useState("");
   const [neuRolle, setNeuRolle] = useState("mitarbeiter");
@@ -11369,17 +11369,21 @@ function TeamVerwaltung({onClose, eigeneMail, insertEmployee}) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { setMsg({t:"err", m:"Bitte eine gültige E-Mail-Adresse eingeben."}); return; }
     setBusy(true); setMsg(null);
     const {error} = await supabase.from("allowed_users").insert([{email: mail, role: neuRolle}]);
-    if (error) {
+    if (error && error.code !== "23505") {
       setBusy(false);
-      setMsg({t:"err", m: error.code === "23505" ? "Diese Adresse ist bereits freigeschaltet." : "Fehler: " + error.message});
+      setMsg({t:"err", m: "Fehler: " + error.message});
       return;
     }
-    if (insertEmployee) {
-      try { await insertEmployee({vorname:neuVorname, nachname:neuNachname, email:mail, phone:neuPhone, funktion:neuFunktion, stundenlohn:neuLohn, aktiv:true}); } catch(e) { /* Login besteht bereits, Mitarbeiter kann spaeter ergaenzt werden */ }
+    const schonFreigeschaltet = error && error.code === "23505";
+    const schonMitarbeiter = (employees||[]).some(e => (e.email||"").toLowerCase() === mail);
+    if (!schonMitarbeiter && insertEmployee) {
+      try { await insertEmployee({vorname:neuVorname, nachname:neuNachname, email:mail, phone:neuPhone, funktion:neuFunktion, stundenlohn:neuLohn, aktiv:true}); } catch(e) { /* Login besteht, Mitarbeiter kann spaeter ergaenzt werden */ }
     }
     setBusy(false);
     setNeuMail(""); setNeuVorname(""); setNeuNachname(""); setNeuFunktion(""); setNeuLohn(""); setNeuPhone("");
-    setMsg({t:"ok", m:`${mail} ist hinzugefügt und erscheint in der Zeiterfassung. Die Person registriert sich im Login über "Konto erstellen".`});
+    if (schonMitarbeiter) setMsg({t:"ok", m:`${mail} ist bereits als Mitarbeiter angelegt.`});
+    else if (schonFreigeschaltet) setMsg({t:"ok", m:`${mail} war bereits freigeschaltet und ist jetzt auch als Mitarbeiter in der Zeiterfassung angelegt.`});
+    else setMsg({t:"ok", m:`${mail} ist hinzugefügt und erscheint in der Zeiterfassung. Die Person registriert sich im Login über "Konto erstellen".`});
     laden();
   }
 
