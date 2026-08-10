@@ -10774,7 +10774,6 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
   const eyebrow = {fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500};
 
   async function speichereEmp(){ const f=empModal; if(!(f.vorname||f.nachname)){alert("Bitte einen Namen angeben.");return;} if(f.id) await updateEmployee(f.id,f); else await insertEmployee(f); setEmpModal(null); }
-  async function freischalten(){ const f=empModal; if(!f.email||!f.email.trim()){alert("Bitte zuerst eine E-Mail-Adresse eintragen und speichern.");return;} const mail=f.email.trim().toLowerCase(); const {error}=await supabase.from("allowed_users").upsert([{email:mail,role:"mitarbeiter"}],{onConflict:"email"}); if(error){alert("Freischalten fehlgeschlagen: "+error.message);return;} alert(`${mail} ist als Mitarbeiter freigeschaltet.\n\nDie Person öffnet admin.dthomes.ch, meldet sich mit dieser E-Mail an und setzt über "Passwort vergessen" ein Passwort. Danach sieht sie nur die eigene Zeiterfassung. Wichtig: die E-Mail hier muss mit der Login-Adresse übereinstimmen.`); }
   async function speichereEntry(){ const f=entryModal; if(!f.employeeId){alert("Bitte Mitarbeiter wählen.");return;} if(!f.datum){alert("Bitte Datum angeben.");return;} const payload={...f,dauerMin:berechneDauer(f.startZeit,f.endZeit,f.pauseMin)}; if(f.id) await updateTimeEntry(f.id,payload); else await insertTimeEntry(payload); setEntryModal(null); }
   function neuerEintrag(empId){ const t=new Date(); const iso=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; setEntryModal({employeeId:empId||"",datum:iso,startZeit:"",endZeit:"",pauseMin:"",aptId:"",kategorie:"",notiz:""}); }
 
@@ -10783,7 +10782,6 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:18}}>
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:26,color:"var(--ink)"}}>Zeiterfassung</div>
         <div style={{display:"flex",gap:8}}>
-          <button className="btn btn-sm" onClick={()=>setEmpModal({vorname:"",nachname:"",funktion:"",stundenlohn:"",email:"",phone:"",aktiv:true})}>+ Mitarbeiter</button>
           <button className="btn btn-p btn-sm" onClick={()=>neuerEintrag("")} disabled={aktive.length===0}>+ Zeit erfassen</button>
         </div>
       </div>
@@ -10795,7 +10793,7 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
         <div style={{marginLeft:"auto",fontSize:12,color:"var(--muted)"}}>Total Monat: <strong style={{color:"var(--ink)"}}>{fmtStd(monatTotal)}</strong></div>
       </div>
 
-      {employees.length===0 && <div style={{...card,color:"var(--muted)",fontSize:13}}>Noch keine Mitarbeiter. Lege oben rechts einen an, dann kannst du Zeit erfassen.</div>}
+      {employees.length===0 && <div style={{...card,color:"var(--muted)",fontSize:13}}>Noch keine Mitarbeiter. Lege sie im Kontomenü unter „Team verwalten" an, dann erscheinen sie hier automatisch.</div>}
 
       {aktive.map(e=>{
         const empEintraege = eintraege.filter(t=>t.employeeId===e.id);
@@ -10864,14 +10862,10 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
               <div><label className="fl">Nachname</label><input className="fi" value={empModal.nachname||""} onChange={e=>setEmpModal(p=>({...p,nachname:e.target.value}))}/></div>
               <div><label className="fl">Funktion</label><input className="fi" value={empModal.funktion||""} onChange={e=>setEmpModal(p=>({...p,funktion:e.target.value}))} placeholder="z.B. Reinigung"/></div>
               <div><label className="fl">Stundenlohn (CHF)</label><input className="fi" type="number" value={empModal.stundenlohn??""} onChange={e=>setEmpModal(p=>({...p,stundenlohn:e.target.value}))}/></div>
-              <div><label className="fl">E-Mail</label><input className="fi" value={empModal.email||""} onChange={e=>setEmpModal(p=>({...p,email:e.target.value}))}/></div>
+              <div><label className="fl">E-Mail</label><input className="fi" value={empModal.email||""} readOnly title="E-Mail wird unter Team verwalten festgelegt" style={{background:"#f5f2ec",color:"var(--muted)"}}/></div>
               <div><label className="fl">Telefon</label><input className="fi" value={empModal.phone||""} onChange={e=>setEmpModal(p=>({...p,phone:e.target.value}))}/></div>
             </div>
             <label style={{display:"flex",alignItems:"center",gap:8,marginTop:12,fontSize:13,color:"var(--ink)"}}><input type="checkbox" checked={empModal.aktiv!==false} onChange={e=>setEmpModal(p=>({...p,aktiv:e.target.checked}))}/> Aktiv</label>
-            {empModal.id && <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)"}}>
-              <div style={{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.5}}>Self-Service: schalte den Mitarbeiter frei, damit er sich mit seiner E-Mail einloggen und die eigene Zeit selbst erfassen kann. Ihr seht alles weiterhin hier.</div>
-              <button className="btn btn-sm" onClick={freischalten}>Login freischalten</button>
-            </div>}
             <div style={{display:"flex",gap:8,marginTop:18,justifyContent:"space-between"}}>
               <div>{empModal.id && <button className="btn btn-sm" style={{color:"var(--error)"}} onClick={()=>{ if(confirm("Mitarbeiter und alle Zeiteinträge löschen?")){ deleteEmployee(empModal.id); setEmpModal(null); } }}>Löschen</button>}</div>
               <div style={{display:"flex",gap:8}}>
@@ -11228,7 +11222,7 @@ function MainApp({rolle}) {
       </div>
       <div className="main"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
-      {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail}/>}
+      {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail} insertEmployee={data.insertEmployee}/>}
     </div>
   );
 }
@@ -11350,12 +11344,18 @@ const ROLLEN_LABELS = {
   mitarbeiter: "Mitarbeiter (nur eigene Zeiterfassung)",
 };
 
-function TeamVerwaltung({onClose, eigeneMail}) {
+function TeamVerwaltung({onClose, eigeneMail, insertEmployee}) {
   const [liste, setListe] = useState(null);
   const [neuMail, setNeuMail] = useState("");
-  const [neuRolle, setNeuRolle] = useState("operations");
+  const [neuRolle, setNeuRolle] = useState("mitarbeiter");
+  const [neuVorname, setNeuVorname] = useState("");
+  const [neuNachname, setNeuNachname] = useState("");
+  const [neuFunktion, setNeuFunktion] = useState("");
+  const [neuLohn, setNeuLohn] = useState("");
+  const [neuPhone, setNeuPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const inp = {padding:"9px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
 
   async function laden() {
     const {data, error} = await supabase.from("allowed_users").select("*").order("added_at", {ascending: true});
@@ -11369,14 +11369,18 @@ function TeamVerwaltung({onClose, eigeneMail}) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { setMsg({t:"err", m:"Bitte eine gültige E-Mail-Adresse eingeben."}); return; }
     setBusy(true); setMsg(null);
     const {error} = await supabase.from("allowed_users").insert([{email: mail, role: neuRolle}]);
-    setBusy(false);
     if (error) {
+      setBusy(false);
       setMsg({t:"err", m: error.code === "23505" ? "Diese Adresse ist bereits freigeschaltet." : "Fehler: " + error.message});
-    } else {
-      setNeuMail("");
-      setMsg({t:"ok", m:`${mail} ist freigeschaltet. Die Person kann sich jetzt im Login über "Konto erstellen" registrieren.`});
-      laden();
+      return;
     }
+    if (insertEmployee) {
+      try { await insertEmployee({vorname:neuVorname, nachname:neuNachname, email:mail, phone:neuPhone, funktion:neuFunktion, stundenlohn:neuLohn, aktiv:true}); } catch(e) { /* Login besteht bereits, Mitarbeiter kann spaeter ergaenzt werden */ }
+    }
+    setBusy(false);
+    setNeuMail(""); setNeuVorname(""); setNeuNachname(""); setNeuFunktion(""); setNeuLohn(""); setNeuPhone("");
+    setMsg({t:"ok", m:`${mail} ist hinzugefügt und erscheint in der Zeiterfassung. Die Person registriert sich im Login über "Konto erstellen".`});
+    laden();
   }
 
   async function rolleAendern(mail, rolle) {
@@ -11430,15 +11434,22 @@ function TeamVerwaltung({onClose, eigeneMail}) {
         ))}
 
         <div style={{marginTop:18}}>
-          <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500}}>Neue Person freischalten</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <input className="team-fi" type="email" placeholder="E-Mail-Adresse" value={neuMail} onChange={e=>setNeuMail(e.target.value)}
-              style={{flex:1,minWidth:200,padding:"9px 12px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+          <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500}}>Neue Person hinzufügen</div>
+          <div style={{fontSize:11,color:"var(--muted)",marginBottom:10,lineHeight:1.5}}>Wird als Login freigeschaltet und automatisch als Mitarbeiter in der Zeiterfassung angelegt.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            <input className="team-fi" placeholder="Vorname" value={neuVorname} onChange={e=>setNeuVorname(e.target.value)} style={inp}/>
+            <input className="team-fi" placeholder="Nachname" value={neuNachname} onChange={e=>setNeuNachname(e.target.value)} style={inp}/>
+            <input className="team-fi" type="email" placeholder="E-Mail-Adresse" value={neuMail} onChange={e=>setNeuMail(e.target.value)} style={inp}/>
+            <input className="team-fi" placeholder="Telefon" value={neuPhone} onChange={e=>setNeuPhone(e.target.value)} style={inp}/>
+            <input className="team-fi" placeholder="Funktion (z.B. Reinigung)" value={neuFunktion} onChange={e=>setNeuFunktion(e.target.value)} style={inp}/>
+            <input className="team-fi" type="number" placeholder="Stundenlohn CHF" value={neuLohn} onChange={e=>setNeuLohn(e.target.value)} style={inp}/>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <select className="team-fi" value={neuRolle} onChange={e=>setNeuRolle(e.target.value)}
-              style={{fontSize:12,padding:"6px 8px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--ink)",fontFamily:"inherit"}}>
+              style={{fontSize:12,padding:"9px 10px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--ink)",fontFamily:"inherit"}}>
               {Object.entries(ROLLEN_LABELS).map(([wert, label]) => <option key={wert} value={wert}>{label}</option>)}
             </select>
-            <button className="btn btn-sm" disabled={busy || !neuMail.trim()} onClick={hinzufuegen}>{busy ? "Speichere…" : "Freischalten"}</button>
+            <button className="btn btn-p btn-sm" disabled={busy || !neuMail.trim()} onClick={hinzufuegen}>{busy ? "Speichere…" : "Hinzufügen"}</button>
           </div>
         </div>
 
