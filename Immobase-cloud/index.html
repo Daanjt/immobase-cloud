@@ -5345,7 +5345,7 @@ ${v.aufschlag>0?`<p>Der Mietzins ist unabhängig von der gewählten Kaution. Bei
 
 <!-- §4 KAUTION -->
 <div class="section allow-break">
-<h2>4. Kaution und Servicegebühr</h2>
+<h2>4. Kaution${v.kautionMonate<3?' und Servicegebühr':''}</h2>
 <p>Der Untermieter leistet vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""}, ausmachend <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong>. Die Kaution wird über die Plattform <strong>de.evorest.ch</strong> auf ein separates, auf den Namen des Untermieters lautendes und gesperrtes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>
 
 ${v.kautionMonate<3
@@ -5355,7 +5355,7 @@ ${v.kautionMonate<3
 <div class="highlight-box" style="text-align:left;font-weight:400;font-size:10pt;line-height:1.6">
   <div style="font-size:8pt;color:#888;letter-spacing:.25em;text-transform:uppercase;font-weight:700;margin-bottom:6pt">Vereinbart</div>
   <div>Kaution: <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> (${v.kautionMonate} Monatsmiete${v.kautionMonate>1?"n":""})</div>
-  ${v.kautionMonate<3?`<div>Servicegebühr Kautionsreduktion: <strong>CHF ${v.kautionMonate===2?"50":"100"} / Monat</strong></div>`:`<div>Servicegebühr Kautionsreduktion: keine (volle Kaution)</div>`}
+  ${v.kautionMonate<3?`<div>Servicegebühr Kautionsreduktion: <strong>CHF ${v.kautionMonate===2?"50":"100"} / Monat</strong></div>`:``}
 </div>
 
 <p>Die Rückerstattung der Kaution erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden. Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.</p>
