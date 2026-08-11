@@ -4255,7 +4255,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               <th style={{textAlign:"right"}}>Einnahme Max</th>
               <th style={{textAlign:"right"}}>Marge Ist</th>
               <th style={{textAlign:"right"}}>Marge Max</th>
-              <th style={{textAlign:"right"}}>Aufschlag</th>
+              <th style={{textAlign:"right"}}>Servicegebühr</th>
               <th style={{textAlign:"right"}}>Marge Total</th>
               <th>Belegung</th>
             </tr>
@@ -4366,7 +4366,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <th style={{textAlign:"right"}}>Einnahme Max</th>
                   <th style={{textAlign:"right"}}>Marge Ist</th>
                   <th style={{textAlign:"right"}}>Marge Max</th>
-                  <th style={{textAlign:"right"}}>Aufschlag</th>
+                  <th style={{textAlign:"right"}}>Servicegebühr</th>
                   <th style={{textAlign:"right"}}>Marge Total</th>
                   <th>Belegung</th>
                 </tr>
@@ -4482,7 +4482,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               <th style={{textAlign:"right"}}>Einnahme Max</th>
               <th style={{textAlign:"right"}}>Marge Ist</th>
               <th style={{textAlign:"right"}}>Marge Max</th>
-              <th style={{textAlign:"right"}}>Aufschlag</th>
+              <th style={{textAlign:"right"}}>Servicegebühr</th>
               <th style={{textAlign:"right"}}>Marge Total</th>
               <th>Belegung</th>
             </tr>
@@ -4595,7 +4595,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 <th style={{padding:"6px 8px"}}>Wohnung</th>
                 <th style={{padding:"6px 8px"}}>Zimmer</th>
                 <th style={{padding:"6px 8px"}}>Variante</th>
-                <th style={{padding:"6px 8px",textAlign:"right"}}>Aufschlag / Mt.</th>
+                <th style={{padding:"6px 8px",textAlign:"right"}}>Servicegebühr / Mt.</th>
               </tr>
             </thead>
             <tbody>
@@ -6858,7 +6858,7 @@ www.dthomes.ch`;
             <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">-</option><option value="ja">Möbliert (CHF 990)</option><option value="nein">Unmöbliert</option></select></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kaution</div>
-            <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">-</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option><option value="Keine Kaution">Keine Kaution (+150/Mt.)</option></select></div><div className="fg"><label className="fl">Aufschlag / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">-</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option></select></div><div className="fg"><label className="fl">Servicegebühr / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
             <div className="fg"><label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",fontSize:12.5}}><input type="checkbox" checked={!!editForm.noDebt} onChange={EFB("noDebt")}/> Keine offenen Betreibungen</label></div>
@@ -7084,7 +7084,7 @@ www.dthomes.ch`;
             
             {/* Custom Aufschlag */}
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
-              <span>Aufschlag / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {vertragData.kautionMonate}× Miete: CHF {[0,100,50,0,0][3-vertragData.kautionMonate] ?? 0}{vertragData.kautionMonate===0?150:vertragData.kautionMonate===1?100:vertragData.kautionMonate===2?50:0})</span></span>
+              <span>Servicegebühr / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {vertragData.kautionMonate}× Miete: CHF {[0,100,50,0,0][3-vertragData.kautionMonate] ?? 0}{vertragData.kautionMonate===0?150:vertragData.kautionMonate===1?100:vertragData.kautionMonate===2?50:0})</span></span>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <span style={{color:"#1a1814"}}>CHF</span>
                 <input className="fi" type="number" step="1" value={vertragData.aufschlag||0} onChange={e=>{
@@ -8937,7 +8937,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
           const betrag = bm > 0 ? (bm + strom) * monate : (form.kautionBetrag || 0);
           setForm(p=>({...p,kautionOpt:opt,kautionMonate:monate,kautionAufschlag:auf,kautionBetrag:betrag}));
         }}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
-        <div className="frow"><div className="fg"><label className="fl">Aufschlag CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">-</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Servicegebühr CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">-</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
         <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
         <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!form.schluesselUebergeben} onChange={FB("schluesselUebergeben")}/> Schlüssel übergeben</label>
@@ -9167,7 +9167,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               </div>
               <div className="frow">
                 <div className="fg"><label className="fl">Kaution</label><select className="fi" value={tvData.kautionMonate} onChange={e=>{const km=+e.target.value; const auf=km===0?150:km===1?100:km===2?50:0; setTvData(p=>({...p,kautionMonate:km,aufschlag:auf,kautionBetrag:((p.bruttomiete||0)+(p.strom||0))*km}));}}><option value={3}>3 Monatsmieten (Standard)</option><option value={2}>2 Monate (+50)</option><option value={1}>1 Monat (+100)</option><option value={0}>Keine (+150)</option></select></div>
-                <div className="fg"><label className="fl">Aufschlag</label><input className="fi" type="number" value={tvData.aufschlag} onChange={TVn("aufschlag")}/></div>
+                <div className="fg"><label className="fl">Servicegebühr</label><input className="fi" type="number" value={tvData.aufschlag} onChange={TVn("aufschlag")}/></div>
                 <div className="fg"><label className="fl">Total / Mt.</label><input className="fi" value={`CHF ${total.toLocaleString("de-CH")}`} disabled/></div>
               </div>
               <div style={{margin:"14px 0",padding:"12px 14px",background:"var(--beige-soft)",borderRadius:8}}>
