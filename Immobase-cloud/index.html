@@ -5300,12 +5300,18 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     // Manuell gesetztes Enddatum: immer befristet. Aus der Wohnung abgeleitet: nur wenn unter 12 Monaten.
     if (istManuell || (months > 0 && months < 12)) {
       let grundSatz = "";
-      if (v.befristungsgrund) grundSatz = ` Die Befristung erfolgt aufgrund ${v.befristungsgrund}.`;
-      else if (!istManuell) grundSatz = ` Die Befristung erfolgt aufgrund eines geplanten Umbaus bzw. einer geplanten Sanierung der Liegenschaft.`;
+      let erstreckungSatz = "";
+      if (v.befristungsgrund) {
+        grundSatz = ` Die Befristung erfolgt aufgrund ${v.befristungsgrund} (Art. 272a Abs. 1 lit. d OR).`;
+        erstreckungSatz = ` Der Untermieter nimmt zur Kenntnis, dass eine Erstreckung des Mietverhältnisses ausgeschlossen ist.`;
+      } else if (!istManuell) {
+        grundSatz = ` Die Befristung erfolgt im Hinblick auf einen geplanten Umbau bzw. eine geplante Sanierung der Liegenschaft (Art. 272a Abs. 1 lit. d OR).`;
+        erstreckungSatz = ` Der Untermieter nimmt zur Kenntnis, dass eine Erstreckung des Mietverhältnisses ausgeschlossen ist.`;
+      }
       const kuendigungSatz = months < 12
         ? ` Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`
         : ` Eine ordentliche Kündigung durch den Untermieter richtet sich nach Ziffer 11.1; in den letzten sechs Monaten der Vertragslaufzeit ist eine Kündigung ausgeschlossen.`;
-      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${endeStr}</strong>.${grundSatz} Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.${kuendigungSatz}`;
+      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${endeStr}</strong>.${grundSatz}${erstreckungSatz} Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.${kuendigungSatz}`;
     }
   }
   return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs",7:"sieben",8:"acht",9:"neun",10:"zehn",11:"elf",12:"zwölf"};return w[n]||String(n);})(v.minMietdauer||6)} Monate.`;
@@ -5429,7 +5435,7 @@ ${v.kautionMonate<3
 <p class="clause"><span class="clause-num">11.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.</p>
 <p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
 <p class="clause"><span class="clause-num">11.4</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
-<p class="clause"><span class="clause-num">11.5</span>Bei Kündigung innerhalb der Kündigungsfrist ist der Untermieter verpflichtet, einen geeigneten Nachmieter zu stellen, der zu gleichen Konditionen eintritt und von den Mitbewohnern akzeptiert wird. Erfolgt nachweislich keine aktive Suche, kann der Hauptmieter eine Monatsmiete von der Kaution einbehalten.</p>
+<p class="clause"><span class="clause-num">11.5</span>Bei vorzeitigem Auszug kann sich der Untermieter durch Stellung eines geeigneten, zahlungsfähigen und zumutbaren Nachmieters, der zu gleichen Konditionen in den Vertrag eintritt, von seinen Pflichten befreien (Art. 264 OR). Andernfalls bleibt er bis zum ordentlichen Vertragsende zur Zahlung des Mietzinses verpflichtet.</p>
 <p class="clause"><span class="clause-num">11.6</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
 </div>
 
