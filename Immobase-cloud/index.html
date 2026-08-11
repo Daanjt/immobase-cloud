@@ -5321,10 +5321,10 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
     <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
     <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
-    ${v.aufschlag>0?`<tr class="aufschlag"><td>Kautions-Aufschlag in CHF</td><td class="amt">+ ${chf2(v.aufschlag)}</td></tr>`:""}
-    <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2(v.total)}</td></tr>
+    <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
 </div>
+${v.aufschlag>0?`<p>Der Mietzins ist unabhängig von der gewählten Kaution. Bei der vereinbarten reduzierten Kaution wird zusätzlich eine <strong>Servicegebühr Kautionsreduktion</strong> von <strong>CHF ${chf2(v.aufschlag)} pro Monat</strong> erhoben (siehe Ziffer 4). Diese ist eine separate Dienstleistung und nicht Teil des Mietzinses.</p>`:""}
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser bereits inbegriffen.</p>
 <p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
 <p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
@@ -5345,28 +5345,20 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
 
 <!-- §4 KAUTION -->
 <div class="section allow-break">
-<h2>4. Kaution</h2>
-<p>Wünscht der Untermieter, eine reduzierte oder keine Kaution zu leisten, kann dies wie folgt geregelt werden:</p>
-<div class="indent-list">
-  <div${v.kautionMonate===3?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===3?'☑':'☐'} 3 Monatsmieten Kaution = keine Anpassung des monatlichen Mietzinses (Standard)</div>
-  <div${v.kautionMonate===2?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===2?'☑':'☐'} 2 Monatsmieten Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 50</strong></div>
-  <div${v.kautionMonate===1?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===1?'☑':'☐'} 1 Monatsmiete Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 100</strong></div>
-  <div${v.kautionMonate===0?' style="font-weight:700;color:#1a1a1a"':''}>${v.kautionMonate===0?'☑':'☐'} Keine Kaution = monatlicher Mietzins erhöht sich um <strong>CHF 150</strong></div>
-</div>
+<h2>4. Kaution und Servicegebühr</h2>
+<p>Der Untermieter leistet vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""}, ausmachend <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong>. Die Kaution wird über die Plattform <strong>de.evorest.ch</strong> auf ein separates, auf den Namen des Untermieters lautendes und gesperrtes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>
+
+${v.kautionMonate<3
+  ? `<p>Der Untermieter hat eine gegenüber der vollen Sicherheit (drei Monatsmieten) reduzierte Kaution gewählt. Für diese Kautionsreduktion erbringt der Hauptmieter eine eigenständige Dienstleistung und erhebt dafür eine <strong>Servicegebühr Kautionsreduktion</strong> von <strong>CHF ${v.kautionMonate===2?"50":"100"} pro Monat</strong>. Diese Servicegebühr ist vom Mietzins unabhängig und stellt weder Mietzins noch Kaution dar; sie wird zusätzlich zum Mietzins gemäss Ziffer 3 geschuldet.</p>`
+  : ``}
 
 <div class="highlight-box" style="text-align:left;font-weight:400;font-size:10pt;line-height:1.6">
-  <div style="font-size:8pt;color:#888;letter-spacing:.25em;text-transform:uppercase;font-weight:700;margin-bottom:6pt">Gewählte Variante</div>
-  ${v.kautionMonate===3?`<strong style="font-size:11pt">3 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*3)} &middot; kein Aufschlag`:""}
-  ${v.kautionMonate===2?`<strong style="font-size:11pt">2 Monatsmieten Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*2)} &middot; Aufschlag CHF 50/Mt.`:""}
-  ${v.kautionMonate===1?`<strong style="font-size:11pt">1 Monatsmiete Kaution</strong> &middot; CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25)))} &middot; Aufschlag CHF 100/Mt.`:""}
-  ${v.kautionMonate===0?`<strong style="font-size:11pt">Keine Kaution</strong> &middot; Aufschlag CHF 150/Mt.`:""}
+  <div style="font-size:8pt;color:#888;letter-spacing:.25em;text-transform:uppercase;font-weight:700;margin-bottom:6pt">Vereinbart</div>
+  <div>Kaution: <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> (${v.kautionMonate} Monatsmiete${v.kautionMonate>1?"n":""})</div>
+  ${v.kautionMonate<3?`<div>Servicegebühr Kautionsreduktion: <strong>CHF ${v.kautionMonate===2?"50":"100"} / Monat</strong></div>`:`<div>Servicegebühr Kautionsreduktion: keine (volle Kaution)</div>`}
 </div>
 
-${v.kautionMonate>0
-  ? `<p>Der Untermieter verpflichtet sich, vor dem Einzug eine Kaution in Höhe von ${v.kautionMonate===3?"drei":v.kautionMonate===2?"zwei":"einer"} Monatsmiete${v.kautionMonate>1?"n":""} - <strong>CHF ${chf2(v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*v.kautionMonate)}</strong> - über die Plattform <strong>de.evorest.ch</strong> zu leisten. Die Kaution wird dort auf ein separates, auf den Namen des Untermieters lautendes Kautionskonto bei der Hypothekarbank Lenzburg einbezahlt.</p>`
-  : `<p>Der Untermieter hat sich für die Variante <strong>ohne Kaution</strong> entschieden. Anstelle der Kaution wird der monatliche Mietzins um <strong>CHF 150</strong> erhöht. Dieser Aufschlag ist bereits im totalen Mietzins (siehe §3) enthalten.</p>`
-}
-<p>Die Rückerstattung ${v.kautionMonate>0?"der Kaution ":""}erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden.${v.kautionMonate>0?" Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.":""}</p>
+<p>Die Rückerstattung der Kaution erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden. Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.</p>
 </div>
 
 <!-- §5 -->
@@ -7047,13 +7039,12 @@ www.dthomes.ch`;
               </div>
             </div>
 
-            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Kaution-Variante</div>
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Kaution und Servicegebühr</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
               {[
-                {monate:3,aufschlag:0,label:"3× Monatsmiete",note:"Standard, keine Erhöhung"},
-                {monate:2,aufschlag:50,label:"2× Monatsmiete",note:"+ CHF 50 / Monat"},
-                {monate:1,aufschlag:100,label:"1× Monatsmiete",note:"+ CHF 100 / Monat"},
-                {monate:0,aufschlag:150,label:"Keine Kaution",note:"+ CHF 150 / Monat"},
+                {monate:3,aufschlag:0,label:"3× Monatsmiete",note:"Volle Kaution, keine Gebühr"},
+                {monate:2,aufschlag:50,label:"2× Monatsmiete",note:"+ CHF 50 / Monat Servicegebühr Kautionsreduktion"},
+                {monate:1,aufschlag:100,label:"1× Monatsmiete",note:"+ CHF 100 / Monat Servicegebühr Kautionsreduktion"},
               ].map(opt=>{
                 const sel=vertragData.kautionMonate===opt.monate;
                 return (
@@ -7069,7 +7060,7 @@ www.dthomes.ch`;
                       total: brutto + strom + opt.aufschlag,
                     }));
                     // Sync zurueck an Bewerber
-                    const typeMap = {3:"3x",2:"2x",1:"1x",0:"0x"};
+                    const typeMap = {3:"3x",2:"2x",1:"1x"};
                     updateBewerber(b.id, { kautionType: typeMap[opt.monate], kautionAufschlag: opt.aufschlag });
                   }}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
