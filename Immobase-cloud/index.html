@@ -10622,20 +10622,6 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
           <div key={s} className="kcol">
             <div className="kcol-h"><span className="t">{labels[s]}</span><span className="c">{manual(s).length + (s==="offen"?auto.length:0)}</span></div>
 
-            {s==="offen" && auto.map(a=>(
-              <button key={a.id} className="kauto" onClick={()=>navigateTo&&navigateTo(a.page,a.target)}>
-                <span style={{fontSize:15}}>{a.icon}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{a.label}</div>
-                  <div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.sub}</div>
-                </div>
-                <span className="kbadge">Auto</span>
-                <span role="button" title="Dauerhaft ausblenden"
-                  onClick={e=>{e.stopPropagation(); if(window.confirm("Dieses automatische To-do dauerhaft ausblenden?")) dismissAutoTodo && dismissAutoTodo(a.id);}}
-                  style={{marginLeft:6,fontSize:13,color:"var(--muted)",padding:"0 4px",cursor:"pointer"}}>×</span>
-              </button>
-            ))}
-
             {manual(s).map(t=>(
               <div key={t.id} className="kcard">
                 <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
@@ -10673,6 +10659,20 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
                   <button className="kmini" onClick={()=>{if(confirm("To-do löschen?"))deleteTodo(t.id);}} title="Löschen" style={{color:"var(--error)"}}>✕</button>
                 </div>
               </div>
+            ))}
+
+            {s==="offen" && auto.map(a=>(
+              <button key={a.id} className="kauto" onClick={()=>navigateTo&&navigateTo(a.page,a.target)}>
+                <span style={{fontSize:15}}>{a.icon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{a.label}</div>
+                  <div style={{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.sub}</div>
+                </div>
+                <span className="kbadge">Auto</span>
+                <span role="button" title="Dauerhaft ausblenden"
+                  onClick={e=>{e.stopPropagation(); if(window.confirm("Dieses automatische To-do dauerhaft ausblenden?")) dismissAutoTodo && dismissAutoTodo(a.id);}}
+                  style={{marginLeft:6,fontSize:13,color:"var(--muted)",padding:"0 4px",cursor:"pointer"}}>×</span>
+              </button>
             ))}
 
             {s==="offen" && auto.length===0 && manual("offen").length===0 && <div style={{fontSize:12,color:"var(--muted-light)",padding:"8px 2px"}}>Alles erledigt 🎉</div>}
