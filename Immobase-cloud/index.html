@@ -5881,51 +5881,48 @@ function CountersignButton({contract, onDone, light}){
 
 function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung}){
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
-  const wohnungen = (apts||[]).filter(a=>!a.pipeline).sort((a,b)=>natSort(a.id,b.id));
+  const isFrei = (r)=> !r.occupied && !r.tenantId;
+  const wohnungen = (apts||[])
+    .filter(a=> (a.type||"")!=="Airbnb" && !a.pipeline)
+    .map(a=>({a, freieRms:(rooms||[]).filter(r=>r.aptId===a.id && isFrei(r)).sort((x,y)=>natSort(x.id,y.id)), alleRms:(rooms||[]).filter(r=>r.aptId===a.id)}))
+    .filter(x=> x.freieRms.length>0)
+    .sort((x,y)=>natSort(x.a.id,y.a.id));
   const badge = (bg,c,txt)=><span style={{fontSize:9,padding:"1px 7px",borderRadius:99,background:bg,color:c,whiteSpace:"nowrap"}}>{txt}</span>;
   return (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(320px,100%),1fr))",gap:14}}>
-      {wohnungen.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine Wohnungen vorhanden.</div>}
-      {wohnungen.map(a=>{
-        const bw = (bewerber||[]).filter(b=>b.aptId===a.id && aktiv.includes(b.status));
-        const rms = (rooms||[]).filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id,y.id));
-        const frei = rms.filter(r=>!r.occupied && !r.tenantId);
-        const neu = bw.filter(b=>b.status==="Neu"||b.status==="In Prüfung").length;
-        const zug = bw.filter(b=>b.status==="Zugeteilt").length;
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(340px,100%),1fr))",gap:14}}>
+      {wohnungen.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine Wohnungen mit freien Zimmern.</div>}
+      {wohnungen.map(({a,freieRms,alleRms})=>{
+        const aptBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && b.aptId===a.id);
+        const flexible = aptBew.filter(b=>!b.zimmerWunsch).length;
         return (
           <div key={a.id} className="card" style={{margin:0,cursor:"pointer"}} onClick={()=>onWohnung&&onWohnung(a.id)}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
               <div style={{minWidth:0}}>
                 <div style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.adresse||a.id}</div>
-                <div style={{fontSize:10.5,color:"var(--muted)"}}>{a.type||"WG"} · {frei.length} von {rms.length} Zimmern frei</div>
+                <div style={{fontSize:10.5,color:"var(--muted)"}}>{a.type||"WG"} · {freieRms.length} von {alleRms.length} Zimmern frei</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontSize:20,fontWeight:700,color:bw.length>0?"var(--ink)":"#a06a2c",lineHeight:1}}>{bw.length}</div>
+                <div style={{fontSize:20,fontWeight:700,color:aptBew.length>0?"var(--ink)":"#a06a2c",lineHeight:1}}>{aptBew.length}</div>
                 <div style={{fontSize:9,color:"var(--muted)"}}>Bewerbungen</div>
               </div>
             </div>
-            <div style={{fontSize:10.5,margin:"7px 0 10px"}}>
-              {bw.length===0 ? <span style={{color:"#a06a2c"}}>Keine Bewerbungen, Marketing sinnvoll</span> : <span style={{color:"var(--muted)"}}>{neu} neu · {zug} zugeteilt</span>}
-            </div>
-            <div style={{borderTop:"1px solid var(--line)",paddingTop:8}}>
-              {rms.length===0 && <div style={{fontSize:11,color:"var(--muted)"}}>Keine Zimmer erfasst.</div>}
-              {rms.map(r=>{
-                const belegt = r.occupied || r.tenantId;
-                const roomContracts = (contracts||[]).filter(c=>c.roomId===r.id);
-                const signed = roomContracts.some(c=>c.status==="signiert");
-                const hasContract = roomContracts.length>0;
-                const zugeteilt = bw.some(b=>b.zugeteiltes_zimmer===r.id && b.status==="Zugeteilt");
-                const st = belegt ? ["#e8efde","#3a5230","vermietet"] : (zugeteilt||hasContract) ? ["#fdf2e0","#7a5c3c","reserviert"] : ["#f0ece3","#5a5448","frei"];
+            <div style={{borderTop:"1px solid var(--line)",marginTop:10,paddingTop:8}}>
+              {freieRms.map(r=>{
+                const n = (bewerber||[]).filter(b=>aktiv.includes(b.status) && b.zimmerWunsch===r.id).length;
+                const rcs = (contracts||[]).filter(c=>c.roomId===r.id);
+                const signed = rcs.some(c=>c.status==="signiert");
                 return (
                   <div key={r.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"5px 0",fontSize:11.5}}>
-                    <span style={{color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.id}{r.miete?` · CHF ${(+r.miete).toLocaleString('de-CH')}`:""}</span>
+                    <span style={{color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>Zimmer {r.id.split("-")[1]||r.id}{r.miete?` · CHF ${(+r.miete).toLocaleString('de-CH')}`:""}</span>
                     <span style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}}>
-                      {hasContract && (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag"))}
-                      {badge(st[0],st[1],st[2])}
+                      {rcs.length>0 && (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c",`📄 ${rcs.length} ${rcs.length>1?"Verträge":"Vertrag"} raus`))}
+                      <span style={{color:n>0?"var(--ink)":"#a06a2c",fontWeight:700}}>{n}</span>
+                      <span style={{color:"var(--muted)",fontSize:10}}>Bew.</span>
                     </span>
                   </div>
                 );
               })}
+              {flexible>0 && <div style={{fontSize:10,color:"var(--muted)",marginTop:6}}>+ {flexible} ohne Zimmerwunsch (flexibel)</div>}
             </div>
           </div>
         );
