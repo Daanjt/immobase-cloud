@@ -1618,6 +1618,8 @@ function useSupabaseData() {
     setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
     setTenants((t.data||[]).map(x=>({
       ...x,
+      vorname: (x.vorname||"").trim().replace(/\s+/g," "),
+      nachname: (x.nachname||"").trim().replace(/\s+/g," "),
       kautionArt: x.kaution_art,
       schluesselNr: x.schluessel_nr,
       schluesselAnzahl: x.schluessel_anzahl,
@@ -1651,6 +1653,8 @@ function useSupabaseData() {
     })));
     setBewerber((b.data||[]).map(x=>({
       ...x,
+      vorname: (x.vorname||"").trim().replace(/\s+/g," "),
+      nachname: (x.nachname||"").trim().replace(/\s+/g," "),
       kautionOpt:x.kaution_opt, kautionType:x.kaution_type, kautionAufschlag:x.kaution_aufschlag,
       moeblierungPauschale:x.moeblierung_pauschale, zimmerWunsch:x.zimmer_wunsch,
       zugeteiltes_zimmer:x.zugeteiltes_zimmer, eingereichtAm:x.eingereicht_am, noDebt:x.no_debt,
