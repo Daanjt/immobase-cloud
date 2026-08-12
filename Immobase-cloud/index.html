@@ -5893,12 +5893,12 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   const badge = (bg,c,txt)=><span style={{fontSize:9,padding:"1px 7px",borderRadius:99,background:bg,color:c,whiteSpace:"nowrap"}}>{txt}</span>;
   const nameOf = (b)=> `${b.vorname||""} ${b.nachname||""}`.trim() || "Ohne Name";
 
-  const BewRow = ({b})=>{
+  const BewRow = ({b, context})=>{
     const cs = (contracts||[]).filter(c=>c.bewerberId===b.id && !["zurueckgezogen","abgelaufen","withdrawn","expired","storniert"].includes(c.status));
     const signed = cs.some(c=>c.status==="signiert");
     return (
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"3px 0",fontSize:11}}>
-        <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",textDecoration:"underline",textDecorationColor:"var(--line)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{nameOf(b)}</span>
+        <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}><span style={{textDecoration:"underline",textDecorationColor:"var(--line)"}}>{nameOf(b)}</span>{context?<span style={{color:"var(--muted)",fontSize:10}}> · {context}</span>:null}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag ausgestellt"))}
         </span>
@@ -5906,9 +5906,21 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
     );
   };
 
+  const aktivBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && !istMieter(b));
+  const shownAptIds = new Set(wohnungen.map(x=>x.a.id));
+  const shownRoomIds = new Set(); wohnungen.forEach(x=>x.alleRms.forEach(r=>shownRoomIds.add(r.id)));
+  const orphans = aktivBew.filter(b=> !shownAptIds.has(b.aptId) && !shownRoomIds.has(b.zimmerWunsch));
+  const orphanCtx = (b)=>{ const apt=(apts||[]).find(a=>a.id===b.aptId) || (apts||[]).find(a=>(rooms||[]).some(r=>r.id===b.zimmerWunsch && r.aptId===a.id)); const rm=b.zimmerWunsch?("Zimmer "+(b.zimmerWunsch.split("-")[1]||b.zimmerWunsch)):""; return [apt?apt.adresse:null, rm].filter(Boolean).join(" · ")||"unbekannt"; };
   return (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(340px,100%),1fr))",gap:14}}>
-      {wohnungen.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine Wohnungen mit freien Zimmern.</div>}
+    <div>
+      {orphans.length>0 && (
+        <div className="card" style={{margin:"0 0 14px 0"}}>
+          <div style={{fontSize:10,color:"#7a5c3c",marginBottom:8,textTransform:"uppercase",letterSpacing:".12em"}}>Bewerber ohne aktuell verfügbares Zimmer · anderes Zimmer anbieten ({orphans.length})</div>
+          {orphans.map(b=><BewRow key={b.id} b={b} context={orphanCtx(b)}/>)}
+        </div>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(340px,100%),1fr))",gap:14}}>
+        {wohnungen.length===0 && orphans.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine offenen Bewerbungen.</div>
       {wohnungen.map(({a,freieRms,alleRms})=>{
         const roomIds = alleRms.map(r=>r.id);
         const freiIds = freieRms.map(r=>r.id);
@@ -5957,6 +5969,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
