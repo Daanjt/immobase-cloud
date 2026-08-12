@@ -5892,14 +5892,14 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   const zurueck = async (cid)=>{ if(!confirm("Vertrag zurückziehen? Der Link wird ungültig und kann nicht rückgängig gemacht werden.")) return; try{ await withdrawContract(cid); }catch(e){} };
 
   const BewRow = ({b})=>{
-    const cs = (contracts||[]).filter(c=>c.bewerberId===b.id && ["sent","mieter_signiert","signiert"].includes(c.status));
+    const cs = (contracts||[]).filter(c=>c.bewerberId===b.id && !["zurueckgezogen","abgelaufen","withdrawn","expired","storniert"].includes(c.status));
     const signed = cs.some(c=>c.status==="signiert");
-    const wd = cs.find(c=>c.status==="sent"||c.status==="mieter_signiert");
+    const wd = cs.find(c=>c.status!=="signiert");
     return (
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"3px 0",fontSize:11}}>
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",textDecoration:"underline",textDecorationColor:"var(--line)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{nameOf(b)}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          {cs.length>0 && (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag"))}
+          {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag"))}
           {wd && <span onClick={(e)=>{e.stopPropagation(); zurueck(wd.id);}} style={{fontSize:9.5,color:"#8a3a2e",cursor:"pointer",whiteSpace:"nowrap"}}>zurückziehen</span>}
         </span>
       </div>
@@ -5910,7 +5910,8 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(340px,100%),1fr))",gap:14}}>
       {wohnungen.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine Wohnungen mit freien Zimmern.</div>}
       {wohnungen.map(({a,freieRms,alleRms})=>{
-        const aptBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && b.aptId===a.id);
+        const roomIds = alleRms.map(r=>r.id);
+        const aptBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && (b.aptId===a.id || roomIds.includes(b.zimmerWunsch)));
         const flex = aptBew.filter(b=>!b.zimmerWunsch);
         return (
           <div key={a.id} className="card" style={{margin:0}}>
