@@ -11257,6 +11257,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [sprache, setSprache] = useState("de");
 
   useEffect(() => {
     supabase.from("message_templates").select("*").eq("aktiv", true).order("sortierung")
@@ -11266,18 +11267,25 @@ function KommunikationTab({empfaenger, zielgruppe}) {
       });
   }, [zielgruppe]);
 
-  function waehle(id) {
+  function waehle(id, lang) {
     setSelId(id);
+    const spr = lang || sprache;
     const v = (templates||[]).find(x => x.id === id);
     if (v) {
-      setBetreff(platzhalterFuellen(v.betreff||"", empfaenger));
-      setText(platzhalterFuellen(v.inhalt||"", empfaenger));
-      if ((v.inhalt||"").includes("{uebergabe_link}") && !empfaenger.uebergabe_link) {
+      const bet = spr === "en" ? (v.betreff_en || v.betreff) : v.betreff;
+      const inh = spr === "en" ? (v.inhalt_en || v.inhalt) : v.inhalt;
+      setBetreff(platzhalterFuellen(bet||"", empfaenger));
+      setText(platzhalterFuellen(inh||"", empfaenger));
+      if ((inh||"").includes("{uebergabe_link}") && !empfaenger.uebergabe_link) {
         setMsg({t:"err", m:"Achtung: Diese Vorlage enthält einen Übergabe-Link, aber für diesen Mieter läuft noch kein Übergabeprotokoll. Starte es zuerst im Tab Übergabe."});
       } else {
         setMsg(null);
       }
     } else { setBetreff(""); setText(""); setMsg(null); }
+  }
+  function wechsleSprache(spr) {
+    setSprache(spr);
+    if (selId) waehle(selId, spr);
   }
 
   const cleanPhone = String(empfaenger.phone||"").replace(/\D/g, "");
@@ -11289,7 +11297,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
     setSending(true); setMsg(null);
     try {
       const { error } = await supabase.functions.invoke("send-message", {
-        body: { to: empfaenger.email, betreff: betreff || "Mitteilung von D&T Homes", text, empfaengerName: `${empfaenger.vorname||""} ${empfaenger.nachname||""}`.trim() }
+        body: { to: empfaenger.email, betreff: betreff || (sprache==="en" ? "Message from D&T Homes" : "Mitteilung von D&T Homes"), text, empfaengerName: `${empfaenger.vorname||""} ${empfaenger.nachname||""}`.trim() }
       });
       if (error) throw error;
       setMsg({t:"ok", m:`E-Mail an ${empfaenger.email} verschickt.`});
@@ -11302,6 +11310,12 @@ function KommunikationTab({empfaenger, zielgruppe}) {
     <div>
       <div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>
         An {empfaenger.vorname} {empfaenger.nachname}{empfaenger.email?` · ${empfaenger.email}`:" · keine E-Mail"}{cleanPhone?" · ☏ vorhanden":" · keine Nummer"}
+      </div>
+
+      <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Sprache</div>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        <button type="button" onClick={()=>wechsleSprache("de")} className="btn btn-sm" style={{flex:1,justifyContent:"center",background:sprache==="de"?"#1a1814":"transparent",color:sprache==="de"?"#fff":"var(--ink)",borderColor:sprache==="de"?"#1a1814":"var(--line)"}}>Deutsch</button>
+        <button type="button" onClick={()=>wechsleSprache("en")} className="btn btn-sm" style={{flex:1,justifyContent:"center",background:sprache==="en"?"#1a1814":"transparent",color:sprache==="en"?"#fff":"var(--ink)",borderColor:sprache==="en"?"#1a1814":"var(--line)"}}>English</button>
       </div>
 
       <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:6,fontWeight:500}}>Vorlage</div>
