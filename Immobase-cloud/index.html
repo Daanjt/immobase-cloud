@@ -5879,6 +5879,61 @@ function CountersignButton({contract, onDone, light}){
   </>);
 }
 
+function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung}){
+  const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
+  const wohnungen = (apts||[]).filter(a=>!a.pipeline).sort((a,b)=>natSort(a.id,b.id));
+  const badge = (bg,c,txt)=><span style={{fontSize:9,padding:"1px 7px",borderRadius:99,background:bg,color:c,whiteSpace:"nowrap"}}>{txt}</span>;
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(320px,100%),1fr))",gap:14}}>
+      {wohnungen.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine Wohnungen vorhanden.</div>}
+      {wohnungen.map(a=>{
+        const bw = (bewerber||[]).filter(b=>b.aptId===a.id && aktiv.includes(b.status));
+        const rms = (rooms||[]).filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id,y.id));
+        const frei = rms.filter(r=>!r.occupied && !r.tenantId);
+        const neu = bw.filter(b=>b.status==="Neu"||b.status==="In Prüfung").length;
+        const zug = bw.filter(b=>b.status==="Zugeteilt").length;
+        return (
+          <div key={a.id} className="card" style={{margin:0,cursor:"pointer"}} onClick={()=>onWohnung&&onWohnung(a.id)}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.adresse||a.id}</div>
+                <div style={{fontSize:10.5,color:"var(--muted)"}}>{a.type||"WG"} · {frei.length} von {rms.length} Zimmern frei</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:20,fontWeight:700,color:bw.length>0?"var(--ink)":"#a06a2c",lineHeight:1}}>{bw.length}</div>
+                <div style={{fontSize:9,color:"var(--muted)"}}>Bewerbungen</div>
+              </div>
+            </div>
+            <div style={{fontSize:10.5,margin:"7px 0 10px"}}>
+              {bw.length===0 ? <span style={{color:"#a06a2c"}}>Keine Bewerbungen, Marketing sinnvoll</span> : <span style={{color:"var(--muted)"}}>{neu} neu · {zug} zugeteilt</span>}
+            </div>
+            <div style={{borderTop:"1px solid var(--line)",paddingTop:8}}>
+              {rms.length===0 && <div style={{fontSize:11,color:"var(--muted)"}}>Keine Zimmer erfasst.</div>}
+              {rms.map(r=>{
+                const belegt = r.occupied || r.tenantId;
+                const roomContracts = (contracts||[]).filter(c=>c.roomId===r.id);
+                const signed = roomContracts.some(c=>c.status==="signiert");
+                const hasContract = roomContracts.length>0;
+                const zugeteilt = bw.some(b=>b.zugeteiltes_zimmer===r.id && b.status==="Zugeteilt");
+                const st = belegt ? ["#e8efde","#3a5230","vermietet"] : (zugeteilt||hasContract) ? ["#fdf2e0","#7a5c3c","reserviert"] : ["#f0ece3","#5a5448","frei"];
+                return (
+                  <div key={r.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"5px 0",fontSize:11.5}}>
+                    <span style={{color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.id}{r.miete?` · CHF ${(+r.miete).toLocaleString('de-CH')}`:""}</span>
+                    <span style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}}>
+                      {hasContract && (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag"))}
+                      {badge(st[0],st[1],st[2])}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
@@ -5888,6 +5943,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [filterStatus,setFilterStatus]=useState("Neu");
   const [bewSort,setBewSort]=useState("neu");
   const [bewSearch,setBewSearch]=useState("");
+  const [ansicht,setAnsicht]=useState("liste");
+  const touchX=useRef(null);
   const detailRef = useRef(null);
   useEffect(()=>{
     if (sel && detailRef.current) {
@@ -6564,6 +6621,15 @@ www.dthomes.ch`;
           <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
         </div>
       </div>
+      {/* Umschalter Liste / Übersicht, per Wischen umschaltbar */}
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        <button className={`btn btn-sm ${ansicht==="liste"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("liste")}>Liste</button>
+        <button className={`btn btn-sm ${ansicht==="uebersicht"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("uebersicht")}>Übersicht</button>
+      </div>
+      <div onTouchStart={e=>{touchX.current=e.touches[0].clientX;}} onTouchEnd={e=>{ if(touchX.current==null)return; const dx=e.changedTouches[0].clientX-touchX.current; touchX.current=null; if(Math.abs(dx)>60) setAnsicht(dx<0?"uebersicht":"liste"); }}>
+      {ansicht==="uebersicht" ? (
+        <BewerberUebersicht bewerber={bewerber} apts={apts} rooms={rooms} tenants={tenants} contracts={contracts} onWohnung={()=>{ setNachmieterFor(null); setBewSearch(""); setFilterStatus("Neu"); setAnsicht("liste"); }} />
+      ) : (
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
         <div>
           <div style={{marginBottom:10}}>
@@ -6807,6 +6873,8 @@ www.dthomes.ch`;
           </div>
           </>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
+      </div>
+      )}
       </div>
 
       {zuteilModal&&b&&(
