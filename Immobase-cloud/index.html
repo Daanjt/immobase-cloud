@@ -5889,18 +5889,15 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
     .sort((x,y)=>natSort(x.a.id,y.a.id));
   const badge = (bg,c,txt)=><span style={{fontSize:9,padding:"1px 7px",borderRadius:99,background:bg,color:c,whiteSpace:"nowrap"}}>{txt}</span>;
   const nameOf = (b)=> `${b.vorname||""} ${b.nachname||""}`.trim() || "Ohne Name";
-  const zurueck = async (cid)=>{ if(!confirm("Vertrag zurückziehen? Der Link wird ungültig und kann nicht rückgängig gemacht werden.")) return; try{ await withdrawContract(cid); }catch(e){} };
 
   const BewRow = ({b})=>{
     const cs = (contracts||[]).filter(c=>c.bewerberId===b.id && !["zurueckgezogen","abgelaufen","withdrawn","expired","storniert"].includes(c.status));
     const signed = cs.some(c=>c.status==="signiert");
-    const wd = cs.find(c=>c.status!=="signiert");
     return (
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"3px 0",fontSize:11}}>
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",textDecoration:"underline",textDecorationColor:"var(--line)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{nameOf(b)}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag"))}
-          {wd && <span onClick={(e)=>{e.stopPropagation(); zurueck(wd.id);}} style={{fontSize:9.5,color:"#8a3a2e",cursor:"pointer",whiteSpace:"nowrap"}}>zurückziehen</span>}
+          {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag ausgestellt"))}
         </span>
       </div>
     );
@@ -5911,8 +5908,9 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       {wohnungen.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine Wohnungen mit freien Zimmern.</div>}
       {wohnungen.map(({a,freieRms,alleRms})=>{
         const roomIds = alleRms.map(r=>r.id);
+        const freiIds = freieRms.map(r=>r.id);
         const aptBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && (b.aptId===a.id || roomIds.includes(b.zimmerWunsch)));
-        const flex = aptBew.filter(b=>!b.zimmerWunsch);
+        const weitere = aptBew.filter(b=> !freiIds.includes(b.zimmerWunsch));
         return (
           <div key={a.id} className="card" style={{margin:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,cursor:"pointer"}} onClick={()=>onWohnung&&onWohnung(a.id)}>
@@ -5939,10 +5937,10 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
                   </div>
                 );
               })}
-              {flex.length>0 && (
+              {weitere.length>0 && (
                 <div style={{borderTop:"1px solid var(--line)",paddingTop:7,marginTop:7}}>
-                  <div style={{fontSize:10,color:"var(--muted)",marginBottom:4,textTransform:"uppercase",letterSpacing:".12em"}}>Ohne Zimmerwunsch (flexibel)</div>
-                  {flex.map(b=><BewRow key={b.id} b={b}/>)}
+                  <div style={{fontSize:10,color:"var(--muted)",marginBottom:4,textTransform:"uppercase",letterSpacing:".12em"}}>Flexibel oder Wunschzimmer belegt</div>
+                  {weitere.map(b=><BewRow key={b.id} b={b}/>)}
                 </div>
               )}
             </div>
