@@ -5882,6 +5882,9 @@ function CountersignButton({contract, onDone, light}){
 function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung, onSelectBewerber, withdrawContract}){
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
   const isFrei = (r)=> !r.occupied && !r.tenantId;
+  const tenantKeys = new Set();
+  (tenants||[]).forEach(t=>{ if(t.email) tenantKeys.add("e:"+String(t.email).toLowerCase()); if(t.bewerberId) tenantKeys.add("b:"+t.bewerberId); });
+  const istMieter = (b)=> (b.email && tenantKeys.has("e:"+String(b.email).toLowerCase())) || tenantKeys.has("b:"+b.id);
   const wohnungen = (apts||[])
     .filter(a=> (a.type||"")!=="Airbnb" && !a.pipeline)
     .map(a=>({a, freieRms:(rooms||[]).filter(r=>r.aptId===a.id && isFrei(r)).sort((x,y)=>natSort(x.id,y.id)), alleRms:(rooms||[]).filter(r=>r.aptId===a.id)}))
@@ -5909,8 +5912,9 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       {wohnungen.map(({a,freieRms,alleRms})=>{
         const roomIds = alleRms.map(r=>r.id);
         const freiIds = freieRms.map(r=>r.id);
-        const aptBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && (b.aptId===a.id || roomIds.includes(b.zimmerWunsch)));
-        const weitere = aptBew.filter(b=> !freiIds.includes(b.zimmerWunsch));
+        const aptBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && !istMieter(b) && (b.aptId===a.id || roomIds.includes(b.zimmerWunsch)));
+        const wunschBelegt = aptBew.filter(b=> b.zimmerWunsch && !freiIds.includes(b.zimmerWunsch));
+        const flexibel = aptBew.filter(b=> !b.zimmerWunsch);
         return (
           <div key={a.id} className="card" style={{margin:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,cursor:"pointer"}} onClick={()=>onWohnung&&onWohnung(a.id)}>
@@ -5925,7 +5929,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
             </div>
             <div style={{marginTop:10}}>
               {freieRms.map(r=>{
-                const roomBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && b.zimmerWunsch===r.id);
+                const roomBew = (bewerber||[]).filter(b=>aktiv.includes(b.status) && !istMieter(b) && b.zimmerWunsch===r.id);
                 return (
                   <div key={r.id} style={{borderTop:"1px solid var(--line)",paddingTop:7,marginTop:7}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:11.5,marginBottom:roomBew.length?4:0}}>
@@ -5937,10 +5941,16 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
                   </div>
                 );
               })}
-              {weitere.length>0 && (
+              {wunschBelegt.length>0 && (
                 <div style={{borderTop:"1px solid var(--line)",paddingTop:7,marginTop:7}}>
-                  <div style={{fontSize:10,color:"var(--muted)",marginBottom:4,textTransform:"uppercase",letterSpacing:".12em"}}>Flexibel oder Wunschzimmer belegt</div>
-                  {weitere.map(b=><BewRow key={b.id} b={b}/>)}
+                  <div style={{fontSize:10,color:"#7a5c3c",marginBottom:4,textTransform:"uppercase",letterSpacing:".12em"}}>Wunschzimmer belegt · anderes Zimmer anbieten</div>
+                  {wunschBelegt.map(b=><BewRow key={b.id} b={b}/>)}
+                </div>
+              )}
+              {flexibel.length>0 && (
+                <div style={{borderTop:"1px solid var(--line)",paddingTop:7,marginTop:7}}>
+                  <div style={{fontSize:10,color:"var(--muted)",marginBottom:4,textTransform:"uppercase",letterSpacing:".12em"}}>Flexibel · ohne Zimmerwunsch</div>
+                  {flexibel.map(b=><BewRow key={b.id} b={b}/>)}
                 </div>
               )}
             </div>
