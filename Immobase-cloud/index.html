@@ -6687,7 +6687,7 @@ www.dthomes.ch`;
                 ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
                 ["Geschlecht",b.gender||"-"],
                 ["Nationalität",b.nat||"-"],
-                ["Adresse",b.adresse?`${b.adresse}, ${b.plz} ${b.ort}`:"-"],
+                ["Adresse",b.adresse?[b.adresse,[b.plz,b.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"-"],
                 ["Beschäftigung",b.type||"-"],
                 ["Beruf",b.job||"-"],
                 ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"-"],
@@ -8739,7 +8739,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 ["Telefon",tenant.phone||"-"],
                 ["Geburt", fmtDateDE(tenant.geburt) || "-"],
                 ["Nationalität",tenant.nat||"-"],
-                ["Vorherige Adresse",tenant.adresse?`${tenant.adresse}, ${tenant.plz||""} ${tenant.ort||""}`.trim():"-"],
+                ["Vorherige Adresse",tenant.adresse?[tenant.adresse,[tenant.plz,tenant.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"-"],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Beruf & Einkommen</div>
