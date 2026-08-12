@@ -5914,8 +5914,9 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   const orphanByApt = {};
   orphans.forEach(b=>{
     const apt=(apts||[]).find(a=>a.id===b.aptId) || (apts||[]).find(a=>(rooms||[]).some(r=>r.id===b.zimmerWunsch && r.aptId===a.id));
-    const key = apt ? apt.id : "_unbekannt";
-    if(!orphanByApt[key]) orphanByApt[key] = { addr: apt?(apt.adresse||apt.id):"Unbekannte Wohnung", list:[] };
+    const addr = apt ? (apt.adresse||apt.id) : "Unbekannte Wohnung";
+    const key = String(addr).trim().toLowerCase();
+    if(!orphanByApt[key]) orphanByApt[key] = { addr: String(addr).trim(), list:[] };
     orphanByApt[key].list.push(b);
   });
   const orphanGroups = Object.values(orphanByApt).sort((a,b)=> (a.addr>b.addr?1:a.addr<b.addr?-1:0));
