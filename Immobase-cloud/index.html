@@ -5910,15 +5910,17 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   const shownAptIds = new Set(wohnungen.map(x=>x.a.id));
   const shownRoomIds = new Set(); wohnungen.forEach(x=>x.alleRms.forEach(r=>shownRoomIds.add(r.id)));
   const orphans = aktivBew.filter(b=> !shownAptIds.has(b.aptId) && !shownRoomIds.has(b.zimmerWunsch));
-  const orphanCtx = (b)=>{ const apt=(apts||[]).find(a=>a.id===b.aptId) || (apts||[]).find(a=>(rooms||[]).some(r=>r.id===b.zimmerWunsch && r.aptId===a.id)); const rm=b.zimmerWunsch?("Zimmer "+(b.zimmerWunsch.split("-")[1]||b.zimmerWunsch)):""; return [apt?apt.adresse:null, rm].filter(Boolean).join(" · ")||"unbekannt"; };
+  const roomCtx = (b)=> b.zimmerWunsch ? ("Zimmer "+(b.zimmerWunsch.split("-")[1]||b.zimmerWunsch)) : "ohne Zimmerwunsch";
+  const orphanByApt = {};
+  orphans.forEach(b=>{
+    const apt=(apts||[]).find(a=>a.id===b.aptId) || (apts||[]).find(a=>(rooms||[]).some(r=>r.id===b.zimmerWunsch && r.aptId===a.id));
+    const key = apt ? apt.id : "_unbekannt";
+    if(!orphanByApt[key]) orphanByApt[key] = { addr: apt?(apt.adresse||apt.id):"Unbekannte Wohnung", list:[] };
+    orphanByApt[key].list.push(b);
+  });
+  const orphanGroups = Object.values(orphanByApt).sort((a,b)=> (a.addr>b.addr?1:a.addr<b.addr?-1:0));
   return (
     <div>
-      {orphans.length>0 && (
-        <div className="card" style={{margin:"0 0 14px 0"}}>
-          <div style={{fontSize:10,color:"#7a5c3c",marginBottom:8,textTransform:"uppercase",letterSpacing:".12em"}}>Bewerber ohne aktuell verfügbares Zimmer · anderes Zimmer anbieten ({orphans.length})</div>
-          {orphans.map(b=><BewRow key={b.id} b={b} context={orphanCtx(b)}/>)}
-        </div>
-      )}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(340px,100%),1fr))",gap:14}}>
         {wohnungen.length===0 && orphans.length===0 && <div style={{color:"#8a8478",fontSize:12}}>Keine offenen Bewerbungen.</div>}
       {wohnungen.map(({a,freieRms,alleRms})=>{
@@ -5970,6 +5972,17 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
         );
       })}
       </div>
+      {orphans.length>0 && (
+        <div className="card" style={{marginTop:14}}>
+          <div style={{fontSize:10,color:"#7a5c3c",marginBottom:8,textTransform:"uppercase",letterSpacing:".12em"}}>Bewerber ohne aktuell verfügbares Zimmer · anderes Zimmer anbieten ({orphans.length})</div>
+          {orphanGroups.map((g,i)=>(
+            <div key={i} style={{marginTop:i?10:0,borderTop:i?"1px solid var(--line)":"none",paddingTop:i?8:0}}>
+              <div style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",marginBottom:3}}>{g.addr}</div>
+              {g.list.map(b=><BewRow key={b.id} b={b} context={roomCtx(b)}/>)}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
