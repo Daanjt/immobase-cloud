@@ -7421,8 +7421,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
       zimmer: quelle.zimmer || "",
       units: quelle.units || "",
       stockwerk: quelle.stockwerk || "",
-      miete: quelle.miete || "",
-      kaution: quelle.kaution || "",
+      miete: "",
+      kaution: "",
       kautionType: quelle.kautionType || "",
       verwaltung: quelle.verwaltung || "",
       eigentuemer: quelle.eigentuemer || "",
@@ -7757,8 +7757,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
           <div className="fg"><label className="fl">Mietende</label><input className="fi" value={newForm.mietende||""} onChange={NF("mietende")} placeholder="DD.MM.YYYY oder leer"/></div>
         </div>
         <div className="frow">
-          <div className="fg"><label className="fl">Miete (an Eigentümer) / Mt.</label><input className="fi" type="number" value={newForm.miete||""} onChange={NF("miete")}/></div>
-          <div className="fg"><label className="fl">Kaution</label><input className="fi" type="number" value={newForm.kaution||""} onChange={NF("kaution")}/></div>
+          <div className="fg"><label className="fl">Miete (an Eigentümer) / Mt.</label><input className="fi" type="number" value={newForm.miete||""} onChange={e=>{const v=e.target.value; setNewForm(f=>{const old3x=f.miete?String(3*(+f.miete||0)):""; const auto=(!f.kaution||String(f.kaution)===old3x); return {...f,miete:v,kaution:auto?(v?String(3*(+v||0)):""):f.kaution};});}}/></div>
+          <div className="fg"><label className="fl">Kaution (Vorschlag 3× Miete)</label><input className="fi" type="number" value={newForm.kaution||""} onChange={NF("kaution")}/></div>
         </div>
         <div className="frow">
           <div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">-</option><option value="Evorest">Evorest</option><option value="Firstcaution">Firstcaution</option><option value="GoCaution">GoCaution</option><option value="Bankkaution">Bankkaution</option></select></div>
