@@ -6916,7 +6916,7 @@ www.dthomes.ch`;
               const moeblText = b.moebliert==="ja"?"möbliert":b.moebliert==="nein"?"unmöbliert":"";
               const empf = {
                 vorname: b.vorname, nachname: b.nachname, email: b.email, phone: b.phone,
-                adresse: aptObj?.adresse || "", zimmer: roomObj?.id || "", einzug: b.einzug || "", auszug: "",
+                adresse: [aptObj?.adresse, [aptObj?.plz, aptObj?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), zimmer: roomObj?.id || "", einzug: b.einzug || "", auszug: "",
                 zimmerpreis: roomObj?.miete ? `CHF ${(+roomObj.miete).toLocaleString('de-CH')}` : "",
                 moeblierung: moeblText,
                 kautionswahl: kautionText,
@@ -8981,7 +8981,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               const uebergabeLink = hps[0]?.signUrl || "";
               const empf = {
                 vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
-                adresse: apt?.adresse || "", zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
+                adresse: [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
                 uebergabe_link: uebergabeLink,
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
