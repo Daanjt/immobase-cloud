@@ -5910,7 +5910,11 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   const shownAptIds = new Set(wohnungen.map(x=>x.a.id));
   const shownRoomIds = new Set(); wohnungen.forEach(x=>x.alleRms.forEach(r=>shownRoomIds.add(r.id)));
   const orphans = aktivBew.filter(b=> !shownAptIds.has(b.aptId) && !shownRoomIds.has(b.zimmerWunsch));
-  const roomCtx = (b)=> b.zimmerWunsch ? ("Zimmer "+(b.zimmerWunsch.split("-")[1]||b.zimmerWunsch)) : "ohne Zimmerwunsch";
+  const roomCtx = (b)=>{
+    if (!b.zimmerWunsch) return "ohne Zimmerwunsch";
+    const rm = (rooms||[]).find(r=>r.id===b.zimmerWunsch);
+    return rm && rm.miete ? `CHF ${(+rm.miete).toLocaleString('de-CH')}` : "Preis unbekannt";
+  };
   const orphanByApt = {};
   orphans.forEach(b=>{
     const apt=(apts||[]).find(a=>a.id===b.aptId) || (apts||[]).find(a=>(rooms||[]).some(r=>r.id===b.zimmerWunsch && r.aptId===a.id));
