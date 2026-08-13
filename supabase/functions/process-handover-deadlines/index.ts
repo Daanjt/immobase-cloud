@@ -36,11 +36,25 @@ async function ladeLogo(): Promise<string | null> {
   }
 }
 
-function formatDateDE(iso: string): string {
+function formatDateDE(input: string): string {
+  const s = String(input || "").trim();
+  if (!s) return "";
+  const monate = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const de = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); // TT.MM.JJJJ (Schweizer Format)
+  if (de) {
+    const mo = parseInt(de[2], 10);
+    if (mo >= 1 && mo <= 12) return `${parseInt(de[1], 10)}. ${monate[mo - 1]} ${de[3]}`;
+  }
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); // ISO JJJJ-MM-TT
+  if (iso) {
+    const mo = parseInt(iso[2], 10);
+    if (mo >= 1 && mo <= 12) return `${parseInt(iso[3], 10)}. ${monate[mo - 1]} ${iso[1]}`;
+  }
   try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" });
-  } catch { return iso; }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" });
+  } catch { /* ignore */ }
+  return s;
 }
 
 // Dateinamen bereinigen, gleiche Logik wie in der Admin-App und in send-handover-pdf
