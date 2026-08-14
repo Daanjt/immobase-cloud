@@ -33,6 +33,7 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@7.18.6/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <!-- Service Worker entfernt — alte SWs werden automatisch entfernt bei Besuch -->
@@ -2869,6 +2870,7 @@ function PdfPreview({url}){
 function MediaManager({apt, editApt, rooms}){
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [zipping, setZipping] = useState(false);
   const [mp, setMp] = useState(apt.matterportUrl || "");
   const [mpSaving, setMpSaving] = useState(false);
   const fileInputRef = React.useRef(null);
@@ -2896,6 +2898,42 @@ function MediaManager({apt, editApt, rooms}){
   
   function publicUrl(path){
     return `${SUPABASE_URL}/storage/v1/object/public/assets/${path}`;
+  }
+
+  const safeName = (s)=> String(s||"").replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_|_$/g,"") || "Wohnung";
+  const fileExt = (path)=> ((path||"").split("?")[0].split(".").pop()||"jpg").toLowerCase();
+
+  async function downloadPhoto(p, i){
+    try {
+      const res = await fetch(publicUrl(p.path));
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const blob = await res.blob();
+      const fname = `${safeName(apt.adresse||apt.id)}_${p.category ? safeName(p.category) : "Foto"}_${i+1}.${fileExt(p.path)}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    } catch(e){ alert("Download fehlgeschlagen: "+(e.message||e)); }
+  }
+
+  async function downloadAll(){
+    if(!window.JSZip){ alert("Zip-Bibliothek noch nicht geladen, bitte kurz warten und erneut versuchen."); return; }
+    if(!photos.length) return;
+    setZipping(true);
+    try {
+      const zip = new window.JSZip();
+      for(let i=0;i<photos.length;i++){
+        const p = photos[i];
+        const res = await fetch(publicUrl(p.path));
+        if(!res.ok) continue;
+        const blob = await res.blob();
+        zip.file(`${String(i+1).padStart(2,"0")}_${p.category ? safeName(p.category) : "Foto"}.${fileExt(p.path)}`, blob);
+      }
+      const content = await zip.generateAsync({type:"blob"});
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a"); a.href=url; a.download=`${safeName(apt.adresse||apt.id)}_Medien.zip`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    } catch(e){ alert("Zip fehlgeschlagen: "+(e.message||e)); }
+    setZipping(false);
   }
   
   async function resizeImageClient(file, maxDim){
@@ -3074,6 +3112,12 @@ function MediaManager({apt, editApt, rooms}){
       </div>
       
       {/* ─── Fotos Grid ─── */}
+      {photos.length > 0 && (
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <span style={{fontSize:11,color:"#8a8174"}}>{photos.length} Datei{photos.length>1?"en":""}</span>
+          <button onClick={downloadAll} disabled={zipping} style={{background:"none",border:"1px solid #d8c9a4",borderRadius:6,padding:"4px 10px",cursor:zipping?"default":"pointer",fontSize:11,color:"#1a1814"}}>{zipping ? "⏳ ZIP wird erstellt…" : "⬇ Alle als ZIP"}</button>
+        </div>
+      )}
       {photos.length > 0 ? (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(200px, 100%), 1fr))",gap:10,marginBottom:24}}>
           {photos.map((p, i) => (
@@ -3091,6 +3135,7 @@ function MediaManager({apt, editApt, rooms}){
                   <div style={{display:"flex",gap:4}}>
                     <button onClick={()=>movePhoto(i,-1)} disabled={i===0} title="Nach oben" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===0?"default":"pointer",opacity:i===0?.3:1,fontSize:11}}>↑</button>
                     <button onClick={()=>movePhoto(i,1)} disabled={i===photos.length-1} title="Nach unten" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===photos.length-1?"default":"pointer",opacity:i===photos.length-1?.3:1,fontSize:11}}>↓</button>
+                    <button onClick={()=>downloadPhoto(p,i)} title="Herunterladen" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>⬇</button>
                     <button onClick={()=>deletePhoto(i)} title="Löschen" style={{background:"none",border:"1px solid #c08070",color:"#9b4a3e",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>×</button>
                   </div>
                 </div>
