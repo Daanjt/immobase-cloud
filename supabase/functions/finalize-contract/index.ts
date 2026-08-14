@@ -388,41 +388,10 @@ Deno.serve(async (req) => {
       signedPdfs.push({ ...u, path: signedPath });
       signedBytesArr.push(signedBytes);
 
-      // Zusaetzlich in die Dokumente-Sektion speichern (documents-Bucket + Tabelle).
-      // Non-fatal: schlaegt das fehl, laeuft Signieren + E-Mail trotzdem durch.
-      try {
-        const entityType = contract.tenant_id ? "tenant" : (contract.bewerber_id ? "applicant" : null);
-        const entityId = contract.tenant_id || contract.bewerber_id || null;
-        if (entityType && entityId) {
-          let category = "Vertrag";
-          if (isNachtrag) category = "Verlängerung (unterzeichnet)";
-          else if (isUmv) category = "Untermietvertrag (unterzeichnet)";
-          else if (isAmz) category = "Anfangsmietzinsformular (unterzeichnet)";
-          else if (u.name) category = u.name;
-          const docFilename = `${sanitizeDoc(contract.mieter_nachname)}_${sanitizeDoc(contract.mieter_vorname)}_${sanitizeDoc(category)}_signiert.pdf`;
-          const docPath = `${entityType}/${entityId}/${Date.now()}_${docFilename}`;
-          const { error: docUpErr } = await supabase.storage.from("documents").upload(docPath, signedBytes, { contentType: "application/pdf", upsert: true });
-          if (docUpErr) {
-            console.error("documents bucket upload failed:", docUpErr.message);
-          } else {
-            const { error: docInsErr } = await supabase.from("documents").insert([{
-              entity_type: entityType,
-              entity_id: entityId,
-              category,
-              filename: docFilename,
-              storage_path: docPath,
-              file_size: signedBytes.length,
-              mime_type: "application/pdf",
-              uploaded_by: "Digitale Signatur",
-            }]);
-            if (docInsErr) console.error("documents insert failed:", docInsErr.message);
-          }
-        } else {
-          console.warn("Vertrag ohne tenant_id/bewerber_id, nicht in Dokumente-Sektion gespeichert:", contract.id);
-        }
-      } catch (docErr) {
-        console.error("Save-to-documents failed (non-fatal):", docErr?.message);
-      }
+      // Hinweis: Die vom Bewerber signierte Fassung wird NICHT mehr in die
+      // Dokumente-Sektion gespeichert. Nur die vollstaendig gegengezeichnete
+      // Version wird dort abgelegt (siehe countersign-contract). Die signierte
+      // PDF liegt weiterhin im contracts-Bucket fuer die Gegenzeichnung bereit.
     }
 
     // Update Contract Record

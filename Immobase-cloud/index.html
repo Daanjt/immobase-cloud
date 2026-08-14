@@ -6144,7 +6144,17 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
         console.error("Dokument-Migration fehlgeschlagen:", e);
       }
     }
-    
+
+    // Bestehende Verträge des Bewerbers auf den Mieter umhängen, damit später
+    // signierte oder gegengezeichnete Verträge korrekt beim Mieter gespeichert
+    // werden, auch wenn vor der Unterschrift umgewandelt wird.
+    try {
+      const { error: cErr } = await supabase.from("contracts").update({ tenant_id: newId }).eq("bewerber_id", b.id);
+      if (cErr) console.error("Vertrag-Umhängen fehlgeschlagen:", cErr.message);
+    } catch (e) {
+      console.error("Vertrag-Umhängen fehlgeschlagen:", e);
+    }
+
     setZuteilModal(false);setSelZimmer(null);setSel(null);
   }
 
