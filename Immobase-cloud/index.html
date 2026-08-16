@@ -4166,6 +4166,18 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   // WG-Wohnungen mit Mietbeginn in der Zukunft: nicht in den oberen Zahlen, aber
   // in der Finanzuebersicht separat sichtbar (mit Mietbeginn/Mietende).
   const wgAptsZukunft = apts.filter(a=>a.type==="WG" && !a.pipeline && !istInMiete(a)).sort((a,b)=>natSort(a.id, b.id));
+  const zTot = wgAptsZukunft.reduce((acc,a)=>{
+    const rs=rooms.filter(r=>r.aptId===a.id);
+    const aOcc=rs.filter(r=>r.occupied).length;
+    const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0)+aOcc*25;
+    const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0)+rs.length*25;
+    const aAufschlag=tenants.filter(t=>(t.status||"aktiv")==="aktiv").filter(t=>{ if(t.aptId===a.id)return true; if(t.roomId){const tRoom=rooms.find(r=>r.id===t.roomId); if(tRoom&&tRoom.aptId===a.id)return true;} const myRoom=rooms.find(r=>r.tenantId===t.id); if(myRoom&&myRoom.aptId===a.id)return true; return false;}).reduce((s,t)=>{let auf=+t.kautionAufschlag||0; if(!auf){if(t.kautionOpt==="0x")auf=150;else if(t.kautionOpt==="1x")auf=100;else if(t.kautionOpt==="2x")auf=50;} return s+auf;},0);
+    acc.ausgabe+=(+a.miete||0); acc.ist+=aIst; acc.max+=aMax;
+    acc.margeIst+=(aIst-(+a.miete||0)); acc.margeMax+=(aMax-(+a.miete||0));
+    acc.aufschlag+=aAufschlag; acc.margeTotal+=((aMax-(+a.miete||0))+aAufschlag);
+    acc.occ+=aOcc; acc.rooms+=rs.length;
+    return acc;
+  }, {ausgabe:0,ist:0,max:0,margeIst:0,margeMax:0,aufschlag:0,margeTotal:0,occ:0,rooms:0});
   const wgIds = wgApts.map(a=>a.id);
   const airbnbIds = airbnbApts.map(a=>a.id);
   const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
@@ -4471,6 +4483,19 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr style={{borderTop:"2px solid #1a1814"}}>
+                  <td colSpan={6} style={{fontWeight:700,paddingTop:14}}>Total Zukunft</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(zTot.ausgabe)}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:"#5a6e4a"}}>{chf(zTot.ist)}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:"#8a8174"}}>{chf(zTot.max)}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:zTot.margeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(zTot.margeIst>=0?"+":"")+chf(zTot.margeIst)}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:"#1a1814"}}>+{chf(zTot.margeMax)}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:zTot.aufschlag>0?"#5a6e4a":"#bab2a0"}}>{zTot.aufschlag>0?"+"+chf(zTot.aufschlag):"-"}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:zTot.margeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(zTot.margeTotal>=0?"+":"")+chf(zTot.margeTotal)}</td>
+                  <td style={{textAlign:"right",fontWeight:700,paddingTop:14,color:"#8a8174"}}>{zTot.occ}/{zTot.rooms}</td>
+                </tr>
+              </tfoot>
             </table>
             </div>
             </div>
