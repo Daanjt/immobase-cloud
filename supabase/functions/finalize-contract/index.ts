@@ -117,17 +117,6 @@ function confirmationEmailToTenant(contract, downloadLinks) {
     return `${d.getDate()}. ${monate[d.getMonth()]} ${d.getFullYear()}`;
   }
   const einzugStr = formatLongDate(vertrag.einzug);
-  function computeErsteBelastung(einzug) {
-    if (!einzug) return "-";
-    let d;
-    if (einzug.includes("-")) d = new Date(einzug);
-    else if (einzug.includes(".")) { const [day, mon, year] = einzug.split("."); d = new Date(+year, +mon - 1, +day); }
-    else return "-";
-    if (isNaN(d.getTime())) return "-";
-    d.setMonth(d.getMonth() - 1); d.setDate(25);
-    return `25. ${monate[d.getMonth()]} ${d.getFullYear()}`;
-  }
-  const ersteBelastungStr = computeErsteBelastung(vertrag.einzug);
   const total = vertrag.total || vertrag.bruttomiete || 0;
   const mietzinsStr = `CHF ${Number(total).toLocaleString("de-CH", {minimumFractionDigits: 2, maximumFractionDigits: 2})} / Monat (inkl. Strom + NK)`;
   const referenz = `Miete ${apt.adresse || ""} & ${fullName}`;
@@ -213,7 +202,6 @@ function confirmationEmailToTenant(contract, downloadLinks) {
             <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">IBAN</span><br><span style="color:#1a1814;font-weight:600;font-family:'Menlo','Monaco',monospace;">CH80 0077 4010 5279 2690 0</span></div>
             <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Betrag</span><br><span style="color:#1a1814;font-weight:600;">${mietzinsStr}</span></div>
             <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Referenz</span><br><span style="color:#1a1814;font-weight:600;">${referenz}</span></div>
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Erste Belastung</span><br><span style="color:#1a1814;font-weight:600;">${ersteBelastungStr}</span></div>
           </td>
         </tr>
       </table>
