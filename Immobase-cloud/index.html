@@ -1221,9 +1221,11 @@ function evGender(g){
 function evDMY(s){
   if(!s) return "";
   const str=String(s).trim();
-  if(/^\d{2}\.\d{2}\.\d{4}$/.test(str)) return str;
-  const m=str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if(m) return `${m[3]}.${m[2]}.${m[1]}`;
+  const pad=(n)=>String(n).padStart(2,"0");
+  let m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if(m) return `${pad(m[1])}.${pad(m[2])}.${m[3]}`;
+  m=str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return `${pad(m[3])}.${pad(m[2])}.${m[1]}`;
   return str;
 }
 const EVOREST_ZIVILSTAND = {
