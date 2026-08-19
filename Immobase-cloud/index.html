@@ -10410,10 +10410,22 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const monthFin = (s, e, annahmeVoll=false) => {
     let ausgaben=0;
     const activeApts = new Set();
-    wgApts.forEach(a=>{ const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende); if((!ab||ab<=e)&&(!bis||bis>=s)){ ausgaben+=(+a.miete||0); activeApts.add(a.id);} });
+    const aptFactor = new Map();
+    wgApts.forEach(a=>{
+      const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
+      if((!ab||ab<=e)&&(!bis||bis>=s)){
+        // Teilmonat: Mietbeginn ab dem 15. oder Mietende bis und mit dem 15. -> halber Monat
+        const beginInMonth = ab && ab>=s && ab<=e;
+        const endInMonth = bis && bis>=s && bis<=e;
+        const f = ((beginInMonth && ab.getDate()>=15) || (endInMonth && bis.getDate()<=15)) ? 0.5 : 1;
+        aptFactor.set(a.id, f);
+        ausgaben+=(+a.miete||0)*f; activeApts.add(a.id);
+      }
+    });
     let miete=0, strom=0, aufschlag=0, belegt=0, total=0, leerstandskosten=0;
     wgRooms.forEach(r=>{
       if (!activeApts.has(r.aptId)) return;
+      const f = aptFactor.get(r.aptId) || 1;
       total++;
       const t = r.tenantId ? tenantById(r.tenantId) : null;
       const apt = aptById(r.aptId);
@@ -10422,8 +10434,8 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       const isOcc = !!r.occupied && (!ein || ein <= e) && (!aus || aus >= s);
       // In Prognosemonaten wird Vollbelegung angenommen: jedes aktive Zimmer
       // gilt als vermietet, damit Umsatz und Marge das volle Potenzial zeigen.
-      if (isOcc || annahmeVoll) { belegt++; miete+=(+r.miete||0); strom+=25; aufschlag += (isOcc && t)?(+t.kautionAufschlag||0):0; }
-      else { leerstandskosten += (+r.miete||0); }
+      if (isOcc || annahmeVoll) { belegt++; miete+=(+r.miete||0)*f; strom+=25*f; aufschlag += ((isOcc && t)?(+t.kautionAufschlag||0):0)*f; }
+      else { leerstandskosten += (+r.miete||0)*f; }
     });
     const einnahmen=miete+strom+aufschlag;
     return {miete,strom,aufschlag,einnahmen,ausgaben,marge:einnahmen-ausgaben,belegt,total,frei:total-belegt,leerstandskosten,auslastung: total?belegt/total:0};
