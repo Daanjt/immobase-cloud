@@ -9091,10 +9091,16 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
               const hps = (handoverProtocols||[]).filter(h => h.tenantId === tenant.id && h.signUrl);
               hps.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
               const uebergabeLink = hps[0]?.signUrl || "";
+              const wgMitbewohner = apt ? (rooms||[])
+                .filter(r => r.aptId === apt.id && r.tenantId && r.tenantId !== tenant.id)
+                .map(r => (tenants||[]).find(x => x.id === r.tenantId))
+                .filter(x => x && (x.status||"aktiv") === "aktiv")
+                .map(x => `${(x.vorname||"").trim()} ${(x.nachname||"").trim()}`.trim() + (x.phone ? ` · ${x.phone}` : ""))
+                .join("\n") : "";
               const empf = {
                 vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
                 adresse: [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
-                uebergabe_link: uebergabeLink,
+                uebergabe_link: uebergabeLink, mitbewohner: wgMitbewohner,
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
@@ -11492,6 +11498,7 @@ function platzhalterFuellen(text, empfaenger) {
     einzug: empfaenger.einzug || "",
     auszug: empfaenger.auszug || "",
     uebergabe_link: empfaenger.uebergabe_link || "",
+    mitbewohner: empfaenger.mitbewohner || "",
     zimmerpreis: empfaenger.zimmerpreis || "",
     moeblierung: empfaenger.moeblierung || "",
     kautionswahl: empfaenger.kautionswahl || "",
