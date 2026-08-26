@@ -5374,8 +5374,9 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     const months = (endeDate - beginn) / (1000*60*60*24*30.44);
     const endeStr = fmtDate(userEnde || aptEnde);
     const istManuell = !!userEnde;
-    // Manuell gesetztes Enddatum: immer befristet. Aus der Wohnung abgeleitet: nur wenn unter 12 Monaten.
-    if (istManuell || (months > 0 && months < 12)) {
+    // Schwelle: Unter 12 Monaten befristet, ab 12 Monaten unbefristet, unabhaengig davon
+    // ob das Enddatum manuell gesetzt oder aus der Wohnung abgeleitet wurde.
+    if (months > 0 && months < 12) {
       let grundSatz = "";
       let erstreckungSatz = "";
       if (v.befristungsgrund) {
@@ -8450,7 +8451,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
     if (!data) { alert("Konnte Vertragsdaten nicht aufbauen."); return; }
     setTvData({
       ...data.v, _tenant: t,
-      mietende: (data.v.apt && data.v.apt.mietende) || "",
+      mietende: "",
       moeblierungPauschale: +t.moeblierungPauschale || 990,
       auszug: t.auszug || "",
       ortVertrag: "Zürich",
