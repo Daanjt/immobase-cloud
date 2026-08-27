@@ -8308,7 +8308,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenant,insertTenant,renameTenantId,deleteTenant,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
+function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -9377,96 +9377,336 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
         </div>
         );
       })()}
-      {tvModal && tvData && (() => {
-        const t = tvData._tenant;
-        const total = (tvData.nettomiete||0) + (tvData.nebenkosten||0) + (tvData.strom||0) + (tvData.aufschlag||0);
-        const toggleType = (ty)=> setTvTypes(p => p.includes(ty) ? p.filter(x=>x!==ty) : [...p, ty]);
-        return (
-        <div className="ov" onClick={e=>e.target===e.currentTarget && !tvSending && setTvModal(false)}>
-          <div className="modal" style={{width:620,maxHeight:"90vh",overflowY:"auto"}}>
-            <div className="mt">📝 Neuer Vertrag · {t.vorname} {t.nachname}</div>
-            <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:16}}>{tvData.adresse}{tvData.zimmerId?` · Zimmer ${(tvData.zimmerId||"").split("-")[1]||""}`:""}</div>
-            {tvResult ? (
-              <div style={{padding:"16px 18px",borderRadius:8,background:tvResult.ok?"var(--green-soft)":"#f7e4e0",fontSize:13,lineHeight:1.6}}>
-                {tvResult.ok ? (<>
-                  <div style={{fontWeight:700,color:"#3d4f2f",marginBottom:6}}>✓ Vertrag verschickt</div>
-                  <div>Der Mieter hat eine E-Mail zum Unterschreiben erhalten{tvResult.emailSent?"":" (E-Mail-Status unklar, bitte prüfen)"}.</div>
-                  <div style={{marginTop:6,fontSize:11.5,color:"var(--muted)"}}>Signatur-Link: {tvResult.signUrl}</div>
-                </>) : (<>
-                  <div style={{fontWeight:700,color:"var(--error)",marginBottom:6}}>Fehler</div>
-                  <div>{tvResult.error}</div>
-                </>)}
-                <div style={{marginTop:14}}><button className="btn btn-p btn-sm" onClick={()=>setTvModal(false)}>Schliessen</button></div>
-              </div>
-            ) : (<>
-              <div className="frow">
-                <div className="fg"><label className="fl">Einzug / Beginn</label><input className="fi" type="date" value={toDateInputValue(tvData.einzug)} onChange={TV("einzug")}/></div>
-                <div className="fg"><label className="fl">Befristet bis</label><input className="fi" type="date" value={toDateInputValue(tvData.mietende)} onChange={TV("mietende")}/></div>
-              </div>
-              {(() => {
-                const pd=(s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
-                const bb=pd(tvData.einzug), ee=pd(tvData.mietende);
-                const months = bb&&ee ? (ee-bb)/(1000*60*60*24*30.44) : null;
-                const befristetKurz = months!==null && months>0 && months<12;
-                return befristetKurz ? (
-                  <div style={{margin:"2px 0 14px",padding:"9px 12px",background:"var(--green-soft)",borderRadius:7,fontSize:12,color:"#3d4f2f",lineHeight:1.5}}>
-                    Befristet unter 12 Monaten: automatisch nicht ordentlich kündbar, keine Kündigungsfrist. Der Vertrag endet auf das Enddatum.
+      {tvModal && tvData && (() => { const t = tvData._tenant; return (
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&setTvModal(false)}>
+          <div className="modal" style={{width:600}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:4}}>
+              <div className="mt" style={{marginBottom:0}}>📄 Untermietvertrag erstellen</div>
+              <button className="btn btn-g btn-sm" onClick={()=>{ setTvModal(false); setTvResult(null); }} disabled={tvSending} title="Schliessen" style={{flexShrink:0}}>✕ Abbrechen</button>
+            </div>
+            <div style={{height:14}}/>
+            <div style={{background:"#f5efe4",border:"1px solid #ddd0b8",borderRadius:8,padding:"12px 16px",marginBottom:18,fontSize:12.5}}>
+              <strong style={{color:"#1a1814"}}>{t.vorname} {t.nachname}</strong>
+              <div style={{color:"#8a8174",fontSize:11.5,marginTop:3}}>{t.email} · {t.phone}</div>
+            </div>
+            
+            {(() => {
+              const activeContracts = (contracts || []).filter(c => c.tenantId === t.id && !["zurueckgezogen","abgelaufen"].includes(c.status));
+              const allContracts = (contracts || []).filter(c => c.tenantId === t.id);
+              if (allContracts.length === 0) return null;
+              return (
+                <div style={{marginBottom:20,padding:"14px 16px",background:activeContracts.length>0?"#fdf2e0":"#fafaf7",border:`1px solid ${activeContracts.length>0?"#e8c89c":"#e1d8c5"}`,borderRadius:8}}>
+                  <div style={{fontSize:9.5,color:"#7a5c3c",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:600}}>
+                    {activeContracts.length > 0 ? "⚠ Bereits ausgestellte Verträge" : "Frühere Verträge"}
                   </div>
-                ) : (
-                  <div className="frow">
-                    <div className="fg"><label className="fl">Mindest-Mietdauer (Mte)</label><input className="fi" type="number" value={tvData.minMietdauer} onChange={TVn("minMietdauer")}/></div>
-                    <div className="fg"><label className="fl">Kündigungsfrist (Mte)</label><input className="fi" type="number" value={tvData.kuendigungsfrist} onChange={TVn("kuendigungsfrist")}/></div>
-                    <div className="fg"/>
-                  </div>
-                );
-              })()}
-              <div className="frow">
-                <div className="fg"><label className="fl">Nettomiete</label><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>setTvData(p=>({...p,nettomiete:+e.target.value||0,bruttomiete:(+e.target.value||0)+(p.nebenkosten||0)}))}/></div>
-                <div className="fg"><label className="fl">Nebenkosten</label><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>setTvData(p=>({...p,nebenkosten:+e.target.value||0,bruttomiete:(p.nettomiete||0)+(+e.target.value||0)}))}/></div>
-                <div className="fg"><label className="fl">Strom</label><input className="fi" type="number" value={tvData.strom} onChange={TVn("strom")}/></div>
-                <div className="fg"><label className="fl">Früherer Mietzins (netto)</label><input className="fi" type="number" placeholder="leer = erste Vermietung" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))}/></div>
-              </div>
-              <div className="frow">
-                <div className="fg"><label className="fl">Kaution</label><select className="fi" value={tvData.kautionMonate} onChange={e=>{const km=+e.target.value; const auf=km===0?150:km===1?100:km===2?50:0; setTvData(p=>({...p,kautionMonate:km,aufschlag:auf,kautionBetrag:((p.bruttomiete||0)+(p.strom||0))*km}));}}><option value={3}>3 Monatsmieten (Standard)</option><option value={2}>2 Monate (+50)</option><option value={1}>1 Monat (+100)</option><option value={0}>Keine (+150)</option></select></div>
-                <div className="fg"><label className="fl">Servicegebühr</label><input className="fi" type="number" value={tvData.aufschlag} onChange={TVn("aufschlag")}/></div>
-                <div className="fg"><label className="fl">Total / Mt.</label><input className="fi" value={`CHF ${total.toLocaleString("de-CH")}`} disabled/></div>
-              </div>
-              <div style={{margin:"14px 0",padding:"12px 14px",background:"var(--beige-soft)",borderRadius:8}}>
-                <div className="fl" style={{marginBottom:8}}>Vertragsart</div>
-                <label style={{marginRight:18,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={tvTypes.includes("umv")} onChange={()=>toggleType("umv")}/> Untermietvertrag</label>
-                <label style={{fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={tvTypes.includes("amz")} onChange={()=>toggleType("amz")}/> Anfangsmietzinsformular</label>
-              </div>
-              <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",margin:"4px 0 10px",fontWeight:500}}>Möblierung</div>
-              <div style={{display:"flex",gap:10,marginBottom:10}}>
-                <label style={{flex:1,padding:"10px 14px",background:tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
-                  <input type="radio" checked={!!tvData.moebliert} onChange={()=>{ setTvData(p=>({...p,moebliert:true})); updateTenant(t.id,{moebliert:"ja"}); }}/> Möbliert (CHF {tvData.moeblierungPauschale||990} einmalig)
-                </label>
-                <label style={{flex:1,padding:"10px 14px",background:!tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
-                  <input type="radio" checked={!tvData.moebliert} onChange={()=>{ setTvData(p=>({...p,moebliert:false})); updateTenant(t.id,{moebliert:"nein"}); }}/> Unmöbliert
-                </label>
-              </div>
-              {tvData.moebliert && (
-                <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
-                  <span>Möblierungspauschale (einmalig)</span>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{color:"#1a1814"}}>CHF</span>
-                    <input className="fi" type="number" step="1" value={tvData.moeblierungPauschale||990} onChange={e=>{ const val=+e.target.value||0; setTvData(p=>({...p,moeblierungPauschale:val})); updateTenant(t.id,{moeblierungPauschale:val}); }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
-                  </div>
+                  {activeContracts.length > 0 && (
+                    <div style={{fontSize:12,color:"#4a4439",marginBottom:12,lineHeight:1.5}}>
+                      Dieser Bewerber hat bereits einen aktiven Vertrag. Um Änderungen an den Konditionen zu machen, ziehe den bisherigen Vertrag zuerst zurück.
+                    </div>
+                  )}
+                  {allContracts.map((c, idx) => {
+                    const statusColors = {
+                      "gesendet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"⏱ Gesendet"},
+                      "geoeffnet": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
+                      "geoeffnet_ungelesen": {bg:"#fdf2e0",color:"#7a5c3c",border:"#e8c89c",label:"👁 Geöffnet"},
+                      "mieter_signiert": {bg:"#e6eef6",color:"#2c4a6e",border:"#b0c8e0",label:"✍ Wartet auf Gegenzeichnung"},
+                      "signiert": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Signiert"},
+                      "abgeschlossen": {bg:"#e8efde",color:"#3a5230",border:"#c5d5b0",label:"✓ Abgeschlossen"},
+                      "zurueckgezogen": {bg:"#f0ebe1",color:"#7a5c3c",border:"#d8d0c0",label:"✕ Zurückgezogen"},
+                      "abgelaufen": {bg:"#fbeae6",color:"#8a3a2e",border:"#e8c5be",label:"⌛ Abgelaufen"},
+                    };
+                    const sc = statusColors[c.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:c.status||"?"};
+                    const isActive = ["gesendet","geoeffnet","geoeffnet_ungelesen"].includes(c.status);
+                    const contractTypeLabel = c.contractType === "untermietvertrag" ? "UMV" : c.contractType === "anfangsmietzins" ? "AMZ" : "UMV + AMZ";
+                    return (
+                      <div key={c.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<allContracts.length-1?8:0}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:6}}>
+                          <span style={{fontSize:12,color:"#3a352d",fontWeight:600}}>{contractTypeLabel} {c.sentAt ? `· ${new Date(c.sentAt).toLocaleDateString("de-CH")}` : ""}</span>
+                          <span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`,fontSize:10,fontWeight:600}}>{sc.label}</span>
+                        </div>
+                        {c.signUrl && (
+                          <div style={{display:"flex",gap:5,marginBottom:6,alignItems:"center",flexWrap:"wrap"}}>
+                            <div style={{fontSize:10.5,fontFamily:"monospace",color:"#3a352d",background:"#f5efe4",padding:"3px 7px",borderRadius:3,flex:"1 1 180px",wordBreak:"break-all",minWidth:0}}>{c.signUrl}</div>
+                            <button type="button" onClick={()=>{navigator.clipboard.writeText(c.signUrl).then(()=>alert("Link kopiert!")).catch(()=>alert("Kopieren fehlgeschlagen"));}} style={{fontSize:10,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:3,cursor:"pointer",flexShrink:0}}>📋 Kopieren</button>
+                            <a href={c.signUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:10,padding:"3px 8px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:3,textDecoration:"none",flexShrink:0}}>↗ Öffnen</a>
+                          </div>
+                        )}
+                        {isActive && (
+                          <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
+                            <button type="button" onClick={async()=>{
+                              if (!confirm(`Vertrag zurueckziehen?\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Danach kannst du unten einen neuen Vertrag mit angepassten Konditionen erstellen.`)) return;
+                              try { await withdrawContract(c.id); } catch(e){}
+                            }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
+                              ✕ Zurückziehen
+                            </button>
+                          </div>
+                        )}
+                        {c.status === "mieter_signiert" && (
+                          <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
+                            <CountersignButton contract={c} onDone={loadContracts} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-              {tvProgress && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>{tvProgress.msg}</div>}
-              <div className="ma" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                <button className="btn btn-g btn-sm" disabled={dlBusy==="umv"||tvSending} onClick={()=>tvDownload("umv")}>{dlBusy==="umv"?"⏳ …":"📄 UMV"}</button>
-                <button className="btn btn-g btn-sm" disabled={dlBusy==="amz"||tvSending} onClick={()=>tvDownload("amz")}>{dlBusy==="amz"?"⏳ …":"📄 AMZ"}</button>
-                <div style={{flex:1}}/>
-                <button className="btn btn-g" disabled={tvSending} onClick={()=>setTvModal(false)}>Abbrechen</button>
-                <button className="btn btn-p" disabled={tvSending} onClick={tvSend}>{tvSending?"Wird verschickt…":"Zur Unterschrift senden"}</button>
+              );
+            })()}
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietobjekt</div>
+            <div className="frow" style={{marginBottom:14}}>
+              <div className="fg"><label className="fl">Zimmer</label><select className="fi" value={tvData.zimmerId} onChange={e=>{
+                const newId = e.target.value;
+                const room = rooms.find(r=>r.id===newId);
+                const apt = room ? apts.find(a=>a.id===room.aptId) : null;
+                setTvData(p=>{
+                  const bruttomiete = room ? +room.miete : p.bruttomiete;
+                  const nettomiete = bruttomiete - (p.nebenkosten||100);
+                  const kautionBetrag = (bruttomiete + (p.strom||25)) * (p.kautionMonate||0);
+                  const total = bruttomiete + (p.strom||25) + (p.aufschlag||0);
+                  return {
+                    ...p,
+                    zimmerId: newId,
+                    apt: apt || p.apt,
+                    room: room || p.room,
+                    adresse: apt?.adresse || p.adresse,
+                    plz: apt?.plz || p.plz,
+                    ort: apt?.ort || p.ort,
+                    bruttomiete, nettomiete, kautionBetrag, total,
+                  };
+                });
+                // Sync zurueck an Bewerber
+                /* Zimmer nur lokal fuer den Vertrag, keine Mieter-Zuordnung aendern */
+              }}>
+                {!rooms.find(r=>r.id===tvData.zimmerId) && tvData.zimmerId && <option value={tvData.zimmerId}>{tvData.zimmerId} (aktuell)</option>}
+                {[...rooms].sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(r=>{
+                  const a = apts.find(x=>x.id===r.aptId);
+                  return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)})</option>;
+                })}
+              </select></div>
+              <div className="fg"><label className="fl">Adresse</label><input className="fi" value={tvData.adresse} onChange={e=>setTvData(p=>({...p,adresse:e.target.value}))}/></div>
+            </div>
+            <div className="frow" style={{marginBottom:18}}>
+              <div className="fg"><label className="fl">PLZ</label><input className="fi" value={tvData.plz} onChange={e=>setTvData(p=>({...p,plz:e.target.value}))}/></div>
+              <div className="fg"><label className="fl">Ort</label><input className="fi" value={tvData.ort} onChange={e=>setTvData(p=>({...p,ort:e.target.value}))}/></div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietdauer</div>
+            <div className="fg" style={{marginBottom:8}}>
+              <label className="fl">Einzugsdatum</label>
+              <input className="fi" type="date" value={tvData.einzug?tvData.einzug.split("T")[0]:""} onChange={e=>setTvData(p=>({...p,einzug:e.target.value}))}/>
+            </div>
+            <div className="fg" style={{marginBottom:8}}>
+              <label className="fl">Enddatum · optional, macht den Vertrag befristet</label>
+              <input className="fi" type="date" max={tvData.apt?.mietende?toDateInputValue(tvData.apt.mietende):undefined} value={tvData.mietende?tvData.mietende.split("T")[0]:""} onChange={e=>setTvData(p=>({...p,mietende:e.target.value}))}/>
+              {tvData.apt?.mietende && <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Die Wohnung endet am {tvData.apt.mietende}. Ein späteres Enddatum ist nicht möglich.</div>}
+            </div>
+            <div style={{marginBottom:18,padding:"10px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,fontSize:11.5,color:"#4a4439"}}>
+              {(() => {
+                function parseD(s) {
+                  if (!s) return null;
+                  const str = String(s).trim();
+                  if (!str) return null;
+                  if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d=new Date(str); return isNaN(d.getTime())?null:d; }
+                  const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+                  if (m) { const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime())?null:d; }
+                  const d = new Date(str); return isNaN(d.getTime())?null:d;
+                }
+                const einzug = parseD(tvData.einzug);
+                const userEnde = parseD(tvData.mietende);
+                const aptEnde = parseD(tvData.apt?.mietende);
+                const ende = userEnde || aptEnde;
+                if (!einzug) return "ℹ Bitte Einzugsdatum setzen";
+                if (!ende) return "→ Vertrag ist UNBEFRISTET (kein Enddatum gesetzt)";
+                if (userEnde && aptEnde && userEnde > aptEnde) return `⚠ Enddatum darf nicht nach dem Mietende der Wohnung (${aptEnde.toLocaleDateString("de-CH")}) liegen`;
+                const m = (ende - einzug) / (1000*60*60*24*30.44);
+                if (ende <= einzug) return "⚠ Enddatum liegt vor dem Einzug";
+                const istManuell = !!userEnde;
+                if (istManuell || (m > 0 && m < 12)) return `→ Vertrag ist BEFRISTET bis ${ende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate${istManuell?", manuell gesetzt":", aus Wohnung"})`;
+                return `→ Vertrag ist UNBEFRISTET (Wohnung endet in ${Math.round(m)} Monaten, mindestens 12)`;
+              })()}
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietzins-Aufstellung</div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:8,alignItems:"center",fontSize:12.5}}>
+                <span>Nettomiete</span><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,nettomiete:v,bruttomiete:v+p.nebenkosten,total:v+p.nebenkosten+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span>Nebenkosten</span><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,nebenkosten:v,bruttomiete:p.nettomiete+v,total:p.nettomiete+v+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
+                <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {tvData.bruttomiete.toLocaleString('de-CH')}</span>
+                <span>Stromkosten</span><input className="fi" type="number" value={tvData.strom} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span style={{color:"#8a8174"}}>Früherer Mietzins (netto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
+                {tvData.aufschlag>0&&(<>
+                  <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
+                  <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {tvData.aufschlag}</span>
+                </>)}
+                <span style={{fontWeight:700,borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14}}>Total / Mt.</span>
+                <span style={{fontWeight:700,textAlign:"right",borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14,color:"#1a1814"}}>CHF {tvData.total.toLocaleString('de-CH')}</span>
               </div>
-            </>)}
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Kaution und Servicegebühr</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              {[
+                {monate:3,aufschlag:0,label:"3× Monatsmiete",note:"Volle Kaution, keine Gebühr"},
+                {monate:2,aufschlag:50,label:"2× Monatsmiete",note:"+ CHF 50 / Monat Servicegebühr für Kautionsreduktion"},
+                {monate:1,aufschlag:100,label:"1× Monatsmiete",note:"+ CHF 100 / Monat Servicegebühr für Kautionsreduktion"},
+              ].map(opt=>{
+                const sel=tvData.kautionMonate===opt.monate;
+                return (
+                  <label key={opt.monate} style={{padding:"12px 14px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"block"}} onClick={()=>{
+                    const brutto = +tvData.bruttomiete || 0;
+                    const strom = +tvData.strom || 25;
+                    const newBetrag = (brutto + strom) * opt.monate;
+                    setTvData(p=>({
+                      ...p,
+                      kautionMonate:opt.monate,
+                      kautionBetrag:newBetrag,
+                      aufschlag:opt.aufschlag,
+                      total: brutto + strom + opt.aufschlag,
+                    }));
+                    // Sync zurueck an Bewerber
+                    const typeMap = {3:"3x",2:"2x",1:"1x"};
+                    updateTenant(t.id, { kautionType: typeMap[opt.monate], kautionAufschlag: opt.aufschlag });
+                  }}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                      <input type="radio" name="kaution" checked={sel} readOnly/>
+                      <span style={{fontWeight:600}}>{opt.label}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"#8a8174",marginLeft:24}}>{opt.note}</div>
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+              <span>Kautionsbetrag {tvData.kautionMonate>0?<span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard: CHF {((+tvData.bruttomiete||0)+(+tvData.strom||25))*tvData.kautionMonate})</span>:null}</span>
+              {tvData.kautionMonate > 0 ? (
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{color:"#1a1814"}}>CHF</span>
+                  <input className="fi" type="number" step="1" value={tvData.kautionBetrag} onChange={e=>setTvData(p=>({...p,kautionBetrag:+e.target.value||0}))} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+                </div>
+              ) : <span style={{color:"#1a1814"}}>-</span>}
+            </div>
+            
+            {/* Custom Aufschlag */}
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+              <span>Servicegebühr / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {tvData.kautionMonate}× Miete: CHF {[0,100,50,0,0][3-tvData.kautionMonate] ?? 0}{tvData.kautionMonate===0?150:tvData.kautionMonate===1?100:tvData.kautionMonate===2?50:0})</span></span>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:"#1a1814"}}>CHF</span>
+                <input className="fi" type="number" step="1" value={tvData.aufschlag||0} onChange={e=>{
+                  const val = +e.target.value || 0;
+                  setTvData(p=>({
+                    ...p,
+                    aufschlag: val,
+                    total: (+p.bruttomiete||0) + (+p.strom||25) + val,
+                  }));
+                  updateTenant(t.id, { kautionAufschlag: val });
+                }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+              </div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Vertragsbedingungen</div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:18}}>
+              <div className="frow" style={{marginBottom:0}}>
+                <div className="fg">
+                  <label className="fl">Mindest-Mietdauer (Monate)</label>
+                  <input className="fi" type="number" min="1" max="60" value={tvData.minMietdauer||6} onChange={e=>setTvData(p=>({...p,minMietdauer:+e.target.value||6}))}/>
+                  <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Standard: 6 Monate</div>
+                </div>
+                <div className="fg">
+                  <label className="fl">Kündigungsfrist (Monate)</label>
+                  <input className="fi" type="number" min="1" max="6" value={tvData.kuendigungsfrist||3} onChange={e=>setTvData(p=>({...p,kuendigungsfrist:+e.target.value||3}))}/>
+                  <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Standard: 3 Monate</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
+            <div style={{display:"flex",gap:10,marginBottom:10}}>
+              <label style={{flex:1,padding:"10px 14px",background:tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
+                <input type="radio" checked={tvData.moebliert} onChange={()=>{
+                  setTvData(p=>({...p,moebliert:true}));
+                  updateTenant(t.id, { moebliert: "ja" });
+                }}/> Möbliert (CHF {tvData.moeblierungPauschale||990} einmalig)
+              </label>
+              <label style={{flex:1,padding:"10px 14px",background:!tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
+                <input type="radio" checked={!tvData.moebliert} onChange={()=>{
+                  setTvData(p=>({...p,moebliert:false}));
+                  updateTenant(t.id, { moebliert: "nein" });
+                }}/> Unmöbliert
+              </label>
+            </div>
+            {tvData.moebliert && (
+              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+                <span>Möblierungspauschale (einmalig)</span>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{color:"#1a1814"}}>CHF</span>
+                  <input className="fi" type="number" step="1" value={tvData.moeblierungPauschale||990} onChange={e=>{
+                    const val = +e.target.value || 0;
+                    setTvData(p=>({...p, moeblierungPauschale: val}));
+                    updateTenant(t.id, { moeblierungPauschale: val });
+                  }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+                </div>
+              </div>
+            )}
+            {!tvData.moebliert && <div style={{marginBottom:18}}/>}
+
+            <div style={{fontSize:11,color:"#6e6a62",marginBottom:8,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>⬇ Einzeln herunterladen (ohne Versand)</div>
+            <div className="ma" style={{flexWrap:"wrap"}}>
+              <button className="btn btn-g" onClick={()=>{ setTvModal(false); setTvResult(null); }} disabled={tvSending}>Abbrechen</button>
+              <button className="btn btn-s" onClick={()=>tvDownload("umv")} disabled={tvSending||dlBusy==="umv"}>{dlBusy==="umv"?"⏳ …":"📄 UMV herunterladen"}</button>
+              <button className="btn btn-s" onClick={()=>tvDownload("amz")} disabled={tvSending||dlBusy==="amz"}>{dlBusy==="amz"?"⏳ …":"📄 AMZ herunterladen"}</button>
+            </div>
+            <div style={{height:1,background:"#e8e3d8",margin:"12px 0"}}/>
+            <div style={{fontSize:11,color:"#6e6a62",marginBottom:10,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>📤 Digital senden zum Online-Unterzeichnen</div>
+            <button className="btn btn-p" style={{width:"100%",justifyContent:"center",padding:"12px 18px",fontSize:13.5}} onClick={async()=>{
+                if (!t || !tvData) return;
+                if (!t.email) { alert("Bewerber hat keine Email-Adresse."); return; }
+                if (!confirm(`Untermietvertrag und Anfangsmietzinsformular digital an ${t.email} senden?\n\nDer Mieter erhält einen Link zur Online-Unterzeichnung.`)) return;
+                setTvSending(true);
+                setTvResult(null);
+                setTvProgress({message:"Starte...",pct:0});
+                try {
+                  const result = await sendContractForSigningShared(t, tvData, (msg,pct)=>setTvProgress({message:msg,pct}), ["umv","amz"], {tenantId: t.id});
+                  setTvResult({success:true, ...result});
+                } catch(err) {
+                  console.error("sendContractForSigning failed:", err);
+                  setTvResult({success:false, error: err.message});
+                } finally {
+                  setTvSending(false);
+                }
+              }} disabled={tvSending}>{tvSending ? `⏳ ${tvProgress.message}` : "📤 Vertrag digital senden"}</button>
+            
+            {tvSending && (
+              <div style={{marginTop:14,padding:"10px 12px",background:"#f5efe4",border:"1px solid #e1d8c5",borderRadius:8}}>
+                <div style={{height:6,background:"#e1d8c5",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${Math.round(tvProgress.pct*100)}%`,background:"#1a1814",transition:"width .3s"}}></div>
+                </div>
+                <div style={{fontSize:11.5,color:"#6e6a62",marginTop:6}}>{tvProgress.message}</div>
+              </div>
+            )}
+            
+            {tvResult && tvResult.success && (
+              <div style={{marginTop:14,padding:"14px 16px",background:"#e8f3ed",border:"1px solid #a5d4b8",borderRadius:8}}>
+                <div style={{fontWeight:600,fontSize:13,color:"#1a5a32",marginBottom:6}}>✓ Vertrag erfolgreich gesendet</div>
+                <div style={{fontSize:11.5,color:"#2d5e44",lineHeight:1.55}}>
+                  {tvResult.emailSent ? `Email gesendet an ${t.email}` : "⚠ Email-Versand fehlgeschlagen - manuell nachsenden"}
+                </div>
+                <div style={{fontSize:11.5,color:"#2d5e44",marginTop:6}}>
+                  Sign-Link: <a href={tvResult.signUrl} target="_blank" style={{color:"#1a5a32",textDecoration:"underline"}}>{tvResult.signUrl}</a>
+                </div>
+              </div>
+            )}
+            
+            {tvResult && !tvResult.success && (
+              <div style={{marginTop:14,padding:"14px 16px",background:"#fdecec",border:"1px solid #f0a5a5",borderRadius:8}}>
+                <div style={{fontWeight:600,fontSize:13,color:"#8a1a1a",marginBottom:6}}>✗ Fehler beim Senden</div>
+                <div style={{fontSize:11.5,color:"#5a1a1a",lineHeight:1.55}}>{tvResult.error}</div>
+              </div>
+            )}
           </div>
         </div>
-        );
-      })()}
+      ); })()}
     </div>
   );
 }
