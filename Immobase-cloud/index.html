@@ -8459,6 +8459,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
       ...data.v, _tenant: t,
       mietende: "",
       fruehererMietzins: "",
+      moebliert: t.moebliert === "ja" || t.moebliert === true,
       moeblierungPauschale: +t.moeblierungPauschale || 990,
       auszug: t.auszug || "",
       ortVertrag: "Zürich",
@@ -9435,6 +9436,24 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 <label style={{marginRight:18,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={tvTypes.includes("umv")} onChange={()=>toggleType("umv")}/> Untermietvertrag</label>
                 <label style={{fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={tvTypes.includes("amz")} onChange={()=>toggleType("amz")}/> Anfangsmietzinsformular</label>
               </div>
+              <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",margin:"4px 0 10px",fontWeight:500}}>Möblierung</div>
+              <div style={{display:"flex",gap:10,marginBottom:10}}>
+                <label style={{flex:1,padding:"10px 14px",background:tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
+                  <input type="radio" checked={!!tvData.moebliert} onChange={()=>{ setTvData(p=>({...p,moebliert:true})); updateTenant(t.id,{moebliert:"ja"}); }}/> Möbliert (CHF {tvData.moeblierungPauschale||990} einmalig)
+                </label>
+                <label style={{flex:1,padding:"10px 14px",background:!tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
+                  <input type="radio" checked={!tvData.moebliert} onChange={()=>{ setTvData(p=>({...p,moebliert:false})); updateTenant(t.id,{moebliert:"nein"}); }}/> Unmöbliert
+                </label>
+              </div>
+              {tvData.moebliert && (
+                <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+                  <span>Möblierungspauschale (einmalig)</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{color:"#1a1814"}}>CHF</span>
+                    <input className="fi" type="number" step="1" value={tvData.moeblierungPauschale||990} onChange={e=>{ const val=+e.target.value||0; setTvData(p=>({...p,moeblierungPauschale:val})); updateTenant(t.id,{moeblierungPauschale:val}); }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+                  </div>
+                </div>
+              )}
               {tvProgress && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>{tvProgress.msg}</div>}
               <div className="ma" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                 <button className="btn btn-g btn-sm" disabled={dlBusy==="umv"||tvSending} onClick={()=>tvDownload("umv")}>{dlBusy==="umv"?"⏳ …":"📄 UMV"}</button>
