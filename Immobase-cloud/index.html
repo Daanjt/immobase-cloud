@@ -4894,10 +4894,10 @@ Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einf�
     </tr>
   </thead>
   <tbody>
-    <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
-    <tr><td>Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
-    <tr><td>Stromkosten (pauschal)</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
-    <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">Fr. -</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
+    <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">${(+v.fruehererMietzins>0)?`Fr. ${chf2(+v.fruehererMietzins)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
+    <tr><td>Nebenkosten</td><td class="amt">${(+v.fruehererMietzins>0)?`Fr. ${chf2(v.nebenkosten)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Stromkosten (pauschal)</td><td class="amt">${(+v.fruehererMietzins>0)?`Fr. ${chf2(v.strom)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
+    <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">${(+v.fruehererMietzins>0)?`Fr. ${chf2((+v.fruehererMietzins)+(+v.nebenkosten||0)+(+v.strom||0))}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
   </tbody>
 </table>
 <div class="indent" style="margin-top:6pt">(seit: -)</div>
@@ -4935,7 +4935,9 @@ Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einf�
 <div class="section">
 <h2>4. Klare Begründung der (eventuellen) Erhöhung des Anfangsmietzinses</h2>
 <div style="font-size:8.5pt;line-height:1.5">
-  Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR). Eine Erhöhung gegenüber dem früheren Mietzins liegt nicht vor, da das Objekt erstmalig untervermietet wird bzw. ein Mieterwechsel ohne Mietzinserhöhung erfolgt.
+  ${(+v.fruehererMietzins>0)
+    ? `Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR).${(+v.nettomiete > +v.fruehererMietzins) ? ` Die Anpassung gegenüber dem früheren Mietzins ist orts- und quartierüblich begründet.` : ` Gegenüber dem früheren Mietzins erfolgt keine Erhöhung.`}`
+    : `Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR). Eine Erhöhung gegenüber dem früheren Mietzins liegt nicht vor, da das Objekt erstmalig untervermietet wird bzw. ein Mieterwechsel ohne Mietzinserhöhung erfolgt.`}
 </div>
 </div>
 
@@ -6470,6 +6472,7 @@ www.dthomes.ch`;
       einzug: b.einzug || "",
       auszug: b.auszug || "",
       mietende: "",
+      fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (+room.miete||"") : "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
       minMietdauer: 6,
@@ -7254,6 +7257,7 @@ www.dthomes.ch`;
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {vertragData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span style={{color:"#8a8174"}}>Früherer Mietzins (netto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={vertragData.fruehererMietzins||""} onChange={e=>setVertragData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
                 {vertragData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {vertragData.aufschlag}</span>
@@ -8454,6 +8458,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
     setTvData({
       ...data.v, _tenant: t,
       mietende: "",
+      fruehererMietzins: "",
       moeblierungPauschale: +t.moeblierungPauschale || 990,
       auszug: t.auszug || "",
       ortVertrag: "Zürich",
@@ -9418,6 +9423,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,updateTenan
                 <div className="fg"><label className="fl">Nettomiete</label><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>setTvData(p=>({...p,nettomiete:+e.target.value||0,bruttomiete:(+e.target.value||0)+(p.nebenkosten||0)}))}/></div>
                 <div className="fg"><label className="fl">Nebenkosten</label><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>setTvData(p=>({...p,nebenkosten:+e.target.value||0,bruttomiete:(p.nettomiete||0)+(+e.target.value||0)}))}/></div>
                 <div className="fg"><label className="fl">Strom</label><input className="fi" type="number" value={tvData.strom} onChange={TVn("strom")}/></div>
+                <div className="fg"><label className="fl">Früherer Mietzins (netto)</label><input className="fi" type="number" placeholder="leer = erste Vermietung" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))}/></div>
               </div>
               <div className="frow">
                 <div className="fg"><label className="fl">Kaution</label><select className="fi" value={tvData.kautionMonate} onChange={e=>{const km=+e.target.value; const auf=km===0?150:km===1?100:km===2?50:0; setTvData(p=>({...p,kautionMonate:km,aufschlag:auf,kautionBetrag:((p.bruttomiete||0)+(p.strom||0))*km}));}}><option value={3}>3 Monatsmieten (Standard)</option><option value={2}>2 Monate (+50)</option><option value={1}>1 Monat (+100)</option><option value={0}>Keine (+150)</option></select></div>
