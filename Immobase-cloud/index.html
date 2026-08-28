@@ -1951,6 +1951,15 @@ function useSupabaseData() {
       return;
     }
     setTenants(p => p.map(t => t.id === id ? {...t, ...fields} : t));
+    // Auszugsdatum aufs Zimmer spiegeln, damit das Bewerbungsformular die 45-Tage-Regel selbst rechnen kann
+    if (Object.prototype.hasOwnProperty.call(fields, "auszug")) {
+      const rm = rooms.find(r => r.tenantId === id);
+      if (rm) {
+        const val = fields.auszug || null;
+        await supabase.from("rooms").update({mieter_auszug: val}).eq("id", rm.id);
+        setRooms(p => p.map(r => r.id === rm.id ? {...r, mieter_auszug: val} : r));
+      }
+    }
   }
   
   // Ändere Mieter-ID inkl. allen Foreign-Key-Bezügen (rooms.tenant_id)
