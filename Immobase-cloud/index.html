@@ -6509,7 +6509,7 @@ www.dthomes.ch`;
       einzug: b.einzug || "",
       auszug: b.auszug || "",
       mietende: "",
-      fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (+room.miete||"") : "",
+      fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (nettomiete||"") : "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
       minMietdauer: 6,
@@ -8914,7 +8914,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
             {filtered.map(t=>{
               const on=sel===t.id;
-              const tRoom = rooms.find(r=>r.tenantId===t.id);
+              const tRoom = rooms.find(r=>r.tenantId===t.id) || (t.roomId ? rooms.find(r=>r.id===t.roomId) : null);
               const tApt = tRoom ? apts.find(a=>a.id===tRoom.aptId) : null;
               return(
               <div key={t.id} onClick={()=>{setSel(t.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:8,padding:"9px 12px",marginBottom:5,cursor:"pointer"}}>
