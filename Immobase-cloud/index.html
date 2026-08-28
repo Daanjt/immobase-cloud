@@ -1618,7 +1618,7 @@ function useSupabaseData() {
       setTimeApprovals((data||[]).map(x=>({id:x.id, employeeId:x.employee_id, jahr:x.jahr, monat:x.monat, approvedAt:x.approved_at, approvedBy:x.approved_by})));
     });
     setApts((a.data||[]).map(x=>({...x, kautionType:x.kaution_type, refnr:x.refnr, schluesselAnzahl:x.schluessel_anzahl, extraSchluessel:x.extra_schluessel, matterportUrl:x.matterport_url, floorplanPath:x.floorplan_path, photos:x.photos||[], pipeline:!!x.pipeline, ausschreiben:!!x.ausschreiben, nichtAusschreiben:!!x.nicht_ausschreiben})));
-    setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id})));
+    setRooms((r.data||[]).map(x=>({...x, aptId:x.apt_id, tenantId:x.tenant_id, ausschreibOverride:x.ausschreib_override||"auto"})));
     setTenants((t.data||[]).map(x=>({
       ...x,
       vorname: (x.vorname||"").trim().replace(/\s+/g," "),
@@ -1873,6 +1873,7 @@ function useSupabaseData() {
     const map = {
       tenantId: "tenant_id",
       aptId: "apt_id",
+      ausschreibOverride: "ausschreib_override",
     };
     const dbFields = {};
     for (const k of Object.keys(fields)) {
@@ -11609,9 +11610,93 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
   );
 }
 
+function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, navigateTo}){
+  const AUTO_TAGE = 45;
+  const heute = new Date(); heute.setHours(0,0,0,0);
+  const pd = (s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
+  const fmt = (d)=> d ? d.toLocaleDateString("de-CH") : "-";
+  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id,b.id));
+
+  function roomInfo(r, apt){
+    const t = r.tenantId ? tenants.find(x=>x.id===r.tenantId) : null;
+    const aptEnde = pd(apt.mietende);
+    const aus = pd(t && t.auszug) || (t ? aptEnde : null);
+    const override = r.ausschreibOverride || "auto";
+    let nachmieter=null, nachmieterTyp=null;
+    const bw = (bewerber||[]).find(b => ((b.zugeteiltesZimmer||b.zugeteiltes_zimmer)===r.id || (b.zimmerWunsch||b.zimmer_wunsch)===r.id) && b.status!=="Abgesagt");
+    if (bw){ nachmieter=bw; nachmieterTyp="bewerber"; }
+    else { const ft=(tenants||[]).find(x => x.id!==r.tenantId && x.roomId===r.id && pd(x.einzug) && pd(x.einzug)>heute); if(ft){ nachmieter=ft; nachmieterTyp="mieter"; } }
+    let statusKey, statusLabel, statusColor;
+    if (!r.occupied){ statusKey="frei"; statusLabel="Frei"; statusColor="#b8843e"; }
+    else if (aptEnde && aus && aus >= aptEnde){ statusKey="bleibt"; statusLabel="Bleibt bis Ende"; statusColor="#5a7c5e"; }
+    else if (aptEnde && aus && aus < aptEnde){ statusKey="zieht_aus"; statusLabel="Zieht aus"; statusColor="#c0392b"; }
+    else if (t && !aus){ statusKey="offen"; statusLabel="Auszug offen"; statusColor="#8a8174"; }
+    else { statusKey="bleibt"; statusLabel="Bleibt"; statusColor="#5a7c5e"; }
+    const tage = aus ? Math.ceil((aus-heute)/86400000) : null;
+    const autoAus = statusKey==="zieht_aus" && tage!==null && tage<=AUTO_TAGE;
+    const ausgeschrieben = override==="ja" ? true : override==="nein" ? false : (statusKey==="frei" ? true : autoAus);
+    const ausschreibAb = (statusKey==="zieht_aus" && aus) ? new Date(aus.getTime()-AUTO_TAGE*86400000) : null;
+    return {t, aptEnde, aus, override, nachmieter, nachmieterTyp, statusKey, statusLabel, statusColor, tage, autoAus, ausgeschrieben, ausschreibAb};
+  }
+
+  let tRooms=0, tBleibt=0, tAus=0, tAusMitNach=0, tAusg=0;
+  wgApts.forEach(a=>{ rooms.filter(r=>r.aptId===a.id).forEach(r=>{ const i=roomInfo(r,a); tRooms++; if(i.statusKey==="bleibt")tBleibt++; if(i.statusKey==="zieht_aus"||i.statusKey==="frei"){ if(i.statusKey==="zieht_aus"){tAus++; if(i.nachmieter)tAusMitNach++;} } if(i.ausgeschrieben)tAusg++; }); });
+
+  const ovBtn = (r, val, label)=>{ const on=(r.ausschreibOverride||"auto")===val; return (
+    <button onClick={()=>updateRoom(r.id,{ausschreibOverride:val})} style={{fontSize:10,padding:"3px 7px",borderRadius:5,cursor:"pointer",border:`1px solid ${on?"#1a1814":"#d8d0c0"}`,background:on?"#1a1814":"#fff",color:on?"#fff":"#5a5249",whiteSpace:"nowrap"}}>{label}</button>
+  ); };
+
+  return (
+    <div>
+      <div className="pt">Nachvermietung</div>
+      <div className="ps">Belegungsplan pro Zimmer: wer bleibt, wer auszieht, welche Zimmer nachbesetzt werden müssen. Zimmer werden automatisch {AUTO_TAGE} Tage vor Auszug ausgeschrieben, ausser das Auszugsdatum ist das Wohnungsende. Pro Zimmer übersteuerbar.</div>
+      <div className="sg" style={{marginTop:12}}>
+        <div className="sc"><div className="sl">Zimmer total</div><div className="sv">{tRooms}</div></div>
+        <div className="sc"><div className="sl">Bleiben</div><div className="sv" style={{color:"#5a7c5e"}}>{tBleibt}</div></div>
+        <div className="sc"><div className="sl">Nachmieter nötig</div><div className="sv" style={{color:"#c0392b"}}>{tAus}</div><div className="sn">{tAusMitNach} zugeteilt</div></div>
+        <div className="sc"><div className="sl">Ausgeschrieben</div><div className="sv">{tAusg}</div></div>
+      </div>
+      {wgApts.map(a=>{
+        const rs = rooms.filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id,y.id));
+        if (rs.length===0) return null;
+        return (
+          <div className="card" key={a.id} style={{marginBottom:16}}>
+            <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <span>{a.adresse}</span>
+              <span style={{fontSize:11,color:"#8a8174",fontWeight:400}}>Wohnung endet: {fmt(pd(a.mietende))}</span>
+            </div>
+            <table><thead><tr><th>Zimmer</th><th>Aktueller Mieter</th><th>Auszug</th><th>Status</th><th>Nachmieter</th><th>Ausschreiben</th></tr></thead><tbody>
+              {rs.map(r=>{
+                const i = roomInfo(r,a);
+                return (
+                  <tr key={r.id}>
+                    <td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td>
+                    <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
+                    <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
+                    <td data-label="Status"><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span></td>
+                    <td data-label="Nachmieter">{i.nachmieter?<button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button>:(i.statusKey==="zieht_aus"||i.statusKey==="frei"?<span style={{color:"#c0392b",fontSize:11}}>gesucht</span>:<span style={{color:"#8a8174"}}>-</span>)}</td>
+                    <td data-label="Ausschreiben">
+                      <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                        {ovBtn(r,"auto","Auto")}{ovBtn(r,"ja","Ja")}{ovBtn(r,"nein","Nein")}
+                        <span style={{fontSize:10,color:i.ausgeschrieben?"#3a5230":"#8a8174",whiteSpace:"nowrap"}}>{i.ausgeschrieben?"● im Formular":"○ nicht sichtbar"}</span>
+                        {i.override==="auto"&&i.statusKey==="zieht_aus"&&!i.autoAus&&i.ausschreibAb?<span style={{fontSize:10,color:"#8a8174",whiteSpace:"nowrap"}}>auto ab {fmt(i.ausschreibAb)}</span>:null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody></table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
+  {id:"nachvermietung",icon:"🔄",label:"Nachvermietung"},
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
   {id:"mieter",icon:"👤",label:"Mieter"},
@@ -11628,7 +11713,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -11689,7 +11774,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const neueBewerber=data.bewerber.filter(b=>b.status==="Neu").length;
