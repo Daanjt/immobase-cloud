@@ -8428,7 +8428,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
     }
     return natSort(a.id, b.id);
   });
-  const tenant=tenants.find(t=>t.id===sel);const room=tenant?rooms.find(r=>r.tenantId===tenant.id):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
+  const tenant=tenants.find(t=>t.id===sel);const room=tenant?(rooms.find(r=>r.tenantId===tenant.id)||(tenant.roomId?rooms.find(r=>r.id===tenant.roomId):null)):null;const apt=room?apts.find(a=>a.id===room.aptId):null;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}function FB(k){return e=>setForm(p=>({...p,[k]:e.target.checked}));}
   function NF(k){return e=>setNewForm(p=>({...p,[k]:e.target.value}));}function NFB(k){return e=>setNewForm(p=>({...p,[k]:e.target.checked}));}
   
