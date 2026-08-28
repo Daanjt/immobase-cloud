@@ -11731,10 +11731,12 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
                 <td data-label="Ausschreiben">
                   {i.statusKey==="bleibt" ? <span style={{fontSize:11,color:"#8a8174"}}>—</span>
                    : i.nachmieter ? <span style={{fontSize:11,color:"#3a5230",fontWeight:600,whiteSpace:"nowrap"}}>✓ Nachmieter gefunden</span>
-                   : <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                    {ovBtn(r,"auto","Auto")}{ovBtn(r,"ja","Ja")}{ovBtn(r,"nein","Nein")}
-                    <span style={{fontSize:10,color:i.ausgeschrieben?"#3a5230":"#8a8174",whiteSpace:"nowrap"}}>{i.ausgeschrieben?"● im Formular":"○ nicht sichtbar"}</span>
-                    {i.override==="auto"&&i.statusKey==="zieht_aus"&&!i.autoAus&&i.ausschreibAb?<span style={{fontSize:10,color:"#8a8174",whiteSpace:"nowrap"}}>auto ab {fmt(i.ausschreibAb)}</span>:null}
+                   : <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <span onClick={()=>updateRoom(r.id,{ausschreibOverride: i.ausgeschrieben?"nein":"ja"})} title={i.ausgeschrieben?"Ausgeschrieben. Tippen zum Ausblenden.":"Nicht ausgeschrieben. Tippen zum Ausschreiben."} style={{position:"relative",display:"inline-block",width:40,height:23,borderRadius:12,background:i.ausgeschrieben?"#5a7c5e":"#d0c8b8",cursor:"pointer",flexShrink:0,transition:"background .15s"}}>
+                      <span style={{position:"absolute",top:2,left:i.ausgeschrieben?19:2,width:19,height:19,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 3px rgba(0,0,0,.3)",transition:"left .15s"}}/>
+                    </span>
+                    <span style={{fontSize:10.5,color:i.ausgeschrieben?"#3a5230":"#8a8174",whiteSpace:"nowrap"}}>{i.ausgeschrieben?"ausgeschrieben":"nicht ausgeschrieben"}</span>
+                    {i.override==="auto"&&i.statusKey==="zieht_aus"&&!i.autoAus&&i.ausschreibAb?<span style={{fontSize:9.5,color:"#8a8174",whiteSpace:"nowrap"}}>· ab {fmt(i.ausschreibAb)} automatisch</span>:null}
                   </div>}
                 </td>
               </tr>
