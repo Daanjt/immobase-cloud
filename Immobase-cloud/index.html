@@ -11691,9 +11691,13 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
     // Nur echte, aktuell zugeteilte Bewerber, und nie der aktuelle Mieter selbst.
     let nachmieter=null, nachmieterTyp=null;
     if (statusKey==="zieht_aus" || statusKey==="frei"){
-      const bw = (bewerber||[]).find(b => b.zugeteiltes_zimmer===r.id && b.status==="Zugeteilt" && (!t || (b.id!==t.bewerberId && (b.email||"").toLowerCase().trim()!==(t.email||"").toLowerCase().trim())));
-      if (bw){ nachmieter=bw; nachmieterTyp="bewerber"; }
-      else { const ft=(tenants||[]).find(x => x.id!==r.tenantId && x.roomId===r.id && pd(x.einzug) && pd(x.einzug)>heute); if(ft){ nachmieter=ft; nachmieterTyp="mieter"; } }
+      // Ist der Nachmieter schon als (zukuenftiger) Mieter angelegt, hat er Vorrang -> Klick fuehrt zum Mieter.
+      const ft=(tenants||[]).find(x => x.id!==r.tenantId && x.roomId===r.id && (x.status||"aktiv")!=="archiviert");
+      if (ft){ nachmieter=ft; nachmieterTyp="mieter"; }
+      else {
+        const bw = (bewerber||[]).find(b => b.zugeteiltes_zimmer===r.id && b.status==="Zugeteilt" && (!t || (b.id!==t.bewerberId && (b.email||"").toLowerCase().trim()!==(t.email||"").toLowerCase().trim())));
+        if (bw){ nachmieter=bw; nachmieterTyp="bewerber"; }
+      }
     }
     const tage = aus ? Math.ceil((aus-heute)/86400000) : null;
     const autoAus = statusKey==="zieht_aus" && tage!==null && tage<=AUTO_TAGE;
