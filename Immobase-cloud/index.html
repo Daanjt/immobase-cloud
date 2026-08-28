@@ -5747,70 +5747,69 @@ function buildNachtragHTML(person, nd, fullName, fmtDate){
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Nachtrag Untermietvertrag - ${fullName}</title>
 <style>
-@page{size:A4;margin:0}
+@page{size:A4;margin:18mm 18mm 22mm 18mm}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{background:#fff}
-body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10.5pt;line-height:1.6;color:#1a1a1a}
-.page{min-height:292mm;padding:24mm 18mm 12mm;display:flex;flex-direction:column}
-.content{flex:1 1 auto;display:flex;flex-direction:column}
-.top{flex:0 0 auto}
-h1{font-family:Georgia,serif;font-size:19pt;font-weight:normal;margin-bottom:4pt}
-.sub{font-size:9pt;color:#888;letter-spacing:.22em;text-transform:uppercase;display:block}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:20pt;margin-bottom:26pt}
-.logo{height:23pt;width:auto}
-h2{font-family:Georgia,serif;font-size:12pt;font-weight:normal;margin:20pt 0 6pt;border-bottom:.5pt solid #ccc;padding-bottom:3pt}
-p{margin-bottom:9pt;text-align:justify;hyphens:auto;-webkit-hyphens:auto}
-.box{background:#f7f3ea;border:.5pt solid #ddd0b8;border-radius:5pt;padding:11pt 14pt;margin:14pt 0;font-size:10pt;text-align:justify;hyphens:auto;-webkit-hyphens:auto}
-.signatures{margin-top:30pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.55;color:#1a1a1a;padding:18mm 18mm 22mm 18mm;width:210mm;margin:0 auto}
+@media print{body{padding:0;width:auto}.print-banner{display:none!important}}
+.print-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:12px 20px;text-align:center;font-size:13px;z-index:9999;font-family:Helvetica,Arial,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.print-banner button{background:#fff;color:#1a1a1a;border:none;padding:7px 18px;margin-left:14px;font-weight:600;border-radius:4px;cursor:pointer;font-size:13px}
+.doc-header{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12pt;border-bottom:1.5pt solid #1a1a1a;margin-bottom:18pt}
+.doc-header .left{flex:1}
+.doc-header .left .label{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:500;margin-bottom:5pt}
+.doc-header .left .doc-title{font-size:20pt;font-weight:300;letter-spacing:-.3pt;color:#1a1a1a}
+.doc-header .logo{width:38mm;height:auto}
+.doc-header .logo img{width:100%;display:block}
+.section{margin-bottom:12pt;page-break-inside:avoid;break-inside:avoid}
+.section h2{font-size:11pt;font-weight:700;color:#1a1a1a;margin-bottom:7pt;padding-bottom:3pt;border-bottom:.5pt solid #ddd;page-break-after:avoid;break-after:avoid}
+.section p{margin-bottom:5pt;text-align:justify;hyphens:auto;-webkit-hyphens:auto;orphans:2;widows:2}
+.box{background:#faf8f3;border-left:3pt solid #1a1a1a;padding:11pt 14pt;margin:14pt 0;font-size:10pt;text-align:justify;hyphens:auto;-webkit-hyphens:auto;page-break-inside:avoid;break-inside:avoid}
+.signatures{margin-top:26pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
 .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
 .sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
 .sig-block .name{font-size:11pt;font-weight:600;margin-bottom:18pt}
 .sig-block .sig-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt}
 .sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:64pt}
 .sig-block .sig-row .line{flex:none;width:150pt;border-bottom:.5pt solid #888;min-height:14pt}
-</style></head><body>
-<div class="page"><div class="content"><div class="top">
-<div class="hdr"><div><h1>Nachtrag zum Untermietvertrag</h1><div class="sub">Verlängerung · D&amp;T Homes</div></div><img class="logo" src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
+</style></head>
+<body>
+<div class="print-banner">Vertragsentwurf bereit &middot; W&auml;hle <strong>"Als PDF speichern"</strong> im Druck-Dialog<button onclick="window.print()">&#128196; Drucken / PDF speichern</button><button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button></div>
+<div class="doc-header"><div class="left"><div class="label">Verl&auml;ngerung &middot; D&amp;T Homes</div><div class="doc-title">Nachtrag zum Untermietvertrag</div></div><div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div></div>
+<div class="section">
 <p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in) betreffend das Mietobjekt ${objekt}.</p>
-<p>Zwischen den Parteien besteht ein befristetes Untermietverhältnis betreffend das genannte Mietobjekt. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
-<h2>1. Verlängerung</h2>
-<p>Das bestehende, befristete Untermietverhältnis wird <strong>verlängert bis und mit ${fmtDate(nd.mietende)}</strong>.${nd.einzug?` Die Verlängerung gilt ab dem ${fmtDate(nd.einzug)}.`:""} Das Mietverhältnis endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf, sofern keine weitere schriftliche Verlängerung vereinbart wird. Eine ordentliche Kündigung durch die Untermieter*in ist während der Verlängerungsdauer ausgeschlossen.</p>
-<h2>2. Rückgabe bei Vertragsende und Verzugsfolgen</h2>
-<p>Der Untermieter ist verpflichtet, das Mietobjekt spätestens am neuen Endtermin gemäss Ziffer 1 vollständig geräumt und ordnungsgemäss zurückzugeben. Ihm ist bekannt, dass die Liegenschaft nach Vertragsende dem Eigentümer bzw. der Verwaltung zur weiteren Nutzung, insbesondere zu Umbau- oder Sanierungszwecken, zu übergeben ist und dass eine verspätete Rückgabe dem Hauptmieter erheblichen Schaden verursachen kann, der über den Wert des einzelnen Mietobjekts hinausgeht. Gibt der Untermieter das Mietobjekt nicht rechtzeitig zurück, schuldet er für jeden angefangenen Tag der verspäteten Rückgabe (a) eine Nutzungsentschädigung in Höhe des anteiligen Mietzinses sowie (b) eine pauschalierte Verzugsentschädigung von CHF 300 pro Tag, zur Abgeltung des typischerweise entstehenden Aufwands und Schadens (Koordination, Ersatzunterbringung, Administration). Dem Untermieter bleibt der Nachweis offen, dass kein oder ein geringerer Schaden entstanden ist; bis zu diesem Nachweis gilt der pauschalierte Schaden als ausgewiesen. Die Geltendmachung eines weitergehenden, tatsächlichen Schadens bleibt ausdrücklich vorbehalten, insbesondere für Ansprüche des Eigentümers oder der Verwaltung sowie für Verzugs- und Projektkosten, soweit der Untermieter die verspätete Rückgabe zu vertreten hat. Der Hauptmieter ist berechtigt, diese Beträge mit der Kaution und weiteren Sicherheiten zu verrechnen, und kann bei nicht rechtzeitiger Rückgabe die Ausweisung im Verfahren des Rechtsschutzes in klaren Fällen (Art. 257 ZPO) verlangen.</p>
-<h2>3. Baulicher Zustand und Bauvorhaben</h2>
-<p>Dem Untermieter ist bekannt, dass die Liegenschaft im Hinblick auf ein geplantes Bauvorhaben des Eigentümers (insbesondere Umbau, Sanierung oder Abbruch und Neubau) nur befristet zur Verfügung steht und dass aufgrund der bestehenden Bausubstanz während der Verlängerungsdauer mit technischen und infrastrukturellen Beeinträchtigungen zu rechnen ist, insbesondere, jedoch nicht abschliessend, mit Ausfällen der Heizungsanlage, Wasserschäden, Feuchtigkeitseintritten sowie Störungen an sanitären Einrichtungen und der übrigen Gebäudetechnik. Der Untermieter anerkennt, dass der Hauptmieter im Hinblick auf das geplante Bauvorhaben nicht gehalten ist, über den vertragsgemässen Gebrauch hinausgehende Instandstellungen oder Erneuerungen vorzunehmen; zwingende mietrechtliche Ansprüche des Untermieters bleiben vorbehalten.</p>
-<p>Der Untermieter verpflichtet sich, das geplante Bauvorhaben des Eigentümers nicht zu behindern und den vereinbarten Rückgabetermin einzuhalten.</p>
-<h2>4. Übrige Bestimmungen</h2>
-<p>Sämtliche übrigen Bestimmungen des Untermietvertrags (insbesondere Mietzins, Nebenkosten, Kaution und Hausordnung) bleiben unverändert in Kraft.</p>
-<div class="box">Dieser Nachtrag wird mit der Unterzeichnung durch beide Parteien gültig und bildet einen integrierenden Bestandteil des bestehenden Untermietvertrags.</div>
+<p>Zwischen den Parteien besteht ein befristetes Untermietverh&auml;ltnis betreffend das genannte Mietobjekt. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
 </div>
+<div class="section">
+<h2>1. Verl&auml;ngerung</h2>
+<p>Das bestehende, befristete Untermietverh&auml;ltnis wird <strong>verl&auml;ngert bis und mit ${fmtDate(nd.mietende)}</strong>.${nd.einzug?` Die Verl&auml;ngerung gilt ab dem ${fmtDate(nd.einzug)}.`:""} Das Mietverh&auml;ltnis endet an diesem Datum automatisch, ohne dass es einer K&uuml;ndigung bedarf, sofern keine weitere schriftliche Verl&auml;ngerung vereinbart wird. Eine ordentliche K&uuml;ndigung durch die Untermieter*in ist w&auml;hrend der Verl&auml;ngerungsdauer ausgeschlossen.</p>
+</div>
+<div class="section">
+<h2>2. R&uuml;ckgabe bei Vertragsende und Verzugsfolgen</h2>
+<p>Der Untermieter ist verpflichtet, das Mietobjekt sp&auml;testens am neuen Endtermin gem&auml;ss Ziffer 1 vollst&auml;ndig ger&auml;umt und ordnungsgem&auml;ss zur&uuml;ckzugeben. Ihm ist bekannt, dass die Liegenschaft nach Vertragsende dem Eigent&uuml;mer bzw. der Verwaltung zur weiteren Nutzung, insbesondere zu Umbau- oder Sanierungszwecken, zu &uuml;bergeben ist und dass eine versp&auml;tete R&uuml;ckgabe dem Hauptmieter erheblichen Schaden verursachen kann, der &uuml;ber den Wert des einzelnen Mietobjekts hinausgeht. Gibt der Untermieter das Mietobjekt nicht rechtzeitig zur&uuml;ck, schuldet er f&uuml;r jeden angefangenen Tag der versp&auml;teten R&uuml;ckgabe (a) eine Nutzungsentsch&auml;digung in H&ouml;he des anteiligen Mietzinses sowie (b) eine pauschalierte Verzugsentsch&auml;digung von CHF 300 pro Tag, zur Abgeltung des typischerweise entstehenden Aufwands und Schadens (Koordination, Ersatzunterbringung, Administration). Dem Untermieter bleibt der Nachweis offen, dass kein oder ein geringerer Schaden entstanden ist; bis zu diesem Nachweis gilt der pauschalierte Schaden als ausgewiesen. Die Geltendmachung eines weitergehenden, tats&auml;chlichen Schadens bleibt ausdr&uuml;cklich vorbehalten, insbesondere f&uuml;r Anspr&uuml;che des Eigent&uuml;mers oder der Verwaltung sowie f&uuml;r Verzugs- und Projektkosten, soweit der Untermieter die versp&auml;tete R&uuml;ckgabe zu vertreten hat. Der Hauptmieter ist berechtigt, diese Betr&auml;ge mit der Kaution und weiteren Sicherheiten zu verrechnen, und kann bei nicht rechtzeitiger R&uuml;ckgabe die Ausweisung im Verfahren des Rechtsschutzes in klaren F&auml;llen (Art. 257 ZPO) verlangen.</p>
+</div>
+<div class="section">
+<h2>3. Baulicher Zustand und Bauvorhaben</h2>
+<p>Dem Untermieter ist bekannt, dass die Liegenschaft im Hinblick auf ein geplantes Bauvorhaben des Eigent&uuml;mers (insbesondere Umbau, Sanierung oder Abbruch und Neubau) nur befristet zur Verf&uuml;gung steht und dass aufgrund der bestehenden Bausubstanz w&auml;hrend der Verl&auml;ngerungsdauer mit technischen und infrastrukturellen Beeintr&auml;chtigungen zu rechnen ist, insbesondere, jedoch nicht abschliessend, mit Ausf&auml;llen der Heizungsanlage, Wassersch&auml;den, Feuchtigkeitseintritten sowie St&ouml;rungen an sanit&auml;ren Einrichtungen und der &uuml;brigen Geb&auml;udetechnik. Der Untermieter anerkennt, dass der Hauptmieter im Hinblick auf das geplante Bauvorhaben nicht gehalten ist, &uuml;ber den vertragsgem&auml;ssen Gebrauch hinausgehende Instandstellungen oder Erneuerungen vorzunehmen; zwingende mietrechtliche Anspr&uuml;che des Untermieters bleiben vorbehalten.</p>
+<p>Der Untermieter verpflichtet sich, das geplante Bauvorhaben des Eigent&uuml;mers nicht zu behindern und den vereinbarten R&uuml;ckgabetermin einzuhalten.</p>
+</div>
+<div class="section">
+<h2>4. &Uuml;brige Bestimmungen</h2>
+<p>S&auml;mtliche &uuml;brigen Bestimmungen des Untermietvertrags (insbesondere Mietzins, Nebenkosten, Kaution und Hausordnung) bleiben unver&auml;ndert in Kraft.</p>
+</div>
+<div class="box">Dieser Nachtrag wird mit der Unterzeichnung durch beide Parteien g&uuml;ltig und bildet einen integrierenden Bestandteil des bestehenden Untermietvertrags.</div>
 <div class="signatures">
   <div class="sig-block">
     <div class="role">Untermieter*in</div>
     <div class="name">${fullName}</div>
-    <div class="sig-row">
-      <span class="lbl">Ort, Datum:</span>
-      <span class="line"></span>
-    </div>
-    <div class="sig-row">
-      <span class="lbl">Unterschrift:</span>
-      <span class="line"></span>
-    </div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
   </div>
   <div class="sig-block">
     <div class="role">Hauptmieter</div>
     <div class="name">D&amp;T Partners GmbH</div>
-    <div class="sig-row">
-      <span class="lbl">Ort, Datum:</span>
-      <span class="line"></span>
-    </div>
-    <div class="sig-row">
-      <span class="lbl">Unterschrift:</span>
-      <span class="line"></span>
-    </div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
   </div>
-</div>
-</div>
 </div>
 </body></html>`;
 }
