@@ -11624,7 +11624,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, navigateTo}
   const heute = new Date(); heute.setHours(0,0,0,0);
   const pd = (s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
   const fmt = (d)=> d ? d.toLocaleDateString("de-CH") : "-";
-  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id,b.id));
+  const wgApts = apts.filter(a=>{ if(a.type!=="WG"||a.pipeline) return false; const mb=pd(a.mietbeginn); return !mb || mb<=heute; }).sort((a,b)=>natSort(a.id,b.id));
 
   function roomInfo(r, apt){
     const t = r.tenantId ? tenants.find(x=>x.id===r.tenantId) : null;
@@ -11632,7 +11632,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, navigateTo}
     const aus = pd(t && t.auszug) || (t ? aptEnde : null);
     const override = r.ausschreibOverride || "auto";
     let nachmieter=null, nachmieterTyp=null;
-    const bw = (bewerber||[]).find(b => ((b.zugeteiltesZimmer||b.zugeteiltes_zimmer)===r.id || (b.zimmerWunsch||b.zimmer_wunsch)===r.id) && b.status!=="Abgesagt");
+    const bw = (bewerber||[]).find(b => b.zugeteiltes_zimmer===r.id && b.status!=="Abgesagt");
     if (bw){ nachmieter=bw; nachmieterTyp="bewerber"; }
     else { const ft=(tenants||[]).find(x => x.id!==r.tenantId && x.roomId===r.id && pd(x.einzug) && pd(x.einzug)>heute); if(ft){ nachmieter=ft; nachmieterTyp="mieter"; } }
     let statusKey, statusLabel, statusColor;
@@ -11673,7 +11673,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, navigateTo}
                 <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
                 <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
                 <td data-label="Status"><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span></td>
-                <td data-label="Nachmieter">{i.nachmieter?<button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button>:(i.statusKey==="zieht_aus"||i.statusKey==="frei"?<span style={{color:"#c0392b",fontSize:11}}>gesucht</span>:<span style={{color:"#8a8174"}}>-</span>)}</td>
+                <td data-label="Nachmieter">{i.nachmieter?<button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button>:((i.statusKey==="zieht_aus"||i.statusKey==="frei")?<button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{fontSize:10.5,padding:"3px 9px",background:"#fdecec",color:"#c0392b",border:"1px solid #f0c0c0",borderRadius:5,cursor:"pointer",whiteSpace:"nowrap"}}>+ zuteilen</button>:<span style={{color:"#8a8174"}}>-</span>)}</td>
                 <td data-label="Ausschreiben">
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
                     {ovBtn(r,"auto","Auto")}{ovBtn(r,"ja","Ja")}{ovBtn(r,"nein","Nein")}
@@ -11688,7 +11688,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, navigateTo}
       </div>
     );
   };
-  const needsReletting = (a)=> rooms.filter(r=>r.aptId===a.id).some(r=>{ const i=roomInfo(r,a); return i.statusKey==="zieht_aus"||i.statusKey==="frei"; });
+  const needsReletting = (a)=> rooms.filter(r=>r.aptId===a.id).some(r=>{ const i=roomInfo(r,a); return i.statusKey==="zieht_aus"; });
   const nachApts = wgApts.filter(needsReletting);
   const restApts = wgApts.filter(a=>!needsReletting(a));
   const swipeRef = useRef(null);
