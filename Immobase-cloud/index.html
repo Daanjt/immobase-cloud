@@ -11655,49 +11655,72 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, navigateTo}
     <button onClick={()=>updateRoom(r.id,{ausschreibOverride:val})} style={{fontSize:10,padding:"3px 7px",borderRadius:5,cursor:"pointer",border:`1px solid ${on?"#1a1814":"#d8d0c0"}`,background:on?"#1a1814":"#fff",color:on?"#fff":"#5a5249",whiteSpace:"nowrap"}}>{label}</button>
   ); };
 
+  const renderApt = (a) => {
+    const rs = rooms.filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id,y.id));
+    if (rs.length===0) return null;
+    return (
+      <div className="card" key={a.id} style={{marginBottom:16}}>
+        <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <span>{a.adresse}</span>
+          <span style={{fontSize:11,color:"#8a8174",fontWeight:400}}>Wohnung endet: {fmt(pd(a.mietende))}</span>
+        </div>
+        <table><thead><tr><th>Zimmer</th><th>Aktueller Mieter</th><th>Auszug</th><th>Status</th><th>Nachmieter</th><th>Ausschreiben</th></tr></thead><tbody>
+          {rs.map(r=>{
+            const i = roomInfo(r,a);
+            return (
+              <tr key={r.id}>
+                <td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td>
+                <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
+                <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
+                <td data-label="Status"><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span></td>
+                <td data-label="Nachmieter">{i.nachmieter?<button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button>:(i.statusKey==="zieht_aus"||i.statusKey==="frei"?<span style={{color:"#c0392b",fontSize:11}}>gesucht</span>:<span style={{color:"#8a8174"}}>-</span>)}</td>
+                <td data-label="Ausschreiben">
+                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                    {ovBtn(r,"auto","Auto")}{ovBtn(r,"ja","Ja")}{ovBtn(r,"nein","Nein")}
+                    <span style={{fontSize:10,color:i.ausgeschrieben?"#3a5230":"#8a8174",whiteSpace:"nowrap"}}>{i.ausgeschrieben?"● im Formular":"○ nicht sichtbar"}</span>
+                    {i.override==="auto"&&i.statusKey==="zieht_aus"&&!i.autoAus&&i.ausschreibAb?<span style={{fontSize:10,color:"#8a8174",whiteSpace:"nowrap"}}>auto ab {fmt(i.ausschreibAb)}</span>:null}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody></table>
+      </div>
+    );
+  };
+  const needsReletting = (a)=> rooms.filter(r=>r.aptId===a.id).some(r=>{ const i=roomInfo(r,a); return i.statusKey==="zieht_aus"||i.statusKey==="frei"; });
+  const nachApts = wgApts.filter(needsReletting);
+  const restApts = wgApts.filter(a=>!needsReletting(a));
+  const swipeRef = useRef(null);
+  const [swPage, setSwPage] = useState(0);
+  const goSw = (i)=>{ setSwPage(i); const el=swipeRef.current; if(el) el.scrollTo({left:i*el.clientWidth,behavior:"smooth"}); };
+  const onSwScroll = ()=>{ const el=swipeRef.current; if(el){ const i=Math.round(el.scrollLeft/Math.max(1,el.clientWidth)); if(i!==swPage) setSwPage(i); } };
+  const swTab = (i,label)=>(
+    <button onClick={()=>goSw(i)} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:swPage===i?600:400,color:swPage===i?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:swPage===i?"2px solid #1a1814":"2px solid transparent",marginBottom:-1,whiteSpace:"nowrap"}}>{label}</button>
+  );
+
   return (
     <div>
       <div className="pt">Nachvermietung</div>
-      <div className="ps">Belegungsplan pro Zimmer: wer bleibt, wer auszieht, welche Zimmer nachbesetzt werden müssen. Zimmer werden automatisch {AUTO_TAGE} Tage vor Auszug ausgeschrieben, ausser das Auszugsdatum ist das Wohnungsende. Pro Zimmer übersteuerbar.</div>
+      <div className="ps">Nur Wohnungen, bei denen Zimmer bald nachbesetzt werden müssen. Wische seitwärts für die übrigen Wohnungen. Zimmer werden automatisch {AUTO_TAGE} Tage vor Auszug ausgeschrieben, pro Zimmer übersteuerbar.</div>
       <div className="sg" style={{marginTop:12}}>
         <div className="sc"><div className="sl">Zimmer total</div><div className="sv">{tRooms}</div></div>
         <div className="sc"><div className="sl">Bleiben</div><div className="sv" style={{color:"#5a7c5e"}}>{tBleibt}</div></div>
         <div className="sc"><div className="sl">Nachmieter nötig</div><div className="sv" style={{color:"#c0392b"}}>{tAus}</div><div className="sn">{tAusMitNach} zugeteilt</div></div>
         <div className="sc"><div className="sl">Ausgeschrieben</div><div className="sv">{tAusg}</div></div>
       </div>
-      {wgApts.map(a=>{
-        const rs = rooms.filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id,y.id));
-        if (rs.length===0) return null;
-        return (
-          <div className="card" key={a.id} style={{marginBottom:16}}>
-            <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-              <span>{a.adresse}</span>
-              <span style={{fontSize:11,color:"#8a8174",fontWeight:400}}>Wohnung endet: {fmt(pd(a.mietende))}</span>
-            </div>
-            <table><thead><tr><th>Zimmer</th><th>Aktueller Mieter</th><th>Auszug</th><th>Status</th><th>Nachmieter</th><th>Ausschreiben</th></tr></thead><tbody>
-              {rs.map(r=>{
-                const i = roomInfo(r,a);
-                return (
-                  <tr key={r.id}>
-                    <td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td>
-                    <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
-                    <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
-                    <td data-label="Status"><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span></td>
-                    <td data-label="Nachmieter">{i.nachmieter?<button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button>:(i.statusKey==="zieht_aus"||i.statusKey==="frei"?<span style={{color:"#c0392b",fontSize:11}}>gesucht</span>:<span style={{color:"#8a8174"}}>-</span>)}</td>
-                    <td data-label="Ausschreiben">
-                      <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                        {ovBtn(r,"auto","Auto")}{ovBtn(r,"ja","Ja")}{ovBtn(r,"nein","Nein")}
-                        <span style={{fontSize:10,color:i.ausgeschrieben?"#3a5230":"#8a8174",whiteSpace:"nowrap"}}>{i.ausgeschrieben?"● im Formular":"○ nicht sichtbar"}</span>
-                        {i.override==="auto"&&i.statusKey==="zieht_aus"&&!i.autoAus&&i.ausschreibAb?<span style={{fontSize:10,color:"#8a8174",whiteSpace:"nowrap"}}>auto ab {fmt(i.ausschreibAb)}</span>:null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody></table>
-          </div>
-        );
-      })}
+      <div style={{display:"flex",gap:0,margin:"16px 0 12px",borderBottom:"1px solid #e8e3d8",overflowX:"auto"}}>
+        {swTab(0, `Nachzuvermieten (${nachApts.length})`)}
+        {swTab(1, `Übrige Wohnungen (${restApts.length})`)}
+      </div>
+      <div ref={swipeRef} onScroll={onSwScroll} style={{display:"flex",overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",margin:"0 -4px"}}>
+        <div style={{flex:"0 0 100%",minWidth:0,scrollSnapAlign:"start",padding:"0 4px"}}>
+          {nachApts.length===0 ? <div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Aktuell muss kein Zimmer nachbesetzt werden. Wische nach links für die übrigen Wohnungen.</div> : nachApts.map(renderApt)}
+        </div>
+        <div style={{flex:"0 0 100%",minWidth:0,scrollSnapAlign:"start",padding:"0 4px"}}>
+          {restApts.length===0 ? <div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine weiteren Wohnungen.</div> : restApts.map(renderApt)}
+        </div>
+      </div>
     </div>
   );
 }
