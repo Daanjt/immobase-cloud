@@ -6128,6 +6128,18 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
+  const _pdZ=(s)=>{ if(!s) return null; const t=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(t)){const d=new Date(t);return isNaN(d.getTime())?null:d;} const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(t);return isNaN(d.getTime())?null:d; };
+  const _heuteZ=new Date(); _heuteZ.setHours(0,0,0,0);
+  const nachRooms=rooms.filter(r=>{
+    if(!r.occupied) return false;
+    const tn=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;
+    const apt=apts.find(a=>a.id===r.aptId);
+    const aus=_pdZ(tn&&tn.auszug)||_pdZ(r.mieter_auszug);
+    const ende=_pdZ(apt&&apt.mietende);
+    if(!aus) return false;               // kein Auszug bekannt -> keine Nachvermietung
+    if(ende&&aus>=ende) return false;    // Auszug = Wohnungsende -> Wohnung faellt weg
+    return true;                          // Mieter zieht vor Wohnungsende aus
+  });
   // Filter: Status + ggf. Wohnungs-Match wenn Nachmieter gesucht wird
   let shown=bewerber.filter(x=>x.status===filterStatus);
   if (nachmieterFor) {
@@ -6176,6 +6188,14 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   async function confirmZuteilung(){
     if(!selZimmer||!b)return;
     const room=rooms.find(r=>r.id===selZimmer);
+    if (room && room.occupied) {
+      // Belegtes Zimmer: Bewerber nur als Nachmieter vormerken, aktuellen Mieter nicht ueberschreiben.
+      // Der eigentliche Einzug (Mieter anlegen, Zimmer belegen) erfolgt spaeter, wenn das Zimmer frei wird.
+      await updateBewerber(b.id, { zugeteiltes_zimmer: selZimmer, status: "Zugeteilt" });
+      setZuteilModal(false); setSelZimmer(null);
+      alert("Als Nachmieter für ein belegtes Zimmer vorgemerkt. Sobald der aktuelle Mieter auszieht, schliesst du den Einzug im Zimmer- oder Mieter-Tab ab.");
+      return;
+    }
     // Kautionsvariante und Aufschlag aus dem Bewerber ableiten (gleiche Logik wie im
     // Vertrag), damit Mieter und Vertrag uebereinstimmen und nichts manuell nachgetragen
     // werden muss.
@@ -7061,6 +7081,26 @@ www.dthomes.ch`;
                 </div>
               );
             })}
+            {nachRooms.length>0 && (<>
+              <div style={{fontSize:10,color:"#8a8478",textTransform:"uppercase",margin:"18px 0 10px"}}>Zimmer mit bevorstehendem Auszug ({nachRooms.length})</div>
+              {[...nachRooms].sort((a,c)=>{if(a.id===b.zimmerWunsch)return -1;if(c.id===b.zimmerWunsch)return 1;return 0;}).map(r=>{
+                const apt=apts.find(a=>a.id===r.aptId);
+                const tn=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;
+                const aus=_pdZ(tn&&tn.auszug)||_pdZ(r.mieter_auszug);
+                const belegt=(bewerber||[]).find(x=>x.id!==b.id && x.zugeteiltes_zimmer===r.id && x.status!=="Abgesagt");
+                return (
+                  <div key={r.id} className={`zimmer-option${selZimmer===r.id?" sel":""}`} onClick={()=>setSelZimmer(r.id)} style={{borderColor:"#e0b89c"}}>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:13,color:selZimmer===r.id?"#5a7c5e":"#1f1d18",display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>{r.id} <span style={{fontSize:10,color:"#c0392b",fontWeight:600}}>Auszug {aus?aus.toLocaleDateString("de-CH"):"-"}</span>{belegt&&<span style={{fontSize:10,color:"#b8843e"}}>schon vorgemerkt</span>}</div>
+                      <div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt?.adresse} · aktuell: {tn?`${tn.vorname} ${tn.nachname}`:"?"}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontWeight:600,color:"#5a7c5e",fontSize:13}}>{chf(r.miete)}/Mt.</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>)}
             <div className="fg" style={{marginTop:14}}><label className="fl">Einzugsdatum</label><input className="fi" type="date" value={einzugDate} onChange={e=>setEinzugDate(e.target.value)}/></div>
             <div className="ma">
               <button className="btn btn-g" onClick={()=>setZuteilModal(false)}>Abbrechen</button>
