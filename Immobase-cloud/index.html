@@ -6188,19 +6188,16 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   async function confirmZuteilung(){
     if(!selZimmer||!b)return;
     const room=rooms.find(r=>r.id===selZimmer);
-    if (room && room.occupied) {
-      // Belegtes Zimmer: Bewerber nur als Nachmieter vormerken, aktuellen Mieter nicht ueberschreiben.
-      // Der eigentliche Einzug (Mieter anlegen, Zimmer belegen) erfolgt spaeter, wenn das Zimmer frei wird.
+    const istNachmieter = !!(room && room.occupied);
+    if (istNachmieter) {
+      // Belegtes Zimmer: Bewerber wird als zukuenftiger Mieter angelegt, ohne den aktuellen Mieter zu ueberschreiben.
       const tn = room.tenantId ? tenants.find(x=>x.id===room.tenantId) : null;
       const ausT = _pdZ(tn && tn.auszug) || _pdZ(room.mieter_auszug);
       const einT = einzugDate ? _pdZ(einzugDate) : null;
+      if (!einzugDate) { if(!confirm("Kein Einzugsdatum gesetzt. Der zukünftige Mieter wird ohne Einzugsdatum angelegt. Trotzdem fortfahren?")) return; }
       if (ausT && einT && einT <= ausT) {
-        if (!confirm(`Das Einzugsdatum (${einT.toLocaleDateString("de-CH")}) liegt nicht nach dem Auszug des aktuellen Mieters (${ausT.toLocaleDateString("de-CH")}). Trotzdem so vormerken?`)) return;
+        if (!confirm(`Das Einzugsdatum (${einT.toLocaleDateString("de-CH")}) liegt nicht nach dem Auszug des aktuellen Mieters (${ausT.toLocaleDateString("de-CH")}). Trotzdem anlegen?`)) return;
       }
-      await updateBewerber(b.id, { zugeteiltes_zimmer: selZimmer, status: "Zugeteilt", einzug: einzugDate || null });
-      setZuteilModal(false); setSelZimmer(null);
-      alert("Als Nachmieter für ein belegtes Zimmer vorgemerkt"+(einzugDate?`, geplanter Einzug am ${einT?einT.toLocaleDateString("de-CH"):einzugDate}`:"")+". Sobald der aktuelle Mieter auszieht, schliesst du den Einzug im Zimmer- oder Mieter-Tab ab.");
-      return;
     }
     // Kautionsvariante und Aufschlag aus dem Bewerber ableiten (gleiche Logik wie im
     // Vertrag), damit Mieter und Vertrag uebereinstimmen und nichts manuell nachgetragen
@@ -6245,10 +6242,11 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       schluessel:false,furnished:b.moebliert==="ja",moebliert:b.moebliert==="ja",betreibung:false,
       einzug:einzugDate?new Date(einzugDate).toLocaleDateString("de-CH"):(b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):""),
       auszug:"",schluessel_nr:"",
+      roomId: istNachmieter ? selZimmer : undefined,
       owner: b.owner || "",
     };
     await insertTenant(newTenant);
-    await updateRoom(selZimmer,{occupied:true,tenantId:newId});
+    if (!istNachmieter) { await updateRoom(selZimmer,{occupied:true,tenantId:newId}); }
     await updateBewerber(b.id,{status:"Zugeteilt",zugeteiltes_zimmer:selZimmer});
     
     // Dokumente vom Bewerber zum Mieter migrieren (applicant → tenant)
@@ -6271,6 +6269,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       console.error("Vertrag-Umhängen fehlgeschlagen:", e);
     }
 
+    if (istNachmieter) alert(`${b.vorname} ${b.nachname} wurde als zukünftiger Mieter angelegt (Zimmer ${selZimmer}${einzugDate?`, Einzug ${new Date(einzugDate).toLocaleDateString("de-CH")}`:""}). Er erscheint im Mieter-Tab unter Zukünftige. Der aktuelle Mieter bleibt bis zu seinem Auszug im Zimmer.`);
     setZuteilModal(false);setSelZimmer(null);setSel(null);
   }
 
