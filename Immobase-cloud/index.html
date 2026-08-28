@@ -4765,10 +4765,11 @@ function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
   // Kautions-Aufschlag wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
   const stromFix = 25;
   const nettomiete = +v.nettomiete || 0;
-  // Frueherer Mietzins: Netto, Nebenkosten und Strom einzeln, jeweils ueberschreibbar
-  const _fm = +v.fruehererMietzins || 0;
-  const _fnk = (v.fruehererNebenkosten===""||v.fruehererNebenkosten==null) ? (+v.nebenkosten||0) : (+v.fruehererNebenkosten||0);
-  const _fstr = (v.fruehererStrom===""||v.fruehererStrom==null) ? (+v.strom||0) : (+v.fruehererStrom||0);
+  // Frueherer Mietzins: ein Bruttowert (inkl. NK + Strom), netto = brutto - NK - Strom
+  const _fb = +v.fruehererMietzins || 0;
+  const _fnk = +v.nebenkosten || 0;
+  const _fstr = +v.strom || 0;
+  const _fnetto = _fb > 0 ? (_fb - _fnk - _fstr) : 0;
   const nebenkosten = +v.nebenkosten || 100;
   const totalCalc = nettomiete + nebenkosten + stromFix;
   // Override v so the template below uses the corrected values
@@ -4908,10 +4909,10 @@ Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einf�
     </tr>
   </thead>
   <tbody>
-    <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">${(_fm>0)?`Fr. ${chf2(_fm)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
-    <tr><td>Nebenkosten</td><td class="amt">${(_fm>0)?`Fr. ${chf2(_fnk)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
-    <tr><td>Stromkosten (pauschal)</td><td class="amt">${(_fm>0)?`Fr. ${chf2(_fstr)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
-    <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">${(_fm>0)?`Fr. ${chf2(_fm+_fnk+_fstr)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
+    <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fnetto)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
+    <tr><td>Nebenkosten</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fnk)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Stromkosten (pauschal)</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fstr)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
+    <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fb)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
   </tbody>
 </table>
 <div class="indent" style="margin-top:6pt">(seit: -)</div>
@@ -4949,8 +4950,8 @@ Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einf�
 <div class="section">
 <h2>4. Klare Begründung der (eventuellen) Erhöhung des Anfangsmietzinses</h2>
 <div style="font-size:8.5pt;line-height:1.5">
-  ${(+v.fruehererMietzins>0)
-    ? `Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR).${(+v.nettomiete > +v.fruehererMietzins) ? ` Die Anpassung gegenüber dem früheren Mietzins ist orts- und quartierüblich begründet.` : ` Gegenüber dem früheren Mietzins erfolgt keine Erhöhung.`}`
+  ${(_fb>0)
+    ? `Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR).${(+v.nettomiete > _fnetto) ? ` Die Anpassung gegenüber dem früheren Mietzins ist orts- und quartierüblich begründet.` : ` Gegenüber dem früheren Mietzins erfolgt keine Erhöhung.`}`
     : `Der Anfangsmietzins entspricht den orts- und quartierüblichen Mietzinsen vergleichbarer Wohnobjekte (Art. 269a lit. a OR). Eine Erhöhung gegenüber dem früheren Mietzins liegt nicht vor, da das Objekt erstmalig untervermietet wird bzw. ein Mieterwechsel ohne Mietzinserhöhung erfolgt.`}
 </div>
 </div>
@@ -6513,9 +6514,7 @@ www.dthomes.ch`;
       einzug: b.einzug || "",
       auszug: b.auszug || "",
       mietende: "",
-      fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (nettomiete||"") : "",
-      fruehererNebenkosten: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? nebenkosten : "",
-      fruehererStrom: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? strom : "",
+      fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (bruttomiete + strom) : "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
       minMietdauer: 6,
@@ -7320,9 +7319,7 @@ www.dthomes.ch`;
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {vertragData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früherer Mietzins (netto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={vertragData.fruehererMietzins||""} onChange={e=>setVertragData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früher: Nebenkosten</span><input className="fi" type="number" placeholder="-" value={vertragData.fruehererNebenkosten===""||vertragData.fruehererNebenkosten==null?"":vertragData.fruehererNebenkosten} onChange={e=>setVertragData(p=>({...p,fruehererNebenkosten:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früher: Strom</span><input className="fi" type="number" placeholder="-" value={vertragData.fruehererStrom===""||vertragData.fruehererStrom==null?"":vertragData.fruehererStrom} onChange={e=>setVertragData(p=>({...p,fruehererStrom:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
+                <span style={{color:"#8a8174"}}>Früherer Mietzins (brutto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={vertragData.fruehererMietzins||""} onChange={e=>setVertragData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
                 {vertragData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {vertragData.aufschlag}</span>
@@ -8512,9 +8509,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       kautionBetrag,
       moebliert: !!t.moebliert,
       einzug: t.einzug || "",
-      fruehererMietzins: (room && room.tenantId && room.tenantId !== t.id) ? (nettomiete||"") : "",
-      fruehererNebenkosten: (room && room.tenantId && room.tenantId !== t.id) ? nebenkosten : "",
-      fruehererStrom: (room && room.tenantId && room.tenantId !== t.id) ? strom : "",
+      fruehererMietzins: (room && room.tenantId && room.tenantId !== t.id) ? (bruttomiete + strom) : "",
     };
     
     return { b, v };
@@ -9658,9 +9653,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {tvData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={tvData.strom} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früherer Mietzins (netto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früher: Nebenkosten</span><input className="fi" type="number" placeholder="-" value={tvData.fruehererNebenkosten===""||tvData.fruehererNebenkosten==null?"":tvData.fruehererNebenkosten} onChange={e=>setTvData(p=>({...p,fruehererNebenkosten:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früher: Strom</span><input className="fi" type="number" placeholder="-" value={tvData.fruehererStrom===""||tvData.fruehererStrom==null?"":tvData.fruehererStrom} onChange={e=>setTvData(p=>({...p,fruehererStrom:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
+                <span style={{color:"#8a8174"}}>Früherer Mietzins (brutto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
                 {tvData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {tvData.aufschlag}</span>
