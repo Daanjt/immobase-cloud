@@ -11697,13 +11697,14 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
     }
     const tage = aus ? Math.ceil((aus-heute)/86400000) : null;
     const autoAus = statusKey==="zieht_aus" && tage!==null && tage<=AUTO_TAGE;
-    const ausgeschrieben = override==="ja" ? true : override==="nein" ? false : (apt.nicht_ausschreiben ? false : (statusKey==="frei" ? true : autoAus));
+    const ausgeschrieben = nachmieter ? false : (override==="ja" ? true : override==="nein" ? false : (apt.nicht_ausschreiben ? false : (statusKey==="frei" ? true : autoAus)));
     const ausschreibAb = (statusKey==="zieht_aus" && aus) ? new Date(aus.getTime()-AUTO_TAGE*86400000) : null;
     return {t, aptEnde, aus, override, nachmieter, nachmieterTyp, statusKey, statusLabel, statusColor, tage, autoAus, ausgeschrieben, ausschreibAb};
   }
 
-  let tRooms=0, tBleibt=0, tAus=0, tAusMitNach=0, tAusg=0;
-  wgApts.forEach(a=>{ rooms.filter(r=>r.aptId===a.id).forEach(r=>{ const i=roomInfo(r,a); tRooms++; if(i.statusKey==="bleibt")tBleibt++; if(i.statusKey==="zieht_aus"||i.statusKey==="frei"){ if(i.statusKey==="zieht_aus"){tAus++; if(i.nachmieter)tAusMitNach++;} } if(i.ausgeschrieben)tAusg++; }); });
+  let tRooms=0, tAus=0, tAusMitNach=0, tAusg=0;
+  wgApts.forEach(a=>{ rooms.filter(r=>r.aptId===a.id).forEach(r=>{ const i=roomInfo(r,a); tRooms++; if(i.statusKey==="zieht_aus"){tAus++; if(i.nachmieter)tAusMitNach++;} if(i.ausgeschrieben)tAusg++; }); });
+  const tGesucht = tAus - tAusMitNach;
 
   const ovBtn = (r, val, label)=>{ const on=(r.ausschreibOverride||"auto")===val; return (
     <button onClick={()=>updateRoom(r.id,{ausschreibOverride:val})} style={{fontSize:10,padding:"3px 7px",borderRadius:5,cursor:"pointer",border:`1px solid ${on?"#1a1814":"#d8d0c0"}`,background:on?"#1a1814":"#fff",color:on?"#fff":"#5a5249",whiteSpace:"nowrap"}}>{label}</button>
@@ -11763,8 +11764,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
       <div className="ps">Nur Wohnungen, bei denen Zimmer bald nachbesetzt werden müssen. Wische seitwärts für die übrigen Wohnungen. Zimmer werden automatisch {AUTO_TAGE} Tage vor Auszug ausgeschrieben, pro Zimmer übersteuerbar.</div>
       <div className="sg" style={{marginTop:12}}>
         <div className="sc"><div className="sl">Zimmer total</div><div className="sv">{tRooms}</div></div>
-        <div className="sc"><div className="sl">Bleiben</div><div className="sv" style={{color:"#5a7c5e"}}>{tBleibt}</div></div>
-        <div className="sc"><div className="sl">Nachmieter nötig</div><div className="sv" style={{color:"#c0392b"}}>{tAus}</div><div className="sn">{tAusMitNach} zugeteilt</div></div>
+        <div className="sc"><div className="sl">Nachmieter gesucht</div><div className="sv" style={{color:"#c0392b"}}>{tGesucht}</div></div>
         <div className="sc"><div className="sl">Ausgeschrieben</div><div className="sv">{tAusg}</div></div>
       </div>
       <div style={{display:"flex",gap:0,margin:"16px 0 12px",borderBottom:"1px solid #e8e3d8",overflowX:"auto"}}>
