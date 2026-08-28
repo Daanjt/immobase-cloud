@@ -8504,6 +8504,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       kautionBetrag,
       moebliert: !!t.moebliert,
       einzug: t.einzug || "",
+      fruehererMietzins: (room && room.tenantId && room.tenantId !== t.id) ? (nettomiete||"") : "",
     };
     
     return { b, v };
@@ -8522,7 +8523,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
     setTvData({
       ...data.v, _tenant: t,
       mietende: "",
-      fruehererMietzins: "",
       moebliert: t.moebliert === "ja" || t.moebliert === true,
       moeblierungPauschale: +t.moeblierungPauschale || 990,
       auszug: t.auszug || "",
