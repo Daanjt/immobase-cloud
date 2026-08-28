@@ -8348,21 +8348,28 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       setTab("info");
       // Wenn der Mieter archiviert ist, automatisch in Archiv-Modus wechseln
       const t = tenants.find(x => x.id === navTarget.id);
-      if (t && t.status === "archiviert") setViewMode("archiviert");
+      if (t && t.status === "archiviert") setViewMode("ehemalig");
     }
   }, [navTarget]);
   
-  // Aktive und archivierte Mieter trennen
-  const aktive = tenants.filter(t => (t.status || "aktiv") === "aktiv");
-  const archivierte = tenants.filter(t => t.status === "archiviert");
-  const currentList = viewMode === "archiviert" ? archivierte : aktive;
+  // Mieter dreiteilen nach Datum: aktiv (aktuell drin), zukuenftig (Einzug spaeter), ehemalig (ausgezogen/archiviert)
+  const _heuteM = new Date(); _heuteM.setHours(0,0,0,0);
+  const _pdM = (s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
+  const _grpM = (t)=>{ if (t.status === "archiviert") return "ehemalig"; const ein=_pdM(t.einzug), aus=_pdM(t.auszug); if (aus && aus < _heuteM) return "ehemalig"; if (ein && ein > _heuteM) return "zukuenftig"; return "aktiv"; };
+  const aktive = tenants.filter(t => _grpM(t)==="aktiv");
+  const zukuenftige = tenants.filter(t => _grpM(t)==="zukuenftig");
+  const ehemalige = tenants.filter(t => _grpM(t)==="ehemalig");
+  const currentList = viewMode==="zukuenftig" ? zukuenftige : viewMode==="ehemalig" ? ehemalige : aktive;
   
   const filtered = currentList.filter(t=>`${t.vorname} ${t.nachname} ${t.id} ${t.email}`.toLowerCase().includes(search.toLowerCase())).sort((a,b) => {
-    // Bei archivierten: nach archived_at sortieren (neueste zuerst)
-    if (viewMode === "archiviert") {
-      const dateA = a.archivedAt || a.archived_at || 0;
-      const dateB = b.archivedAt || b.archived_at || 0;
-      return new Date(dateB) - new Date(dateA);
+    if (viewMode === "ehemalig") {
+      const dateA = _pdM(a.auszug) || new Date(a.archivedAt || a.archived_at || 0);
+      const dateB = _pdM(b.auszug) || new Date(b.archivedAt || b.archived_at || 0);
+      return dateB - dateA;
+    }
+    if (viewMode === "zukuenftig") {
+      const dateA = _pdM(a.einzug) || 0, dateB = _pdM(b.einzug) || 0;
+      return dateA - dateB;
     }
     return natSort(a.id, b.id);
   });
@@ -8551,6 +8558,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
         onProgress:(msg,p)=>setNachProgress({msg,p}),
       });
       setNachResult({ok:true, ...res});
+      if(updateTenant){ try { await updateTenant(t.id, {auszug: nd.mietende}); } catch(e){} }
       if(loadContracts) await loadContracts();
     } catch(e){ setNachResult({ok:false, error:e.message||String(e)}); }
     finally { setNachBusy(false); setNachProgress(null); }
@@ -8828,18 +8836,21 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
         <div>
           <div className="pt">Mieter</div>
-          <div className="ps">{viewMode==="archiviert"?`${archivierte.length} alte Mieter`:`${aktive.length} aktive Personen`}</div>
+          <div className="ps">{viewMode==="ehemalig"?`${ehemalige.length} ehemalige Mieter`:viewMode==="zukuenftig"?`${zukuenftige.length} zukünftige Mieter`:`${aktive.length} aktive Mieter`}</div>
         </div>
         {viewMode==="aktiv" && <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>}
       </div>
       
-      {/* TAB-TOGGLE: Aktive / Archivierte */}
+      {/* TAB-TOGGLE: Aktive / Zukünftige / Ehemalige */}
       <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"1px solid #e8e3d8"}}>
         <button onClick={()=>{setViewMode("aktiv");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="aktiv"?600:400,color:viewMode==="aktiv"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="aktiv"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
           Aktive Mieter ({aktive.length})
         </button>
-        <button onClick={()=>{setViewMode("archiviert");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="archiviert"?600:400,color:viewMode==="archiviert"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="archiviert"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
-          📦 Alte Mieter ({archivierte.length})
+        <button onClick={()=>{setViewMode("zukuenftig");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="zukuenftig"?600:400,color:viewMode==="zukuenftig"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="zukuenftig"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
+          🔜 Zukünftige ({zukuenftige.length})
+        </button>
+        <button onClick={()=>{setViewMode("ehemalig");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="ehemalig"?600:400,color:viewMode==="ehemalig"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="ehemalig"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
+          📦 Ehemalige ({ehemalige.length})
         </button>
       </div>
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
