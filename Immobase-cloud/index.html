@@ -8515,10 +8515,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       adresse: (data&&data.v.adresse)||"", plz:(data&&data.v.plz)||"", ort:(data&&data.v.ort)||"",
       zimmerId: (data&&data.v.zimmerId)||"",
       aptId: apt?apt.id:null, roomId: room?room.id:null,
-      originalDatum: current ? ((current.signedAt || current.createdAt || "").split("T")[0]) : "",
       mietbeginn: t.einzug || "",
       einzug: "",
-      mietende: "",
+      mietende: (apt && apt.mietende) || "",
     });
     setNachResult(null); setNachProgress(null); setNachModal(true);
   }
@@ -9365,8 +9364,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 <div style={{color:"var(--muted)",fontSize:11.5,marginTop:5}}>Übrige Bedingungen bleiben unverändert.</div>
               </div>
               <div className="frow">
-                <div className="fg"><label className="fl">Vertrag unterschrieben am</label><input className="fi" type="date" value={toDateInputValue(nd.originalDatum)} onChange={ND("originalDatum")}/><div style={{fontSize:10.5,color:"var(--muted)",marginTop:3,lineHeight:1.4}}>Datum, an dem der Ursprungsvertrag unterschrieben wurde{nd.originalDatum?" (automatisch übernommen)":", bitte angeben"}.</div></div>
-                <div className="fg"><label className="fl">Verlängert bis *</label><input className="fi" type="date" value={toDateInputValue(nd.mietende)} onChange={ND("mietende")}/></div>
+                <div className="fg"><label className="fl">Verlängert bis *</label><input className="fi" type="date" value={toDateInputValue(nd.mietende)} onChange={ND("mietende")}/><div style={{fontSize:10.5,color:"var(--muted)",marginTop:3,lineHeight:1.4}}>{(nd.mietende)?"Automatisch aus der Wohnung übernommen, bei Bedarf anpassbar.":"Enddatum der Wohnung ist nicht hinterlegt, bitte angeben."}</div></div>
               </div>
               {nachProgress && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>{nachProgress.msg}</div>}
               <div className="ma" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
