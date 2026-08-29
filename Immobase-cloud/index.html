@@ -6974,7 +6974,7 @@ www.dthomes.ch`;
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
                   <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.moebliert==="ja"?"🛋 Möbliert":b.moebliert==="nein"?"📦 Unmöbliert":"-"}</div>
-                  {b.moeblierungPauschale>0&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>CHF {b.moeblierungPauschale}.- einmalig</div>}
+                  {b.moeblierungPauschale>0&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>CHF {b.moeblierungPauschale}.- {b.moeblierungModus==="monatlich"?"/ Monat":"einmalig"}</div>}
                 </div>
               </div>
             </div>
@@ -7152,7 +7152,11 @@ www.dthomes.ch`;
             <div className="frow"><div className="fg"><label className="fl">Arbeitgeber</label><input className="fi" value={editForm.arbeitgeber||""} onChange={EF("arbeitgeber")}/></div><div className="fg"><label className="fl">Nettoeinkommen / Mt.</label><input className="fi" type="number" value={editForm.einkommen||""} onChange={EF("einkommen")}/></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
-            <div className="frow"><div className="fg"><label className="fl">Wunsch-Zimmer</label><select className="fi" value={editForm.zimmerWunsch||""} onChange={EF("zimmerWunsch")}><option value="">-</option>{rooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)})</option>;})}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Wunsch-Zimmer</label><select className="fi" value={editForm.zimmerWunsch||""} onChange={EF("zimmerWunsch")}><option value="">-</option>{(() => {
+              const pdW = (s)=>{ if(!s) return null; const t=String(s).trim(); const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m) return new Date(+m[3],+m[2]-1,+m[1]); const d=new Date(t); return isNaN(d.getTime())?null:d; };
+              const verf = (r)=>{ if(!r.occupied) return true; const aus=pdW(r.mieter_auszug); const apt=apts.find(a=>a.id===r.aptId); const ende=pdW(apt&&apt.mietende); return !!(aus && ende && aus < ende); };
+              return [...rooms].sort((x,y)=>{ const vx=verf(x)?0:1, vy=verf(y)?0:1; if(vx!==vy) return vx-vy; return natSort(x.id,y.id); }).map(r=>{ const a=apts.find(x=>x.id===r.aptId); const frei=verf(r); return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)}){frei?"":" · belegt"}</option>; });
+            })()}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
             <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">-</option><option value="ja">Möbliert (CHF 990)</option><option value="nein">Unmöbliert</option></select></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kaution</div>
