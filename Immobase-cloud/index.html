@@ -7157,7 +7157,7 @@ www.dthomes.ch`;
               const verf = (r)=>{ if(!r.occupied) return true; const aus=pdW(r.mieter_auszug); const apt=apts.find(a=>a.id===r.aptId); const ende=pdW(apt&&apt.mietende); return !!(aus && ende && aus < ende); };
               return [...rooms].sort((x,y)=>{ const vx=verf(x)?0:1, vy=verf(y)?0:1; if(vx!==vy) return vx-vy; return natSort(x.id,y.id); }).map(r=>{ const a=apts.find(x=>x.id===r.aptId); const frei=verf(r); return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)}){frei?"":" · belegt"}</option>; });
             })()}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
-            <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">-</option><option value="ja">Möbliert (CHF 990)</option><option value="nein">Unmöbliert</option></select></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">-</option><option value="ja">Möbliert</option><option value="nein">Unmöbliert</option></select></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Kaution</div>
             <div className="frow"><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={editForm.kautionType||""} onChange={EF("kautionType")}><option value="">-</option><option value="3× Miete (volle Kaution)">3× Miete (volle Kaution)</option><option value="2× Miete">2× Miete (+50/Mt.)</option><option value="1× Miete">1× Miete (+100/Mt.)</option></select></div><div className="fg"><label className="fl">Servicegebühr / Mt.</label><input className="fi" type="number" value={editForm.kautionAufschlag||0} onChange={e=>setEditForm(p=>({...p,kautionAufschlag:+e.target.value}))}/></div></div>
@@ -9107,7 +9107,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 istAdmin && ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
                 istAdmin && ["Aufschlag/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
                 istAdmin && ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
-                istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale})`:""):"Nein"],
+                istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale}${tenant.moeblierungModus==="monatlich"?"/Mt.":" einmalig"})`:""):"Nein"],
                 !istAdmin && ["Möbliert",tenant.moebliert?"Ja":"Nein"],
                 ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
                 ["Extra-Schlüssel",tenant.extraSchluessel||"-"],
