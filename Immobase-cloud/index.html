@@ -8920,6 +8920,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       einkommen:form.einkommen,type:form.type,
       kautionOpt:form.kautionOpt,kautionMonate:+form.kautionMonate||0,
       kautionAufschlag:+form.kautionAufschlag||0,kautionBetrag:+form.kautionBetrag||0,
+      mietzins:(form.mietzins===""||form.mietzins==null)?null:+form.mietzins,
       kautionType:form.kautionType,
       schluesselAnzahl:form.schluesselAnzahl,
       extraSchluessel:form.extraSchluessel,
@@ -9097,15 +9098,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                     {zeile("Strom", strom, {muted:true})}
                     {aufschlag>0 && zeile("Kautions-Aufschlag", aufschlag)}
                     {moeb>0 && zeile("Möblierung (monatlich)", moeb)}
-                    {istAdmin && (
-                      <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #f0ebe0",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11}}>
-                        <span style={{color:"#8a8174"}}>Fixer Mietzins (netto + NK)</span>
-                        <span style={{display:"flex",alignItems:"center",gap:5}}>
-                          <span style={{color:"#8a8174"}}>CHF</span>
-                          <input type="number" step="5" defaultValue={basis} key={"mz"+tenant.id+basis} onBlur={e=>{ const v=e.target.value===""?null:+e.target.value; if(v!==basis) updateTenant(tenant.id,{mietzins:v}); }} style={{width:84,textAlign:"right",fontSize:11,padding:"3px 7px",border:"1px solid #d8d0c0",borderRadius:5}}/>
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -9353,6 +9345,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
           const betrag = bm > 0 ? (bm + strom) * monate : (form.kautionBetrag || 0);
           setForm(p=>({...p,kautionOpt:opt,kautionMonate:monate,kautionAufschlag:auf,kautionBetrag:betrag}));
         }}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Fixer Mietzins (netto + NK) CHF/Mt.</label><input className="fi" type="number" step="5" value={form.mietzins||""} onChange={F("mietzins")} placeholder="netto + Nebenkosten, ohne Strom"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Servicegebühr CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={form.kautionType||form.kautionArt||""} onChange={F("kautionType")}><option value="">-</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
         <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
