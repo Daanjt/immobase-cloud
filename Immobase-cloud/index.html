@@ -1643,7 +1643,7 @@ function useSupabaseData() {
       kautionOpt: x.kaution_opt,
       kautionType: x.kaution_type,
       kautionAufschlag: x.kaution_aufschlag,
-      moeblierungPauschale: x.moeblierung_pauschale,
+      moeblierungPauschale: x.moeblierung_pauschale, moeblierungModus: x.moeblierung_modus||"einmalig",
       zimmerWunsch: x.zimmer_wunsch,
       noDebt: x.no_debt,
       bewerberId: x.bewerber_id,
@@ -1659,7 +1659,7 @@ function useSupabaseData() {
       vorname: (x.vorname||"").trim().replace(/\s+/g," "),
       nachname: (x.nachname||"").trim().replace(/\s+/g," "),
       kautionOpt:x.kaution_opt, kautionType:x.kaution_type, kautionAufschlag:x.kaution_aufschlag,
-      moeblierungPauschale:x.moeblierung_pauschale, zimmerWunsch:x.zimmer_wunsch,
+      moeblierungPauschale:x.moeblierung_pauschale, moeblierungModus:x.moeblierung_modus||"einmalig", zimmerWunsch:x.zimmer_wunsch,
       zugeteiltes_zimmer:x.zugeteiltes_zimmer, eingereichtAm:x.eingereicht_am, noDebt:x.no_debt,
       // Fallback for legacy fields
       beruf: x.beruf || x.job || "",
@@ -1835,6 +1835,7 @@ function useSupabaseData() {
       kautionType: "kaution_type",
       kautionAufschlag: "kaution_aufschlag",
       moeblierungPauschale: "moeblierung_pauschale",
+      moeblierungModus: "moeblierung_modus",
       zimmerWunsch: "zimmer_wunsch",
       noDebt: "no_debt",
       bewerberId: "bewerber_id",
@@ -2029,6 +2030,7 @@ function useSupabaseData() {
       kautionType: "kaution_type",
       kautionAufschlag: "kaution_aufschlag",
       moeblierungPauschale: "moeblierung_pauschale",
+      moeblierungModus: "moeblierung_modus",
       zimmerWunsch: "zimmer_wunsch",
       eingereichtAm: "eingereicht_am",
       noDebt: "no_debt",
@@ -5492,7 +5494,7 @@ ${v.kautionMonate<3
 <ul>
   <li>Tisch, Stühle, Besteck, Kochgeschirr, Tellerset, Bratpfanne, Küchenutensilien, Weingläser, Messerset, WC-Bürste, Abfalleimer, Schüsseln, Glas, Badematte, Seifenspender, Kanne, Zahnbürstenhalter, Duschvorhang und Topflappen.</li>
 </ul>
-<p class="clause"><span class="clause-num">7.1</span>Für eine einmalige zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||990}</strong> kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
+<p class="clause"><span class="clause-num">7.1</span>Für eine ${(v.moeblierungModus==="monatlich")?`monatliche zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||150}</strong>`:`einmalige zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||990}</strong>`} kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
 <ul>
   <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
 </ul>
@@ -6512,7 +6514,8 @@ www.dthomes.ch`;
       kautionMonate,
       kautionBetrag,
       moebliert: b.moebliert === "ja" || b.moebliert === true,
-      moeblierungPauschale: +b.moeblierungPauschale || 990,
+      moeblierungModus: b.moeblierungModus || "einmalig",
+      moeblierungPauschale: +b.moeblierungPauschale || (b.moeblierungModus==="monatlich" ? 150 : 990),
       einzug: b.einzug || "",
       auszug: b.auszug || "",
       mietende: "",
@@ -7413,7 +7416,7 @@ www.dthomes.ch`;
                 <input type="radio" checked={vertragData.moebliert} onChange={()=>{
                   setVertragData(p=>({...p,moebliert:true}));
                   updateBewerber(b.id, { moebliert: "ja" });
-                }}/> Möbliert (CHF {vertragData.moeblierungPauschale||990} einmalig)
+                }}/> Möbliert
               </label>
               <label style={{flex:1,padding:"10px 14px",background:!vertragData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!vertragData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
                 <input type="radio" checked={!vertragData.moebliert} onChange={()=>{
@@ -7423,15 +7426,24 @@ www.dthomes.ch`;
               </label>
             </div>
             {vertragData.moebliert && (
-              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
-                <span>Möblierungspauschale (einmalig)</span>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{color:"#1a1814"}}>CHF</span>
-                  <input className="fi" type="number" step="1" value={vertragData.moeblierungPauschale||990} onChange={e=>{
-                    const val = +e.target.value || 0;
-                    setVertragData(p=>({...p, moeblierungPauschale: val}));
-                    updateBewerber(b.id, { moeblierungPauschale: val });
-                  }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:18}}>
+                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                  {[["einmalig","Einmalig kaufen",990],["monatlich","Monatlich mieten",150]].map(([modus,label,def])=>{
+                    const on=(vertragData.moeblierungModus||"einmalig")===modus;
+                    return (<button key={modus} onClick={()=>{ setVertragData(p=>({...p,moeblierungModus:modus,moeblierungPauschale:def})); updateBewerber(b.id,{moeblierungModus:modus,moeblierungPauschale:def}); }} style={{flex:1,padding:"9px 12px",borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:on?600:400,border:`1px solid ${on?"#1a1814":"#d8d0c0"}`,background:on?"#1a1814":"#fff",color:on?"#fff":"#5a5249"}}>{label}</button>);
+                  })}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+                  <span>{(vertragData.moeblierungModus||"einmalig")==="monatlich"?"Möblierung pro Monat":"Möblierung einmalig"}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{color:"#1a1814"}}>CHF</span>
+                    <input className="fi" type="number" step="1" value={vertragData.moeblierungPauschale||((vertragData.moeblierungModus||"einmalig")==="monatlich"?150:990)} onChange={e=>{
+                      const val = +e.target.value || 0;
+                      setVertragData(p=>({...p, moeblierungPauschale: val}));
+                      updateBewerber(b.id, { moeblierungPauschale: val });
+                    }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+                    <span style={{color:"#8a8174",fontSize:11}}>{(vertragData.moeblierungModus||"einmalig")==="monatlich"?"/Mt.":"einmalig"}</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -8531,7 +8543,8 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       ...data.v, _tenant: t,
       mietende: "",
       moebliert: t.moebliert === "ja" || t.moebliert === true,
-      moeblierungPauschale: +t.moeblierungPauschale || 990,
+      moeblierungModus: t.moeblierungModus || "einmalig",
+      moeblierungPauschale: +t.moeblierungPauschale || (t.moeblierungModus==="monatlich" ? 150 : 990),
       auszug: t.auszug || "",
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
@@ -9747,7 +9760,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 <input type="radio" checked={tvData.moebliert} onChange={()=>{
                   setTvData(p=>({...p,moebliert:true}));
                   updateTenant(t.id, { moebliert: "ja" });
-                }}/> Möbliert (CHF {tvData.moeblierungPauschale||990} einmalig)
+                }}/> Möbliert
               </label>
               <label style={{flex:1,padding:"10px 14px",background:!tvData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${!tvData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
                 <input type="radio" checked={!tvData.moebliert} onChange={()=>{
@@ -9757,15 +9770,24 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               </label>
             </div>
             {tvData.moebliert && (
-              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
-                <span>Möblierungspauschale (einmalig)</span>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{color:"#1a1814"}}>CHF</span>
-                  <input className="fi" type="number" step="1" value={tvData.moeblierungPauschale||990} onChange={e=>{
-                    const val = +e.target.value || 0;
-                    setTvData(p=>({...p, moeblierungPauschale: val}));
-                    updateTenant(t.id, { moeblierungPauschale: val });
-                  }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:18}}>
+                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                  {[["einmalig","Einmalig kaufen",990],["monatlich","Monatlich mieten",150]].map(([modus,label,def])=>{
+                    const on=(tvData.moeblierungModus||"einmalig")===modus;
+                    return (<button key={modus} onClick={()=>{ setTvData(p=>({...p,moeblierungModus:modus,moeblierungPauschale:def})); updateTenant(t.id,{moeblierungModus:modus,moeblierungPauschale:def}); }} style={{flex:1,padding:"9px 12px",borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:on?600:400,border:`1px solid ${on?"#1a1814":"#d8d0c0"}`,background:on?"#1a1814":"#fff",color:on?"#fff":"#5a5249"}}>{label}</button>);
+                  })}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
+                  <span>{(tvData.moeblierungModus||"einmalig")==="monatlich"?"Möblierung pro Monat":"Möblierung einmalig"}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{color:"#1a1814"}}>CHF</span>
+                    <input className="fi" type="number" step="1" value={tvData.moeblierungPauschale||((tvData.moeblierungModus||"einmalig")==="monatlich"?150:990)} onChange={e=>{
+                      const val = +e.target.value || 0;
+                      setTvData(p=>({...p, moeblierungPauschale: val}));
+                      updateTenant(t.id, { moeblierungPauschale: val });
+                    }} style={{width:120,textAlign:"right",fontSize:13,fontWeight:600,padding:"6px 10px"}}/>
+                    <span style={{color:"#8a8174",fontSize:11}}>{(tvData.moeblierungModus||"einmalig")==="monatlich"?"/Mt.":"einmalig"}</span>
+                  </div>
                 </div>
               </div>
             )}
