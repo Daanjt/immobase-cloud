@@ -8247,7 +8247,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
             <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>
           </div>
           <table>
-            <thead><tr><th>Zimmer</th><th>Größe</th><th>Miete</th><th>Balkon</th><th>Status</th><th>Mieter</th><th style={{textAlign:"right"}}>Aktionen</th></tr></thead>
+            <thead><tr><th>Zimmer</th><th>Größe</th><th>Miete</th><th>Balkon</th><th>Möbliert</th><th>Status</th><th>Mieter</th><th style={{textAlign:"right"}}>Aktionen</th></tr></thead>
             <tbody>
               {rs.map(r=>{
                 const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;
@@ -8258,6 +8258,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                     <td data-label="Größe" style={{color:"#8a8174",fontSize:12}}>{r.groesse||"-"}</td>
                     <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"-"}</td>
                     <td data-label="Balkon">{r.balkon?"🌿":"-"}</td>
+                    <td data-label="Möbliert"><button onClick={()=>updateRoom(r.id,{moebliert:!r.moebliert})} title={r.moebliert?"Möbliert (Klick zum Ausschalten)":"Unmöbliert (Klick zum Einschalten)"} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,padding:0,lineHeight:1,opacity:r.moebliert?1:0.25}}>🛋</button></td>
                     <td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td>
                     <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td>
                     <td style={{textAlign:"right",whiteSpace:"nowrap"}}>
@@ -8283,6 +8284,10 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
             <input type="checkbox" checked={!!form.balkon} onChange={FB("balkon")}/>
             <span>🌿 Zimmer hat Balkon</span>
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,marginTop:8}}>
+            <input type="checkbox" checked={!!form.moebliert} onChange={FB("moebliert")}/>
+            <span>🛋 Zimmer ist möbliert</span>
           </label>
         </div>
         {form.occupied&&form.tenantId&&(
