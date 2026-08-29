@@ -10298,7 +10298,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
         {/* MONATS-NAVIGATION */}
         <div className="zahlungen-monatsnav" style={{display:"flex",alignItems:"center",gap:8,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"6px 8px",flexWrap:"wrap",maxWidth:"100%",boxSizing:"border-box"}}>
           <button onClick={()=>changeMonth(-1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>‹</button>
-          <div style={{minWidth:0,textAlign:"center",fontWeight:600,fontSize:14,flex:"1 1 auto"}}>{MONATS_NAMEN[monat-1]} {jahr}</div>
+          <div style={{width:132,minWidth:132,flexShrink:0,textAlign:"center",fontWeight:600,fontSize:14}}>{MONATS_NAMEN[monat-1]} {jahr}</div>
           <button onClick={()=>changeMonth(1)} className="btn btn-g btn-sm" style={{minWidth:32,padding:"4px 8px"}}>›</button>
           <button onClick={()=>{const pm = getPaymentMonth(new Date()); setMonat(pm.monat); setJahr(pm.jahr);}} className="btn btn-g btn-sm" style={{fontSize:11,flex:"1 1 100%"}}>Aktueller Monat</button>
         </div>
