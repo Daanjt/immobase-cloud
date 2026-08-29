@@ -10137,6 +10137,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   const anzahlBezahlt = rows.filter(r => r.status === "bezahlt").length;
   const anzahlOffen = rows.filter(r => r.status === "offen").length;
   const anzahlTeilweise = rows.filter(r => r.status === "teilweise").length;
+  const unterzahler = rows.filter(r => r.ist != null && r.diff < 0);
   
   // AUSGABEN: Hauptmiete für alle Wohnungen die im aktuellen Monat aktive Mieter haben
   // (also Wohnungen die wir bezahlen müssen weil sie vermietet sind)
@@ -10299,6 +10300,13 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
           <button onClick={()=>{const pm = getPaymentMonth(new Date()); setMonat(pm.monat); setJahr(pm.jahr);}} className="btn btn-g btn-sm" style={{fontSize:11,flex:"1 1 100%"}}>Aktueller Monat</button>
         </div>
       </div>
+      
+      {unterzahler.length > 0 && (
+        <div style={{background:"#fdf0ec",border:"1px solid #e8c4b8",borderRadius:8,padding:"9px 14px",marginTop:12,fontSize:12,color:"#8a3a2e",display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap",lineHeight:1.5}}>
+          <span style={{fontWeight:600,whiteSpace:"nowrap"}}>⚠ Zu wenig bezahlt:</span>
+          <span>{unterzahler.map(r => `${r.tenant.vorname} ${r.tenant.nachname} (CHF ${Math.abs(r.diff).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} fehlt)`).join(" · ")}</span>
+        </div>
+      )}
       
       {/* STAT-CARDS: Status-Übersicht */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(180px, 100%), 1fr))",gap:12,margin:"18px 0 10px"}}>
