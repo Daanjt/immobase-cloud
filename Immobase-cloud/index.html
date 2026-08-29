@@ -10422,7 +10422,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                       {row.status === "offen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fbeae6",color:"#8a3a2e",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Offen</span>}
                       {row.status === "teilweise" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#fdf2e0",color:"#7a5c3c",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Teilweise</span>}
                       {row.status === "erlassen" && <span style={{display:"inline-block",padding:"3px 9px",borderRadius:11,background:"#e8e3d8",color:"#5a5249",fontSize:10.5,fontWeight:600,letterSpacing:".03em"}}>Erlassen</span>}
-                      {row.ist!=null && row.diff!==0 && (
+                      {row.ist!=null && row.diff!=null && row.diff!==0 && (
                         <div style={{fontSize:10,fontWeight:600,marginTop:4,color:row.diff<0?"#c0392b":"#2f6b3a"}}>
                           CHF {row.ist.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} bezahlt · {row.diff<0?`${Math.abs(row.diff).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} zu wenig`:`${row.diff.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} zu viel`}
                         </div>
