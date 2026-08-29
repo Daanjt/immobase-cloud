@@ -7332,13 +7332,24 @@ www.dthomes.ch`;
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {vertragData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früherer Mietzins (brutto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={vertragData.fruehererMietzins||""} onChange={e=>setVertragData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
                 {vertragData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {vertragData.aufschlag}</span>
                 </>)}
                 <span style={{fontWeight:700,borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14}}>Total / Mt.</span>
                 <span style={{fontWeight:700,textAlign:"right",borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14,color:"#1a1814"}}>CHF {vertragData.total.toLocaleString('de-CH')}</span>
+              </div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Anfangsmietzinsformular · Früherer Mietzins</div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+              <div>
+                <div style={{fontSize:12.5,fontWeight:500}}>Früherer Mietzins (brutto)</div>
+                <div style={{fontSize:10.5,color:"#8a8174",marginTop:2}}>Nur fürs Anfangsmietzinsformular. Leer lassen bei Erstvermietung.</div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:"#1a1814",fontSize:13}}>CHF</span>
+                <input className="fi" type="number" placeholder="leer" value={vertragData.fruehererMietzins||""} onChange={e=>setVertragData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{width:120,textAlign:"right"}}/>
               </div>
             </div>
 
@@ -9676,13 +9687,24 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {tvData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={tvData.strom} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
-                <span style={{color:"#8a8174"}}>Früherer Mietzins (brutto)</span><input className="fi" type="number" placeholder="leer = erste Vermietung" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{textAlign:"right"}}/>
                 {tvData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {tvData.aufschlag}</span>
                 </>)}
                 <span style={{fontWeight:700,borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14}}>Total / Mt.</span>
                 <span style={{fontWeight:700,textAlign:"right",borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14,color:"#1a1814"}}>CHF {tvData.total.toLocaleString('de-CH')}</span>
+              </div>
+            </div>
+
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Anfangsmietzinsformular · Früherer Mietzins</div>
+            <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+              <div>
+                <div style={{fontSize:12.5,fontWeight:500}}>Früherer Mietzins (brutto)</div>
+                <div style={{fontSize:10.5,color:"#8a8174",marginTop:2}}>Nur fürs Anfangsmietzinsformular. Leer lassen bei Erstvermietung.</div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:"#1a1814",fontSize:13}}>CHF</span>
+                <input className="fi" type="number" placeholder="leer" value={tvData.fruehererMietzins||""} onChange={e=>setTvData(p=>({...p,fruehererMietzins:e.target.value===""?"":+e.target.value}))} style={{width:120,textAlign:"right"}}/>
               </div>
             </div>
 
