@@ -10174,15 +10174,15 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     const ist = +ep.betragIst||0;
     const rest = Math.round((sollEff - ist) * 100) / 100; // positiv = Nachzahlung, negativ = Guthaben
     if (rest === 0) { alert("Keine offene Differenz zum Übertragen."); return; }
-    // Aktuellen Monat zuerst speichern, damit der Ist-Betrag festgehalten ist
-    await upsertPayment({ ...ep, markedBy: ep.tenant?.owner || null });
+    // Aktuellen Monat als bezahlt abschliessen (Ist-Betrag festgehalten, Differenz bleibt sichtbar)
+    await upsertPayment({ ...ep, status: "bezahlt", bezahltAm: ep.bezahltAm || new Date().toISOString().slice(0,10), markedBy: ep.tenant?.owner || null });
     // Nächster Monat
     let nMonat = ep.monat + 1, nJahr = ep.jahr;
     if (nMonat > 12) { nMonat = 1; nJahr += 1; }
     const existing = payments.find(x => x.tenantId===ep.tenantId && x.jahr===nJahr && x.monat===nMonat);
     const neuUebertrag = Math.round(((+existing?.uebertrag||0) + rest) * 100) / 100;
     await upsertPayment({ ...(existing||{}), tenantId: ep.tenantId, jahr: nJahr, monat: nMonat, uebertrag: neuUebertrag, status: existing?.status||"offen", markedBy: ep.tenant?.owner||null });
-    alert(`Aktueller Monat gespeichert. CHF ${Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} ${rest>0?"Nachzahlung":"Guthaben"} als Übertrag in ${MONATS_NAMEN[nMonat-1]} ${nJahr} übernommen.`);
+    alert(`Als bezahlt markiert. CHF ${Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} ${rest>0?"Nachzahlung":"Guthaben"} als Übertrag in ${MONATS_NAMEN[nMonat-1]} ${nJahr} übernommen.`);
     setEditingPayment(null);
   }
   
@@ -10513,7 +10513,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
             })()}
             {(() => { const rest = Math.round(((+editingPayment.betragSoll||0)+(+editingPayment.uebertrag||0) - (+editingPayment.betragIst||0))*100)/100; if (rest === 0) return null; return (
               <button onClick={carryOverToNextMonth} style={{width:"100%",padding:"9px 12px",marginBottom:12,background:"#f5efe4",color:"#5a4a2e",border:"1px solid #d8ccb0",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:500}}>
-                ↪ {rest>0?"Restbetrag":"Guthaben"} CHF {Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} in nächsten Monat übertragen
+                ↪ Als bezahlt markieren, {rest>0?"Rest":"Guthaben"} CHF {Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} in nächsten Monat
               </button>
             ); })()}
             
