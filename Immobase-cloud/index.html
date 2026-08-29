@@ -9065,6 +9065,35 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",room.id)} style={{fontSize:9}}>→ Zimmer</button>
               </div>
             </div>}
+            {room && (() => {
+              const istMoeb = (tenant.moebliert===true||tenant.moebliert==="ja") && tenant.moeblierungModus==="monatlich";
+              const moeb = istMoeb ? (+tenant.moeblierungPauschale||0) : 0;
+              const aufschlag = +tenant.kautionAufschlag||0;
+              const netto = Math.max(0, (+room.miete||0) - 100);
+              const nk = 100, strom = 25;
+              const total = (+room.miete||0) + strom + aufschlag + moeb;
+              const zeile = (label, val, opts={}) => (
+                <div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12.5,color:opts.muted?"#8a8174":"#3a352d"}}>
+                  <span>{label}</span><span style={{fontWeight:500}}>CHF {val.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                </div>
+              );
+              return (
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:8,fontWeight:500}}>Monatliche Zahlung</div>
+                  <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:10,padding:"16px 20px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8,paddingBottom:12,borderBottom:"1px solid #e1d8c5"}}>
+                      <span style={{fontSize:12,color:"#8a8174"}}>Total pro Monat</span>
+                      <span style={{fontSize:26,fontWeight:600,color:"#1a1814",lineHeight:1}}>CHF {total.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                    </div>
+                    {zeile("Nettomiete", netto)}
+                    {zeile("Nebenkosten", nk, {muted:true})}
+                    {zeile("Strom", strom, {muted:true})}
+                    {aufschlag>0 && zeile("Kautions-Aufschlag", aufschlag)}
+                    {moeb>0 && zeile("Möblierung (monatlich)", moeb)}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
               {(() => {
