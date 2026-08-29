@@ -10082,7 +10082,10 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     const uebertrag = +(p?.uebertrag) || 0;
     const effektivSoll = soll + uebertrag;
     const ist = (p?.betragIst != null && p?.betragIst !== "") ? +p.betragIst : null;
-    const diff = ist != null ? (ist - effektivSoll) : null; // <0 = zu wenig bezahlt, >0 = zu viel
+    // Differenz gegen den tatsaechlich gebuchten Soll der Zahlung (nicht gegen den neu berechneten),
+    // damit spaetere Miet-/Zimmeraenderungen alte, korrekt bezahlte Monate nicht faelschlich als Fehlbetrag markieren.
+    const paySoll = (p?.betragSoll != null && p?.betragSoll !== "") ? +p.betragSoll : null;
+    const diff = (ist != null && paySoll != null) ? (ist - paySoll) : null; // <0 = zu wenig, >0 = zu viel
     return {
       tenant: t,
       room,
