@@ -9982,8 +9982,11 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     
     // Kautions-Aufschlag dazurechnen (monatlicher Aufpreis bei reduzierter Kaution)
     const aufschlag = +tenant.kautionAufschlag || 0;
-    
-    return bruttomiete + aufschlag;
+    // Monatliche Moeblierungsgebuehr dazurechnen (nur wenn moebliert und Modus monatlich)
+    const istMoebliert = tenant.moebliert === true || tenant.moebliert === "ja";
+    const moeblMonatlich = (istMoebliert && tenant.moeblierungModus === "monatlich") ? (+tenant.moeblierungPauschale || 0) : 0;
+
+    return bruttomiete + aufschlag + moeblMonatlich;
   }
   
   // Helper: Payment für Mieter + Monat
@@ -10334,6 +10337,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                       )}
                       {(+row.tenant.kautionAufschlag||0)>0 && (
                         <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Aufschlag</div>
+                      )}
+                      {(row.tenant.moebliert===true||row.tenant.moebliert==="ja") && row.tenant.moeblierungModus==="monatlich" && (+row.tenant.moeblierungPauschale||0)>0 && (
+                        <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.moeblierungPauschale).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Möblierung</div>
                       )}
                     </td>
                     <td style={{padding:"12px 10px",textAlign:"center"}}>
