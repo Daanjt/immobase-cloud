@@ -4190,7 +4190,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   const zTot = wgAptsZukunft.reduce((acc,a)=>{
     const rs=rooms.filter(r=>r.aptId===a.id);
     const aOcc=rs.filter(r=>r.occupied).length;
-    const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0)+aOcc*25;
+    const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0)+aOcc*25;
     const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0)+rs.length*25;
     const aAufschlag=tenants.filter(t=>(t.status||"aktiv")==="aktiv").filter(t=>{ if(t.aptId===a.id)return true; if(t.roomId){const tRoom=rooms.find(r=>r.id===t.roomId); if(tRoom&&tRoom.aptId===a.id)return true;} const myRoom=rooms.find(r=>r.tenantId===t.id); if(myRoom&&myRoom.aptId===a.id)return true; return false;}).reduce((s,t)=>{let auf=+t.kautionAufschlag||0; if(!auf){if(t.kautionOpt==="0x")auf=150;else if(t.kautionOpt==="1x")auf=100;else if(t.kautionOpt==="2x")auf=50;} return s+auf;},0);
     acc.ausgabe+=(+a.miete||0); acc.ist+=aIst; acc.max+=aMax;
@@ -4249,7 +4249,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     .reduce((s,t) => s + (+t.moeblierungPauschale || 0), 0);
   
   // Einnahmen = Zimmer-Miete + Strom + Aufschlag + monatliche Moeblierung (alles inkl.)
-  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + wgStromIst + wgAufschlag + wgMoeblierung;
+  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + wgStromIst + wgAufschlag + wgMoeblierung;
   const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0) + wgStromMax + wgAufschlag + wgMoeblierung;
   
   const wgMargeIst = wgEinnahmenIst - wgAusgaben;
@@ -4371,7 +4371,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               const aMoeblierung = aptTenants
                 .filter(t => (t.moebliert===true||t.moebliert==="ja") && t.moeblierungModus==="monatlich")
                 .reduce((s,t) => s + (+t.moeblierungPauschale || 0), 0);
-              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + aStromIst + aMoeblierung;
+              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + aStromIst + aMoeblierung;
               const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax + aMoeblierung;
               // Kautionsaufschläge pro Wohnung
               const aAufschlag = aptTenants
@@ -4464,7 +4464,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   const aOcc=rs.filter(r=>r.occupied).length;
                   const aStromIst = aOcc * 25;
                   const aStromMax = rs.length * 25;
-                  const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + aStromIst;
+                  const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + aStromIst;
                   const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax;
                   const aAufschlag = tenants
                     .filter(t => (t.status||"aktiv") === "aktiv")
@@ -4593,7 +4593,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               const aOcc=rs.filter(r=>r.occupied).length;
               const aStromIst = aOcc * 25;
               const aStromMax = rs.length * 25;
-              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0) + aStromIst;
+              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + aStromIst;
               const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax;
               const aAufschlag = tenants
                 .filter(t => (t.status||"aktiv") === "aktiv")
@@ -9936,9 +9936,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
 // ─── FINANZEN & FRISTEN ──────────────────────────────────────────────────────
 function Finanzen({apts,rooms}){
   const wgRooms=rooms.filter(r=>["A2","A3","A5","A6","A7","A8"].includes(r.aptId));
-  const soll=wgRooms.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0);
+  const soll=wgRooms.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0);
   const pot=wgRooms.reduce((s,r)=>s+(+r.miete||0),0);
-  const byApt=apts.filter(a=>a.type==="WG" && !a.pipeline).map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);return{...a,soll:rs.filter(r=>r.occupied).reduce((s,r)=>s+(+r.miete||0),0),pot:rs.reduce((s,r)=>s+(+r.miete||0),0)};});
+  const byApt=apts.filter(a=>a.type==="WG" && !a.pipeline).map(a=>{const rs=rooms.filter(r=>r.aptId===a.id);return{...a,soll:rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0),pot:rs.reduce((s,r)=>s+(+r.miete||0),0)};});
   return(
     <div>
       <div className="pt">Finanzen</div>
