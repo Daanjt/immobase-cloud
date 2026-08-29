@@ -2004,6 +2004,11 @@ function useSupabaseData() {
     return true;
   }
   async function insertTenant(t) {
+    // Fixen Mietzins setzen, falls nicht vorhanden: aktueller Zimmerpreis des zugeteilten Zimmers
+    if ((t.mietzins == null || t.mietzins === "") && t.roomId) {
+      const rm = rooms.find(r => r.id === t.roomId);
+      if (rm && rm.miete != null) t = { ...t, mietzins: +rm.miete };
+    }
     const dbT = toDbTenant(t);
     const {error} = await supabase.from("tenants").insert([dbT]);
     if (error) {
@@ -8165,6 +8170,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     delete newTenant.updated_at;
     
     try {
+      if (newTenant.mietzins == null || newTenant.mietzins === "") { const rm = rooms.find(r=>r.id===assigning.id); if (rm && rm.miete != null) newTenant.mietzins = +rm.miete; }
       await insertTenant(newTenant);
       await updateRoom(assigning.id,{occupied:true,tenantId:newId});
       await updateBewerber(b.id,{status:"Zugeteilt"});
@@ -9069,9 +9075,10 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               const istMoeb = (tenant.moebliert===true||tenant.moebliert==="ja") && tenant.moeblierungModus==="monatlich";
               const moeb = istMoeb ? (+tenant.moeblierungPauschale||0) : 0;
               const aufschlag = +tenant.kautionAufschlag||0;
-              const netto = Math.max(0, (+room.miete||0) - 100);
+              const basis = (tenant.mietzins != null && tenant.mietzins !== "") ? +tenant.mietzins : (+room.miete||0);
+              const netto = Math.max(0, basis - 100);
               const nk = 100, strom = 25;
-              const total = (+room.miete||0) + strom + aufschlag + moeb;
+              const total = basis + strom + aufschlag + moeb;
               const zeile = (label, val, opts={}) => (
                 <div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:11.5,color:opts.muted?"#8a8174":"#3a352d"}}>
                   <span>{label}</span><span style={{fontWeight:500}}>CHF {val.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
@@ -9090,6 +9097,15 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                     {zeile("Strom", strom, {muted:true})}
                     {aufschlag>0 && zeile("Kautions-Aufschlag", aufschlag)}
                     {moeb>0 && zeile("Möblierung (monatlich)", moeb)}
+                    {istAdmin && (
+                      <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #f0ebe0",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11}}>
+                        <span style={{color:"#8a8174"}}>Fixer Mietzins (netto + NK)</span>
+                        <span style={{display:"flex",alignItems:"center",gap:5}}>
+                          <span style={{color:"#8a8174"}}>CHF</span>
+                          <input type="number" step="5" defaultValue={basis} key={"mz"+tenant.id+basis} onBlur={e=>{ const v=e.target.value===""?null:+e.target.value; if(v!==basis) updateTenant(tenant.id,{mietzins:v}); }} style={{width:84,textAlign:"right",fontSize:11,padding:"3px 7px",border:"1px solid #d8d0c0",borderRadius:5}}/>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -10037,7 +10053,10 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     if (!room && tenant.roomId) {
       room = rooms.find(r => r.id === tenant.roomId);
     }
-    if (room) {
+    if (tenant.mietzins != null && tenant.mietzins !== "") {
+      // Fixer Mietzins des Mieters hat immer Vorrang (Zimmer kann fuer Nachmieter neu bepreist sein)
+      bruttomiete = (+tenant.mietzins || 0) + 25;
+    } else if (room) {
       bruttomiete = (+room.miete || 0) + 25;
     } else if (tenant.kautionBetrag && tenant.kautionMonate) {
       // Letzter Fallback für archivierte: aus Kautions-Betrag rückrechnen
