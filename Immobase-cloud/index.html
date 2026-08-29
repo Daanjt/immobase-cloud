@@ -11728,7 +11728,7 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
   );
 }
 
-function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenant, navigateTo}){
+function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenant, updateBewerber, convertTenantToBewerber, navigateTo}){
   const AUTO_TAGE = 45;
   const heute = new Date(); heute.setHours(0,0,0,0);
   const pd = (s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
@@ -11777,6 +11777,13 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
     await updateRoom(r.id, {tenantId:neu.id, occupied:true, mieter_auszug: neu.auszug||null});
   }
 
+  async function nachmieterZuruecknehmen(r, nm, typ){
+    if(!nm) return;
+    if(!confirm(`Nachmieter ${nm.vorname} ${nm.nachname} für Zimmer ${r.id} zurücknehmen?\n\nDie Zuteilung wird aufgehoben, die Person geht zurück zu den Bewerbern und das Zimmer wird wieder ausgeschrieben.`)) return;
+    if(typ==="mieter" && convertTenantToBewerber){ await convertTenantToBewerber(nm); }
+    else if(updateBewerber){ await updateBewerber(nm.id, {zugeteiltes_zimmer: null, status: "Neu"}); }
+  }
+
   const ovBtn = (r, val, label)=>{ const on=(r.ausschreibOverride||"auto")===val; return (
     <button onClick={()=>updateRoom(r.id,{ausschreibOverride:val})} style={{fontSize:10,padding:"3px 7px",borderRadius:5,cursor:"pointer",border:`1px solid ${on?"#1a1814":"#d8d0c0"}`,background:on?"#1a1814":"#fff",color:on?"#fff":"#5a5249",whiteSpace:"nowrap"}}>{label}</button>
   ); };
@@ -11799,7 +11806,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
                 <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
                 <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
                 <td data-label="Status"><span style={{display:"inline-block",padding:"3px 10px",borderRadius:12,fontSize:10.5,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span>{i.t && i.statusKey!=="bleibt" && !i.nachmieter && <button onClick={async()=>{ if(!confirm(`${i.t.vorname} ${i.t.nachname} bleibt bis zum Wohnungsende?\n\nDas Auszugsdatum wird auf ${a.mietende?fmt(pd(a.mietende)):"das Wohnungsende"} gesetzt und das Zimmer nicht mehr ausgeschrieben.`)) return; await updateTenant(i.t.id,{auszug: a.mietende||""}); }} style={{marginLeft:8,fontSize:11,padding:"5px 13px",background:"transparent",color:"#5a7c5e",border:"1px solid #bcc9ac",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>✓ Bleibt</button>}</td>
-                <td data-label="Nachmieter">{i.nachmieter?<button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit",fontWeight:600}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button>:((i.statusKey==="zieht_aus"||i.statusKey==="frei")?<button onClick={()=>navigateTo&&navigateTo("bewerber",{nachmieterFor:r.id})} style={{fontSize:11,padding:"5px 13px",background:"transparent",color:"#3a352d",border:"1px solid #cbbfa8",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>Nachmieter wählen</button>:<span style={{color:"#c8c0b0"}}>—</span>)}</td>
+                <td data-label="Nachmieter">{i.nachmieter?<span style={{display:"inline-flex",alignItems:"center",gap:6}}><button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit",fontWeight:600}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button><button onClick={()=>nachmieterZuruecknehmen(r, i.nachmieter, i.nachmieterTyp)} title="Nachmieter zurücknehmen" style={{background:"none",border:"none",color:"#b8846e",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}}>✕</button></span>:((i.statusKey==="zieht_aus"||i.statusKey==="frei")?<button onClick={()=>navigateTo&&navigateTo("bewerber",{nachmieterFor:r.id})} style={{fontSize:11,padding:"5px 13px",background:"transparent",color:"#3a352d",border:"1px solid #cbbfa8",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>Nachmieter wählen</button>:<span style={{color:"#c8c0b0"}}>—</span>)}</td>
                 <td data-label="Ausschreiben">
                   {i.statusKey==="bleibt" ? <span style={{fontSize:11,color:"#8a8174"}}>—</span>
                    : i.nachmieter ? (i.wechselFaellig
