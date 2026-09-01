@@ -8265,7 +8265,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                     <td data-label="Größe" style={{color:"#8a8174",fontSize:12}}>{r.groesse||"-"}</td>
                     <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"-"}</td>
                     <td data-label="Balkon">{r.balkon?"🌿":"-"}</td>
-                    <td data-label="Möbliert"><button onClick={()=>updateRoom(r.id,{moebliert:!r.moebliert})} title="Klick zum Umschalten" style={{cursor:"pointer",fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:11,whiteSpace:"nowrap",lineHeight:1.4,border:`1px solid ${r.moebliert?"#b89a5e":"#ddd6c8"}`,background:r.moebliert?"#f3ead2":"#fff",color:r.moebliert?"#7a5f22":"#b0a894"}}>{r.moebliert?"🛋 Möbliert":"Unmöbliert"}</button></td>
+                    <td data-label="Möbliert"><span style={{display:"inline-block",fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:11,whiteSpace:"nowrap",lineHeight:1.4,border:`1px solid ${r.moebliert?"#b89a5e":"#ddd6c8"}`,background:r.moebliert?"#f3ead2":"#fff",color:r.moebliert?"#7a5f22":"#b0a894"}}>{r.moebliert?"🛋 Möbliert":"Unmöbliert"}</span></td>
                     <td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td>
                     <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td>
                     <td style={{textAlign:"right",whiteSpace:"nowrap"}}>
