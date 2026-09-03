@@ -11987,48 +11987,54 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
 function PortfolioWatch(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [zeigeAlle,setZeigeAlle]=useState(false);
+  const [tab,setTab]=useState("neu");
   const laden=()=>{
-    setLoading(true);
-    let q=supabase.from("flatfox_treffer").select("*").order("ff_created",{ascending:false}).limit(200);
-    if(!zeigeAlle) q=q.eq("gesehen",false);
-    q.then(({data})=>{ setItems(data||[]); setLoading(false); }).catch(()=>{ setItems([]); setLoading(false); });
+    supabase.from("flatfox_treffer").select("*").order("ff_created",{ascending:false}).limit(300)
+      .then(({data})=>{ setItems(data||[]); setLoading(false); })
+      .catch(()=>{ setItems([]); setLoading(false); });
   };
-  useEffect(laden,[zeigeAlle]);
+  useEffect(()=>{
+    laden();
+    const ch=supabase.channel("ff_treffer_page")
+      .on("postgres_changes",{event:"*",schema:"public",table:"flatfox_treffer"},laden)
+      .subscribe();
+    return ()=>{ supabase.removeChannel(ch); };
+  },[]);
   const markiere=(id)=>{
     supabase.from("flatfox_treffer").update({gesehen:true}).eq("id",id)
-      .then(()=>setItems(xs=>xs.filter(x=>x.id!==id)));
+      .then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x)));
   };
-  const alleMarkieren=()=>{
-    const ids=items.filter(x=>!x.gesehen).map(x=>x.id);
-    if(!ids.length) return;
-    supabase.from("flatfox_treffer").update({gesehen:true}).in("id",ids).then(laden);
-  };
+  const neu=items.filter(x=>!x.gesehen);
+  const liste=tab==="neu"?neu:items;
+  const frei=(t)=>{ const v=t.frei_ab; if(!v) return ""; const m={agr:"nach Vereinbarung",imm:"sofort",per:"per sofort"}; const d=/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10).split("-").reverse().join("."):null; return " · frei ab "+(d||m[v]||v); };
+  const tabBtn=(id,label)=>(
+    <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--ink)":"none",color:tab===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>
+  );
   return (
     <div style={{padding:"8px",maxWidth:900}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,gap:12,flexWrap:"wrap"}}>
-        <div>
-          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Portfolio-Watch</div>
-          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Neue Mietangebote im Albert-Grob-Portfolio auf Flatfox</div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setZeigeAlle(a=>!a)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{zeigeAlle?"Nur neue":"Alle anzeigen"}</button>
-          {!zeigeAlle&&items.length>0&&<button onClick={alleMarkieren} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Alle als gesehen</button>}
-        </div>
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Portfolio-Watch</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Mietangebote im Albert-Grob-Portfolio auf Flatfox</div>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {tabBtn("neu","Neu"+(neu.length?" ("+neu.length+")":""))}
+        {tabBtn("alle","Alle"+(items.length?" ("+items.length+")":""))}
       </div>
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
-      {!loading&&items.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Aktuell keine {zeigeAlle?"":"neuen "}Angebote.</div>}
+      {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>{tab==="neu"?"Keine neuen Angebote.":"Noch keine Angebote."}</div>}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {items.map(t=>(
-          <div key={t.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+        {liste.map(t=>(
+          <div key={t.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,opacity:t.gesehen?0.6:1}}>
             <div style={{flex:1,minWidth:0}}>
               <a href={t.url} target="_blank" rel="noreferrer" style={{fontSize:15,color:"var(--ink)",fontWeight:600,textDecoration:"none"}}>{t.strasse}, {t.plz} {t.ort}</a>
               <div style={{fontSize:12.5,color:"var(--muted)",marginTop:5,lineHeight:1.6}}>
-                {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.preis?" · CHF "+t.preis:""}{t.frei_ab?" · frei ab "+t.frei_ab:""}
+                {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.preis?" · CHF "+t.preis:""}{frei(t)}
               </div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10):""}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
             </div>
-            {!t.gesehen&&<button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",flexShrink:0,fontFamily:"'Manrope',sans-serif"}}>gesehen</button>}
+            {!t.gesehen
+              ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",flexShrink:0,fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
+              : <span style={{fontSize:11,color:"#a0968a",flexShrink:0,alignSelf:"center"}}>gesehen</span>}
           </div>
         ))}
       </div>
