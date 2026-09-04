@@ -11988,6 +11988,7 @@ function PortfolioWatch(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState("neu");
+  const [status,setStatus]=useState(null);
   const laden=()=>{
     supabase.from("flatfox_treffer").select("*").order("ff_created",{ascending:false}).limit(300)
       .then(({data})=>{ setItems(data||[]); setLoading(false); })
@@ -11995,6 +11996,7 @@ function PortfolioWatch(){
   };
   useEffect(()=>{
     laden();
+    supabase.from("flatfox_watch_state").select("last_run,homegate_last_run,homegate_error").eq("id",1).single().then(({data})=>setStatus(data)).catch(()=>{});
     const ch=supabase.channel("ff_treffer_page")
       .on("postgres_changes",{event:"*",schema:"public",table:"flatfox_treffer"},laden)
       .subscribe();
@@ -12014,7 +12016,7 @@ function PortfolioWatch(){
     <div style={{padding:"8px",maxWidth:900}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Portfolio-Watch</div>
-        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Mietangebote im Albert-Grob-Portfolio auf Flatfox</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Mietangebote im Albert-Grob-Portfolio auf Flatfox und Homegate</div>{status&&<div style={{fontSize:11,color:"#a0968a",marginTop:6}}>Quellen · Flatfox: {status.last_run?String(status.last_run).slice(0,10).split("-").reverse().join("."):"–"} · Homegate: {status.homegate_error?"blockiert":(status.homegate_last_run?String(status.homegate_last_run).slice(0,10).split("-").reverse().join("."):"–")}</div>}
       </div>
       <div style={{display:"flex",gap:8,marginBottom:16}}>
         {tabBtn("neu","Neu"+(neu.length?" ("+neu.length+")":""))}
@@ -12030,7 +12032,7 @@ function PortfolioWatch(){
               <div style={{fontSize:12.5,color:"var(--muted)",marginTop:5,lineHeight:1.6}}>
                 {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.preis?" · CHF "+t.preis:""}{frei(t)}
               </div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.quelle?" · "+(t.quelle==="homegate"?"Homegate":"Flatfox"):""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
             </div>
             {!t.gesehen
               ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",flexShrink:0,fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
