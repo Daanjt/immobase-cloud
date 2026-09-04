@@ -54,6 +54,8 @@ Deno.serve(async (req) => {
 
   const { data: bl } = await supabase.from("markt_blocklist").select("term");
   const blockTerms = (bl ?? []).map((x) => (x.term || "").toLowerCase()).filter(Boolean);
+  const { data: ae } = await supabase.from("markt_agency_email").select("agency_norm,email");
+  const emailMap = new Map((ae ?? []).map((x) => [x.agency_norm, x.email]));
 
   const total = (await ff(0, 1)).count;
   let newestSeen = cursor, scanned = 0, reachedCursor = false;
@@ -87,7 +89,8 @@ Deno.serve(async (req) => {
         flaeche: r.livingspace ?? r.surface_living ?? null,
         preis: r.rent_gross ?? r.price_display ?? null,
         frei_ab: r.moving_date ?? r.moving_date_type ?? null,
-        agency_name: agency, url: r.short_url ? `https://flatfox.ch${r.short_url}` : null,
+        agency_name: agency, agency_email: emailMap.get(agency.toLowerCase().trim()) ?? null,
+        url: r.short_url ? `https://flatfox.ch${r.short_url}` : null,
         ff_created: r.created, status: r.status ?? "act", raw: r,
       });
     }
