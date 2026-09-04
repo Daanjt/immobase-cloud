@@ -43,6 +43,9 @@ Deno.serve(async (req) => {
   const cursor = stt?.markt_last_created ? new Date(stt.markt_last_created).getTime() : 0;
   const scanCap = backfill ? MAX_SCAN_BACKFILL : (cursor ? MAX_SCAN_INCR : MAX_SCAN_FIRST);
 
+  const { data: bl } = await supabase.from("markt_blocklist").select("term");
+  const blockTerms = (bl ?? []).map((x) => (x.term || "").toLowerCase()).filter(Boolean);
+
   const total = (await ff(0, 1)).count;
   let newestSeen = cursor, scanned = 0, reachedCursor = false;
   const rows = [];
@@ -62,6 +65,7 @@ Deno.serve(async (req) => {
       if (r.object_category && !RESIDENTIAL.has(r.object_category)) continue;
       const agency = r.agency && r.agency.name ? r.agency.name : null;
       if (!agency) continue;                  // nur Verwaltung / professionell
+      if (blockTerms.some((t) => agency.toLowerCase().includes(t))) continue;  // Ausschlussliste
       rows.push({
         flatfox_pk: r.pk, strasse: r.street, plz: r.zipcode, ort: r.city,
         object_category: r.object_category, zimmer: r.number_of_rooms,
