@@ -12047,9 +12047,10 @@ function PortfolioWatch(){
 function MarktRadar(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [tab,setTab]=useState("neu");
+  const [rubrik,setRubrik]=useState("bef");
+  const [nurNeu,setNurNeu]=useState(true);
   const laden=()=>{
-    supabase.from("markt_radar").select("*").order("ff_created",{ascending:false}).limit(300)
+    supabase.from("markt_radar").select("*").order("ff_created",{ascending:false}).limit(500)
       .then(({data})=>{ setItems(data||[]); setLoading(false); }).catch(()=>{ setItems([]); setLoading(false); });
   };
   useEffect(()=>{
@@ -12058,29 +12059,34 @@ function MarktRadar(){
     return ()=>{ supabase.removeChannel(ch); };
   },[]);
   const markiere=(id)=>{ supabase.from("markt_radar").update({gesehen:true}).eq("id",id).then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x))); };
-  const neu=items.filter(x=>!x.gesehen);
-  const liste=tab==="neu"?neu:items;
+  const bef=items.filter(x=>x.befristet);
+  const unbef=items.filter(x=>!x.befristet);
+  const base=rubrik==="bef"?bef:unbef;
+  const liste=nurNeu?base.filter(x=>!x.gesehen):base;
+  const uz=(a)=>a.filter(x=>!x.gesehen).length;
   const frei=(t)=>{ const v=t.frei_ab; if(!v) return ""; const m={agr:"nach Vereinbarung",imm:"sofort",per:"per sofort"}; const d=/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10).split("-").reverse().join("."):null; return " · frei ab "+(d||m[v]||v); };
-  const tabBtn=(id,label)=>(<button onClick={()=>setTab(id)} style={{background:tab===id?"var(--ink)":"none",color:tab===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>);
+  const tabBtn=(id,label)=>(<button onClick={()=>setRubrik(id)} style={{background:rubrik===id?"var(--ink)":"none",color:rubrik===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>);
   return (
     <div style={{padding:"8px",maxWidth:900}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Marktradar</div>
-        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Befristete, unmöblierte Mietobjekte von Verwaltungen auf Flatfox (Region ZH und Nachbarkantone)</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Unmöblierte Mietobjekte von Verwaltungen auf Flatfox (Region ZH und Nachbarkantone)</div>
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {tabBtn("neu","Neu"+(neu.length?" ("+neu.length+")":""))}
-        {tabBtn("alle","Alle"+(items.length?" ("+items.length+")":""))}
+      <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
+        {tabBtn("bef","Befristet"+(uz(bef)?" ("+uz(bef)+")":""))}
+        {tabBtn("unbef","Unbefristet"+(uz(unbef)?" ("+uz(unbef)+")":""))}
+        <label style={{fontSize:12,color:"var(--muted)",marginLeft:8,cursor:"pointer"}}><input type="checkbox" checked={nurNeu} onChange={e=>setNurNeu(e.target.checked)} style={{marginRight:5}}/>nur neue</label>
       </div>
+      {rubrik==="unbef"&&<div style={{fontSize:11.5,color:"#a0968a",marginBottom:10}}>Preisgrenze: max. 1000 pro Zimmer (1 bis 1.5 Zi bis 1000, 2 bis 2.5 Zi bis 2000, usw.)</div>}
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
-      {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>{tab==="neu"?"Keine neuen Objekte.":"Noch keine Objekte."}</div>}
+      {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Objekte.</div>}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {liste.map(t=>(
           <div key={t.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,opacity:t.gesehen?0.6:1}}>
             <div style={{flex:1,minWidth:0}}>
               <a href={t.url} target="_blank" rel="noreferrer" style={{fontSize:15,color:"var(--ink)",fontWeight:600,textDecoration:"none"}}>{t.strasse||"Adresse auf Anfrage"}, {t.plz} {t.ort}</a>
               <div style={{fontSize:12.5,color:"var(--muted)",marginTop:5,lineHeight:1.6}}>
-                <span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>
+                {t.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}
                 {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.flaeche?" · "+t.flaeche+" m²":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
               </div>
               <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>

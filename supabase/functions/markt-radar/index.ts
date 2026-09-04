@@ -14,7 +14,7 @@ const FLATFOX = "https://flatfox.ch/api/v1/public-listing/";
 const PAGE = 100;
 const MAX_SCAN_FIRST = 1500;
 const MAX_SCAN_INCR = 6000;
-const MAX_SCAN_BACKFILL = 25000;
+const MAX_SCAN_BACKFILL = 15000;
 
 const RESIDENTIAL = new Set([
   "APARTMENT","HOUSE","ATTIC","DUPLEX","STUDIO","ROOF_FLAT","MAISONETTE",
@@ -59,15 +59,21 @@ Deno.serve(async (req) => {
       if (created > newestSeen) newestSeen = created;
       if (!backfill && cursor && created <= cursor) { reachedCursor = true; continue; }
       if (r.offer_type !== "RENT") continue;
-      if (!r.is_temporary) continue;          // nur befristet
       if (r.is_furnished) continue;           // nur unmoebliert
       if (!inRegion(r.zipcode)) continue;
       if (r.object_category && !RESIDENTIAL.has(r.object_category)) continue;
       const agency = r.agency && r.agency.name ? r.agency.name : null;
       if (!agency) continue;                  // nur Verwaltung / professionell
       if (blockTerms.some((t) => agency.toLowerCase().includes(t))) continue;  // Ausschlussliste
+      const befristet = !!r.is_temporary;
+      if (!befristet) {
+        const rooms = Number(r.number_of_rooms);
+        const price = Number(r.rent_gross);
+        const cap = Math.floor(rooms) * 1000;
+        if (!(rooms && price && cap > 0 && price <= cap)) continue;  // Preisgrenze: max 1000 pro Zimmer
+      }
       rows.push({
-        flatfox_pk: r.pk, strasse: r.street, plz: r.zipcode, ort: r.city,
+        flatfox_pk: r.pk, befristet, strasse: r.street, plz: r.zipcode, ort: r.city,
         object_category: r.object_category, zimmer: r.number_of_rooms,
         flaeche: r.livingspace ?? r.surface_living ?? null,
         preis: r.rent_gross ?? r.price_display ?? null,
