@@ -116,7 +116,7 @@ Deno.serve(async () => {
             flatfox_pk: Number(lid), quelle: "homegate", watch_objekt_id: e.objId,
             strasse: a.street, plz, ort: a.locality,
             object_category: cats[0] ?? null, zimmer: ch.numberOfRooms ?? null,
-            preis: rent.gross ?? rent.net ?? null, offer_type: "RENT",
+            preis: (!rent.interval || rent.interval === "MONTH") ? (rent.gross ?? rent.net ?? null) : null, offer_type: "RENT",
             agency_name: name, url: `https://www.homegate.ch/mieten/${lid}`,
             ff_created: new Date().toISOString(), status: "act",
           });

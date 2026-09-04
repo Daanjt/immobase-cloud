@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
         strasse: r.street, plz: r.zipcode, ort: r.city,
         object_category: r.object_category, zimmer: r.number_of_rooms,
         flaeche: r.livingspace ?? r.surface_living ?? null,
-        preis: r.price_display, frei_ab: r.moving_date ?? r.moving_date_type ?? null,
+        preis: r.rent_gross ?? r.price_display, frei_ab: r.moving_date ?? r.moving_date_type ?? null,
         offer_type: r.offer_type, agency_name: r.agency?.name ?? null,
         url: r.short_url ? `https://flatfox.ch${r.short_url}` : null,
         ff_created: r.created, status: r.status ?? "act", raw: r,

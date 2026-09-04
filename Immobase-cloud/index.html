@@ -12030,7 +12030,7 @@ function PortfolioWatch(){
             <div style={{flex:1,minWidth:0}}>
               <a href={t.url} target="_blank" rel="noreferrer" style={{fontSize:15,color:"var(--ink)",fontWeight:600,textDecoration:"none"}}>{t.strasse}, {t.plz} {t.ort}</a>
               <div style={{fontSize:12.5,color:"var(--muted)",marginTop:5,lineHeight:1.6}}>
-                {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.preis?" · CHF "+t.preis:""}{frei(t)}
+                {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
               </div>
               <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.quelle?" · "+(t.quelle==="homegate"?"Homegate":"Flatfox"):""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
             </div>
