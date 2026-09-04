@@ -12065,9 +12065,19 @@ function MarktRadar(){
   const liste=nurNeu?base.filter(x=>!x.gesehen):base;
   const uz=(a)=>a.filter(x=>!x.gesehen).length;
   const frei=(t)=>{ const v=t.frei_ab; if(!v) return ""; const m={agr:"nach Vereinbarung",imm:"sofort",per:"per sofort"}; const d=/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10).split("-").reverse().join("."):null; return " · frei ab "+(d||m[v]||v); };
-  const mSubject=(t)=>"Anfrage Mietwohnung "+(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
-  const mBody=(t)=>{const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");const zi=t.zimmer?t.zimmer+"-Zimmer-Wohnung":"Wohnung";return ["Guten Tag","","Wir interessieren uns für Ihr Inserat der "+zi+" an der "+adr+".","","Wir sind D&T Homes und mieten möblierte Wohnungen für Zwischen- und Kurzzeitvermietung. Gerne würden wir die Wohnung anmieten und mit Ihnen eine Nutzung zur möblierten Untervermietung besprechen.","","Ist die Wohnung noch verfügbar, und wäre ein solches Modell für Sie denkbar? Über eine kurze Rückmeldung freue ich mich.","","Freundliche Grüsse","Daan Theijse","D&T Homes","www.dthomes.ch","","Inserat: "+(t.url||"")].join("\n");};
-  const mailto=(t)=>"mailto:"+(t.agency_email||"")+"?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t));
+  const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
+  const mBody=(t)=>{
+    const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
+    const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
+    const objSatz=t.befristet
+      ? "Wir sind auf Ihre freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept."
+      : "Wir sind auf Ihre freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
+    const nutzen=t.befristet
+      ? "Für Sie bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem haben Sie die Sicherheit, dass Sie nach der Befristung mit Ihrem Projekt starten können. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig."
+      : "Für Sie bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
+    return ["Guten Tag","","Ich hoffe, es geht Ihnen gut! 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich Ihnen unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf Ihre Rückmeldung.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n");
+  };
+  const mailto=(t)=>"mailto:?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t));
   const tabBtn=(id,label)=>(<button onClick={()=>setRubrik(id)} style={{background:rubrik===id?"var(--ink)":"none",color:rubrik===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>);
   return (
     <div style={{padding:"8px",maxWidth:900}}>
@@ -12092,10 +12102,10 @@ function MarktRadar(){
                 {t.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}
                 {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.flaeche?" · "+t.flaeche+" m²":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
               </div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.agency_email?" · "+t.agency_email:" · Adresse nicht hinterlegt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
-              <a href={mailto(t)} title={t.agency_email||"Adresse nicht hinterlegt, bitte im Mailprogramm ergänzen"} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
+              <a href={mailto(t)} title="Vorbereitete Anfrage öffnen, Name und Adresse ergänzen" style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
               {!t.gesehen
                 ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
                 : <span style={{fontSize:11,color:"#a0968a"}}>gesehen</span>}
