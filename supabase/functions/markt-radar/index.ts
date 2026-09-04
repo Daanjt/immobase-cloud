@@ -20,11 +20,20 @@ const RESIDENTIAL = new Set([
   "APARTMENT","HOUSE","ATTIC","DUPLEX","STUDIO","ROOF_FLAT","MAISONETTE",
   "TERRACE_FLAT","FURNISHED_FLAT","SINGLE_ROOM","LOFT","VILLA","ATTIC_FLAT",
 ]);
-const REGION_PREFIXES = new Set([
-  "50","51","52","53","54","55","56","57","58","59","63","64",
-  "80","81","82","83","84","85","86","87","88","90","91","92","93","94","95","96",
+// Zuerich Stadt (8000-8099) plus innerer Ring (Limmattal, Zimmerberg-Fuss, Pfannenstiel-Fuss, Glattal, inneres Furttal)
+const ZH_RING = new Set([
+  8102,8103,8104,8105,8106,8107,8108,
+  8117,8118,8121,8122,8123,8124,8125,8126,8127,
+  8134,8135,8136,8142,
+  8152,8153,8155,
+  8302,8303,8304,8305,8306,
+  8600,8602,8603,8604,
+  8700,8702,8703,
+  8800,8802,8803,
+  8902,8903,8904,
+  8951,8952,8953,8954,8955,
 ]);
-const inRegion = (zip) => zip != null && REGION_PREFIXES.has(String(zip).slice(0, 2));
+const inRegion = (zip) => { const z = Number(zip); if (!z) return false; if (z >= 8000 && z <= 8099) return true; return ZH_RING.has(z); };
 
 async function ff(offset, limit = PAGE) {
   const r = await fetch(`${FLATFOX}?limit=${limit}&offset=${offset}`,
