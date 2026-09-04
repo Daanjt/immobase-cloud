@@ -12044,6 +12044,57 @@ function PortfolioWatch(){
   );
 }
 
+function MarktRadar(){
+  const [items,setItems]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [tab,setTab]=useState("neu");
+  const laden=()=>{
+    supabase.from("markt_radar").select("*").order("ff_created",{ascending:false}).limit(300)
+      .then(({data})=>{ setItems(data||[]); setLoading(false); }).catch(()=>{ setItems([]); setLoading(false); });
+  };
+  useEffect(()=>{
+    laden();
+    const ch=supabase.channel("markt_radar_page").on("postgres_changes",{event:"*",schema:"public",table:"markt_radar"},laden).subscribe();
+    return ()=>{ supabase.removeChannel(ch); };
+  },[]);
+  const markiere=(id)=>{ supabase.from("markt_radar").update({gesehen:true}).eq("id",id).then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x))); };
+  const neu=items.filter(x=>!x.gesehen);
+  const liste=tab==="neu"?neu:items;
+  const frei=(t)=>{ const v=t.frei_ab; if(!v) return ""; const m={agr:"nach Vereinbarung",imm:"sofort",per:"per sofort"}; const d=/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10).split("-").reverse().join("."):null; return " · frei ab "+(d||m[v]||v); };
+  const tabBtn=(id,label)=>(<button onClick={()=>setTab(id)} style={{background:tab===id?"var(--ink)":"none",color:tab===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>);
+  return (
+    <div style={{padding:"8px",maxWidth:900}}>
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Marktradar</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Befristete, unmöblierte Mietobjekte von Verwaltungen auf Flatfox (Region ZH und Nachbarkantone)</div>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {tabBtn("neu","Neu"+(neu.length?" ("+neu.length+")":""))}
+        {tabBtn("alle","Alle"+(items.length?" ("+items.length+")":""))}
+      </div>
+      {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
+      {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>{tab==="neu"?"Keine neuen Objekte.":"Noch keine Objekte."}</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {liste.map(t=>(
+          <div key={t.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,opacity:t.gesehen?0.6:1}}>
+            <div style={{flex:1,minWidth:0}}>
+              <a href={t.url} target="_blank" rel="noreferrer" style={{fontSize:15,color:"var(--ink)",fontWeight:600,textDecoration:"none"}}>{t.strasse||"Adresse auf Anfrage"}, {t.plz} {t.ort}</a>
+              <div style={{fontSize:12.5,color:"var(--muted)",marginTop:5,lineHeight:1.6}}>
+                <span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>
+                {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.flaeche?" · "+t.flaeche+" m²":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
+              </div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
+            </div>
+            {!t.gesehen
+              ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",flexShrink:0,fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
+              : <span style={{fontSize:11,color:"#a0968a",flexShrink:0,alignSelf:"center"}}>gesehen</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -12058,6 +12109,7 @@ const PAGES=[
   {id:"finanzen",icon:"📊",label:"Finanzen"},
   {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
+  {id:"marktradar",icon:"🔭",label:"Marktradar"},
 ];
 
 // Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
@@ -12065,7 +12117,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -12100,14 +12152,18 @@ function MainApp({rolle}) {
   const acctRef = useRef(null);
   const data = useSupabaseData();
   const [portfolioWatchOffen, setPortfolioWatchOffen] = useState(0);
+  const [marktRadarOffen, setMarktRadarOffen] = useState(0);
   const refreshPortfolioWatch = () => {
     supabase.from("flatfox_treffer").select("id",{count:"exact",head:true}).eq("gesehen",false)
       .then(({count})=>setPortfolioWatchOffen(count||0)).catch(()=>{});
+    supabase.from("markt_radar").select("id",{count:"exact",head:true}).eq("gesehen",false)
+      .then(({count})=>setMarktRadarOffen(count||0)).catch(()=>{});
   };
   useEffect(() => {
     refreshPortfolioWatch();
     const ch = supabase.channel("ff_treffer_badge")
       .on("postgres_changes",{event:"*",schema:"public",table:"flatfox_treffer"},refreshPortfolioWatch)
+      .on("postgres_changes",{event:"*",schema:"public",table:"markt_radar"},refreshPortfolioWatch)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -12138,7 +12194,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
@@ -12244,6 +12300,7 @@ function MainApp({rolle}) {
             {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
             {p.id==="nachvermietung"&&nachvermietungOffen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{nachvermietungOffen}</span>}
             {p.id==="portfoliowatch"&&portfolioWatchOffen>0&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{portfolioWatchOffen}</span>}
+            {p.id==="marktradar"&&marktRadarOffen>0&&<span style={{background:"#e7e0d3",color:"#7c6a4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{marktRadarOffen}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
             {p.id==="zahlungen"&&offeneZahlungen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneZahlungen}</span>}
             {p.id==="uebergaben"&&offeneUebergaben>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneUebergaben}</span>}
