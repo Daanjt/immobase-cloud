@@ -12069,13 +12069,15 @@ function MarktRadar(){
   const mBody=(t)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
     const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
+    const vn=(t.agency_contact_name||"").trim().split(" ")[0];
+    const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
     const objSatz=t.befristet
-      ? "Wir sind auf Ihre freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept."
-      : "Wir sind auf Ihre freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
+      ? "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept."
+      : "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
     const nutzen=t.befristet
-      ? "Für Sie bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem haben Sie die Sicherheit, dass Sie nach der Befristung mit Ihrem Projekt starten können. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig."
-      : "Für Sie bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
-    return [(t.agency_contact_name?"Guten Tag "+t.agency_contact_name:"Guten Tag"),"","Ich hoffe, es geht Ihnen gut! 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich Ihnen unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf Ihre Rückmeldung.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n");
+      ? "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem habt ihr die Sicherheit, nach der Befristung direkt mit eurem Projekt zu starten. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig."
+      : "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
+    return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n");
   };
   const mailto=(t)=>"mailto:"+(t.agency_email||"")+"?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t));
   const tabBtn=(id,label)=>(<button onClick={()=>setRubrik(id)} style={{background:rubrik===id?"var(--ink)":"none",color:rubrik===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>);
