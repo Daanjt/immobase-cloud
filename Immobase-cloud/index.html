@@ -3578,6 +3578,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
   const [startExtraSchluessel, setStartExtraSchluessel] = React.useState("");
   const [starting, setStarting] = React.useState(false);
+  const [openProto, setOpenProto] = React.useState(null);
   
   // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
   React.useEffect(() => {
@@ -3657,6 +3658,9 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                 </div>
               )}
               <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                {(isSubmitted || ["accepted","auto_accepted"].includes(h.status)) && (
+                  <button onClick={()=>setOpenProto(openProto===h.id?null:h.id)} style={{fontSize:10.5,padding:"4px 10px",background:"#eef1f6",color:"#3a4a63",border:"1px solid #c3cede",borderRadius:4,cursor:"pointer"}}>{openProto===h.id?"Verbergen":"👁 Ansehen"}</button>
+                )}
                 {isActive && (
                   <>
                     <button onClick={async()=>{
@@ -3688,6 +3692,24 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   🗑
                 </button>
               </div>
+              {openProto===h.id && (
+                <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #ece3d2"}}>
+                  {h.submittedAt && <div style={{fontSize:11,color:"#8a8478",marginBottom:8}}>Eingereicht am {new Date(h.submittedAt).toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
+                  <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>Mängel:</strong> {h.mangelNotes ? h.mangelNotes : "keine angegeben"}</div>
+                  {h.bemerkung && <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>Bemerkung:</strong> {h.bemerkung}</div>}
+                  <div style={{fontSize:11.5,color:"#3a352d",marginBottom:8}}><strong>Unterschrift:</strong> {h.tenantSignature || "keine"}</div>
+                  {(h.photos||[]).length>0 ? (
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:8}}>
+                      {(h.photos||[]).map((ph,pi)=>(
+                        <a key={pi} href={ph.url} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
+                          <img src={ph.url} alt={ph.raum||""} loading="lazy" style={{width:"100%",height:90,objectFit:"cover",borderRadius:5,border:"1px solid #e1d8c5",display:"block"}} />
+                          <div style={{fontSize:9.5,color:"#8a8478",marginTop:2,lineHeight:1.3}}>{ph.raum?ph.raum.charAt(0).toUpperCase()+ph.raum.slice(1):""}{ph.beschreibung?": "+ph.beschreibung:""}</div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : <div style={{fontSize:11,color:"#8a8478"}}>Keine Fotos eingereicht.</div>}
+                </div>
+              )}
             </div>
           );
         })}
