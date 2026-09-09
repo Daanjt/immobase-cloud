@@ -12059,6 +12059,8 @@ function MarktRadar(){
     return ()=>{ supabase.removeChannel(ch); };
   },[]);
   const markiere=(id)=>{ supabase.from("markt_radar").update({gesehen:true}).eq("id",id).then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x))); };
+  const [inPl,setInPl]=useState({});
+  const inPipeline=(t)=>{ supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(()=>setInPl(m=>({...m,[t.id]:true}))).catch(()=>setInPl(m=>({...m,[t.id]:true}))); };
   const bef=items.filter(x=>x.befristet);
   const unbef=items.filter(x=>!x.befristet);
   const base=rubrik==="bef"?bef:unbef;
@@ -12108,10 +12110,75 @@ function MarktRadar(){
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
               <a href={mailto(t)} title={t.agency_email||"Vorbereitete Anfrage öffnen, Name und Adresse ergänzen"} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
+              <button onClick={()=>inPipeline(t)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:inPl[t.id]?"#5f6b4e":"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{inPl[t.id]?"✓ Pipeline":"→ Pipeline"}</button>
               {!t.gesehen
                 ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
                 : <span style={{fontSize:11,color:"#a0968a"}}>gesehen</span>}
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Pipeline(){
+  const STAGES=[["neu","Neu"],["kontaktiert","Kontaktiert"],["antwort","Antwort"],["verhandlung","Verhandlung"],["gewonnen","Zusage"],["verloren","Absage"]];
+  const [deals,setDeals]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [stage,setStage]=useState("kontaktiert");
+  const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
+  useEffect(()=>{ laden(); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  const heute=()=>new Date().toISOString().slice(0,10);
+  const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d))); };
+  const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>setDeals(ds=>ds.filter(d=>d.id!==id))); };
+  const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
+  const mBody=(t)=>{
+    const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
+    const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
+    const vn=(t.contact_name||"").trim().split(" ")[0];
+    const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
+    const objSatz=t.befristet? "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept." : "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
+    const nutzen=t.befristet? "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem habt ihr die Sicherheit, nach der Befristung direkt mit eurem Projekt zu starten. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig." : "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
+    return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n");
+  };
+  const mailto=(t)=>"mailto:"+(t.contact_email||"")+"?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t));
+  const fmt=(d)=>d?String(d).slice(0,10).split("-").reverse().join("."):"";
+  const cnt=(s)=>deals.filter(d=>d.stage===s).length;
+  const liste=deals.filter(d=>d.stage===stage);
+  return (
+    <div style={{padding:"8px",maxWidth:900}}>
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Pipeline</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Kontaktierte Objekte, Status und Ansprechpersonen</div>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+        {STAGES.map(([s,lbl])=>(<button key={s} onClick={()=>setStage(s)} style={{background:stage===s?"var(--ink)":"none",color:stage===s?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cnt(s)?" ("+cnt(s)+")":""}</button>))}
+      </div>
+      {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
+      {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Objekte in dieser Phase.</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {liste.map(d=>(
+          <div key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <a href={d.url||"#"} target="_blank" rel="noreferrer" style={{fontSize:15,color:"var(--ink)",fontWeight:600,textDecoration:"none"}}>{d.strasse||"Adresse"}, {d.plz} {d.ort}</a>
+                <div style={{fontSize:12.5,color:"var(--muted)",marginTop:4,lineHeight:1.6}}>{d.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{d.zimmer?d.zimmer+" Zi":""}{d.preis?" · CHF "+d.preis+" inkl. NK":""}</div>
+                <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>{d.agency_name||""}{d.contact_name?" · "+d.contact_name:""}{d.contact_email?" · "+d.contact_email:""}</div>
+                {d.kontaktiert_am&&<div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>kontaktiert am {fmt(d.kontaktiert_am)}</div>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
+                <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
+                <button onClick={()=>entfernen(d.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>entfernen</button>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+              <span style={{fontSize:11.5,color:"var(--muted)"}}>Status:</span>
+              <select value={d.stage} onChange={e=>{const v=e.target.value; patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v});}} style={{border:"1px solid var(--line)",borderRadius:8,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>
+                {STAGES.map(([s,lbl])=>(<option key={s} value={s}>{lbl}</option>))}
+              </select>
+            </div>
+            <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:10,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:44,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
           </div>
         ))}
       </div>
@@ -12134,6 +12201,7 @@ const PAGES=[
   {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
   {id:"marktradar",icon:"🔭",label:"Marktradar"},
+  {id:"pipeline",icon:"📇",label:"Pipeline"},
 ];
 
 // Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
@@ -12141,7 +12209,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","pipeline","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -12177,17 +12245,21 @@ function MainApp({rolle}) {
   const data = useSupabaseData();
   const [portfolioWatchOffen, setPortfolioWatchOffen] = useState(0);
   const [marktRadarOffen, setMarktRadarOffen] = useState(0);
+  const [pipelineOffen, setPipelineOffen] = useState(0);
   const refreshPortfolioWatch = () => {
     supabase.from("flatfox_treffer").select("id",{count:"exact",head:true}).eq("gesehen",false)
       .then(({count})=>setPortfolioWatchOffen(count||0)).catch(()=>{});
     supabase.from("markt_radar").select("id",{count:"exact",head:true}).eq("gesehen",false)
       .then(({count})=>setMarktRadarOffen(count||0)).catch(()=>{});
+    supabase.from("pipeline").select("id",{count:"exact",head:true}).eq("stage","antwort")
+      .then(({count})=>setPipelineOffen(count||0)).catch(()=>{});
   };
   useEffect(() => {
     refreshPortfolioWatch();
     const ch = supabase.channel("ff_treffer_badge")
       .on("postgres_changes",{event:"*",schema:"public",table:"flatfox_treffer"},refreshPortfolioWatch)
       .on("postgres_changes",{event:"*",schema:"public",table:"markt_radar"},refreshPortfolioWatch)
+      .on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},refreshPortfolioWatch)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -12218,7 +12290,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,pipeline:Pipeline,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
@@ -12325,6 +12397,7 @@ function MainApp({rolle}) {
             {p.id==="nachvermietung"&&nachvermietungOffen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{nachvermietungOffen}</span>}
             {p.id==="portfoliowatch"&&portfolioWatchOffen>0&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{portfolioWatchOffen}</span>}
             {p.id==="marktradar"&&marktRadarOffen>0&&<span style={{background:"#e7e0d3",color:"#7c6a4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{marktRadarOffen}</span>}
+            {p.id==="pipeline"&&pipelineOffen>0&&<span style={{background:"#d9e0d0",color:"#5f6b4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{pipelineOffen}</span>}
             {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
             {p.id==="zahlungen"&&offeneZahlungen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneZahlungen}</span>}
             {p.id==="uebergaben"&&offeneUebergaben>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneUebergaben}</span>}
