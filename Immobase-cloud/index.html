@@ -12149,11 +12149,13 @@ function Pipeline(){
   const [deals,setDeals]=useState([]);
   const [loading,setLoading]=useState(true);
   const [stage,setStage]=useState("kontaktiert");
+  const [threads,setThreads]=useState({});
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
   useEffect(()=>{ laden(); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   const heute=()=>new Date().toISOString().slice(0,10);
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d))); };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>setDeals(ds=>ds.filter(d=>d.id!==id))); };
+  const toggleVerlauf=(d)=>{ setThreads(t=>{ if(t[d.id]){ const n={...t}; delete n[d.id]; return n; } supabase.functions.invoke("outlook-thread",{body:{email:d.contact_email}}).then(({data,error})=>{ setThreads(tt=>({...tt,[d.id]:(error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}})); }).catch(()=>setThreads(tt=>({...tt,[d.id]:{error:"Fehler"}}))); return {...t,[d.id]:{loading:true}}; }); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
@@ -12191,6 +12193,7 @@ function Pipeline(){
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
                 <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
+                {d.contact_email&&<button onClick={()=>toggleVerlauf(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{threads[d.id]?"Verlauf ▲":"Mailverlauf"}</button>}
                 <button onClick={()=>entfernen(d.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>entfernen</button>
               </div>
             </div>
@@ -12201,6 +12204,21 @@ function Pipeline(){
               </select>
             </div>
             <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:10,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:44,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
+            {threads[d.id]&&(
+              <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--line)"}}>
+                {threads[d.id].loading&&<div style={{fontSize:12,color:"#8a8174"}}>Lädt Mailverlauf ...</div>}
+                {threads[d.id].error==="not_configured"&&<div style={{fontSize:12,color:"#8a8174"}}>Outlook ist noch nicht verbunden.</div>}
+                {threads[d.id].error&&threads[d.id].error!=="not_configured"&&<div style={{fontSize:12,color:"#a4442e"}}>Mailverlauf nicht verfügbar.</div>}
+                {threads[d.id].messages&&threads[d.id].messages.length===0&&<div style={{fontSize:12,color:"#8a8174"}}>Keine Mails mit dieser Adresse gefunden.</div>}
+                {threads[d.id].messages&&threads[d.id].messages.map((m,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:12,padding:"4px 0",borderBottom:"1px solid #f0ebe1"}}>
+                    <span style={{flexShrink:0,fontSize:9.5,padding:"1px 6px",borderRadius:8,background:m.direction==="gesendet"?"#e8efde":"#eef1f6",color:m.direction==="gesendet"?"#3a5230":"#3a4a63"}}>{m.direction}</span>
+                    <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{m.date?String(m.date).slice(0,10).split("-").reverse().join("."):""}</span>
+                    <span style={{color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
