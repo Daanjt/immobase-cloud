@@ -12060,7 +12060,7 @@ function MarktRadar(){
   },[]);
   const markiere=(id)=>{ supabase.from("markt_radar").update({gesehen:true}).eq("id",id).then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x))); };
   const [inPl,setInPl]=useState({});
-  const inPipeline=(t)=>{ supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(()=>setInPl(m=>({...m,[t.id]:true}))).catch(()=>setInPl(m=>({...m,[t.id]:true}))); };
+  const inPipeline=(t)=>{ supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(({error})=>{ setInPl(m=>({...m,[t.id]: error?"err":"ok"})); if(error) console.error("pipeline",error); }); };
   const bef=items.filter(x=>x.befristet);
   const unbef=items.filter(x=>!x.befristet);
   const base=rubrik==="bef"?bef:unbef;
@@ -12110,7 +12110,7 @@ function MarktRadar(){
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
               <a href={mailto(t)} title={t.agency_email||"Vorbereitete Anfrage öffnen, Name und Adresse ergänzen"} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
-              <button onClick={()=>inPipeline(t)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:inPl[t.id]?"#5f6b4e":"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{inPl[t.id]?"✓ Pipeline":"→ Pipeline"}</button>
+              <button onClick={()=>inPipeline(t)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:inPl[t.id]==="ok"?"#5f6b4e":inPl[t.id]==="err"?"#a4442e":"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{inPl[t.id]==="ok"?"✓ Pipeline":inPl[t.id]==="err"?"Fehler, nochmal":"→ Pipeline"}</button>
               {!t.gesehen
                 ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
                 : <span style={{fontSize:11,color:"#a0968a"}}>gesehen</span>}
