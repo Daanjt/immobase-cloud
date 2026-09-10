@@ -12071,12 +12071,14 @@ function MarktRadar(){
   const [loading,setLoading]=useState(true);
   const [rubrik,setRubrik]=useState("bef");
   const [nurNeu,setNurNeu]=useState(true);
+  const [orgStatus,setOrgStatus]=useState({});
   const laden=()=>{
     supabase.from("markt_radar").select("*").order("ff_created",{ascending:false}).limit(500)
       .then(({data})=>{ setItems(data||[]); setLoading(false); }).catch(()=>{ setItems([]); setLoading(false); });
   };
   useEffect(()=>{
     laden();
+    supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]=rr.status); setOrgStatus(m); }).catch(()=>{});
     const ch=supabase.channel("markt_radar_page").on("postgres_changes",{event:"*",schema:"public",table:"markt_radar"},laden).subscribe();
     return ()=>{ supabase.removeChannel(ch); };
   },[]);
@@ -12088,6 +12090,7 @@ function MarktRadar(){
   const base=rubrik==="bef"?bef:unbef;
   const liste=nurNeu?base.filter(x=>!x.gesehen):base;
   const uz=(a)=>a.filter(x=>!x.gesehen).length;
+  const osBadge=(name)=>{ const st=orgStatus[(name||"").toLowerCase()]; const map={partner:["bereits Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse, nicht kontaktieren","#f6e3df","#a4442e"],gespraech:["in Gespräch","#f2ecdb","#7c6a4e"]}; const c=map[st]; return c?<div style={{marginTop:4}}><span style={{background:c[1],color:c[2],fontSize:10,padding:"2px 8px",borderRadius:8,fontWeight:700}}>{c[0]}</span></div>:null; };
   const frei=(t)=>{ const v=t.frei_ab; if(!v) return ""; const m={agr:"nach Vereinbarung",imm:"sofort",per:"per sofort"}; const d=/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10).split("-").reverse().join("."):null; return " · frei ab "+(d||m[v]||v); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
@@ -12129,6 +12132,7 @@ function MarktRadar(){
                 {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.flaeche?" · "+t.flaeche+" m²":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
               </div>
               <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.agency_contact_name?" · "+t.agency_contact_name:""}{t.agency_email?" · "+t.agency_email:""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
+              {osBadge(t.agency_name)}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
               <a href={mailto(t)} title={t.agency_email||"Vorbereitete Anfrage öffnen, Name und Adresse ergänzen"} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
@@ -12161,7 +12165,7 @@ function Pipeline(){
     patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v});
     if(v==="gewonnen"){
       if(d.contact_email) supabase.from("kontakte").update({is_partner:true,updated_at:new Date().toISOString()}).eq("email",(d.contact_email||"").toLowerCase()).then(()=>{});
-      if(d.agency_name) supabase.from("partners").select("id,kontakte").eq("name",d.agency_name).then(({data})=>{ const entry={name:d.contact_name||"",email:(d.contact_email||"").toLowerCase(),telefon:"",funktion:"Bewirtschaftung"}; if(data&&data.length){ const pt=data[0]; const arr=Array.isArray(pt.kontakte)?pt.kontakte:[]; if(d.contact_email&&!arr.some(x=>((x.email||"").toLowerCase()===(d.contact_email||"").toLowerCase()))) supabase.from("partners").update({kontakte:[...arr,entry],updated_at:new Date().toISOString()}).eq("id",pt.id).then(()=>{}); } else { supabase.from("partners").insert({id:"P"+Date.now(),name:d.agency_name,typ:"Verwaltung",email:(d.contact_email||""),kontaktperson:d.contact_name||"",kontakte:d.contact_email?[entry]:[]}).then(()=>{}); } });
+      if(d.agency_name){ supabase.from("org_status").upsert({organisation:d.agency_name,status:"partner",updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); } if(d.agency_name) supabase.from("partners").select("id,kontakte").eq("name",d.agency_name).then(({data})=>{ const entry={name:d.contact_name||"",email:(d.contact_email||"").toLowerCase(),telefon:"",funktion:"Bewirtschaftung"}; if(data&&data.length){ const pt=data[0]; const arr=Array.isArray(pt.kontakte)?pt.kontakte:[]; if(d.contact_email&&!arr.some(x=>((x.email||"").toLowerCase()===(d.contact_email||"").toLowerCase()))) supabase.from("partners").update({kontakte:[...arr,entry],updated_at:new Date().toISOString()}).eq("id",pt.id).then(()=>{}); } else { supabase.from("partners").insert({id:"P"+Date.now(),name:d.agency_name,typ:"Verwaltung",email:(d.contact_email||""),kontaktperson:d.contact_name||"",kontakte:d.contact_email?[entry]:[]}).then(()=>{}); } });
     }
   };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
@@ -12265,8 +12269,14 @@ function Kontakte(){
   const [form,setForm]=useState(null);
   const [acts,setActs]=useState([]);
   const [note,setNote]=useState("");
+  const [orgStatus,setOrgStatus]=useState({});
+  const ST=[["prospect","Neu"],["gespraech","In Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
+  const stMap={partner:["Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse","#f6e3df","#a4442e"],gespraech:["In Gespräch","#f2ecdb","#7c6a4e"]};
+  const osTag=(org)=>{ const c=stMap[orgStatus[org]]; return c?<span style={{background:c[1],color:c[2],fontSize:10,padding:"1px 8px",borderRadius:8,fontWeight:600}}>{c[0]}</span>:null; };
+  const setStatus=(org,val)=>{ supabase.from("org_status").upsert({organisation:org,status:val,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>setOrgStatus(m=>({...m,[org]:val}))); };
   const laden=()=>{ supabase.from("kontakte").select("*").order("organisation",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);}); };
-  useEffect(()=>{ laden(); const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  useEffect(()=>{ laden(); supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr.status); setOrgStatus(m); }).catch(()=>{});
+    const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},laden).on("postgres_changes",{event:"*",schema:"public",table:"org_status"},()=>{ supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr.status); setOrgStatus(m); }); }).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   const ladeActs=(id)=>{ supabase.from("kontakt_aktivitaet").select("*").eq("kontakt_id",id).order("datum",{ascending:false}).then(({data})=>setActs(data||[])); };
   useEffect(()=>{ if(form&&form.id) ladeActs(form.id); else setActs([]); },[form&&form.id]);
   const entfernen=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{setKs(xs=>xs.filter(x=>x.id!==id)); setForm(null);}); };
@@ -12346,6 +12356,10 @@ function Kontakte(){
               <span style={{fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{org}</span>
               <span style={{fontSize:10.5,color:"#a0968a"}}>{typLabel(groups[org][0].org_type)} · {groups[org].length} {groups[org].length===1?"Person":"Personen"}</span>
               {groups[org][0].verwaltung&&<span style={{fontSize:10.5,color:"#a0968a"}}>· Verwaltung: {groups[org][0].verwaltung}</span>}
+              <span style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+                {osTag(org)}
+                <select value={orgStatus[org]||"prospect"} onChange={e=>setStatus(org,e.target.value)} style={{border:"1px solid var(--line)",borderRadius:8,padding:"2px 6px",fontSize:11,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--muted)"}}>{ST.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
+              </span>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {groups[org].map(k=>(
