@@ -12156,6 +12156,8 @@ function Pipeline(){
   const [stage,setStage]=useState("kontaktiert");
   const [selected,setSelected]=useState(null);
   const [thread,setThread]=useState(null);
+  const [compose,setCompose]=useState(null);
+  const [sendMsg,setSendMsg]=useState("");
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
   useEffect(()=>{ laden(); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   useEffect(()=>{ if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
@@ -12163,12 +12165,16 @@ function Pipeline(){
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
   const setStageFn=(d,v)=>{
     patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v});
+    if(v==="verloren"&&d.agency_name){ supabase.from("org_status").upsert({organisation:d.agency_name,status:"kein_interesse",grund:d.verlust_grund||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); }
     if(v==="gewonnen"){
       if(d.contact_email) supabase.from("kontakte").update({is_partner:true,updated_at:new Date().toISOString()}).eq("email",(d.contact_email||"").toLowerCase()).then(()=>{});
       if(d.agency_name){ supabase.from("org_status").upsert({organisation:d.agency_name,status:"partner",updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); } if(d.agency_name) supabase.from("partners").select("id,kontakte").eq("name",d.agency_name).then(({data})=>{ const entry={name:d.contact_name||"",email:(d.contact_email||"").toLowerCase(),telefon:"",funktion:"Bewirtschaftung"}; if(data&&data.length){ const pt=data[0]; const arr=Array.isArray(pt.kontakte)?pt.kontakte:[]; if(d.contact_email&&!arr.some(x=>((x.email||"").toLowerCase()===(d.contact_email||"").toLowerCase()))) supabase.from("partners").update({kontakte:[...arr,entry],updated_at:new Date().toISOString()}).eq("id",pt.id).then(()=>{}); } else { supabase.from("partners").insert({id:"P"+Date.now(),name:d.agency_name,typ:"Verwaltung",email:(d.contact_email||""),kontaktperson:d.contact_name||"",kontakte:d.contact_email?[entry]:[]}).then(()=>{}); } });
     }
   };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
+  const patchAbsage=(d,g)=>{ patch(d.id,{verlust_grund:g}); if(d.agency_name) supabase.from("org_status").upsert({organisation:d.agency_name,status:"kein_interesse",grund:g||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); };
+  const openCompose=(d)=>{ setSendMsg(""); setCompose({to:d.contact_email||"",subject:mSubject(d),body:mBody(d)}); };
+  const doSend=()=>{ if(!compose)return; setSendMsg("sende ..."); supabase.functions.invoke("outlook-send",{body:{to:compose.to,subject:compose.subject,body:compose.body}}).then(({data,error})=>{ if(error||!data||data.error){ setSendMsg((data&&data.error==="not_configured")?"Outlook noch nicht verbunden":"Senden fehlgeschlagen"); } else { setSendMsg("Gesendet"); setCompose(null); if(selected&&selected.contact_email===compose.to){ setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:compose.to}}).then(({data})=>setThread(data&&!data.error?{messages:data.messages||[]}:{error:"x"})); } } }).catch(()=>setSendMsg("Senden fehlgeschlagen")); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
@@ -12239,12 +12245,28 @@ function Pipeline(){
                 {STAGES.map(([s,lbl])=>(<option key={s} value={s}>{lbl}</option>))}
               </select>
               <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,textDecoration:"none",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
+              <button onClick={()=>openCompose(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Direkt senden</button>
             </div>
+            {compose&&(
+              <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
+                <input value={compose.to} onChange={e=>setCompose({...compose,to:e.target.value})} placeholder="An" style={{...inpS,marginBottom:6}} />
+                <input value={compose.subject} onChange={e=>setCompose({...compose,subject:e.target.value})} placeholder="Betreff" style={{...inpS,marginBottom:6}} />
+                <textarea value={compose.body} onChange={e=>setCompose({...compose,body:e.target.value})} style={{...inpS,minHeight:170,resize:"vertical",marginBottom:6}} />
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  {sendMsg&&<span style={{fontSize:11.5,color:sendMsg==="Gesendet"?"#3a5230":"#a4442e"}}>{sendMsg}</span>}
+                  <button onClick={()=>setCompose(null)} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
+                  <button onClick={doSend} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Senden</button>
+                </div>
+              </div>
+            )}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
               <label style={{fontSize:11,color:"var(--muted)",display:"flex",flexDirection:"column",gap:3}}>Wiedervorlage<input type="date" defaultValue={d.wiedervorlage||""} onChange={e=>patch(d.id,{wiedervorlage:e.target.value||null})} style={inpS} /></label>
               <label style={{fontSize:11,color:"var(--muted)",display:"flex",flexDirection:"column",gap:3}}>Wert (CHF)<input type="number" defaultValue={d.wert!=null?d.wert:""} onBlur={e=>patch(d.id,{wert:e.target.value?Number(e.target.value):null})} style={inpS} /></label>
               <input defaultValue={d.naechster_schritt||""} onBlur={e=>{if(e.target.value!==(d.naechster_schritt||""))patch(d.id,{naechster_schritt:e.target.value});}} placeholder="Nächster Schritt (z. B. Nachfassen per Telefon)" style={{...inpS,gridColumn:"1 / -1"}} />
-              {d.stage==="verloren"&&<input defaultValue={d.verlust_grund||""} onBlur={e=>{if(e.target.value!==(d.verlust_grund||""))patch(d.id,{verlust_grund:e.target.value});}} placeholder="Grund für Absage" style={{...inpS,gridColumn:"1 / -1"}} />}
+              {d.stage==="verloren"&&(<div style={{gridColumn:"1 / -1",display:"flex",gap:8,flexWrap:"wrap"}}>
+                <select value="" onChange={e=>{ if(e.target.value) patchAbsage(d,e.target.value); }} style={{...inpS,width:"auto",flex:"1 1 170px"}}><option value="">Absagegrund wählen ...</option>{["Untervermietung nicht erlaubt","Objekt bereits vergeben","Keine Rückmeldung","Kein Interesse am Modell","Konditionen zu hoch","Anderes"].map(g=>(<option key={g} value={g}>{g}</option>))}</select>
+                <input key={d.verlust_grund||"x"} defaultValue={d.verlust_grund||""} onBlur={e=>patchAbsage(d,e.target.value)} placeholder="Grund / Notiz" style={{...inpS,flex:"1 1 170px",width:"auto"}} />
+              </div>)}
             </div>
             <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:12,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:52,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
             <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
