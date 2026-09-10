@@ -12158,8 +12158,10 @@ function Pipeline(){
   const [thread,setThread]=useState(null);
   const [compose,setCompose]=useState(null);
   const [sendMsg,setSendMsg]=useState("");
+  const [sig,setSig]=useState("Freundliche Grüsse\nDaan Theijse\nD&T Homes\nwww.dthomes.ch");
+  const [sigEdit,setSigEdit]=useState(false);
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
-  useEffect(()=>{ laden(); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  useEffect(()=>{ laden(); supabase.from("app_settings").select("value").eq("key","mail_signature").then(({data})=>{ if(data&&data[0]&&data[0].value) setSig(data[0].value); }).catch(()=>{}); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   useEffect(()=>{ if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
   const heute=()=>new Date().toISOString().slice(0,10);
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
@@ -12173,8 +12175,9 @@ function Pipeline(){
   };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
   const patchAbsage=(d,g)=>{ patch(d.id,{verlust_grund:g}); if(d.agency_name) supabase.from("org_status").upsert({organisation:d.agency_name,status:"kein_interesse",grund:g||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); };
-  const openCompose=(d)=>{ setSendMsg(""); setCompose({to:d.contact_email||"",subject:mSubject(d),body:mBody(d)}); };
+  const openCompose=(d)=>{ setSendMsg(""); setCompose({to:d.contact_email||"",subject:mSubject(d),body:mBody(d)+"\n\n"+sig}); };
   const doSend=()=>{ if(!compose)return; setSendMsg("sende ..."); supabase.functions.invoke("outlook-send",{body:{to:compose.to,subject:compose.subject,body:compose.body}}).then(({data,error})=>{ if(error||!data||data.error){ setSendMsg((data&&data.error==="not_configured")?"Outlook noch nicht verbunden":"Senden fehlgeschlagen"); } else { setSendMsg("Gesendet"); setCompose(null); if(selected&&selected.contact_email===compose.to){ setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:compose.to}}).then(({data})=>setThread(data&&!data.error?{messages:data.messages||[]}:{error:"x"})); } } }).catch(()=>setSendMsg("Senden fehlgeschlagen")); };
+  const saveSig=()=>{ supabase.from("app_settings").upsert({key:"mail_signature",value:sig,updated_at:new Date().toISOString()},{onConflict:"key"}).then(()=>setSigEdit(false)); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
@@ -12183,9 +12186,9 @@ function Pipeline(){
     const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
     const objSatz=t.befristet? "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept." : "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
     const nutzen=t.befristet? "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem habt ihr die Sicherheit, nach der Befristung direkt mit eurem Projekt zu starten. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig." : "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
-    return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n");
+    return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung."].join("\n");
   };
-  const mailto=(t)=>"mailto:"+(t.contact_email||"")+"?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t));
+  const mailto=(t)=>"mailto:"+(t.contact_email||"")+"?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t)+"\n\n"+sig);
   const fmt=(d)=>d?String(d).slice(0,10).split("-").reverse().join("."):"";
   const inpS={border:"1px solid var(--line)",borderRadius:8,padding:"6px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",boxSizing:"border-box",width:"100%"};
   const heuteISO=()=>new Date().toISOString().slice(0,10);
@@ -12252,6 +12255,10 @@ function Pipeline(){
                 <input value={compose.to} onChange={e=>setCompose({...compose,to:e.target.value})} placeholder="An" style={{...inpS,marginBottom:6}} />
                 <input value={compose.subject} onChange={e=>setCompose({...compose,subject:e.target.value})} placeholder="Betreff" style={{...inpS,marginBottom:6}} />
                 <textarea value={compose.body} onChange={e=>setCompose({...compose,body:e.target.value})} style={{...inpS,minHeight:170,resize:"vertical",marginBottom:6}} />
+                <div style={{marginBottom:6}}>
+                  <button onClick={()=>setSigEdit(!sigEdit)} style={{background:"none",border:"none",color:"var(--muted)",fontSize:11,cursor:"pointer",padding:0,textDecoration:"underline"}}>{sigEdit?"Signatur schliessen":"Signatur bearbeiten"}</button>
+                  {sigEdit&&<div style={{marginTop:6}}><textarea value={sig} onChange={e=>setSig(e.target.value)} style={{...inpS,minHeight:80,resize:"vertical"}} /><div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}><button onClick={saveSig} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px",fontSize:11,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Signatur speichern</button></div></div>}
+                </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   {sendMsg&&<span style={{fontSize:11.5,color:sendMsg==="Gesendet"?"#3a5230":"#a4442e"}}>{sendMsg}</span>}
                   <button onClick={()=>setCompose(null)} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
