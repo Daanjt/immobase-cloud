@@ -12199,31 +12199,42 @@ function Pipeline(){
   const liste=deals.filter(d=>d.stage===stage);
   const d=selected;
   return (
-    <div style={{padding:"8px",maxWidth:900}}>
+    <div style={{padding:"8px",maxWidth:1300}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Pipeline</div>
         <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Kontaktierte Objekte, Status und Mailverlauf. Klicke einen Deal für Details.</div>
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-        {STAGES.map(([s,lbl])=>(<button key={s} onClick={()=>setStage(s)} style={{background:stage===s?"var(--ink)":"none",color:stage===s?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cnt(s)?" ("+cnt(s)+")":""}</button>))}
-      </div>
+
       <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:12,fontSize:12,color:"var(--muted)"}}>
         {(()=>{ const offen=deals.filter(z=>!["gewonnen","verloren"].includes(z.stage)); const ueber=offen.filter(z=>z.wiedervorlage&&z.wiedervorlage<heuteISO()).length; const hd=offen.filter(z=>z.wiedervorlage===heuteISO()).length; const w=offen.reduce((sm,z)=>sm+(Number(z.wert)||0),0); return (<React.Fragment><span>Offen: <b style={{color:"var(--ink)"}}>{offen.length}</b></span><span>Pipeline-Wert: <b style={{color:"var(--ink)"}}>CHF {Math.round(w).toLocaleString("de-CH")}</b></span>{ueber>0&&<span style={{color:"#a4442e"}}>{ueber} überfällig</span>}{hd>0&&<span style={{color:"#8a6d1e"}}>{hd} heute fällig</span>}</React.Fragment>); })()}
       </div>
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
-      {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Objekte in dieser Phase.</div>}
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {liste.map(x=>(
-          <div key={x.id} onClick={()=>setSelected(x)} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)",cursor:"pointer",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,color:"var(--ink)",fontWeight:600}}>{x.strasse||"Adresse"}, {x.plz} {x.ort}</div>
-              <div style={{fontSize:12.5,color:"var(--muted)",marginTop:4,lineHeight:1.6}}>{x.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{x.zimmer?x.zimmer+" Zi":""}{x.preis?" · CHF "+x.preis+" inkl. NK":""}</div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>{x.agency_name||""}{x.contact_name?" · "+x.contact_name:""}</div>
-              {cardMeta(x)}
+      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>
+        {STAGES.map(([sid,slbl],si)=>{ const col=deals.filter(z=>z.stage===sid); const wsum=col.reduce((sm,z)=>sm+(Number(z.wert)||0),0); return (
+          <div key={sid} style={{minWidth:232,width:232,flexShrink:0,background:"#f3efe6",borderRadius:12,padding:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"3px 6px 8px"}}>
+              <span style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{slbl}</span>
+              <span style={{fontSize:10.5,color:"var(--muted)"}}>{col.length}{wsum?" · CHF "+Math.round(wsum).toLocaleString("de-CH"):""}</span>
             </div>
-            <span style={{fontSize:11,color:"var(--muted)",flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"3px 8px"}}>{LBL[x.stage]||x.stage}</span>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {col.map(x=>(
+                <div key={x.id} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 11px"}}>
+                  <div onClick={()=>setSelected(x)} style={{cursor:"pointer"}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",lineHeight:1.35}}>{x.strasse||"Adresse"}, {x.ort}</div>
+                    <div style={{fontSize:11,color:"#a0968a",marginTop:3}}>{x.agency_name||""}{x.contact_name?" · "+x.contact_name:""}</div>
+                    {x.wert?<div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>CHF {Number(x.wert).toLocaleString("de-CH")}</div>:null}
+                    {cardMeta(x)}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
+                    <button onClick={()=>{ if(si>0) setStageFn(x,STAGES[si-1][0]); }} disabled={si===0} style={{background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--muted)",cursor:si===0?"default":"pointer",opacity:si===0?0.3:1}}>◀</button>
+                    <button onClick={()=>{ if(si<STAGES.length-1) setStageFn(x,STAGES[si+1][0]); }} disabled={si===STAGES.length-1} style={{background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--muted)",cursor:si===STAGES.length-1?"default":"pointer",opacity:si===STAGES.length-1?0.3:1}}>▶</button>
+                  </div>
+                </div>
+              ))}
+              {col.length===0&&<div style={{fontSize:11,color:"#b9b0a2",padding:"6px"}}>leer</div>}
+            </div>
           </div>
-        ))}
+        ); })}
       </div>
       {d&&(
         <div onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
