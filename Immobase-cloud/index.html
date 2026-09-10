@@ -12262,41 +12262,38 @@ function Pipeline(){
 function Kontakte(){
   const TYP=[["verwaltung","Verwaltung"],["eigentuemer","Eigentümer"],["partner","Partner"],["andere","Andere"]];
   const typLabel=(t)=>({verwaltung:"Verwaltung",eigentuemer:"Eigentümer",partner:"Partner",andere:"Andere"}[t]||t);
+  const ST=[["prospect","Neu"],["gespraech","In Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
+  const stMap={partner:["Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse","#f6e3df","#a4442e"],gespraech:["In Gespräch","#f2ecdb","#7c6a4e"]};
+  const osTag=(st)=>{ const c=stMap[st]; return c?<span style={{background:c[1],color:c[2],fontSize:10,padding:"1px 8px",borderRadius:8,fontWeight:600}}>{c[0]}</span>:null; };
   const [ks,setKs]=useState([]);
+  const [orgs,setOrgs]=useState({});
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState("alle");
   const [q,setQ]=useState("");
-  const [form,setForm]=useState(null);
+  const [firm,setFirm]=useState(null);
+  const [fd,setFd]=useState(null);
+  const [cf,setCf]=useState(null);
   const [acts,setActs]=useState([]);
   const [note,setNote]=useState("");
-  const [orgStatus,setOrgStatus]=useState({});
-  const ST=[["prospect","Neu"],["gespraech","In Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
-  const stMap={partner:["Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse","#f6e3df","#a4442e"],gespraech:["In Gespräch","#f2ecdb","#7c6a4e"]};
-  const osTag=(org)=>{ const c=stMap[orgStatus[org]]; return c?<span style={{background:c[1],color:c[2],fontSize:10,padding:"1px 8px",borderRadius:8,fontWeight:600}}>{c[0]}</span>:null; };
-  const setStatus=(org,val)=>{ supabase.from("org_status").upsert({organisation:org,status:val,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>setOrgStatus(m=>({...m,[org]:val}))); };
-  const [orgForm,setOrgForm]=useState(null);
-  const [openOrgs,setOpenOrgs]=useState({});
-  const openOrg=(org)=>{ if(orgForm&&orgForm.organisation===org){setOrgForm(null);return;} supabase.from("org_status").select("*").eq("organisation",org).then(({data})=>{ const row=(data&&data[0])||{}; setOrgForm({organisation:org,status:row.status||orgStatus[org]||"prospect",grund:row.grund||""}); }); };
-  const saveOrg=()=>{ supabase.from("org_status").upsert({organisation:orgForm.organisation,status:orgForm.status,grund:orgForm.grund||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{ setOrgStatus(m=>({...m,[orgForm.organisation]:orgForm.status})); setOrgForm(null); }); };
-  const laden=()=>{ supabase.from("kontakte").select("*").order("organisation",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);}); };
-  useEffect(()=>{ laden(); supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr.status); setOrgStatus(m); }).catch(()=>{});
-    const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},laden).on("postgres_changes",{event:"*",schema:"public",table:"org_status"},()=>{ supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr.status); setOrgStatus(m); }); }).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
-  const ladeActs=(id)=>{ supabase.from("kontakt_aktivitaet").select("*").eq("kontakt_id",id).order("datum",{ascending:false}).then(({data})=>setActs(data||[])); };
-  useEffect(()=>{ if(form&&form.id) ladeActs(form.id); else setActs([]); },[form&&form.id]);
-  const entfernen=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{setKs(xs=>xs.filter(x=>x.id!==id)); setForm(null);}); };
-  const speichern=()=>{ const k=form; if(!k.name&&!k.organisation){alert("Bitte Name oder Organisation angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:k.organisation||null,org_type:k.org_type||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setForm(null); laden(); }); };
-  const addNote=()=>{ if(!note.trim()||!form||!form.id)return; supabase.from("kontakt_aktivitaet").insert({kontakt_id:form.id,typ:"notiz",text:note.trim()}).then(({error})=>{ if(!error){ setNote(""); ladeActs(form.id); } }); };
-  const loescheAkt=(aid)=>{ supabase.from("kontakt_aktivitaet").delete().eq("id",aid).then(()=>ladeActs(form.id)); };
-  const gefiltert=ks.filter(k=>{
-    if(tab==="partner"&&!(k.is_partner||k.org_type==="partner"))return false;
-    if(tab==="verwaltung"&&k.org_type!=="verwaltung")return false;
-    if(tab==="eigentuemer"&&k.org_type!=="eigentuemer")return false;
-    if(q){ const s=((k.name||"")+" "+(k.organisation||"")+" "+(k.email||"")+" "+(k.rolle||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; }
-    return true;
-  });
-  const cnt=(f)=>ks.filter(k=> f==="alle"?true : f==="partner"?(k.is_partner||k.org_type==="partner") : k.org_type===f).length;
-  const groups={}; gefiltert.forEach(k=>{ const g=k.organisation||"Ohne Organisation"; (groups[g]=groups[g]||[]).push(k); });
-  const orgNames=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+  const ladeK=()=>supabase.from("kontakte").select("*").order("name",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);});
+  const ladeOrgs=()=>supabase.from("org_status").select("*").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr); setOrgs(m); });
+  useEffect(()=>{ ladeK(); ladeOrgs(); const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},ladeK).on("postgres_changes",{event:"*",schema:"public",table:"org_status"},ladeOrgs).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  const ladeActs=(id)=>supabase.from("kontakt_aktivitaet").select("*").eq("kontakt_id",id).order("datum",{ascending:false}).then(({data})=>setActs(data||[]));
+  const firmNames=Array.from(new Set([...ks.map(k=>k.organisation||"Ohne Organisation"),...Object.keys(orgs)])).filter(Boolean);
+  const firmType=(org)=>{ if(orgs[org]&&orgs[org].typ) return orgs[org].typ; const k=ks.find(x=>(x.organisation||"Ohne Organisation")===org); return k?k.org_type:"verwaltung"; };
+  const firmStatus=(org)=>orgs[org]?orgs[org].status:null;
+  const firmKontakte=(org)=>ks.filter(k=>(k.organisation||"Ohne Organisation")===org);
+  const pass=(org,f)=>{ const t=firmType(org),st=firmStatus(org); if(f==="partner"&&st!=="partner")return false; if(f==="verwaltung"&&t!=="verwaltung")return false; if(f==="eigentuemer"&&t!=="eigentuemer")return false; return true; };
+  const cntTab=(f)=>firmNames.filter(org=>pass(org,f)).length;
+  const firmen=firmNames.filter(org=>{ if(!pass(org,tab))return false; if(q){ const persons=firmKontakte(org).map(k=>(k.name||"")+" "+(k.email||"")+" "+(k.rolle||"")).join(" "); const s=(org+" "+persons+" "+((orgs[org]&&orgs[org].email)||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; } return true; }).sort((a,b)=>a.localeCompare(b));
+  const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||""}); setFirm(org); setCf(null); };
+  const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:""}); setFirm("*neu*"); setCf(null); };
+  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); }); };
+  const openContact=(k)=>{ if(k){ setCf({...k}); setNote(""); if(k.id) ladeActs(k.id); else setActs([]); } else { setCf({organisation:firm,org_type:(fd&&fd.typ)||"verwaltung"}); setActs([]); setNote(""); } };
+  const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setCf(null); ladeK(); }); };
+  const delContact=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{ setCf(null); ladeK(); }); };
+  const addNote=()=>{ if(!note.trim()||!cf||!cf.id)return; supabase.from("kontakt_aktivitaet").insert({kontakt_id:cf.id,typ:"notiz",text:note.trim()}).then(({error})=>{ if(!error){ setNote(""); ladeActs(cf.id); } }); };
+  const delNote=(aid)=>supabase.from("kontakt_aktivitaet").delete().eq("id",aid).then(()=>ladeActs(cf.id));
   const fmt=(d)=>d?new Date(d).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
   const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",width:"100%",boxSizing:"border-box"};
   return (
@@ -12304,93 +12301,104 @@ function Kontakte(){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div>
           <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Kontakte</div>
-          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Ansprechpersonen bei Verwaltungen, Eigentümern und Partnern</div>
+          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Firmen und ihre Ansprechpersonen. Klicke eine Firma für alle Angaben.</div>
         </div>
-        <button onClick={()=>{setForm({org_type:"verwaltung"});setNote("");}} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Kontakt</button>
+        <button onClick={neueFirma} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Firma</button>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
         {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"]].map(([f,lbl])=>(
-          <button key={f} onClick={()=>setTab(f)} style={{background:tab===f?"var(--ink)":"none",color:tab===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cnt(f)?" ("+cnt(f)+")":""}</button>
+          <button key={f} onClick={()=>setTab(f)} style={{background:tab===f?"var(--ink)":"none",color:tab===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cntTab(f)?" ("+cntTab(f)+")":""}</button>
         ))}
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen ..." style={{...inp,width:"auto",flex:"1 1 160px",marginLeft:"auto"}} />
       </div>
-      {form&&(
-        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:16,background:"var(--surface)",marginBottom:14}}>
-          <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:10}}>{form.id?"Kontakt bearbeiten":"Neuer Kontakt"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Name" style={inp} />
-            <input value={form.rolle||""} onChange={e=>setForm({...form,rolle:e.target.value})} placeholder="Rolle (z. B. Bewirtschaftung)" style={inp} />
-            <input value={form.organisation||""} onChange={e=>setForm({...form,organisation:e.target.value})} placeholder="Organisation" style={inp} />
-            <select value={form.org_type||"verwaltung"} onChange={e=>setForm({...form,org_type:e.target.value})} style={inp}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
-            <input value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} placeholder="E-Mail" style={inp} />
-            <input value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Telefon" style={inp} />
-            {(form.org_type==="eigentuemer")&&<input value={form.verwaltung||""} onChange={e=>setForm({...form,verwaltung:e.target.value})} placeholder="Zuständige Verwaltung" style={{...inp,gridColumn:"1 / -1"}} />}
-            <textarea value={form.notizen||""} onChange={e=>setForm({...form,notizen:e.target.value})} placeholder="Notizen ..." style={{...inp,gridColumn:"1 / -1",minHeight:40,resize:"vertical"}} />
-            <label style={{fontSize:12,color:"var(--muted)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form.is_partner} onChange={e=>setForm({...form,is_partner:e.target.checked})} /> Partner (Zusammenarbeit)</label>
-          </div>
-          {form.id&&(
-            <div style={{marginTop:14,borderTop:"1px solid var(--line)",paddingTop:12}}>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:8}}>Verlauf</div>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addNote();}} placeholder="Notiz oder Aktivität festhalten ..." style={{...inp,flex:1}} />
-                <button onClick={addNote} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Hinzufügen</button>
-              </div>
-              {acts.length===0&&<div style={{fontSize:11.5,color:"#a0968a"}}>Noch keine Einträge.</div>}
-              {acts.map(av=>(
-                <div key={av.id} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:12,padding:"5px 0",borderBottom:"1px solid #f0ebe1"}}>
-                  <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{fmt(av.datum)}</span>
-                  <span style={{color:"var(--ink)",flex:1}}>{av.text}</span>
-                  <button onClick={()=>loescheAkt(av.id)} style={{background:"none",border:"none",color:"#c9c0b2",fontSize:11,cursor:"pointer",flexShrink:0}}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-            <button onClick={()=>setForm(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 14px",fontSize:12.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Schliessen</button>
-            <button onClick={speichern} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
-          </div>
-        </div>
-      )}
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
-      {!loading&&gefiltert.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Kontakte.</div>}
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {orgNames.map(org=>(
-          <div key={org}>
-            <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6,paddingBottom:4,borderBottom:"1px solid var(--line)"}}>
-              <span onClick={()=>setOpenOrgs(o=>({...o,[org]:!o[org]}))} style={{fontSize:13.5,fontWeight:700,color:"var(--ink)",cursor:"pointer"}}>{(openOrgs[org]||q)?"▾ ":"▸ "}{org}</span>
-              <span style={{fontSize:10.5,color:"#a0968a"}}>{typLabel(groups[org][0].org_type)} · {groups[org].length} {groups[org].length===1?"Person":"Personen"}</span>
-              {groups[org][0].verwaltung&&<span style={{fontSize:10.5,color:"#a0968a"}}>· Verwaltung: {groups[org][0].verwaltung}</span>}
-              <span style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
-                {osTag(org)}
-                <button onClick={()=>openOrg(org)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"2px 8px",fontSize:10.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Status</button>
-              </span>
+      {!loading&&firmen.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Firmen.</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {firmen.map(org=>(
+          <div key={org} onClick={()=>openFirm(org)} style={{border:"1px solid var(--line)",borderRadius:12,padding:"13px 15px",background:"var(--surface)",cursor:"pointer",display:"flex",justifyContent:"space-between",gap:12,alignItems:"center"}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:14.5,fontWeight:600,color:"var(--ink)"}}>{org}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{typLabel(firmType(org))} · {firmKontakte(org).length} {firmKontakte(org).length===1?"Person":"Personen"}</div>
             </div>
-            {orgForm&&orgForm.organisation===org&&(
-              <div style={{border:"1px solid var(--line)",borderRadius:10,padding:"12px 14px",background:"var(--surface)",marginBottom:8,display:"flex",flexWrap:"wrap",gap:10,alignItems:"center"}}>
-                <span style={{fontSize:12,color:"var(--muted)"}}>Beziehungsstatus:</span>
-                <select value={orgForm.status} onChange={e=>setOrgForm({...orgForm,status:e.target.value})} style={{border:"1px solid var(--line)",borderRadius:8,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>{ST.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
-                <input value={orgForm.grund||""} onChange={e=>setOrgForm({...orgForm,grund:e.target.value})} placeholder="Notiz oder Grund (optional)" style={{...inp,flex:"1 1 200px",width:"auto"}} />
-                <button onClick={()=>setOrgForm(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Schliessen</button>
-                <button onClick={saveOrg} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
-              </div>
-            )}
-            {(openOrgs[org]||q)&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {groups[org].map(k=>(
-                <div key={k.id} style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 12px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
-                  <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>{setForm(k);setNote("");}}>
-                    <div style={{fontSize:14,color:"var(--ink)",fontWeight:600}}>{k.name||"(ohne Name)"}{(k.is_partner||k.org_type==="partner")&&<span style={{marginLeft:8,background:"#e8efde",color:"#3a5230",fontSize:9.5,padding:"1px 7px",borderRadius:8,verticalAlign:"middle"}}>Partner</span>}</div>
-                    <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{k.rolle?k.rolle+" · ":""}{k.email||""}{k.phone?" · "+k.phone:""}</div>
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
-                    {k.email&&<a href={"mailto:"+k.email} style={{fontSize:11.5,color:"#3a5230",textDecoration:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px"}}>E-Mail</a>}
-                    <button onClick={()=>entfernen(k.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>löschen</button>
-                  </div>
-                </div>
-              ))}
-            </div>}
+            {osTag(firmStatus(org))}
           </div>
         ))}
       </div>
+      {firm&&fd&&(
+        <div onClick={()=>{setFirm(null);setCf(null);}} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:600,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}>
+              {fd.isNew
+                ? <input value={fd.organisation} onChange={e=>setFd({...fd,organisation:e.target.value})} placeholder="Firmenname" style={{...inp,fontSize:17,fontWeight:600}} />
+                : <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:20,color:"var(--ink)"}}>{fd.organisation} {osTag(fd.status)}</div>}
+              <button onClick={()=>{setFirm(null);setCf(null);}} style={{background:"none",border:"none",fontSize:20,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <select value={fd.typ} onChange={e=>setFd({...fd,typ:e.target.value})} style={inp}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
+              <select value={fd.status} onChange={e=>setFd({...fd,status:e.target.value})} style={inp}>{ST.map(([v,l])=>(<option key={v} value={v}>Status: {l}</option>))}</select>
+              <input value={fd.adresse||""} onChange={e=>setFd({...fd,adresse:e.target.value})} placeholder="Adresse" style={{...inp,gridColumn:"1 / -1"}} />
+              <input value={fd.email||""} onChange={e=>setFd({...fd,email:e.target.value})} placeholder="Allgemeine E-Mail" style={inp} />
+              <input value={fd.telefon||""} onChange={e=>setFd({...fd,telefon:e.target.value})} placeholder="Telefon" style={inp} />
+              {fd.status==="kein_interesse"&&<input value={fd.grund||""} onChange={e=>setFd({...fd,grund:e.target.value})} placeholder="Grund für Kein Interesse" style={{...inp,gridColumn:"1 / -1"}} />}
+              <textarea value={fd.notizen||""} onChange={e=>setFd({...fd,notizen:e.target.value})} placeholder="Notizen zur Firma ..." style={{...inp,gridColumn:"1 / -1",minHeight:40,resize:"vertical"}} />
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+              <button onClick={saveFirm} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Firma speichern</button>
+            </div>
+            {!fd.isNew&&(
+              <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>Kontaktpersonen</span>
+                  <button onClick={()=>openContact(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px",fontSize:11.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Person</button>
+                </div>
+                {firmKontakte(fd.organisation).length===0&&!cf&&<div style={{fontSize:11.5,color:"#a0968a"}}>Noch keine Personen.</div>}
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {firmKontakte(fd.organisation).map(k=>(
+                    <div key={k.id} onClick={()=>openContact(k)} style={{border:"1px solid var(--line)",borderRadius:10,padding:"9px 11px",background:cf&&cf.id===k.id?"#f3efe6":"var(--surface)",cursor:"pointer"}}>
+                      <div style={{fontSize:13.5,color:"var(--ink)",fontWeight:600}}>{k.name||"(ohne Name)"}{k.is_partner&&<span style={{marginLeft:8,background:"#e8efde",color:"#3a5230",fontSize:9.5,padding:"1px 7px",borderRadius:8}}>Partner</span>}</div>
+                      <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{k.rolle?k.rolle+" · ":""}{k.email||""}{k.phone?" · "+k.phone:""}</div>
+                    </div>
+                  ))}
+                </div>
+                {cf&&(
+                  <div style={{border:"1px solid var(--line)",borderRadius:10,padding:12,marginTop:10,background:"#faf8f3"}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:8}}>{cf.id?"Person bearbeiten":"Neue Person"}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <input value={cf.name||""} onChange={e=>setCf({...cf,name:e.target.value})} placeholder="Name" style={inp} />
+                      <input value={cf.rolle||""} onChange={e=>setCf({...cf,rolle:e.target.value})} placeholder="Rolle" style={inp} />
+                      <input value={cf.email||""} onChange={e=>setCf({...cf,email:e.target.value})} placeholder="E-Mail" style={inp} />
+                      <input value={cf.phone||""} onChange={e=>setCf({...cf,phone:e.target.value})} placeholder="Telefon" style={inp} />
+                      {(fd.typ==="eigentuemer")&&<input value={cf.verwaltung||""} onChange={e=>setCf({...cf,verwaltung:e.target.value})} placeholder="Zuständige Verwaltung" style={{...inp,gridColumn:"1 / -1"}} />}
+                      <label style={{fontSize:11.5,color:"var(--muted)",display:"flex",alignItems:"center",gap:6,cursor:"pointer",gridColumn:"1 / -1"}}><input type="checkbox" checked={!!cf.is_partner} onChange={e=>setCf({...cf,is_partner:e.target.checked})} /> Partner</label>
+                    </div>
+                    {cf.id&&(
+                      <div style={{marginTop:10,borderTop:"1px solid var(--line)",paddingTop:8}}>
+                        <div style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",marginBottom:6}}>Verlauf</div>
+                        <div style={{display:"flex",gap:6,marginBottom:8}}>
+                          <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addNote();}} placeholder="Notiz oder Aktivität ..." style={{...inp,flex:1}} />
+                          <button onClick={addNote} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+</button>
+                        </div>
+                        {acts.map(av=>(
+                          <div key={av.id} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:11.5,padding:"4px 0",borderBottom:"1px solid #f0ebe1"}}>
+                            <span style={{flexShrink:0,color:"#a0968a"}}>{fmt(av.datum)}</span>
+                            <span style={{color:"var(--ink)",flex:1}}>{av.text}</span>
+                            <button onClick={()=>delNote(av.id)} style={{background:"none",border:"none",color:"#c9c0b2",fontSize:11,cursor:"pointer"}}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+                      {cf.id&&<button onClick={()=>delContact(cf.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11.5,cursor:"pointer",marginRight:"auto"}}>löschen</button>}
+                      <button onClick={()=>setCf(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
+                      <button onClick={saveContact} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
