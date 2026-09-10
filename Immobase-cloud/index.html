@@ -12240,8 +12240,14 @@ function Pipeline(){
         <div onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
-              <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:19,color:"var(--ink)"}}>{d.strasse||"Adresse"}, {d.plz} {d.ort}</div>
-              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",fontSize:20,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
+              <div style={{minWidth:0}}>
+                <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:19,color:"var(--ink)"}}>{d.strasse||"Adresse"}, {d.plz} {d.ort}</div>
+                <div style={{fontSize:13,color:"var(--muted)",marginTop:2}}>{d.wert?"CHF "+Number(d.wert).toLocaleString("de-CH"):""}{d.zimmer?((d.wert?" · ":"")+d.zimmer+" Zi"):""}{d.befristet?" · befristet":""}</div>
+              </div>
+              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{display:"flex",gap:2,margin:"14px 0 4px"}}>
+              {STAGES.map(([sid,slbl],i)=>{ const idx=STAGES.findIndex(z=>z[0]===d.stage); const cur=i===idx; const passed=i<idx; const bg=cur?(sid==="gewonnen"?"#3a5230":sid==="verloren"?"#a4442e":"var(--ink)"):passed?"#d8cfbe":"#ece5d8"; const col=cur?"#fff":"#8a7c66"; return <button key={sid} onClick={()=>setStageFn(d,sid)} title={slbl} style={{flex:1,minWidth:0,border:"none",background:bg,color:col,fontSize:10,fontWeight:cur?700:500,padding:"7px 2px",cursor:"pointer",clipPath:"polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%, 7px 50%)",marginLeft:i===0?0:-7,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{slbl}</button>; })}
             </div>
             <div style={{fontSize:12.5,color:"var(--muted)",marginTop:6,lineHeight:1.7}}>
               {d.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{d.zimmer?d.zimmer+" Zi":""}{d.preis?" · CHF "+d.preis+" inkl. NK":""}
@@ -12254,12 +12260,8 @@ function Pipeline(){
               {d.kontaktiert_am&&<div><span style={{color:"var(--muted)"}}>Kontaktiert am:</span> {fmt(d.kontaktiert_am)}</div>}
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
-              <span style={{fontSize:11.5,color:"var(--muted)"}}>Status:</span>
-              <select value={d.stage} onChange={e=>setStageFn(d,e.target.value)} style={{border:"1px solid var(--line)",borderRadius:8,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>
-                {STAGES.map(([s,lbl])=>(<option key={s} value={s}>{lbl}</option>))}
-              </select>
-              <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,textDecoration:"none",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
-              <button onClick={()=>openCompose(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Direkt senden</button>
+              <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 16px",fontSize:12.5,textDecoration:"none",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
+              <button onClick={()=>openCompose(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 16px",fontSize:12.5,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Direkt senden</button>
             </div>
             {compose&&(
               <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
