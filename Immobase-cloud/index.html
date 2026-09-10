@@ -12274,6 +12274,9 @@ function Kontakte(){
   const stMap={partner:["Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse","#f6e3df","#a4442e"],gespraech:["In Gespräch","#f2ecdb","#7c6a4e"]};
   const osTag=(org)=>{ const c=stMap[orgStatus[org]]; return c?<span style={{background:c[1],color:c[2],fontSize:10,padding:"1px 8px",borderRadius:8,fontWeight:600}}>{c[0]}</span>:null; };
   const setStatus=(org,val)=>{ supabase.from("org_status").upsert({organisation:org,status:val,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>setOrgStatus(m=>({...m,[org]:val}))); };
+  const [orgForm,setOrgForm]=useState(null);
+  const openOrg=(org)=>{ if(orgForm&&orgForm.organisation===org){setOrgForm(null);return;} supabase.from("org_status").select("*").eq("organisation",org).then(({data})=>{ const row=(data&&data[0])||{}; setOrgForm({organisation:org,status:row.status||orgStatus[org]||"prospect",grund:row.grund||""}); }); };
+  const saveOrg=()=>{ supabase.from("org_status").upsert({organisation:orgForm.organisation,status:orgForm.status,grund:orgForm.grund||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{ setOrgStatus(m=>({...m,[orgForm.organisation]:orgForm.status})); setOrgForm(null); }); };
   const laden=()=>{ supabase.from("kontakte").select("*").order("organisation",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);}); };
   useEffect(()=>{ laden(); supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr.status); setOrgStatus(m); }).catch(()=>{});
     const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},laden).on("postgres_changes",{event:"*",schema:"public",table:"org_status"},()=>{ supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr.status); setOrgStatus(m); }); }).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
@@ -12353,14 +12356,23 @@ function Kontakte(){
         {orgNames.map(org=>(
           <div key={org}>
             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6,paddingBottom:4,borderBottom:"1px solid var(--line)"}}>
-              <span style={{fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{org}</span>
+              <span onClick={()=>openOrg(org)} style={{fontSize:13.5,fontWeight:700,color:"var(--ink)",cursor:"pointer"}}>{org}</span>
               <span style={{fontSize:10.5,color:"#a0968a"}}>{typLabel(groups[org][0].org_type)} · {groups[org].length} {groups[org].length===1?"Person":"Personen"}</span>
               {groups[org][0].verwaltung&&<span style={{fontSize:10.5,color:"#a0968a"}}>· Verwaltung: {groups[org][0].verwaltung}</span>}
-              <span style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
                 {osTag(org)}
-                <select value={orgStatus[org]||"prospect"} onChange={e=>setStatus(org,e.target.value)} style={{border:"1px solid var(--line)",borderRadius:8,padding:"2px 6px",fontSize:11,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--muted)"}}>{ST.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
+                <button onClick={()=>openOrg(org)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"2px 8px",fontSize:10.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Status</button>
               </span>
             </div>
+            {orgForm&&orgForm.organisation===org&&(
+              <div style={{border:"1px solid var(--line)",borderRadius:10,padding:"12px 14px",background:"var(--surface)",marginBottom:8,display:"flex",flexWrap:"wrap",gap:10,alignItems:"center"}}>
+                <span style={{fontSize:12,color:"var(--muted)"}}>Beziehungsstatus:</span>
+                <select value={orgForm.status} onChange={e=>setOrgForm({...orgForm,status:e.target.value})} style={{border:"1px solid var(--line)",borderRadius:8,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>{ST.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
+                <input value={orgForm.grund||""} onChange={e=>setOrgForm({...orgForm,grund:e.target.value})} placeholder="Notiz oder Grund (optional)" style={{...inp,flex:"1 1 200px",width:"auto"}} />
+                <button onClick={()=>setOrgForm(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Schliessen</button>
+                <button onClick={saveOrg} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
+              </div>
+            )}
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {groups[org].map(k=>(
                 <div key={k.id} style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 12px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
