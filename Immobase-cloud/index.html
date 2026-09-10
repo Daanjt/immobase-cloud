@@ -12082,7 +12082,7 @@ function MarktRadar(){
   },[]);
   const markiere=(id)=>{ supabase.from("markt_radar").update({gesehen:true}).eq("id",id).then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x))); };
   const [inPl,setInPl]=useState({});
-  const inPipeline=(t)=>{ supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(({error})=>{ setInPl(m=>({...m,[t.id]: error?"err":"ok"})); if(error) console.error("pipeline",error); }); };
+  const inPipeline=(t)=>{ if(t.agency_email) supabase.from("kontakte").upsert({name:t.agency_contact_name,email:t.agency_email,organisation:t.agency_name,org_type:"verwaltung",rolle:"Bewirtschaftung",updated_at:new Date().toISOString()},{onConflict:"email",ignoreDuplicates:true}).then(()=>{}); supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(({error})=>{ setInPl(m=>({...m,[t.id]: error?"err":"ok"})); if(error) console.error("pipeline",error); }); };
   const bef=items.filter(x=>x.befristet);
   const unbef=items.filter(x=>!x.befristet);
   const base=rubrik==="bef"?bef:unbef;
@@ -12146,16 +12146,19 @@ function MarktRadar(){
 
 function Pipeline(){
   const STAGES=[["neu","Neu"],["kontaktiert","Kontaktiert"],["antwort","Antwort"],["verhandlung","Verhandlung"],["gewonnen","Zusage"],["verloren","Absage"]];
+  const LBL=Object.fromEntries(STAGES);
   const [deals,setDeals]=useState([]);
   const [loading,setLoading]=useState(true);
   const [stage,setStage]=useState("kontaktiert");
-  const [threads,setThreads]=useState({});
+  const [selected,setSelected]=useState(null);
+  const [thread,setThread]=useState(null);
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
   useEffect(()=>{ laden(); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  useEffect(()=>{ if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
   const heute=()=>new Date().toISOString().slice(0,10);
-  const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d))); };
-  const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>setDeals(ds=>ds.filter(d=>d.id!==id))); };
-  const toggleVerlauf=(d)=>{ setThreads(t=>{ if(t[d.id]){ const n={...t}; delete n[d.id]; return n; } supabase.functions.invoke("outlook-thread",{body:{email:d.contact_email}}).then(({data,error})=>{ setThreads(tt=>({...tt,[d.id]:(error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}})); }).catch(()=>setThreads(tt=>({...tt,[d.id]:{error:"Fehler"}}))); return {...t,[d.id]:{loading:true}}; }); };
+  const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
+  const setStageFn=(d,v)=>{ patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v}); if(v==="gewonnen"&&d.contact_email){ supabase.from("kontakte").update({is_partner:true,org_type:"partner",updated_at:new Date().toISOString()}).eq("email",d.contact_email).then(()=>{}); } };
+  const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
@@ -12170,11 +12173,12 @@ function Pipeline(){
   const fmt=(d)=>d?String(d).slice(0,10).split("-").reverse().join("."):"";
   const cnt=(s)=>deals.filter(d=>d.stage===s).length;
   const liste=deals.filter(d=>d.stage===stage);
+  const d=selected;
   return (
     <div style={{padding:"8px",maxWidth:900}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Pipeline</div>
-        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Kontaktierte Objekte, Status und Ansprechpersonen</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Kontaktierte Objekte, Status und Mailverlauf. Klicke einen Deal für Details.</div>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
         {STAGES.map(([s,lbl])=>(<button key={s} onClick={()=>setStage(s)} style={{background:stage===s?"var(--ink)":"none",color:stage===s?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cnt(s)?" ("+cnt(s)+")":""}</button>))}
@@ -12182,43 +12186,136 @@ function Pipeline(){
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
       {!loading&&liste.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Objekte in dieser Phase.</div>}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {liste.map(d=>(
-          <div key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <a href={d.url||"#"} target="_blank" rel="noreferrer" style={{fontSize:15,color:"var(--ink)",fontWeight:600,textDecoration:"none"}}>{d.strasse||"Adresse"}, {d.plz} {d.ort}</a>
-                <div style={{fontSize:12.5,color:"var(--muted)",marginTop:4,lineHeight:1.6}}>{d.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{d.zimmer?d.zimmer+" Zi":""}{d.preis?" · CHF "+d.preis+" inkl. NK":""}</div>
-                <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>{d.agency_name||""}{d.contact_name?" · "+d.contact_name:""}{d.contact_email?" · "+d.contact_email:""}</div>
-                {d.kontaktiert_am&&<div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>kontaktiert am {fmt(d.kontaktiert_am)}</div>}
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
-                <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,textDecoration:"none",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
-                {d.contact_email&&<button onClick={()=>toggleVerlauf(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{threads[d.id]?"Verlauf ▲":"Mailverlauf"}</button>}
-                <button onClick={()=>entfernen(d.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>entfernen</button>
-              </div>
+        {liste.map(x=>(
+          <div key={x.id} onClick={()=>setSelected(x)} style={{border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",background:"var(--surface)",cursor:"pointer",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,color:"var(--ink)",fontWeight:600}}>{x.strasse||"Adresse"}, {x.plz} {x.ort}</div>
+              <div style={{fontSize:12.5,color:"var(--muted)",marginTop:4,lineHeight:1.6}}>{x.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{x.zimmer?x.zimmer+" Zi":""}{x.preis?" · CHF "+x.preis+" inkl. NK":""}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>{x.agency_name||""}{x.contact_name?" · "+x.contact_name:""}</div>
             </div>
-            <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:11,color:"var(--muted)",flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"3px 8px"}}>{LBL[x.stage]||x.stage}</span>
+          </div>
+        ))}
+      </div>
+      {d&&(
+        <div onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+              <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:19,color:"var(--ink)"}}>{d.strasse||"Adresse"}, {d.plz} {d.ort}</div>
+              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",fontSize:20,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{fontSize:12.5,color:"var(--muted)",marginTop:6,lineHeight:1.7}}>
+              {d.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{d.zimmer?d.zimmer+" Zi":""}{d.preis?" · CHF "+d.preis+" inkl. NK":""}
+              {d.url&&<> · <a href={d.url} target="_blank" rel="noreferrer" style={{color:"#3a5230"}}>↗ Inserat</a></>}
+            </div>
+            <div style={{fontSize:12.5,color:"var(--ink)",marginTop:10,lineHeight:1.8}}>
+              <div><span style={{color:"var(--muted)"}}>Verwaltung:</span> {d.agency_name||"unbekannt"}</div>
+              <div><span style={{color:"var(--muted)"}}>Ansprechperson:</span> {d.contact_name||"unbekannt"}</div>
+              <div><span style={{color:"var(--muted)"}}>E-Mail:</span> {d.contact_email||"nicht hinterlegt"}</div>
+              {d.kontaktiert_am&&<div><span style={{color:"var(--muted)"}}>Kontaktiert am:</span> {fmt(d.kontaktiert_am)}</div>}
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
               <span style={{fontSize:11.5,color:"var(--muted)"}}>Status:</span>
-              <select value={d.stage} onChange={e=>{const v=e.target.value; patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v});}} style={{border:"1px solid var(--line)",borderRadius:8,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>
+              <select value={d.stage} onChange={e=>setStageFn(d,e.target.value)} style={{border:"1px solid var(--line)",borderRadius:8,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>
                 {STAGES.map(([s,lbl])=>(<option key={s} value={s}>{lbl}</option>))}
               </select>
+              <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,textDecoration:"none",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
             </div>
-            <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:10,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:44,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
-            {threads[d.id]&&(
-              <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--line)"}}>
-                {threads[d.id].loading&&<div style={{fontSize:12,color:"#8a8174"}}>Lädt Mailverlauf ...</div>}
-                {threads[d.id].error==="not_configured"&&<div style={{fontSize:12,color:"#8a8174"}}>Outlook ist noch nicht verbunden.</div>}
-                {threads[d.id].error&&threads[d.id].error!=="not_configured"&&<div style={{fontSize:12,color:"#a4442e"}}>Mailverlauf nicht verfügbar.</div>}
-                {threads[d.id].messages&&threads[d.id].messages.length===0&&<div style={{fontSize:12,color:"#8a8174"}}>Keine Mails mit dieser Adresse gefunden.</div>}
-                {threads[d.id].messages&&threads[d.id].messages.map((m,i)=>(
-                  <div key={i} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:12,padding:"4px 0",borderBottom:"1px solid #f0ebe1"}}>
+            <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:12,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:52,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
+            <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
+              <div style={{fontSize:12,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Mailverlauf mit {d.contact_name||d.contact_email||"dem Kontakt"}</div>
+              {(!thread||thread.loading)&&<div style={{fontSize:12,color:"#8a8174"}}>Lädt Mailverlauf ...</div>}
+              {thread&&thread.error==="not_configured"&&<div style={{fontSize:12,color:"#8a8174"}}>Outlook ist noch nicht verbunden.</div>}
+              {thread&&thread.error&&thread.error!=="not_configured"&&<div style={{fontSize:12,color:"#a4442e"}}>Mailverlauf nicht verfügbar.</div>}
+              {thread&&thread.messages&&thread.messages.length===0&&<div style={{fontSize:12,color:"#8a8174"}}>Keine Mails mit dieser Adresse gefunden.</div>}
+              {thread&&thread.messages&&thread.messages.map((m,i)=>(
+                <div key={i} style={{padding:"6px 0",borderBottom:"1px solid #f0ebe1"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"baseline"}}>
                     <span style={{flexShrink:0,fontSize:9.5,padding:"1px 6px",borderRadius:8,background:m.direction==="gesendet"?"#e8efde":"#eef1f6",color:m.direction==="gesendet"?"#3a5230":"#3a4a63"}}>{m.direction}</span>
-                    <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{m.date?String(m.date).slice(0,10).split("-").reverse().join("."):""}</span>
-                    <span style={{color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
+                    <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{fmt(m.date)}</span>
+                    <span style={{color:"var(--ink)",fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
                   </div>
-                ))}
-              </div>
-            )}
+                  {m.preview&&<div style={{fontSize:11.5,color:"#8a8174",marginTop:2,lineHeight:1.4}}>{m.preview}</div>}
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:14,display:"flex",justifyContent:"flex-end"}}>
+              <button onClick={()=>entfernen(d.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11.5,cursor:"pointer"}}>aus Pipeline entfernen</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Kontakte(){
+  const TYP=[["verwaltung","Verwaltung"],["eigentuemer","Eigentümer"],["partner","Partner"],["andere","Andere"]];
+  const typLabel=(t)=>({verwaltung:"Verwaltung",eigentuemer:"Eigentümer",partner:"Partner",andere:"Andere"}[t]||t);
+  const [ks,setKs]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [tab,setTab]=useState("alle");
+  const [q,setQ]=useState("");
+  const [form,setForm]=useState(null);
+  const laden=()=>{ supabase.from("kontakte").select("*").order("organisation",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);}); };
+  useEffect(()=>{ laden(); const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  const entfernen=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>setKs(xs=>xs.filter(x=>x.id!==id))); };
+  const speichern=()=>{ const k=form; if(!k.name&&!k.organisation){alert("Bitte Name oder Organisation angeben.");return;} const row={name:k.name||null,email:k.email||null,phone:k.phone||null,organisation:k.organisation||null,org_type:k.org_type||"verwaltung",rolle:k.rolle||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setForm(null); laden(); }); };
+  const gefiltert=ks.filter(k=>{
+    if(tab==="partner"&&!(k.is_partner||k.org_type==="partner"))return false;
+    if(tab==="verwaltung"&&k.org_type!=="verwaltung")return false;
+    if(tab==="eigentuemer"&&k.org_type!=="eigentuemer")return false;
+    if(q){ const s=((k.name||"")+" "+(k.organisation||"")+" "+(k.email||"")+" "+(k.rolle||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; }
+    return true;
+  });
+  const cnt=(f)=>ks.filter(k=> f==="alle"?true : f==="partner"?(k.is_partner||k.org_type==="partner") : k.org_type===f).length;
+  const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",width:"100%",boxSizing:"border-box"};
+  return (
+    <div style={{padding:"8px",maxWidth:900}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Kontakte</div>
+          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Ansprechpersonen bei Verwaltungen, Eigentümern und Partnern</div>
+        </div>
+        <button onClick={()=>setForm({org_type:"verwaltung"})} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Kontakt</button>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"]].map(([f,lbl])=>(
+          <button key={f} onClick={()=>setTab(f)} style={{background:tab===f?"var(--ink)":"none",color:tab===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cnt(f)?" ("+cnt(f)+")":""}</button>
+        ))}
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen ..." style={{...inp,width:"auto",flex:"1 1 160px",marginLeft:"auto"}} />
+      </div>
+      {form&&(
+        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:16,background:"var(--surface)",marginBottom:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div style={{gridColumn:"1 / -1",fontSize:13,fontWeight:600,color:"var(--ink)"}}>{form.id?"Kontakt bearbeiten":"Neuer Kontakt"}</div>
+          <input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Name" style={inp} />
+          <input value={form.rolle||""} onChange={e=>setForm({...form,rolle:e.target.value})} placeholder="Rolle (z. B. Bewirtschaftung)" style={inp} />
+          <input value={form.organisation||""} onChange={e=>setForm({...form,organisation:e.target.value})} placeholder="Organisation" style={inp} />
+          <select value={form.org_type||"verwaltung"} onChange={e=>setForm({...form,org_type:e.target.value})} style={inp}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
+          <input value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} placeholder="E-Mail" style={inp} />
+          <input value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Telefon" style={inp} />
+          <textarea value={form.notizen||""} onChange={e=>setForm({...form,notizen:e.target.value})} placeholder="Notizen ..." style={{...inp,gridColumn:"1 / -1",minHeight:44,resize:"vertical"}} />
+          <label style={{fontSize:12,color:"var(--muted)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form.is_partner} onChange={e=>setForm({...form,is_partner:e.target.checked})} /> Partner (Zusammenarbeit)</label>
+          <div style={{gridColumn:"1 / -1",display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <button onClick={()=>setForm(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 14px",fontSize:12.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
+            <button onClick={speichern} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
+          </div>
+        </div>
+      )}
+      {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
+      {!loading&&gefiltert.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Kontakte.</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {gefiltert.map(k=>(
+          <div key={k.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"12px 14px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
+            <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setForm(k)}>
+              <div style={{fontSize:14.5,color:"var(--ink)",fontWeight:600}}>{k.name||k.organisation||"Kontakt"}{(k.is_partner||k.org_type==="partner")&&<span style={{marginLeft:8,background:"#e8efde",color:"#3a5230",fontSize:9.5,padding:"1px 7px",borderRadius:8,verticalAlign:"middle"}}>Partner</span>}</div>
+              <div style={{fontSize:12,color:"var(--muted)",marginTop:3}}>{k.organisation||""}{k.rolle?" · "+k.rolle:""}{" · "+typLabel(k.org_type)}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{k.email||""}{k.phone?" · "+k.phone:""}</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+              {k.email&&<a href={"mailto:"+k.email} style={{fontSize:11.5,color:"#3a5230",textDecoration:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px"}}>E-Mail</a>}
+              <button onClick={()=>entfernen(k.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>löschen</button>
+            </div>
           </div>
         ))}
       </div>
@@ -12242,6 +12339,7 @@ const PAGES=[
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
   {id:"marktradar",icon:"🔭",label:"Marktradar"},
   {id:"pipeline",icon:"📇",label:"Pipeline"},
+  {id:"kontakte",icon:"👥",label:"Kontakte"},
 ];
 
 // Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
@@ -12249,7 +12347,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","pipeline","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","pipeline","kontakte","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -12330,7 +12428,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,pipeline:Pipeline,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,pipeline:Pipeline,kontakte:Kontakte,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
