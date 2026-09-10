@@ -12157,7 +12157,13 @@ function Pipeline(){
   useEffect(()=>{ if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
   const heute=()=>new Date().toISOString().slice(0,10);
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
-  const setStageFn=(d,v)=>{ patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v}); if(v==="gewonnen"&&d.contact_email){ supabase.from("kontakte").update({is_partner:true,org_type:"partner",updated_at:new Date().toISOString()}).eq("email",d.contact_email).then(()=>{}); } };
+  const setStageFn=(d,v)=>{
+    patch(d.id, v==="kontaktiert"&&!d.kontaktiert_am?{stage:v,kontaktiert_am:heute()}:{stage:v});
+    if(v==="gewonnen"){
+      if(d.contact_email) supabase.from("kontakte").update({is_partner:true,updated_at:new Date().toISOString()}).eq("email",(d.contact_email||"").toLowerCase()).then(()=>{});
+      if(d.agency_name) supabase.from("partners").select("id,kontakte").eq("name",d.agency_name).then(({data})=>{ const entry={name:d.contact_name||"",email:(d.contact_email||"").toLowerCase(),telefon:"",funktion:"Bewirtschaftung"}; if(data&&data.length){ const pt=data[0]; const arr=Array.isArray(pt.kontakte)?pt.kontakte:[]; if(d.contact_email&&!arr.some(x=>((x.email||"").toLowerCase()===(d.contact_email||"").toLowerCase()))) supabase.from("partners").update({kontakte:[...arr,entry],updated_at:new Date().toISOString()}).eq("id",pt.id).then(()=>{}); } else { supabase.from("partners").insert({id:"P"+Date.now(),name:d.agency_name,typ:"Verwaltung",email:(d.contact_email||""),kontaktperson:d.contact_name||"",kontakte:d.contact_email?[entry]:[]}).then(()=>{}); } }); }
+    }
+  };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
@@ -12257,10 +12263,16 @@ function Kontakte(){
   const [tab,setTab]=useState("alle");
   const [q,setQ]=useState("");
   const [form,setForm]=useState(null);
+  const [acts,setActs]=useState([]);
+  const [note,setNote]=useState("");
   const laden=()=>{ supabase.from("kontakte").select("*").order("organisation",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);}); };
   useEffect(()=>{ laden(); const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
-  const entfernen=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>setKs(xs=>xs.filter(x=>x.id!==id))); };
-  const speichern=()=>{ const k=form; if(!k.name&&!k.organisation){alert("Bitte Name oder Organisation angeben.");return;} const row={name:k.name||null,email:k.email||null,phone:k.phone||null,organisation:k.organisation||null,org_type:k.org_type||"verwaltung",rolle:k.rolle||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setForm(null); laden(); }); };
+  const ladeActs=(id)=>{ supabase.from("kontakt_aktivitaet").select("*").eq("kontakt_id",id).order("datum",{ascending:false}).then(({data})=>setActs(data||[])); };
+  useEffect(()=>{ if(form&&form.id) ladeActs(form.id); else setActs([]); },[form&&form.id]);
+  const entfernen=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{setKs(xs=>xs.filter(x=>x.id!==id)); setForm(null);}); };
+  const speichern=()=>{ const k=form; if(!k.name&&!k.organisation){alert("Bitte Name oder Organisation angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:k.organisation||null,org_type:k.org_type||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setForm(null); laden(); }); };
+  const addNote=()=>{ if(!note.trim()||!form||!form.id)return; supabase.from("kontakt_aktivitaet").insert({kontakt_id:form.id,typ:"notiz",text:note.trim()}).then(({error})=>{ if(!error){ setNote(""); ladeActs(form.id); } }); };
+  const loescheAkt=(aid)=>{ supabase.from("kontakt_aktivitaet").delete().eq("id",aid).then(()=>ladeActs(form.id)); };
   const gefiltert=ks.filter(k=>{
     if(tab==="partner"&&!(k.is_partner||k.org_type==="partner"))return false;
     if(tab==="verwaltung"&&k.org_type!=="verwaltung")return false;
@@ -12269,6 +12281,9 @@ function Kontakte(){
     return true;
   });
   const cnt=(f)=>ks.filter(k=> f==="alle"?true : f==="partner"?(k.is_partner||k.org_type==="partner") : k.org_type===f).length;
+  const groups={}; gefiltert.forEach(k=>{ const g=k.organisation||"Ohne Organisation"; (groups[g]=groups[g]||[]).push(k); });
+  const orgNames=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+  const fmt=(d)=>d?new Date(d).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
   const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",width:"100%",boxSizing:"border-box"};
   return (
     <div style={{padding:"8px",maxWidth:900}}>
@@ -12277,7 +12292,7 @@ function Kontakte(){
           <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Kontakte</div>
           <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Ansprechpersonen bei Verwaltungen, Eigentümern und Partnern</div>
         </div>
-        <button onClick={()=>setForm({org_type:"verwaltung"})} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Kontakt</button>
+        <button onClick={()=>{setForm({org_type:"verwaltung"});setNote("");}} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Kontakt</button>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
         {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"]].map(([f,lbl])=>(
@@ -12286,35 +12301,65 @@ function Kontakte(){
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen ..." style={{...inp,width:"auto",flex:"1 1 160px",marginLeft:"auto"}} />
       </div>
       {form&&(
-        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:16,background:"var(--surface)",marginBottom:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div style={{gridColumn:"1 / -1",fontSize:13,fontWeight:600,color:"var(--ink)"}}>{form.id?"Kontakt bearbeiten":"Neuer Kontakt"}</div>
-          <input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Name" style={inp} />
-          <input value={form.rolle||""} onChange={e=>setForm({...form,rolle:e.target.value})} placeholder="Rolle (z. B. Bewirtschaftung)" style={inp} />
-          <input value={form.organisation||""} onChange={e=>setForm({...form,organisation:e.target.value})} placeholder="Organisation" style={inp} />
-          <select value={form.org_type||"verwaltung"} onChange={e=>setForm({...form,org_type:e.target.value})} style={inp}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
-          <input value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} placeholder="E-Mail" style={inp} />
-          <input value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Telefon" style={inp} />
-          <textarea value={form.notizen||""} onChange={e=>setForm({...form,notizen:e.target.value})} placeholder="Notizen ..." style={{...inp,gridColumn:"1 / -1",minHeight:44,resize:"vertical"}} />
-          <label style={{fontSize:12,color:"var(--muted)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form.is_partner} onChange={e=>setForm({...form,is_partner:e.target.checked})} /> Partner (Zusammenarbeit)</label>
-          <div style={{gridColumn:"1 / -1",display:"flex",gap:8,justifyContent:"flex-end"}}>
-            <button onClick={()=>setForm(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 14px",fontSize:12.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
+        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:16,background:"var(--surface)",marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:10}}>{form.id?"Kontakt bearbeiten":"Neuer Kontakt"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Name" style={inp} />
+            <input value={form.rolle||""} onChange={e=>setForm({...form,rolle:e.target.value})} placeholder="Rolle (z. B. Bewirtschaftung)" style={inp} />
+            <input value={form.organisation||""} onChange={e=>setForm({...form,organisation:e.target.value})} placeholder="Organisation" style={inp} />
+            <select value={form.org_type||"verwaltung"} onChange={e=>setForm({...form,org_type:e.target.value})} style={inp}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
+            <input value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} placeholder="E-Mail" style={inp} />
+            <input value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Telefon" style={inp} />
+            {(form.org_type==="eigentuemer")&&<input value={form.verwaltung||""} onChange={e=>setForm({...form,verwaltung:e.target.value})} placeholder="Zuständige Verwaltung" style={{...inp,gridColumn:"1 / -1"}} />}
+            <textarea value={form.notizen||""} onChange={e=>setForm({...form,notizen:e.target.value})} placeholder="Notizen ..." style={{...inp,gridColumn:"1 / -1",minHeight:40,resize:"vertical"}} />
+            <label style={{fontSize:12,color:"var(--muted)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!form.is_partner} onChange={e=>setForm({...form,is_partner:e.target.checked})} /> Partner (Zusammenarbeit)</label>
+          </div>
+          {form.id&&(
+            <div style={{marginTop:14,borderTop:"1px solid var(--line)",paddingTop:12}}>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:8}}>Verlauf</div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addNote();}} placeholder="Notiz oder Aktivität festhalten ..." style={{...inp,flex:1}} />
+                <button onClick={addNote} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Hinzufügen</button>
+              </div>
+              {acts.length===0&&<div style={{fontSize:11.5,color:"#a0968a"}}>Noch keine Einträge.</div>}
+              {acts.map(av=>(
+                <div key={av.id} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:12,padding:"5px 0",borderBottom:"1px solid #f0ebe1"}}>
+                  <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{fmt(av.datum)}</span>
+                  <span style={{color:"var(--ink)",flex:1}}>{av.text}</span>
+                  <button onClick={()=>loescheAkt(av.id)} style={{background:"none",border:"none",color:"#c9c0b2",fontSize:11,cursor:"pointer",flexShrink:0}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+            <button onClick={()=>setForm(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 14px",fontSize:12.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Schliessen</button>
             <button onClick={speichern} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
           </div>
         </div>
       )}
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
       {!loading&&gefiltert.length===0&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Keine Kontakte.</div>}
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {gefiltert.map(k=>(
-          <div key={k.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"12px 14px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
-            <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setForm(k)}>
-              <div style={{fontSize:14.5,color:"var(--ink)",fontWeight:600}}>{k.name||k.organisation||"Kontakt"}{(k.is_partner||k.org_type==="partner")&&<span style={{marginLeft:8,background:"#e8efde",color:"#3a5230",fontSize:9.5,padding:"1px 7px",borderRadius:8,verticalAlign:"middle"}}>Partner</span>}</div>
-              <div style={{fontSize:12,color:"var(--muted)",marginTop:3}}>{k.organisation||""}{k.rolle?" · "+k.rolle:""}{" · "+typLabel(k.org_type)}</div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{k.email||""}{k.phone?" · "+k.phone:""}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {orgNames.map(org=>(
+          <div key={org}>
+            <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6,paddingBottom:4,borderBottom:"1px solid var(--line)"}}>
+              <span style={{fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{org}</span>
+              <span style={{fontSize:10.5,color:"#a0968a"}}>{typLabel(groups[org][0].org_type)} · {groups[org].length} {groups[org].length===1?"Person":"Personen"}</span>
+              {groups[org][0].verwaltung&&<span style={{fontSize:10.5,color:"#a0968a"}}>· Verwaltung: {groups[org][0].verwaltung}</span>}
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
-              {k.email&&<a href={"mailto:"+k.email} style={{fontSize:11.5,color:"#3a5230",textDecoration:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px"}}>E-Mail</a>}
-              <button onClick={()=>entfernen(k.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>löschen</button>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {groups[org].map(k=>(
+                <div key={k.id} style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 12px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
+                  <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>{setForm(k);setNote("");}}>
+                    <div style={{fontSize:14,color:"var(--ink)",fontWeight:600}}>{k.name||"(ohne Name)"}{(k.is_partner||k.org_type==="partner")&&<span style={{marginLeft:8,background:"#e8efde",color:"#3a5230",fontSize:9.5,padding:"1px 7px",borderRadius:8,verticalAlign:"middle"}}>Partner</span>}</div>
+                    <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{k.rolle?k.rolle+" · ":""}{k.email||""}{k.phone?" · "+k.phone:""}</div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+                    {k.email&&<a href={"mailto:"+k.email} style={{fontSize:11.5,color:"#3a5230",textDecoration:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px"}}>E-Mail</a>}
+                    <button onClick={()=>entfernen(k.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11,cursor:"pointer"}}>löschen</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
