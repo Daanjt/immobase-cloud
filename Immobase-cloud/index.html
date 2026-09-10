@@ -12275,6 +12275,7 @@ function Kontakte(){
   const osTag=(org)=>{ const c=stMap[orgStatus[org]]; return c?<span style={{background:c[1],color:c[2],fontSize:10,padding:"1px 8px",borderRadius:8,fontWeight:600}}>{c[0]}</span>:null; };
   const setStatus=(org,val)=>{ supabase.from("org_status").upsert({organisation:org,status:val,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>setOrgStatus(m=>({...m,[org]:val}))); };
   const [orgForm,setOrgForm]=useState(null);
+  const [openOrgs,setOpenOrgs]=useState({});
   const openOrg=(org)=>{ if(orgForm&&orgForm.organisation===org){setOrgForm(null);return;} supabase.from("org_status").select("*").eq("organisation",org).then(({data})=>{ const row=(data&&data[0])||{}; setOrgForm({organisation:org,status:row.status||orgStatus[org]||"prospect",grund:row.grund||""}); }); };
   const saveOrg=()=>{ supabase.from("org_status").upsert({organisation:orgForm.organisation,status:orgForm.status,grund:orgForm.grund||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{ setOrgStatus(m=>({...m,[orgForm.organisation]:orgForm.status})); setOrgForm(null); }); };
   const laden=()=>{ supabase.from("kontakte").select("*").order("organisation",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);}); };
@@ -12356,7 +12357,7 @@ function Kontakte(){
         {orgNames.map(org=>(
           <div key={org}>
             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6,paddingBottom:4,borderBottom:"1px solid var(--line)"}}>
-              <span onClick={()=>openOrg(org)} style={{fontSize:13.5,fontWeight:700,color:"var(--ink)",cursor:"pointer"}}>{org}</span>
+              <span onClick={()=>setOpenOrgs(o=>({...o,[org]:!o[org]}))} style={{fontSize:13.5,fontWeight:700,color:"var(--ink)",cursor:"pointer"}}>{(openOrgs[org]||q)?"▾ ":"▸ "}{org}</span>
               <span style={{fontSize:10.5,color:"#a0968a"}}>{typLabel(groups[org][0].org_type)} · {groups[org].length} {groups[org].length===1?"Person":"Personen"}</span>
               {groups[org][0].verwaltung&&<span style={{fontSize:10.5,color:"#a0968a"}}>· Verwaltung: {groups[org][0].verwaltung}</span>}
               <span style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
@@ -12373,7 +12374,7 @@ function Kontakte(){
                 <button onClick={saveOrg} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
               </div>
             )}
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {(openOrgs[org]||q)&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
               {groups[org].map(k=>(
                 <div key={k.id} style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 12px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
                   <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>{setForm(k);setNote("");}}>
@@ -12386,7 +12387,7 @@ function Kontakte(){
                   </div>
                 </div>
               ))}
-            </div>
+            </div>}
           </div>
         ))}
       </div>
