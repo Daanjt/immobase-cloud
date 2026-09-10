@@ -12084,7 +12084,7 @@ function MarktRadar(){
   },[]);
   const markiere=(id)=>{ supabase.from("markt_radar").update({gesehen:true}).eq("id",id).then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x))); };
   const [inPl,setInPl]=useState({});
-  const inPipeline=(t)=>{ if(t.agency_email) supabase.from("kontakte").upsert({name:t.agency_contact_name,email:t.agency_email,organisation:t.agency_name,org_type:"verwaltung",rolle:"Bewirtschaftung",updated_at:new Date().toISOString()},{onConflict:"email",ignoreDuplicates:true}).then(()=>{}); supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(({error})=>{ setInPl(m=>({...m,[t.id]: error?"err":"ok"})); if(error) console.error("pipeline",error); }); };
+  const inPipeline=(t)=>{ if(t.agency_name) supabase.from("org_status").upsert({organisation:t.agency_name,typ:"verwaltung",updated_at:new Date().toISOString()},{onConflict:"organisation",ignoreDuplicates:true}).then(()=>{}); if(t.agency_email) supabase.from("kontakte").upsert({name:t.agency_contact_name,email:t.agency_email,organisation:t.agency_name,org_type:"verwaltung",rolle:"Bewirtschaftung",updated_at:new Date().toISOString()},{onConflict:"email",ignoreDuplicates:true}).then(()=>{}); supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"marktradar",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,befristet:t.befristet,agency_name:t.agency_name,contact_name:t.agency_contact_name,contact_email:t.agency_email,url:t.url,stage:"kontaktiert",kontaktiert_am:new Date().toISOString().slice(0,10)},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(({error})=>{ setInPl(m=>({...m,[t.id]: error?"err":"ok"})); if(error) console.error("pipeline",error); }); };
   const bef=items.filter(x=>x.befristet);
   const unbef=items.filter(x=>!x.befristet);
   const base=rubrik==="bef"?bef:unbef;
@@ -12275,6 +12275,7 @@ function Kontakte(){
   const [cf,setCf]=useState(null);
   const [acts,setActs]=useState([]);
   const [note,setNote]=useState("");
+  const [mergeT,setMergeT]=useState("");
   const ladeK=()=>supabase.from("kontakte").select("*").order("name",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);});
   const ladeOrgs=()=>supabase.from("org_status").select("*").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr); setOrgs(m); });
   useEffect(()=>{ ladeK(); ladeOrgs(); const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},ladeK).on("postgres_changes",{event:"*",schema:"public",table:"org_status"},ladeOrgs).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
@@ -12286,9 +12287,10 @@ function Kontakte(){
   const pass=(org,f)=>{ const t=firmType(org),st=firmStatus(org); if(f==="partner"&&st!=="partner")return false; if(f==="verwaltung"&&t!=="verwaltung")return false; if(f==="eigentuemer"&&t!=="eigentuemer")return false; return true; };
   const cntTab=(f)=>firmNames.filter(org=>pass(org,f)).length;
   const firmen=firmNames.filter(org=>{ if(!pass(org,tab))return false; if(q){ const persons=firmKontakte(org).map(k=>(k.name||"")+" "+(k.email||"")+" "+(k.rolle||"")).join(" "); const s=(org+" "+persons+" "+((orgs[org]&&orgs[org].email)||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; } return true; }).sort((a,b)=>a.localeCompare(b));
-  const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||""}); setFirm(org); setCf(null); };
-  const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:""}); setFirm("*neu*"); setCf(null); };
-  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); }); };
+  const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||"",website:rr.website||""}); setFirm(org); setCf(null); };
+  const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:"",website:""}); setFirm("*neu*"); setCf(null); };
+  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); }); };
+  const mergeFirm=(target)=>{ if(!target||target===fd.organisation)return; if(!confirm('Firma "'+fd.organisation+'" in "'+target+'" zusammenführen? Alle Kontakte werden übernommen.'))return; supabase.from("kontakte").update({organisation:target,updated_at:new Date().toISOString()}).eq("organisation",fd.organisation).then(()=>{ supabase.from("org_status").delete().eq("organisation",fd.organisation).then(()=>{ setFirm(null); setCf(null); setMergeT(""); ladeK(); ladeOrgs(); }); }); };
   const openContact=(k)=>{ if(k){ setCf({...k}); setNote(""); if(k.id) ladeActs(k.id); else setActs([]); } else { setCf({organisation:firm,org_type:(fd&&fd.typ)||"verwaltung"}); setActs([]); setNote(""); } };
   const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setCf(null); ladeK(); }); };
   const delContact=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{ setCf(null); ladeK(); }); };
@@ -12339,12 +12341,20 @@ function Kontakte(){
               <input value={fd.adresse||""} onChange={e=>setFd({...fd,adresse:e.target.value})} placeholder="Adresse" style={{...inp,gridColumn:"1 / -1"}} />
               <input value={fd.email||""} onChange={e=>setFd({...fd,email:e.target.value})} placeholder="Allgemeine E-Mail" style={inp} />
               <input value={fd.telefon||""} onChange={e=>setFd({...fd,telefon:e.target.value})} placeholder="Telefon" style={inp} />
+              <input value={fd.website||""} onChange={e=>setFd({...fd,website:e.target.value})} placeholder="Website" style={{...inp,gridColumn:"1 / -1"}} />
               {fd.status==="kein_interesse"&&<input value={fd.grund||""} onChange={e=>setFd({...fd,grund:e.target.value})} placeholder="Grund für Kein Interesse" style={{...inp,gridColumn:"1 / -1"}} />}
               <textarea value={fd.notizen||""} onChange={e=>setFd({...fd,notizen:e.target.value})} placeholder="Notizen zur Firma ..." style={{...inp,gridColumn:"1 / -1",minHeight:40,resize:"vertical"}} />
             </div>
             <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
               <button onClick={saveFirm} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Firma speichern</button>
             </div>
+            {!fd.isNew&&firmen.length>1&&(
+              <div style={{marginTop:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",borderTop:"1px solid var(--line)",paddingTop:10}}>
+                <span style={{fontSize:11,color:"var(--muted)"}}>Zusammenführen mit:</span>
+                <select value={mergeT} onChange={e=>setMergeT(e.target.value)} style={{...inp,width:"auto",flex:"1 1 160px"}}><option value="">Firma wählen ...</option>{firmen.filter(o=>o!==fd.organisation).map(o=>(<option key={o} value={o}>{o}</option>))}</select>
+                <button onClick={()=>mergeFirm(mergeT)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:11.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Zusammenführen</button>
+              </div>
+            )}
             {!fd.isNew&&(
               <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
