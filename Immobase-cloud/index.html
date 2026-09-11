@@ -12078,7 +12078,7 @@ function MarktRadar(){
   };
   useEffect(()=>{
     laden();
-    supabase.from("org_status").select("organisation,status").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]=rr.status); setOrgStatus(m); }).catch(()=>{});
+    supabase.from("org_status").select("organisation,status,referenz_kontakt").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt}); setOrgStatus(m); }).catch(()=>{});
     const ch=supabase.channel("markt_radar_page").on("postgres_changes",{event:"*",schema:"public",table:"markt_radar"},laden).subscribe();
     return ()=>{ supabase.removeChannel(ch); };
   },[]);
@@ -12090,7 +12090,7 @@ function MarktRadar(){
   const base=rubrik==="bef"?bef:unbef;
   const liste=nurNeu?base.filter(x=>!x.gesehen):base;
   const uz=(a)=>a.filter(x=>!x.gesehen).length;
-  const osBadge=(name)=>{ const st=orgStatus[(name||"").toLowerCase()]; const map={partner:["bereits Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse, nicht kontaktieren","#f6e3df","#a4442e"],gespraech:["in Gespräch","#f2ecdb","#7c6a4e"]}; const c=map[st]; return c?<div style={{marginTop:4}}><span style={{background:c[1],color:c[2],fontSize:10,padding:"2px 8px",borderRadius:8,fontWeight:700}}>{c[0]}</span></div>:null; };
+  const osBadge=(name)=>{ const st=(orgStatus[(name||"").toLowerCase()]||{}).status; const map={partner:["bereits Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse, nicht kontaktieren","#f6e3df","#a4442e"],gespraech:["in Gespräch","#f2ecdb","#7c6a4e"]}; const c=map[st]; return c?<div style={{marginTop:4}}><span style={{background:c[1],color:c[2],fontSize:10,padding:"2px 8px",borderRadius:8,fontWeight:700}}>{c[0]}</span></div>:null; };
   const frei=(t)=>{ const v=t.frei_ab; if(!v) return ""; const m={agr:"nach Vereinbarung",imm:"sofort",per:"per sofort"}; const d=/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10).split("-").reverse().join("."):null; return " · frei ab "+(d||m[v]||v); };
   const mSubject=(t)=>(t.strasse?t.strasse+", ":"Mietwohnung ")+t.plz+" "+(t.ort||"");
   const mBody=(t)=>{
@@ -12098,6 +12098,8 @@ function MarktRadar(){
     const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
     const vn=(t.agency_contact_name||"").trim().split(" ")[0];
     const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
+    const _os=orgStatus[(t.agency_name||"").toLowerCase()]||{};
+    if(_os.status==="partner"){ const ref=_os.referenz?(" (unter anderem mit "+_os.referenz+")"):""; return [gruss,"","Ich hoffe, es geht dir gut! 🙂","","Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse, diese anzumieten.","","Wir arbeiten bereits mit "+(t.agency_name||"euch")+" zusammen"+ref+" und bieten aktuell mehrere eurer Objekte möbliert an. Wir mieten zu marktüblichen Konditionen an und vermieten möbliert an Studierende und Young Professionals; für euch heisst das ein zuverlässiger Vertragspartner, planbare Mieteinnahmen und kein Leerstand.","","Wäre eine Vermietung an uns auch bei diesem Objekt denkbar? Über eine kurze Rückmeldung freue ich mich.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n"); }
     const objSatz=t.befristet
       ? "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept."
       : "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
@@ -12160,8 +12162,9 @@ function Pipeline(){
   const [sendMsg,setSendMsg]=useState("");
   const [sig,setSig]=useState("Freundliche Grüsse\nDaan Theijse\nD&T Homes\nwww.dthomes.ch");
   const [sigEdit,setSigEdit]=useState(false);
+  const [orgStatus,setOrgStatus]=useState({});
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
-  useEffect(()=>{ laden(); supabase.from("app_settings").select("value").eq("key","mail_signature").then(({data})=>{ if(data&&data[0]&&data[0].value) setSig(data[0].value); }).catch(()=>{}); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  useEffect(()=>{ laden(); supabase.from("app_settings").select("value").eq("key","mail_signature").then(({data})=>{ if(data&&data[0]&&data[0].value) setSig(data[0].value); }).catch(()=>{}); supabase.from("org_status").select("organisation,status,referenz_kontakt").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt}); setOrgStatus(m); }).catch(()=>{}); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   useEffect(()=>{ if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
   const heute=()=>new Date().toISOString().slice(0,10);
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
@@ -12184,6 +12187,8 @@ function Pipeline(){
     const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
     const vn=(t.contact_name||"").trim().split(" ")[0];
     const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
+    const _os=orgStatus[(t.agency_name||"").toLowerCase()]||{};
+    if(_os.status==="partner"){ const ref=_os.referenz?(" (unter anderem mit "+_os.referenz+")"):""; return [gruss,"","Ich hoffe, es geht dir gut! 🙂","","Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse, diese anzumieten.","","Wir arbeiten bereits mit "+(t.agency_name||"euch")+" zusammen"+ref+" und bieten aktuell mehrere eurer Objekte möbliert an. Wir mieten zu marktüblichen Konditionen an und vermieten möbliert an Studierende und Young Professionals; für euch heisst das ein zuverlässiger Vertragspartner, planbare Mieteinnahmen und kein Leerstand.","","Wäre eine Vermietung an uns auch bei diesem Objekt denkbar? Über eine kurze Rückmeldung freue ich mich."].join("\n"); }
     const objSatz=t.befristet? "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept." : "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
     const nutzen=t.befristet? "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem habt ihr die Sicherheit, nach der Befristung direkt mit eurem Projekt zu starten. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig." : "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
     return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung."].join("\n");
