@@ -9281,12 +9281,15 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 .map(x => `${(x.vorname||"").trim()} ${(x.nachname||"").trim()}`.trim() + (x.phone ? ` · ${x.phone}` : ""))
                 .join("\n") : "";
               const vormieter = (room && room.tenantId && room.tenantId !== tenant.id) ? (tenants||[]).find(t => t && t.id === room.tenantId) : null;
+              const nachmieter = room ? (tenants||[]).find(t => t && t.id !== tenant.id && t.roomId === room.id && (t.status||"aktiv")!=="archiviert") : null;
               const empf = {
                 vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
                 adresse: [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
                 uebergabe_link: uebergabeLink, mitbewohner: wgMitbewohner,
                 vormieter_name: vormieter ? `${vormieter.vorname||""} ${vormieter.nachname||""}`.trim() : "",
                 vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
+                nachmieter_name: nachmieter ? `${nachmieter.vorname||""} ${nachmieter.nachname||""}`.trim() : "",
+                nachmieter_telefon: nachmieter ? (nachmieter.phone||"") : "",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
@@ -12748,6 +12751,8 @@ function platzhalterFuellen(text, empfaenger) {
     tour_link: empfaenger.tour_link || "",
     vormieter_name: empfaenger.vormieter_name || "",
     vormieter_telefon: empfaenger.vormieter_telefon || "",
+    nachmieter_name: empfaenger.nachmieter_name || "",
+    nachmieter_telefon: empfaenger.nachmieter_telefon || "",
   };
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
