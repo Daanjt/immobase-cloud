@@ -7087,6 +7087,7 @@ www.dthomes.ch`;
               const aptObj = roomObj ? apts.find(a => a.id === roomObj.aptId) : null;
               const kautionText = b.kautionOpt==="0x"?"keine Kaution":b.kautionOpt==="1x"?"1 Monatsmiete":b.kautionOpt==="2x"?"2 Monatsmieten":b.kautionOpt==="3x"?"3 Monatsmieten":"";
               const moeblText = b.moebliert==="ja"?"möbliert":b.moebliert==="nein"?"unmöbliert":"";
+              const vormieter = (roomObj && roomObj.tenantId) ? (tenants||[]).find(t => t && t.id === roomObj.tenantId) : null;
               const empf = {
                 vorname: b.vorname, nachname: b.nachname, email: b.email, phone: b.phone,
                 adresse: [aptObj?.adresse, [aptObj?.plz, aptObj?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), zimmer: roomObj?.id || "", einzug: b.einzug || "", auszug: "",
@@ -7094,6 +7095,8 @@ www.dthomes.ch`;
                 moeblierung: moeblText,
                 kautionswahl: kautionText,
                 tour_link: aptObj?.matterportUrl || "",
+                vormieter_name: vormieter ? `${vormieter.vorname||""} ${vormieter.nachname||""}`.trim() : "",
+                vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
             })()}
@@ -12740,6 +12743,8 @@ function platzhalterFuellen(text, empfaenger) {
     moeblierung: empfaenger.moeblierung || "",
     kautionswahl: empfaenger.kautionswahl || "",
     tour_link: empfaenger.tour_link || "",
+    vormieter_name: empfaenger.vormieter_name || "",
+    vormieter_telefon: empfaenger.vormieter_telefon || "",
   };
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
