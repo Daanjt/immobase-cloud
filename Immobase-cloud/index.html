@@ -9280,10 +9280,13 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 .filter(x => x && (x.status||"aktiv") === "aktiv")
                 .map(x => `${(x.vorname||"").trim()} ${(x.nachname||"").trim()}`.trim() + (x.phone ? ` · ${x.phone}` : ""))
                 .join("\n") : "";
+              const vormieter = (room && room.tenantId && room.tenantId !== tenant.id) ? (tenants||[]).find(t => t && t.id === room.tenantId) : null;
               const empf = {
                 vorname: tenant.vorname, nachname: tenant.nachname, email: tenant.email, phone: tenant.phone,
                 adresse: [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), zimmer: room?.id || "", einzug: tenant.einzug || "", auszug: tenant.auszug || "",
                 uebergabe_link: uebergabeLink, mitbewohner: wgMitbewohner,
+                vormieter_name: vormieter ? `${vormieter.vorname||""} ${vormieter.nachname||""}`.trim() : "",
+                vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
