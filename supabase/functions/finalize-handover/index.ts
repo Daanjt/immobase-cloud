@@ -74,7 +74,7 @@ function buildSubmittedHtml(p: Record<string, any>): string {
   .sig-block .role { font-size:9px; color:#888; letter-spacing:.2em; text-transform:uppercase; font-weight:600; margin-bottom:4px; }
   .sig-block .name { font-size:13px; font-weight:600; margin-bottom:4px; }
   .sig-block img { max-height:56px; max-width:230px; display:block; margin:2px 0 4px; }
-  .sig-block img.fak { max-height:72px; }
+  .sig-block img.fak { max-height:46px; }
   .sig-block .meta { font-size:10.5px; color:#666; }
   `;
   const aptZeile = p.apt_adresse ? `${p.apt_adresse}${p.apt_plz || p.apt_ort ? ", " : ""}${p.apt_plz || ""} ${p.apt_ort || ""}`.trim() : "";
