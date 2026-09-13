@@ -1,6 +1,6 @@
 // finalize-handover - rendert ein eingereichtes Uebernahmeprotokoll (Fotos, Maengel,
-// Unterschrift) serverseitig zu PDF und loest ueber send-handover-pdf Mail + Dokument
-// + Abschluss aus. Wird beim manuellen Akzeptieren und zum Nachholen genutzt.
+// Unterschrift, Klauseln) serverseitig zu PDF und loest ueber send-handover-pdf
+// Mail + Dokument + Abschluss aus. Mit skipEmail=true nur Dokument ersetzen (kein Mail).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -33,6 +33,14 @@ function parseSchluessel(info: string) {
   const exM = str.match(/Extra-Schl(?:ü|ue)ssel:\s*([\s\S]*)/i); if (exM) extra = exM[1].trim();
   return { nr, extra };
 }
+function sanitizeDoc(str: string): string {
+  return (str || "").replace(/[äÄ]/g,"ae").replace(/[öÖ]/g,"oe").replace(/[üÜ]/g,"ue").replace(/[ß]/g,"ss").replace(/[^a-zA-Z0-9_-]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
+}
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
 const RAUM_LABEL: Record<string,string> = { zimmer:"Zimmer", kueche:"Küche", bad:"Bad", wc:"WC", wohnzimmer:"Wohnzimmer", flur:"Flur/Eingang", balkon:"Balkon", keller:"Keller", allgemein:"Allgemein", sonstiges:"Sonstiges" };
 
 function buildSubmittedHtml(p: Record<string, any>): string {
@@ -56,20 +64,25 @@ function buildSubmittedHtml(p: Record<string, any>): string {
   .photo { border:1px solid #e6e2d8; border-radius:4px; overflow:hidden; page-break-inside:avoid; }
   .photo img { width:100%; height:200px; object-fit:cover; display:block; }
   .photo .cap { font-size:10.5px; color:#555; padding:6px 8px; background:#faf8f3; }
-  .signatures { margin-top:26px; display:flex; gap:36px; }
+  .clauses { margin-top:22px; page-break-inside:avoid; }
+  .clauses .ct { font-size:9px; color:#888; letter-spacing:.3em; text-transform:uppercase; font-weight:600; margin-bottom:11px; }
+  .clauses ol { margin:0; padding-left:18px; font-size:11px; line-height:1.55; color:#2a2823; }
+  .clauses li { margin-bottom:6px; page-break-inside:avoid; }
+  .signatures { margin-top:26px; display:flex; gap:36px; page-break-inside:avoid; }
   .sig-block { flex:1; border-top:1px solid #1a1a1a; padding-top:7px; }
   .sig-block .role { font-size:9px; color:#888; letter-spacing:.2em; text-transform:uppercase; font-weight:600; margin-bottom:4px; }
   .sig-block .name { font-size:13px; font-weight:600; margin-bottom:4px; }
   .sig-block .meta { font-size:10.5px; color:#666; }
   `;
   const aptZeile = p.apt_adresse ? `${p.apt_adresse}${p.apt_plz || p.apt_ort ? ", " : ""}${p.apt_plz || ""} ${p.apt_ort || ""}`.trim() : "";
-  const { nr: sNr, extra: sExtra } = parseSchluessel(p.schluessel_info || "");
+  const sk = parseSchluessel(p.schluessel_info || "");
   const vollName = `${p.mieter_vorname || ""} ${p.mieter_nachname || ""}`.trim() || "-";
   const submitStr = formatDateDE(p.submitted_at) || formatDateDE(new Date().toISOString());
   const photos: any[] = Array.isArray(p.photos) ? p.photos : [];
   const withUrl = photos.filter(f => f && f.url);
   const mnotes = (p.mangel_notes || "").trim();
   const hasMaengel = withUrl.length > 0 || mnotes.length > 0;
+  const clause1Key = sk.nr ? ` (Nr. ${esc(sk.nr)}${sk.extra ? `; zusätzlich: ${esc(sk.extra.replace(/\n/g, ", "))}` : ""})` : "";
 
   const photoHtml = withUrl.map(f => {
     const raum = RAUM_LABEL[String(f.raum||"").toLowerCase()] || (f.raum ? esc(f.raum) : "");
@@ -77,12 +90,19 @@ function buildSubmittedHtml(p: Record<string, any>): string {
     const cap = [raum, note].filter(Boolean).map(esc).join(" · ");
     return `<div class="photo"><img src="${esc(f.url)}" alt=""/>${cap?`<div class="cap">${cap}</div>`:""}</div>`;
   }).join("");
-
   const maengelSection = hasMaengel
     ? `${mnotes?`<div class="mnote">${esc(mnotes)}</div>`:""}${withUrl.length?`<div class="photos">${photoHtml}</div>`:""}`
     : `<div class="no-maengel">Es wurden keine Mängel gemeldet; die Wohnung wurde in einwandfreiem Zustand übernommen.</div>`;
+  const schluesselSection = (sk.nr || sk.extra) ? `<div class="info-section"><div class="card-eyebrow">Schlüsselübergabe</div><div class="info-grid">${sk.nr?`<span class="lbl">Schlüsselnummer:</span><span>${esc(sk.nr)}</span>`:""}${sk.extra?`<span class="lbl">Extra-Schlüssel:</span><span style="white-space:pre-wrap">${esc(sk.extra)}</span>`:""}</div></div>` : "";
 
-  const schluesselSection = (sNr || sExtra) ? `<div class="info-section"><div class="card-eyebrow">Schlüsselübergabe</div><div class="info-grid">${sNr?`<span class="lbl">Schlüsselnummer:</span><span>${esc(sNr)}</span>`:""}${sExtra?`<span class="lbl">Extra-Schlüssel:</span><span style="white-space:pre-wrap">${esc(sExtra)}</span>`:""}</div></div>` : "";
+  const clauses = `<div class="clauses"><div class="ct">Erklärung der Vertragsparteien</div><ol>
+    <li>Die Mietpartei bestätigt den Erhalt der aufgeführten Schlüssel${clause1Key} und verpflichtet sich, diese sorgfältig zu verwahren und am Ende des Mietverhältnisses vollzählig zurückzugeben. Das Anfertigen zusätzlicher Schlüssel ohne Zustimmung ist untersagt.</li>
+    <li>Die Mietpartei bestätigt, dass die Wohnung im obenstehend dokumentierten Zustand übernommen wurde. Sichtbare Mängel, die innerhalb der 14-tägigen Frist nach Einzug nicht aufgeführt wurden, gelten als nicht vorhanden.</li>
+    <li>Verdeckte Mängel, die bei der Übernahme trotz sorgfältiger Prüfung nicht erkennbar waren (z.B. Schimmel hinter Möbeln), sind der Hauptmieterin innert 10 Tagen ab Entdeckung schriftlich zu melden (Art. 256 OR).</li>
+    <li>Die Mietpartei verpflichtet sich, das Mietobjekt sorgfältig zu nutzen und in vergleichbarem Zustand zurückzugeben (vorbehaltlich normaler Abnutzung gemäss Schweizer Mietrecht).</li>
+    <li>Die Mietpartei bestätigt die obenstehenden Angaben und die aufgeführten Mängel durch ihre digitale Unterschrift. Eine Kopie dieses Protokolls wird der Mietpartei zugestellt.</li>
+    <li>Bei Streitigkeiten gilt schweizerisches Recht; Gerichtsstand ist der Ort der gelegenen Sache, zwingende gesetzliche Gerichtsstände (insbesondere Art. 33 ZPO) bleiben vorbehalten.</li>
+  </ol></div>`;
 
   return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>${CSS}
     body{margin:0;background:#fff;} @page{ size:A4; margin:16mm 16mm 18mm; }</style></head>
@@ -105,6 +125,7 @@ function buildSubmittedHtml(p: Record<string, any>): string {
     ${schluesselSection}
     <div class="maengel-title">Erfasste Mängel &amp; Fotos (${withUrl.length})</div>
     ${maengelSection}
+    ${clauses}
     <div class="signatures">
       <div class="sig-block"><div class="role">Mietpartei · digital eingereicht</div><div class="name">${esc(p.tenant_signature||vollName)}</div><div class="meta">Eingereicht am ${esc(submitStr)}</div></div>
       <div class="sig-block"><div class="role">Hauptmieterin</div><div class="name">D&amp;T Partners GmbH</div></div>
@@ -123,23 +144,44 @@ async function renderPdf(html: string): Promise<string | null> {
   } catch (e) { console.error("PDF-API ex", (e as Error).message); return null; }
 }
 
+async function saveDoc(p: Record<string, any>, pdfBase64: string): Promise<{ saved: boolean; error: string | null }> {
+  const entityType = p.tenant_id ? "tenant" : (p.bewerber_id ? "applicant" : null);
+  const entityId = p.tenant_id || p.bewerber_id || null;
+  if (!entityType || !entityId) return { saved: false, error: "keine tenant_id/bewerber_id" };
+  const category = "Übergabeprotokoll";
+  const docFilename = `${sanitizeDoc(p.mieter_nachname)}_${sanitizeDoc(p.mieter_vorname)}_${sanitizeDoc(category)}.pdf`;
+  const docPath = `${entityType}/${entityId}/${Date.now()}_${docFilename}`;
+  const bytes = base64ToBytes(pdfBase64);
+  const upRes = await fetch(`${SUPABASE_URL}/storage/v1/object/documents/${docPath}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/pdf", "x-upsert": "true" }, body: bytes });
+  if (!upRes.ok) return { saved: false, error: `Storage ${upRes.status}` };
+  const insRes = await fetch(`${SUPABASE_URL}/rest/v1/documents`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify([{ entity_type: entityType, entity_id: entityId, category, filename: docFilename, storage_path: docPath, file_size: bytes.length, mime_type: "application/pdf", uploaded_by: "Übernahmeprotokoll (automatisch)" }]) });
+  if (!insRes.ok) return { saved: false, error: `insert ${insRes.status}` };
+  return { saved: true, error: null };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   try {
-    const { protocolId } = await req.json();
+    const { protocolId, skipEmail } = await req.json();
     if (!protocolId) return new Response(JSON.stringify({ error: "Missing protocolId" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     const r = await fetch(`${SUPABASE_URL}/rest/v1/handover_protocols?id=eq.${protocolId}&select=*`, { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
     if (!r.ok) throw new Error(`load ${r.status}`);
     const rows = await r.json();
     if (!rows.length) return new Response(JSON.stringify({ error: "Protocol not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
     const p = rows[0];
-    if (!p.mieter_email || !p.mieter_email.includes("@")) return new Response(JSON.stringify({ error: "Invalid email address" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+    if (!skipEmail && (!p.mieter_email || !p.mieter_email.includes("@"))) return new Response(JSON.stringify({ error: "Invalid email address" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
 
     const html = buildSubmittedHtml(p);
     const pdfBase64 = await renderPdf(html);
     if (!pdfBase64) throw new Error("PDF generation failed");
 
-    // Mail + Dokument + Abschluss ueber bestehende send-handover-pdf
+    if (skipEmail) {
+      const doc = await saveDoc(p, pdfBase64);
+      const jetzt = new Date().toISOString();
+      await fetch(`${SUPABASE_URL}/rest/v1/handover_protocols?id=eq.${protocolId}`, { method: "PATCH", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ status: "accepted", closed_at: jetzt, updated_at: jetzt }) });
+      return new Response(JSON.stringify({ ok: true, skipEmail: true, documentSaved: doc.saved, documentError: doc.error }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
     const sp = await fetch(`${SUPABASE_URL}/functions/v1/send-handover-pdf`, {
       method: "POST",
       headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
