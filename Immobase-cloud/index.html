@@ -2483,6 +2483,15 @@ function useSupabaseData() {
     return data;
   }
   
+  async function resendHandoverInvite(id) {
+    try {
+      const { data, error } = await supabase.functions.invoke("send-handover-invite", { body: { protocolId: id } });
+      if (error || (data && data.error)) alert("E-Mail konnte nicht gesendet werden: " + ((error && error.message) || (data && data.error) || "unbekannt"));
+      else alert("Einladung wurde gesendet.");
+    } catch (e) { alert("E-Mail konnte nicht gesendet werden: " + (e.message || e)); }
+    await loadHandoverProtocols();
+  }
+  
   async function cancelHandoverProtocol(protocolId) {
     const { error } = await supabase.from("handover_protocols").update({
       status: "cancelled",
@@ -3637,6 +3646,9 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   ⏳ Email wird versendet ...
                 </div>
               )}
+              {isActive && <div style={{marginBottom:8}}>
+                <button onClick={()=>resendHandoverInvite(h.id)} style={{fontSize:10.5,padding:"4px 10px",background:"#1a1814",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>✉️ Einladung {h.inviteSentAt?"erneut senden":"senden"}</button>
+              </div>}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
                 <span style={{fontSize:11.5,color:"#3a352d"}}>
                   Gestartet {new Date(h.startedAt).toLocaleDateString("de-CH")}
