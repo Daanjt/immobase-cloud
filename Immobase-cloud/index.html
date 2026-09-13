@@ -12369,6 +12369,8 @@ function Kontakte(){
   const delNote=(aid)=>supabase.from("kontakt_aktivitaet").delete().eq("id",aid).then(()=>ladeActs(cf.id));
   const fmt=(d)=>d?new Date(d).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
   const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",width:"100%",boxSizing:"border-box"};
+  const CI={...inp,fontSize:12,padding:"6px 9px"};
+  const LBL={fontSize:9.5,color:"var(--muted)",fontWeight:700,letterSpacing:"0.4px",textTransform:"uppercase",display:"block",marginBottom:3};
   return (
     <div style={{padding:"8px",maxWidth:900}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:16,flexWrap:"wrap"}}>
@@ -12399,25 +12401,25 @@ function Kontakte(){
       </div>
       {firm&&fd&&(
         <div onClick={()=>{setFirm(null);setCf(null);}} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:600,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"18px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}>
               {fd.isNew
-                ? <input value={fd.organisation} onChange={e=>setFd({...fd,organisation:e.target.value})} placeholder="Firmenname" style={{...inp,fontSize:17,fontWeight:600}} />
-                : <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:20,color:"var(--ink)"}}>{fd.organisation} {osTag(fd.status)}</div>}
+                ? <input value={fd.organisation} onChange={e=>setFd({...fd,organisation:e.target.value})} placeholder="Firmenname" style={{...inp,fontSize:15,fontWeight:600}} />
+                : <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>{fd.organisation} {osTag(fd.status)}</div>}
               <button onClick={()=>{setFirm(null);setCf(null);}} style={{background:"none",border:"none",fontSize:20,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <select value={fd.typ} onChange={e=>setFd({...fd,typ:e.target.value})} style={inp}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select>
-              <select value={fd.status} onChange={e=>setFd({...fd,status:e.target.value})} style={inp}>{ST.map(([v,l])=>(<option key={v} value={v}>Status: {l}</option>))}</select>
-              <input value={fd.adresse||""} onChange={e=>setFd({...fd,adresse:e.target.value})} placeholder="Adresse" style={{...inp,gridColumn:"1 / -1"}} />
-              <input value={fd.email||""} onChange={e=>setFd({...fd,email:e.target.value})} placeholder="Allgemeine E-Mail" style={inp} />
-              <input value={fd.telefon||""} onChange={e=>setFd({...fd,telefon:e.target.value})} placeholder="Telefon" style={inp} />
-              <input value={fd.website||""} onChange={e=>setFd({...fd,website:e.target.value})} placeholder="Website" style={{...inp,gridColumn:"1 / -1"}} />
-              {fd.status==="kein_interesse"&&<input value={fd.grund||""} onChange={e=>setFd({...fd,grund:e.target.value})} placeholder="Grund für Kein Interesse" style={{...inp,gridColumn:"1 / -1"}} />}
-              <textarea value={fd.notizen||""} onChange={e=>setFd({...fd,notizen:e.target.value})} placeholder="Notizen zur Firma ..." style={{...inp,gridColumn:"1 / -1",minHeight:40,resize:"vertical"}} />
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"9px 10px"}}>
+              <div><label style={LBL}>Typ</label><select value={fd.typ} onChange={e=>setFd({...fd,typ:e.target.value})} style={CI}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select></div>
+              <div><label style={LBL}>Status</label><select value={fd.status} onChange={e=>setFd({...fd,status:e.target.value})} style={CI}>{ST.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select></div>
+              <div style={{gridColumn:"1 / -1"}}><label style={LBL}>Adresse</label><input value={fd.adresse||""} onChange={e=>setFd({...fd,adresse:e.target.value})} placeholder="Strasse, PLZ Ort" style={CI} /></div>
+              <div><label style={LBL}>E-Mail</label><input value={fd.email||""} onChange={e=>setFd({...fd,email:e.target.value})} placeholder="info@firma.ch" style={CI} /></div>
+              <div><label style={LBL}>Telefon</label><input value={fd.telefon||""} onChange={e=>setFd({...fd,telefon:e.target.value})} placeholder="+41 ..." style={CI} /></div>
+              <div style={{gridColumn:"1 / -1"}}><label style={LBL}>Website</label><input value={fd.website||""} onChange={e=>setFd({...fd,website:e.target.value})} placeholder="www.firma.ch" style={CI} /></div>
+              {fd.status==="kein_interesse"&&<div style={{gridColumn:"1 / -1"}}><label style={LBL}>Grund (Kein Interesse)</label><input value={fd.grund||""} onChange={e=>setFd({...fd,grund:e.target.value})} style={CI} /></div>}
+              <div style={{gridColumn:"1 / -1"}}><label style={LBL}>Notizen</label><textarea value={fd.notizen||""} onChange={e=>setFd({...fd,notizen:e.target.value})} placeholder="Notizen zur Firma ..." style={{...CI,minHeight:44,resize:"vertical"}} /></div>
             </div>
-            <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
-              <button onClick={saveFirm} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Firma speichern</button>
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
+              <button onClick={saveFirm} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 16px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Firma speichern</button>
             </div>
             {!fd.isNew&&firmen.length>1&&(
               <div style={{marginTop:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",borderTop:"1px solid var(--line)",paddingTop:10}}>
