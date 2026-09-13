@@ -2503,13 +2503,20 @@ function useSupabaseData() {
   }
   
   async function acceptHandoverProtocol(protocolId) {
-    const { error } = await supabase.from("handover_protocols").update({
-      status: "accepted",
-      closed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }).eq("id", protocolId);
-    if (error) { console.error("acceptHandoverProtocol:", error); throw error; }
+    // finalize-handover: PDF serverseitig erzeugen, Bestaetigungs-Mail senden,
+    // Dokument speichern und Protokoll abschliessen.
+    let emailOk = false, emailErr = null;
+    try {
+      const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId } });
+      if (error || (data && data.error)) emailErr = (error && error.message) || (data && data.error) || "unbekannt";
+      else emailOk = true;
+    } catch (e) { emailErr = e.message || String(e); }
+    if (!emailOk) {
+      // Fallback: Status trotzdem setzen, damit das Akzeptieren nicht blockiert ist
+      await supabase.from("handover_protocols").update({ status: "accepted", closed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", protocolId);
+    }
     await loadHandoverProtocols();
+    if (!emailOk) throw new Error("Protokoll akzeptiert, aber Bestätigungs-Mail/Dokument fehlgeschlagen: " + emailErr);
   }
   
   async function extendHandoverDeadline(protocolId, extraDays) {
