@@ -8523,7 +8523,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
+function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
