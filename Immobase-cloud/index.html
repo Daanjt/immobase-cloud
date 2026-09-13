@@ -12208,7 +12208,7 @@ function Pipeline(){
   const heuteISO=()=>new Date().toISOString().slice(0,10);
   const dTage=(iso)=>iso?Math.floor((Date.now()-new Date(iso).getTime())/86400000):null;
   const dueTag=(w)=>{ if(!w)return null; const t=heuteISO(); const c= w<t?["überfällig","#f6e3df","#a4442e"]: w===t?["heute fällig","#f2ecdb","#8a6d1e"]:["Wiedervorlage "+fmt(w),"#eef1f6","#3a4a63"]; return <span style={{background:c[1],color:c[2],fontSize:10,padding:"1px 7px",borderRadius:8,fontWeight:600}}>{c[0]}</span>; };
-  const cardMeta=(x)=>{ const aktiv=!["gewonnen","verloren"].includes(x.stage); const idle=aktiv?dTage(x.updated_at):null; if(!x.wiedervorlage&&!x.naechster_schritt&&!(idle!=null&&idle>=14))return null; return (<div style={{marginTop:5,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>{x.wiedervorlage&&dueTag(x.wiedervorlage)}{x.naechster_schritt&&<span style={{fontSize:11.5,color:"var(--muted)"}}>{x.naechster_schritt}</span>}{aktiv&&idle!=null&&idle>=14&&<span style={{fontSize:10,color:"#b08968"}}>seit {idle} Tagen ruhig</span>}</div>); };
+  const cardMeta=(x)=>{ const aktiv=!["gewonnen","verloren"].includes(x.stage); const idle=aktiv?dTage(x.updated_at):null; if(!x.naechster_schritt&&!(idle!=null&&idle>=14))return null; return (<div style={{marginTop:5,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>{x.naechster_schritt&&<span style={{fontSize:11.5,color:"var(--muted)"}}>{x.naechster_schritt}</span>}{aktiv&&idle!=null&&idle>=14&&<span style={{fontSize:10,color:"#b08968"}}>seit {idle} Tagen ruhig</span>}</div>); };
   const cnt=(s)=>deals.filter(d=>d.stage===s).length;
   const liste=deals.filter(d=>d.stage===stage);
   const d=selected;
@@ -12220,7 +12220,7 @@ function Pipeline(){
       </div>
 
       <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:12,fontSize:12,color:"var(--muted)"}}>
-        {(()=>{ const offen=deals.filter(z=>!["gewonnen","verloren"].includes(z.stage)); const ueber=offen.filter(z=>z.wiedervorlage&&z.wiedervorlage<heuteISO()).length; const hd=offen.filter(z=>z.wiedervorlage===heuteISO()).length; const w=offen.reduce((sm,z)=>sm+(Number(z.wert)||0),0); return (<React.Fragment><span>Offen: <b style={{color:"var(--ink)"}}>{offen.length}</b></span>{ueber>0&&<span style={{color:"#a4442e"}}>{ueber} überfällig</span>}{hd>0&&<span style={{color:"#8a6d1e"}}>{hd} heute fällig</span>}</React.Fragment>); })()}
+        <span>Offen: <b style={{color:"var(--ink)"}}>{deals.filter(z=>!["gewonnen","verloren"].includes(z.stage)).length}</b></span>
       </div>
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Laedt...</div>}
       <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>
@@ -12293,10 +12293,9 @@ function Pipeline(){
                 </div>
               </div>
             )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginTop:14}}>
-              <label style={{fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:"0.4px",textTransform:"uppercase",display:"flex",flexDirection:"column",gap:4}}>Wiedervorlage am<input type="date" defaultValue={d.wiedervorlage||""} onChange={e=>patch(d.id,{wiedervorlage:e.target.value||null})} style={inpS} /></label>
+            <div style={{marginTop:14}}>
               <label style={{fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:"0.4px",textTransform:"uppercase",display:"flex",flexDirection:"column",gap:4}}>Nächster Schritt<input defaultValue={d.naechster_schritt||""} onBlur={e=>{if(e.target.value!==(d.naechster_schritt||""))patch(d.id,{naechster_schritt:e.target.value});}} placeholder="z. B. Nachfassen per Telefon" style={inpS} /></label>
-              {d.stage==="verloren"&&(<div style={{gridColumn:"1 / -1",display:"flex",gap:8,flexWrap:"wrap"}}>
+              {d.stage==="verloren"&&(<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
                 <select value="" onChange={e=>{ if(e.target.value) patchAbsage(d,e.target.value); }} style={{...inpS,width:"auto",flex:"1 1 170px"}}><option value="">Absagegrund wählen ...</option>{["Untervermietung nicht erlaubt","Objekt bereits vergeben","Keine Rückmeldung","Kein Interesse am Modell","Konditionen zu hoch","Anderes"].map(g=>(<option key={g} value={g}>{g}</option>))}</select>
                 <input key={d.verlust_grund||"x"} defaultValue={d.verlust_grund||""} onBlur={e=>patchAbsage(d,e.target.value)} placeholder="Grund / Notiz" style={{...inpS,flex:"1 1 170px",width:"auto"}} />
               </div>)}
