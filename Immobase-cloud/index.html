@@ -4202,7 +4202,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   );
 }
 
-function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom}){
+function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols}){
   const heute=new Date();
   heute.setHours(0,0,0,0);
 
@@ -4331,6 +4331,22 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     <div>
       <div className="pt">Dashboard</div>
       <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
+
+      {(() => {
+        const cPend = (contracts||[]).filter(c=>c.status==="mieter_signiert").length;
+        const pPend = (handoverProtocols||[]).filter(h=>h.status==="submitted").length;
+        if (!cPend && !pPend) return null;
+        const btn = {display:"inline-flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #e8d2a8",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#7a5a1e",fontWeight:600};
+        return (
+          <div style={{background:"#fdf6e3",border:"1px solid #e8d2a8",borderRadius:10,padding:"14px 18px",margin:"16px 0 22px"}}>
+            <div style={{fontSize:9,color:"#8a6a2e",textTransform:"uppercase",letterSpacing:".28em",fontWeight:700,marginBottom:10}}>Zu bestätigen</div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {cPend>0 && <div onClick={()=>navigateTo&&navigateTo("bewerber",null)} style={btn}>✍ {cPend} {cPend===1?"Untermietvertrag":"Untermietverträge"} gegenzuzeichnen</div>}
+              {pPend>0 && <div onClick={()=>navigateTo&&navigateTo("uebergaben",null)} style={btn}>🔑 {pPend} {pPend===1?"Übernahmeprotokoll":"Übernahmeprotokolle"} zu bestätigen</div>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TOTAL OVERVIEW - 3-column hero */}
       <div className="dash-hero" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
