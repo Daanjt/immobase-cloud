@@ -10,3 +10,6 @@ verify_jwt = false
 
 [functions.process-handover-deadlines]
 verify_jwt = false
+
+[functions.finalize-handover]
+verify_jwt = false
