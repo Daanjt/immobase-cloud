@@ -3697,12 +3697,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   </>
                 )}
                 {isSubmitted && (
-                  <button onClick={async()=>{
-                    if (!confirm(`Protokoll akzeptieren und abschliessen?`)) return;
-                    try { await acceptHandoverProtocol(h.id); } catch(e){alert("Fehler: "+e.message);}
-                  }} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}>
-                    ✓ Akzeptieren
-                  </button>
+                  <HandoverConfirmButton protocol={h} onDone={loadHandoverProtocols} />
                 )}
                 <button onClick={async()=>{
                   if (!confirm(`Protokoll komplett löschen?`)) return;
@@ -5927,6 +5922,59 @@ async function sendSingleDocForSigning(person, html, opts) {
 // Sichtbar nur bei Status "mieter_signiert". Zeigt das final unterzeichnete
 // PDF (beide Unterschriften) in einer Vorschau; erst mit Bestaetigen wird der
 // Vertrag gueltig und die Bestaetigungsmail geht an den Mieter.
+function HandoverConfirmButton({protocol, onDone}){
+  const [busy, setBusy] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const p = protocol;
+  async function openPreview(){
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id, preview: true } });
+      if (error) throw error;
+      if (!data || data.error || !data.pdfBase64) throw new Error((data&&data.error)||"Keine Vorschau erhalten");
+      const bin = atob(data.pdfBase64); const bytes = new Uint8Array(bin.length);
+      for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+      setPreviewUrl(url);
+    } catch(e){ console.error("handover preview:", e); alert("Vorschau fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(false); }
+  }
+  function closePreview(){ if(previewUrl){ try{URL.revokeObjectURL(previewUrl);}catch(_){} } setPreviewUrl(null); }
+  async function confirmSend(){
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id } });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      closePreview();
+      if (onDone) await onDone();
+      alert("Protokoll bestätigt. Die Bestätigung mit PDF wurde an den Mieter gesendet und im Dokumente-Ordner gespeichert.");
+    } catch(e){ console.error("handover confirm:", e); alert("Bestätigen fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(false); }
+  }
+  return (<>
+    <button onClick={openPreview} disabled={busy} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy&&!previewUrl?"lädt…":"👁 Vorschau & bestätigen"}</button>
+    {previewUrl && (
+      <div onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid #e8e3d8"}}>
+            <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Übernahmeprotokoll · Vorschau</div>
+            <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Fertiges Protokoll mit beiden Unterschriften. Mit Bestätigen geht die Bestätigung samt PDF an den Mieter und wird im Dokumente-Ordner gespeichert.</div>
+          </div>
+          <div style={{flex:1,overflow:"auto",padding:16,background:"#efe9dd",minHeight:0}}>
+            {(typeof window!=="undefined" && window.innerWidth < 640)
+              ? <button onClick={()=>window.open(previewUrl,"_blank")} style={{width:"100%",padding:"22px 16px",background:"#fff",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer",fontSize:13,color:"#3a5230",fontWeight:600}}>📄 PDF öffnen</button>
+              : <iframe src={previewUrl} title="Vorschau" style={{width:"100%",height:"60vh",border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>}
+          </div>
+          <div style={{padding:"12px 20px",borderTop:"1px solid #e8e3d8",display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <button onClick={closePreview} disabled={busy} style={{fontSize:12,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer"}}>Abbrechen</button>
+            <button onClick={confirmSend} disabled={busy} style={{fontSize:12,padding:"8px 16px",background:"#3a5230",color:"#fff",border:"1px solid #2e4426",borderRadius:6,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"sende…":"✓ Bestätigen & senden"}</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
+}
 function CountersignButton({contract, onDone, light}){
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
