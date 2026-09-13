@@ -3588,7 +3588,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
   );
 }
 
-function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll, handoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol}){
+function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, documents, getDocumentUrl, deleteDocument, protokolle, insertProtokoll, updateProtokoll, deleteProtokoll, handoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, loadHandoverProtocols}){
   // ═══ Uebernahmeprotokoll (Selbstbedienung durch Mieter) ═══
   const [showStartModal, setShowStartModal] = React.useState(false);
   const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
@@ -9388,7 +9388,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                       </button>
                     )}
                   </div>
-                  <UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol}/>
+                  <UebergabeProtokoll tenant={tenant} room={room} apt={apt} uploadDocument={uploadDocument} updateTenant={updateTenant} documents={documents} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument} protokolle={protokolle} insertProtokoll={insertProtokoll} updateProtokoll={updateProtokoll} deleteProtokoll={deleteProtokoll} handoverProtocols={handoverProtocols} startHandoverProtocol={startHandoverProtocol} cancelHandoverProtocol={cancelHandoverProtocol} acceptHandoverProtocol={acceptHandoverProtocol} extendHandoverDeadline={extendHandoverDeadline} deleteHandoverProtocol={deleteHandoverProtocol} loadHandoverProtocols={loadHandoverProtocols}/>
                 </>
               );
             })()}
