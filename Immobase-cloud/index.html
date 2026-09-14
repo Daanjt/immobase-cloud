@@ -12250,6 +12250,7 @@ function Pipeline(){
   const [stage,setStage]=useState("kontaktiert");
   const [selected,setSelected]=useState(null);
   const [thread,setThread]=useState(null);
+  const [openMsg,setOpenMsg]=useState(null);
   const [compose,setCompose]=useState(null);
   const [sendMsg,setSendMsg]=useState("");
   const [sig,setSig]=useState("Freundliche Grüsse\nDaan Theijse\nD&T Homes\nwww.dthomes.ch");
@@ -12257,7 +12258,7 @@ function Pipeline(){
   const [orgStatus,setOrgStatus]=useState({});
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); };
   useEffect(()=>{ laden(); supabase.from("app_settings").select("value").eq("key","mail_signature").then(({data})=>{ if(data&&data[0]&&data[0].value) setSig(data[0].value); }).catch(()=>{}); supabase.from("org_status").select("organisation,status,referenz_kontakt").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt}); setOrgStatus(m); }).catch(()=>{}); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
-  useEffect(()=>{ if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
+  useEffect(()=>{ setOpenMsg(null); if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[]}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
   const heute=()=>new Date().toISOString().slice(0,10);
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
   const setStageFn=(d,v)=>{
@@ -12392,12 +12393,14 @@ function Pipeline(){
               {thread&&thread.messages&&thread.messages.length===0&&<div style={{fontSize:12,color:"#8a8174"}}>Keine Mails mit dieser Adresse gefunden.</div>}
               {thread&&thread.messages&&thread.messages.map((m,i)=>(
                 <div key={i} style={{padding:"6px 0",borderBottom:"1px solid #f0ebe1"}}>
-                  <div style={{display:"flex",gap:8,alignItems:"baseline"}}>
+                  <div onClick={()=>setOpenMsg(openMsg===i?null:i)} style={{display:"flex",gap:8,alignItems:"baseline",cursor:"pointer"}}>
                     <span style={{flexShrink:0,fontSize:9.5,padding:"1px 6px",borderRadius:8,background:m.direction==="gesendet"?"#e8efde":"#eef1f6",color:m.direction==="gesendet"?"#3a5230":"#3a4a63"}}>{m.direction}</span>
                     <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{fmt(m.date)}</span>
-                    <span style={{color:"var(--ink)",fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
+                    <span style={{flex:1,color:"var(--ink)",fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
+                    <span style={{flexShrink:0,color:"#b9b0a2",fontSize:11}}>{openMsg===i?"▲":"▼"}</span>
                   </div>
-                  {m.preview&&<div style={{fontSize:11.5,color:"#8a8174",marginTop:2,lineHeight:1.4}}>{m.preview}</div>}
+                  {openMsg!==i&&m.preview&&<div onClick={()=>setOpenMsg(i)} style={{fontSize:11.5,color:"#8a8174",marginTop:2,lineHeight:1.4,cursor:"pointer"}}>{m.preview}</div>}
+                  {openMsg===i&&<iframe title="mail" srcDoc={m.body||("<div style=\"font-family:sans-serif;font-size:13px;padding:8px\">"+(m.preview||"(kein Inhalt)")+"</div>")} sandbox="" style={{width:"100%",height:300,border:"1px solid var(--line)",borderRadius:6,background:"#fff",marginTop:6}}/>}
                 </div>
               ))}
             </div>
