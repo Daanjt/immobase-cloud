@@ -12188,8 +12188,8 @@ function MarktRadar(){
   const mBody=(t)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
     const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
-    const vn=(t.agency_contact_name||"").trim().split(" ")[0];
-    const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
+    const vn=(t.agency_contact_name||"").trim();
+    const gruss=vn?("Guten Tag "+vn+","):"Guten Tag,";
     const _os=orgStatus[(t.agency_name||"").toLowerCase()]||{};
     if(_os.status==="partner"){ const ref=_os.referenz?(" (unter anderem mit "+_os.referenz+")"):""; return [gruss,"","Ich hoffe, es geht dir gut! 🙂","","Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse, diese anzumieten.","","Wir arbeiten bereits mit "+(t.agency_name||"euch")+" zusammen"+ref+" und bieten aktuell mehrere eurer Objekte möbliert an. Wir mieten zu marktüblichen Konditionen an und vermieten möbliert an Studierende und Young Professionals; für euch heisst das ein zuverlässiger Vertragspartner, planbare Mieteinnahmen und kein Leerstand.","","Wäre eine Vermietung an uns auch bei diesem Objekt denkbar? Über eine kurze Rückmeldung freue ich mich.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n"); }
     const objSatz=t.befristet
@@ -12282,8 +12282,8 @@ function Pipeline(){
   const mBody=(t,tpl)=>{
     const adr=(t.strasse?t.strasse+", ":"")+t.plz+" "+(t.ort||"");
     const obj=t.strasse?("an der "+adr):("in "+t.plz+" "+(t.ort||""));
-    const vn=(t.contact_name||"").trim().split(" ")[0];
-    const gruss=vn?("Hoi "+vn+","):"Hoi zäme,";
+    const vn=(t.contact_name||"").trim();
+    const gruss=vn?("Guten Tag "+vn+","):"Guten Tag,";
     const _os=orgStatus[(t.agency_name||"").toLowerCase()]||{};
     const mode = tpl || (_os.status==="partner"?"warm":"kalt");
     if(mode==="warm"){ const ref=_os.referenz?(" (unter anderem mit "+_os.referenz+")"):""; return [gruss,"","Ich hoffe, es geht dir gut! 🙂","","Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse, diese anzumieten.","","Wir arbeiten bereits mit "+(t.agency_name||"euch")+" zusammen"+ref+" und bieten aktuell mehrere eurer Objekte möbliert an. Wir mieten zu marktüblichen Konditionen an und vermieten möbliert an Studierende und Young Professionals; für euch heisst das ein zuverlässiger Vertragspartner, planbare Mieteinnahmen und kein Leerstand.","","Wäre eine Vermietung an uns auch bei diesem Objekt denkbar? Über eine kurze Rückmeldung freue ich mich."].join("\n"); }
