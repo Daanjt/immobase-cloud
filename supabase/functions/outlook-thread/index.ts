@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     const mbox = encodeURIComponent(c.graph_mailbox);
     const term = encodeURIComponent('"' + String(email).replace(/"/g, "") + '"');
     const url = `https://graph.microsoft.com/v1.0/users/${mbox}/messages?$search=${term}` +
-      `&$select=subject,from,toRecipients,sentDateTime,receivedDateTime,isDraft,bodyPreview&$top=30`;
+      `&$select=id,subject,from,toRecipients,sentDateTime,receivedDateTime,isDraft,bodyPreview,body&$top=30`;
     const mRes = await fetch(url, { headers: { Authorization: `Bearer ${tok.access_token}`, ConsistencyLevel: "eventual" } });
     const md = await mRes.json();
     if (!mRes.ok) return json({ error: "graph_failed", detail: md?.error?.message || "" });
@@ -52,10 +52,13 @@ Deno.serve(async (req) => {
       .map((m: any) => {
         const fromAddr = (m.from?.emailAddress?.address || "").toLowerCase();
         return {
+          id: m.id,
           subject: m.subject || "(kein Betreff)",
           date: m.sentDateTime || m.receivedDateTime || null,
           direction: fromAddr === mb ? "gesendet" : "erhalten",
           preview: (m.bodyPreview || "").slice(0, 140),
+          body: (m.body && m.body.content) || "",
+          bodyType: (m.body && m.body.contentType) || "text",
         };
       })
       .sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
