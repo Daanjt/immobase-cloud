@@ -11,7 +11,7 @@ const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { to, subject, body, cc } = await req.json().catch(() => ({}));
+    const { to, subject, body, cc, attachments } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "empfaenger fehlt" }, 400);
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: rows } = await sb.from("app_config").select("key,value")
@@ -32,6 +32,22 @@ Deno.serve(async (req) => {
     const ccList = (cc ? String(cc).split(/[;,]/).map((x) => x.trim()).filter(Boolean) : []).map((a) => ({ emailAddress: { address: a } }));
     const message: any = { subject: subject || "", body: { contentType: "Text", content: body || "" }, toRecipients: toList };
     if (ccList.length) message.ccRecipients = ccList;
+
+    if (Array.isArray(attachments) && attachments.length) {
+      const atts: any[] = [];
+      for (const a of attachments) {
+        if (!a || !a.url) continue;
+        try {
+          const r = await fetch(a.url);
+          if (!r.ok) continue;
+          const buf = new Uint8Array(await r.arrayBuffer());
+          let bin = ""; const CH = 0x8000;
+          for (let i = 0; i < buf.length; i += CH) bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + CH)) as unknown as number[]);
+          atts.push({ "@odata.type": "#microsoft.graph.fileAttachment", name: a.name || "Anhang.pdf", contentType: a.contentType || "application/pdf", contentBytes: btoa(bin) });
+        } catch (_) { /* Anhang ignorieren wenn nicht ladbar */ }
+      }
+      if (atts.length) message.attachments = atts;
+    }
 
     const mbox = encodeURIComponent(c.graph_mailbox);
     const sendRes = await fetch(`https://graph.microsoft.com/v1.0/users/${mbox}/sendMail`, {
