@@ -11,7 +11,7 @@ const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { to, subject, body, cc, attachments } = await req.json().catch(() => ({}));
+    const { to, subject, body, cc, attachments, html } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "empfaenger fehlt" }, 400);
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: rows } = await sb.from("app_config").select("key,value")
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
     const toList = String(to).split(/[;,]/).map((x) => x.trim()).filter(Boolean).map((a) => ({ emailAddress: { address: a } }));
     const ccList = (cc ? String(cc).split(/[;,]/).map((x) => x.trim()).filter(Boolean) : []).map((a) => ({ emailAddress: { address: a } }));
-    const message: any = { subject: subject || "", body: { contentType: "Text", content: body || "" }, toRecipients: toList };
+    const message: any = { subject: subject || "", body: html ? { contentType: "HTML", content: html } : { contentType: "Text", content: body || "" }, toRecipients: toList };
     if (ccList.length) message.ccRecipients = ccList;
 
     if (Array.isArray(attachments) && attachments.length) {
