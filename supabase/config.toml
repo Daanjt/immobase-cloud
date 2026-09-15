@@ -16,3 +16,6 @@ verify_jwt = false
 
 [functions.process-scheduled-mails]
 verify_jwt = false
+
+[functions.check-pipeline-replies]
+verify_jwt = false
