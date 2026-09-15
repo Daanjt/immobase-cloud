@@ -12255,6 +12255,7 @@ function Pipeline(){
   const [compose,setCompose]=useState(null);
   const [sendMsg,setSendMsg]=useState("");
   const [scheduled,setScheduled]=useState([]);
+  const [openSched,setOpenSched]=useState(null);
   const ladenScheduled=()=>supabase.from("scheduled_mails").select("*").eq("status","pending").then(({data})=>setScheduled(data||[]));
   const [sig,setSig]=useState("Freundliche Grüsse\nDaan Theijse\nD&T Homes\nwww.dthomes.ch");
   const [sigEdit,setSigEdit]=useState(false);
@@ -12418,9 +12419,12 @@ function Pipeline(){
               <button onClick={()=>openCompose(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 16px",fontSize:12.5,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Direkt senden</button>
             </div>
             {scheduled.filter(s=>s.deal_id===d.id).map(s=>(
-              <div key={s.id} style={{marginTop:10,fontSize:12,color:"#2f5a2a",background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span>📅 <strong>Geplant</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject}</span>
-                <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?"))return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(({error})=>{ if(error){alert("Abbrechen fehlgeschlagen: "+error.message);return;} setScheduled(sc=>sc.filter(x=>x.id!==s.id)); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#9b4a3e",fontSize:11.5,cursor:"pointer",textDecoration:"underline"}}>abbrechen</button>
+              <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px"}}>
+                <div style={{fontSize:12,color:"#2f5a2a",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span onClick={()=>setOpenSched(openSched===s.id?null:s.id)} style={{cursor:"pointer"}}>📅 <strong>Geplant</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject} <span style={{color:"#6a8a5a"}}>{openSched===s.id?"▲ Inhalt":"▼ Inhalt"}</span></span>
+                  <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?"))return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(({error})=>{ if(error){alert("Abbrechen fehlgeschlagen: "+error.message);return;} setScheduled(sc=>sc.filter(x=>x.id!==s.id)); if(openSched===s.id)setOpenSched(null); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#9b4a3e",fontSize:11.5,cursor:"pointer",textDecoration:"underline"}}>abbrechen</button>
+                </div>
+                {openSched===s.id&&<iframe title="geplante-mail" srcDoc={s.html||('<pre style="font-family:sans-serif;white-space:pre-wrap;font-size:13px;padding:8px;margin:0">'+((s.body||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"))+'</pre>')} sandbox="" style={{width:"100%",height:340,border:"1px solid #cfe0c4",borderRadius:6,background:"#fff",marginTop:8}}/>}
               </div>
             ))}
             {compose&&(
