@@ -25,6 +25,16 @@ Deno.serve(async (req) => {
   let sent = 0;
   for (const m of due) {
     try {
+      // Catch-up: nur senden, wenn der Deal noch in "kontaktiert" ist
+      if (m.is_followup && m.deal_id) {
+        try {
+          const { data: dl } = await sb.from("pipeline").select("stage").eq("id", m.deal_id).maybeSingle();
+          if (dl && dl.stage && dl.stage !== "kontaktiert") {
+            await sb.from("scheduled_mails").update({ status: "skipped_stage" }).eq("id", m.id);
+            continue;
+          }
+        } catch (_) { /* bei Fehler weiter */ }
+      }
       // Catch-up: nur senden, wenn keine Antwort seit reply_check_after
       if (m.is_followup && m.reply_check_after) {
         try {
