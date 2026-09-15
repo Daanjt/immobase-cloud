@@ -11133,7 +11133,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   }
   // Jährliche Ergebnisse (Summe über 12 Monate)
   const years = [];
-  for (let y=now.getFullYear(); y<=now.getFullYear()+1; y++){
+  for (let y=now.getFullYear(); y<=now.getFullYear()+2; y++){
     let einnahmen=0, ausgaben=0, marge=0;
     for (let m=0;m<12;m++){ const s=new Date(y,m,1); const e=new Date(y,m+1,0,23,59,59,999); const futM=new Date(y,m,1)>new Date(now.getFullYear(),now.getMonth(),1); const f=monthFin(s,e,futM); einnahmen+=f.einnahmen; ausgaben+=f.ausgaben; marge+=f.marge; }
     years.push({ y, einnahmen, ausgaben, marge, future: y>now.getFullYear() });
@@ -11216,7 +11216,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     }
   }
   const combinedYears = [];
-  for (let y=2025; y<=now.getFullYear()+1; y++){
+  for (let y=2025; y<=now.getFullYear()+2; y++){
     let wgY=0, abY=0, umsatzY=0, umsatzWgY=0, umsatzAbY=0, mietausgabenY=0, uebrigeY=0;
     for (let mo=0; mo<12; mo++){
       const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
