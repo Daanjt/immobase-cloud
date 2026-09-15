@@ -19,3 +19,6 @@ verify_jwt = false
 
 [functions.check-pipeline-replies]
 verify_jwt = false
+
+[functions.draft-reply]
+verify_jwt = false
