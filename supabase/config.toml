@@ -13,3 +13,6 @@ verify_jwt = false
 
 [functions.finalize-handover]
 verify_jwt = false
+
+[functions.process-scheduled-mails]
+verify_jwt = false
