@@ -12691,8 +12691,9 @@ function KeinZugriff() {
 
 function MainApp({rolle}) {
   const sichtbareSeiten = seitenFuerRolle(rolle);
-  const [page, setPage] = useState(sichtbareSeiten[0]?.id || "dashboard");
+  const [page, setPage] = useState(() => { try { const s = localStorage.getItem("immobase_page"); if (s && sichtbareSeiten.some(x=>x.id===s)) return s; } catch(e){} return sichtbareSeiten[0]?.id || "dashboard"; });
   const [navTarget, setNavTarget] = useState(null);
+  useEffect(() => { try { localStorage.setItem("immobase_page", page); } catch(e){} }, [page]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
