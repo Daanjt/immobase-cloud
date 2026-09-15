@@ -25,6 +25,18 @@ Deno.serve(async (req) => {
   let sent = 0;
   for (const m of due) {
     try {
+      // Catch-up: nur senden, wenn keine Antwort seit reply_check_after
+      if (m.is_followup && m.reply_check_after) {
+        try {
+          const flt = `from/emailAddress/address eq '${(m.to_addr||"").replace(/'/g,"''")}' and receivedDateTime ge ${new Date(m.reply_check_after).toISOString()}`;
+          const rr = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${encodeURIComponent(flt)}&$top=1&$select=id`, { headers: { Authorization: `Bearer ${tok}` } });
+          const rj = await rr.json();
+          if (rj && Array.isArray(rj.value) && rj.value.length > 0) {
+            await sb.from("scheduled_mails").update({ status: "skipped_reply" }).eq("id", m.id);
+            continue;
+          }
+        } catch (_) { /* bei Fehler trotzdem senden */ }
+      }
       const message: any = {
         subject: m.subject || "",
         body: m.html ? { contentType: "HTML", content: m.html } : { contentType: "Text", content: m.body || "" },
