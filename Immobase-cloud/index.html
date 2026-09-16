@@ -12581,7 +12581,7 @@ function Kontakte(){
         <button onClick={neueFirma} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Firma</button>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"],["gespraech","In Gespräch"],["kein_interesse","Kein Interesse"]].map(([f,lbl])=>(
+        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"],["kein_interesse","Kein Interesse"]].map(([f,lbl])=>(
           <button key={f} onClick={()=>setTab(f)} style={{background:tab===f?"var(--ink)":"none",color:tab===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cntTab(f)?" ("+cntTab(f)+")":""}</button>
         ))}
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen ..." style={{...inp,width:"auto",flex:"1 1 160px",marginLeft:"auto"}} />
