@@ -12740,12 +12740,15 @@ function DokumenteSection({documents, uploadDocument, getDocumentUrl, deleteDocu
   const [newKat,setNewKat]=useState("");
   const [addingKat,setAddingKat]=useState(false);
   const [busy,setBusy]=useState(false);
+  const [drag,setDrag]=useState(false);
   const [q,setQ]=useState("");
   const [filt,setFilt]=useState("alle");
   const docs=(documents||[]).filter(d=>d.entity_type==="firma"&&d.entity_id==="dthomes");
   const allKats=Array.from(new Set([...KAT, ...docs.map(d=>d.category).filter(Boolean)]));
   const shown=docs.filter(d=>{ if(filt!=="alle"&&(d.category||"Sonstiges")!==filt) return false; if(q&&!((d.filename||"")+" "+(d.category||"")).toLowerCase().includes(q.toLowerCase())) return false; return true; }).sort((x,y)=>new Date(y.uploaded_at||0)-new Date(x.uploaded_at||0));
-  const onUpload=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const useKat=(addingKat?(newKat.trim()||"Sonstiges"):kat); setBusy(true); try{ await uploadDocument("firma","dthomes",useKat,f); if(addingKat&&newKat.trim()){ setKat(newKat.trim()); setAddingKat(false); setNewKat(""); } }catch(err){ alert("Upload fehlgeschlagen: "+(err&&err.message||err)); } setBusy(false); e.target.value=""; };
+  const doUpload=async(f)=>{ if(!f) return; const useKat=(addingKat?(newKat.trim()||"Sonstiges"):kat); setBusy(true); try{ await uploadDocument("firma","dthomes",useKat,f); if(addingKat&&newKat.trim()){ setKat(newKat.trim()); setAddingKat(false); setNewKat(""); } }catch(err){ alert("Upload fehlgeschlagen: "+(err&&err.message||err)); } setBusy(false); };
+  const onUpload=(e)=>{ const f=e.target.files&&e.target.files[0]; doUpload(f); e.target.value=""; };
+  const onDrop=(e)=>{ e.preventDefault(); setDrag(false); const fs=e.dataTransfer&&e.dataTransfer.files; if(fs&&fs.length){ Array.from(fs).forEach(f=>doUpload(f)); } };
   const open=async(d)=>{ const u=await getDocumentUrl(d.storage_path); if(u) window.open(u,"_blank"); else alert("Datei nicht abrufbar."); };
   const del=(d)=>{ if(!confirm("Dokument \""+(d.filename||"")+"\" löschen?")) return; deleteDocument(d); };
   const fmt=(d)=>d?new Date(d).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
@@ -12758,12 +12761,12 @@ function DokumenteSection({documents, uploadDocument, getDocumentUrl, deleteDocu
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Dokumente</div>
         <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Allgemeine Ablage für Verträge, Versicherungen, Rechnungen und mehr.</div>
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14,background:"#faf8f3",border:"1px solid var(--line)",borderRadius:12,padding:"12px"}}>
+      <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragEnter={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={onDrop} style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14,background:drag?"#eef5e8":"#faf8f3",border:drag?"2px dashed #6a8a5a":"1px dashed var(--line)",borderRadius:12,padding:"14px",transition:"background .15s"}}>
         <label style={{fontSize:12,color:"var(--muted)"}}>Kategorie</label>
         <select value={addingKat?"__new__":kat} onChange={e=>{ if(e.target.value==="__new__"){ setAddingKat(true); } else { setAddingKat(false); setKat(e.target.value); } }} style={{...inp,width:"auto"}}>{allKats.map(k=>(<option key={k} value={k}>{k}</option>))}<option value="__new__">＋ neue Kategorie …</option></select>
         {addingKat&&<input value={newKat} onChange={e=>setNewKat(e.target.value)} placeholder="Name der neuen Kategorie" style={{...inp,width:"auto"}} />}
         <label style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"8px 14px",fontSize:12.5,cursor:busy?"wait":"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{busy?"lädt hoch …":"+ Dokument hochladen"}<input type="file" onChange={onUpload} disabled={busy} style={{display:"none"}}/></label>
-        <span style={{fontSize:11,color:"var(--muted)"}}>max. 25 MB</span>
+        <span style={{fontSize:11,color:drag?"#3a5230":"var(--muted)",fontWeight:drag?600:400}}>{drag?"📥 Loslassen zum Hochladen":"oder Datei hierher ziehen · max. 25 MB"}</span>
       </div>
       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:12}}>
         {["alle",...allKats].map(f=>(<button key={f} onClick={()=>setFilt(f)} style={{background:filt===f?"var(--ink)":"none",color:filt===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 11px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{f==="alle"?"Alle":f}{f!=="alle"&&docs.filter(d=>(d.category||"Sonstiges")===f).length?" ("+docs.filter(d=>(d.category||"Sonstiges")===f).length+")":""}</button>))}
