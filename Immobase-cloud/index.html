@@ -12703,6 +12703,7 @@ const PAGES=[
   {id:"marktradar",icon:"🔭",label:"Marktradar"},
   {id:"pipeline",icon:"📇",label:"Pipeline"},
   {id:"kontakte",icon:"👥",label:"Kontakte"},
+  {id:"dokumente",icon:"📁",label:"Dokumente"},
 ];
 
 // Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
@@ -12710,7 +12711,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","pipeline","kontakte","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -12728,6 +12729,56 @@ function KeinZugriff() {
       <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:22,color:"var(--ink)",marginBottom:10}}>Kein Zugriff</div>
       <div style={{fontSize:13.5,color:"var(--muted)",lineHeight:1.6}}>
         Für diesen Bereich fehlt deinem Konto die Berechtigung. Wende dich an Daan oder Tijn, wenn du Zugriff brauchst.
+      </div>
+    </div>
+  );
+}
+
+function DokumenteSection({documents, uploadDocument, getDocumentUrl, deleteDocument}){
+  const KAT=["Vertrag","Versicherung","Rechnung","Behörde","Bank","Sonstiges"];
+  const [kat,setKat]=useState("Vertrag");
+  const [busy,setBusy]=useState(false);
+  const [q,setQ]=useState("");
+  const [filt,setFilt]=useState("alle");
+  const docs=(documents||[]).filter(d=>d.entity_type==="firma"&&d.entity_id==="dthomes");
+  const shown=docs.filter(d=>{ if(filt!=="alle"&&(d.category||"Sonstiges")!==filt) return false; if(q&&!((d.filename||"")+" "+(d.category||"")).toLowerCase().includes(q.toLowerCase())) return false; return true; }).sort((x,y)=>new Date(y.uploaded_at||0)-new Date(x.uploaded_at||0));
+  const onUpload=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setBusy(true); try{ await uploadDocument("firma","dthomes",kat,f); }catch(err){ alert("Upload fehlgeschlagen: "+(err&&err.message||err)); } setBusy(false); e.target.value=""; };
+  const open=async(d)=>{ const u=await getDocumentUrl(d.storage_path); if(u) window.open(u,"_blank"); else alert("Datei nicht abrufbar."); };
+  const del=(d)=>{ if(!confirm("Dokument \""+(d.filename||"")+"\" löschen?")) return; deleteDocument(d); };
+  const fmt=(d)=>d?new Date(d).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
+  const fsize=(b)=>b?(b>1048576?(b/1048576).toFixed(1)+" MB":Math.round(b/1024)+" KB"):"";
+  const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"};
+  const badge={Vertrag:["#e8efde","#3a5230"],Versicherung:["#e5edf3","#365068"],Rechnung:["#f5ecd8","#7c6a3e"],"Behörde":["#f0e6f0","#6a4a68"],Bank:["#e6efe9","#2f5a4a"],Sonstiges:["#efeae1","#6a6456"]};
+  return (
+    <div style={{padding:"8px",maxWidth:900}}>
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Dokumente</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Allgemeine Ablage für Verträge, Versicherungen, Rechnungen und mehr.</div>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14,background:"#faf8f3",border:"1px solid var(--line)",borderRadius:12,padding:"12px"}}>
+        <label style={{fontSize:12,color:"var(--muted)"}}>Kategorie</label>
+        <select value={kat} onChange={e=>setKat(e.target.value)} style={{...inp,width:"auto"}}>{KAT.map(k=>(<option key={k} value={k}>{k}</option>))}</select>
+        <label style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"8px 14px",fontSize:12.5,cursor:busy?"wait":"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{busy?"lädt hoch …":"+ Dokument hochladen"}<input type="file" onChange={onUpload} disabled={busy} style={{display:"none"}}/></label>
+        <span style={{fontSize:11,color:"var(--muted)"}}>max. 25 MB</span>
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:12}}>
+        {["alle",...KAT].map(f=>(<button key={f} onClick={()=>setFilt(f)} style={{background:filt===f?"var(--ink)":"none",color:filt===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 11px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{f==="alle"?"Alle":f}{f!=="alle"&&docs.filter(d=>(d.category||"Sonstiges")===f).length?" ("+docs.filter(d=>(d.category||"Sonstiges")===f).length+")":""}</button>))}
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen ..." style={{...inp,flex:"1 1 160px",marginLeft:"auto"}}/>
+      </div>
+      {shown.length===0&&<div style={{padding:"28px 8px",color:"#8a8174",fontSize:13}}>Noch keine Dokumente. Lade oben dein erstes hoch.</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {shown.map(d=>{ const bc=badge[d.category||"Sonstiges"]||badge.Sonstiges; return (
+          <div key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:"12px 14px",background:"var(--surface)",display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{minWidth:0,flex:1}}>
+              <div onClick={()=>open(d)} style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",cursor:"pointer",textDecoration:"underline",wordBreak:"break-all"}}>{d.filename}</div>
+              <div style={{fontSize:11,color:"#a0968a",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span style={{background:bc[0],color:bc[1],padding:"1px 8px",borderRadius:8,fontWeight:700,fontSize:10}}>{d.category||"Sonstiges"}</span><span>{fsize(d.file_size)}</span><span>· {fmt(d.uploaded_at)}</span></div>
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <button onClick={()=>open(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:11.5,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Öffnen</button>
+              <button onClick={()=>del(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 10px",fontSize:11.5,color:"#9b4a3e",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Löschen</button>
+            </div>
+          </div>
+        );})}
       </div>
     </div>
   );
@@ -12792,7 +12843,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,pipeline:Pipeline,kontakte:Kontakte,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
