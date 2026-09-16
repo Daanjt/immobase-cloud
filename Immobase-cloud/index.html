@@ -345,7 +345,11 @@ a:hover{border-bottom-color:var(--gold)}
   
   /* Body padding & layout */
   body { font-size: 14px; }
-  .main { padding: 70px 12px 20px !important; }
+  .main { padding: 66px 12px 24px !important; }
+  select, input, textarea { max-width: 100% !important; box-sizing: border-box; }
+  iframe { max-width: 100% !important; }
+  .list-detail { grid-template-columns: 1fr !important; }
+  [style*="gridTemplateColumns"] { max-width: 100%; }
   
   /* Navigation: tighter */
   .nav-wrap { padding: 10px 12px !important; gap: 4px !important; flex-wrap: wrap; }
