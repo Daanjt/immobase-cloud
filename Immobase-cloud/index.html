@@ -2082,6 +2082,7 @@ function useSupabaseData() {
   async function restoreTenant(id) {
     const {error} = await supabase.from("tenants").update({deleted_at: null}).eq("id", id);
     if (error) { alert("Wiederherstellen fehlgeschlagen: " + error.message); return false; }
+    await loadAll();
     return true;
   }
   async function purgeTenant(id) {
@@ -7872,7 +7873,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
           <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
         ))}
       </div>
-      <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+      <div className="list-detail" style={{display:viewMode==="papierkorb"?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           {(filter==="alle"||filter==="WG")&&wgApts.length>0&&(
             <div style={{marginBottom:14}}>
@@ -9077,8 +9078,29 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
         <button onClick={()=>{setViewMode("ehemalig");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="ehemalig"?600:400,color:viewMode==="ehemalig"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="ehemalig"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
           📦 Ehemalige ({ehemalige.length})
         </button>
+        <button onClick={()=>{setViewMode("papierkorb");setSel(null);loadDeleted&&loadDeleted();}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="papierkorb"?600:400,color:viewMode==="papierkorb"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="papierkorb"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
+          🗑 Papierkorb ({(deletedTenants||[]).length})
+        </button>
       </div>
-      <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+      {viewMode==="papierkorb" && (
+        <div style={{maxWidth:640}}>
+          <div style={{fontSize:12.5,color:"#8a8174",marginBottom:12}}>Gelöschte Mieter und Bewerber. Wiederherstellen holt sie samt Dokumenten zurück, endgültig löschen entfernt sie dauerhaft.</div>
+          {(deletedTenants||[]).length===0 && <div style={{padding:"22px 4px",color:"#8a8174",fontSize:13}}>Der Papierkorb ist leer.</div>}
+          {(deletedTenants||[]).map(t=>(
+            <div key={t.id} style={{border:"1px solid var(--line)",borderRadius:10,padding:"11px 13px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",background:"var(--surface)"}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:13.5,fontWeight:600,color:"var(--ink)"}}>{((t.vorname||"")+" "+(t.nachname||"")).trim()||t.id}</div>
+                <div style={{fontSize:11,color:"#a0968a",marginTop:2}}>{t.email||""}{t.deletedAt?" · gelöscht am "+new Date(t.deletedAt).toLocaleDateString("de-CH"):""}</div>
+              </div>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                <button onClick={async()=>{ if(await restoreTenant(t.id)){ loadDeleted&&loadDeleted(); } }} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:11.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Wiederherstellen</button>
+                <button onClick={async()=>{ if(!confirm("Endgültig löschen? Das kann nicht rückgängig gemacht werden."))return; if(await purgeTenant(t.id)){ loadDeleted&&loadDeleted(); } }} style={{background:"none",color:"#9b4a3e",border:"1px solid var(--line)",borderRadius:8,padding:"6px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Endgültig löschen</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="list-detail" style={{display:viewMode==="papierkorb"?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
