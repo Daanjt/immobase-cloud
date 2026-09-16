@@ -12454,14 +12454,11 @@ function Pipeline(){
             </div>
             )}
             <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
-              <a href={mailto(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 16px",fontSize:12.5,textDecoration:"none",fontFamily:"'Manrope',sans-serif"}}>E-Mail</a>
-              <button onClick={()=>openCompose(d)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 16px",fontSize:12.5,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Direkt senden</button>
-              {d.contact_email&&<button onClick={()=>draftReply(d)} disabled={drafting} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"7px 14px",fontSize:12.5,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{drafting?"entwirft …":"✨ Antwort entwerfen"}</button>}
+              <button onClick={()=>openCompose(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 18px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>E-Mail</button>
             </div>
             {d.reply_pending&&(
               <div style={{marginTop:10,fontSize:12,color:"#8a5a1d",background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:8,padding:"8px 11px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span>💬 <strong>Antwort erhalten</strong> · deine Antwort steht noch offen</span>
-                <button onClick={()=>draftReply(d)} disabled={drafting} style={{background:"#3a352d",color:"#fff",border:"none",borderRadius:8,padding:"5px 11px",fontSize:11.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{drafting?"entwirft …":"✨ Antwort entwerfen"}</button>
                 <button onClick={()=>{ supabase.from("pipeline").update({reply_pending:false}).eq("id",d.id).then(()=>{ setDeals(ds=>ds.map(x=>x.id===d.id?{...x,reply_pending:false}:x)); setSelected(s=>s?{...s,reply_pending:false}:s); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#6a604f",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>erledigt</button>
               </div>
             )}
