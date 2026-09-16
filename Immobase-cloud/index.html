@@ -7895,7 +7895,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,do
           <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
         ))}
       </div>
-      <div className="list-detail" style={{display:viewMode==="papierkorb"?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+      <div className="list-detail" style={{display:(typeof viewMode!=="undefined"&&viewMode==="papierkorb")?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           {(filter==="alle"||filter==="WG")&&wgApts.length>0&&(
             <div style={{marginBottom:14}}>
@@ -9122,7 +9122,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
           ))}
         </div>
       )}
-      <div className="list-detail" style={{display:viewMode==="papierkorb"?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+      <div className="list-detail" style={{display:(typeof viewMode!=="undefined"&&viewMode==="papierkorb")?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
           <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
