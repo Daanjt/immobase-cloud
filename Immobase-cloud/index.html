@@ -12555,7 +12555,7 @@ function Kontakte(){
   const firmType=(org)=>{ if(orgs[org]&&orgs[org].typ) return orgs[org].typ; const k=ks.find(x=>(x.organisation||"Ohne Organisation")===org); return k?k.org_type:"verwaltung"; };
   const firmStatus=(org)=>orgs[org]?orgs[org].status:null;
   const firmKontakte=(org)=>ks.filter(k=>(k.organisation||"Ohne Organisation")===org);
-  const pass=(org,f)=>{ const t=firmType(org),st=firmStatus(org); if(f==="partner"&&st!=="partner")return false; if(f==="verwaltung"&&t!=="verwaltung")return false; if(f==="eigentuemer"&&t!=="eigentuemer")return false; return true; };
+  const pass=(org,f)=>{ const t=firmType(org),st=firmStatus(org); if(f==="partner"&&st!=="partner")return false; if(f==="kein_interesse"&&st!=="kein_interesse")return false; if(f==="gespraech"&&st!=="gespraech")return false; if(f==="verwaltung"&&t!=="verwaltung")return false; if(f==="eigentuemer"&&t!=="eigentuemer")return false; return true; };
   const cntTab=(f)=>firmNames.filter(org=>pass(org,f)).length;
   const firmen=firmNames.filter(org=>{ if(!pass(org,tab))return false; if(q){ const persons=firmKontakte(org).map(k=>(k.name||"")+" "+(k.email||"")+" "+(k.rolle||"")).join(" "); const s=(org+" "+persons+" "+((orgs[org]&&orgs[org].email)||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; } return true; }).sort((a,b)=>a.localeCompare(b));
   const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||"",website:rr.website||""}); setFirm(org); setCf(null); };
@@ -12581,7 +12581,7 @@ function Kontakte(){
         <button onClick={neueFirma} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>+ Firma</button>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"]].map(([f,lbl])=>(
+        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["partner","Partner"],["gespraech","In Gespräch"],["kein_interesse","Kein Interesse"]].map(([f,lbl])=>(
           <button key={f} onClick={()=>setTab(f)} style={{background:tab===f?"var(--ink)":"none",color:tab===f?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{lbl}{cntTab(f)?" ("+cntTab(f)+")":""}</button>
         ))}
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen ..." style={{...inp,width:"auto",flex:"1 1 160px",marginLeft:"auto"}} />
