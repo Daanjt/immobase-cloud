@@ -1597,7 +1597,7 @@ function useSupabaseData() {
     const [a, r, t, b] = await Promise.all([
       supabase.from("apartments").select("*").order("id"),
       supabase.from("rooms").select("*").order("id"),
-      supabase.from("tenants").select("*").order("id"),
+      supabase.from("tenants").select("*").is("deleted_at",null).order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
     ]);
     supabase.from("smoobu_bookings").select("*").then(({data})=>{
@@ -2069,23 +2069,33 @@ function useSupabaseData() {
   }
   
   async function deleteTenant(id) {
-    // Erst zugehörige Daten löschen (Dokumente, Zahlungen, Protokolle)
-    try { await supabase.from("documents").delete().eq("tenant_id", id); } catch(e) { console.warn("Doc delete:", e); }
-    try { await supabase.from("payments").delete().eq("tenant_id", id); } catch(e) { console.warn("Payment delete:", e); }
-    try { await supabase.from("uebergabe_protokolle").delete().eq("tenant_id", id); } catch(e) { console.warn("Protokoll delete:", e); }
-    
-    // Jetzt den Mieter selbst löschen
-    const {error} = await supabase.from("tenants").delete().eq("id", id);
+    // Sanftes Löschen: in den Papierkorb, zugehörige Daten bleiben erhalten (wiederherstellbar)
+    const {error} = await supabase.from("tenants").update({deleted_at: new Date().toISOString()}).eq("id", id);
     if (error) {
       console.error("deleteTenant error:", error);
       alert("Löschen fehlgeschlagen: " + error.message);
       return false;
     }
     setTenants(p => p.filter(t => t.id !== id));
-    setDocuments(p => p.filter(d => d.tenant_id !== id && d.tenantId !== id));
-    setPayments(p => p.filter(pm => pm.tenant_id !== id && pm.tenantId !== id));
-    setProtokolle(p => p.filter(pr => pr.tenant_id !== id && pr.tenantId !== id));
     return true;
+  }
+  async function restoreTenant(id) {
+    const {error} = await supabase.from("tenants").update({deleted_at: null}).eq("id", id);
+    if (error) { alert("Wiederherstellen fehlgeschlagen: " + error.message); return false; }
+    return true;
+  }
+  async function purgeTenant(id) {
+    try { await supabase.from("documents").delete().eq("tenant_id", id); } catch(e) {}
+    try { await supabase.from("payments").delete().eq("tenant_id", id); } catch(e) {}
+    try { await supabase.from("uebergabe_protokolle").delete().eq("tenant_id", id); } catch(e) {}
+    const {error} = await supabase.from("tenants").delete().eq("id", id);
+    if (error) { alert("Endgültiges Löschen fehlgeschlagen: " + error.message); return false; }
+    return true;
+  }
+  const [deletedTenants, setDeletedTenants] = useState([]);
+  async function loadDeleted() {
+    const {data} = await supabase.from("tenants").select("*").not("deleted_at","is",null).order("deleted_at",{ascending:false});
+    setDeletedTenants((data||[]).map(x=>({...x, deletedAt:x.deleted_at})));
   }
 
   // ─── DOCUMENTS ─────────────────────────────────────────
@@ -2770,7 +2780,7 @@ function useSupabaseData() {
     setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
   }
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -8523,7 +8533,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
-function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
+function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,restoreTenant,purgeTenant,deletedTenants,loadDeleted,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
