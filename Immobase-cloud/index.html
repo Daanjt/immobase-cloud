@@ -2927,7 +2927,7 @@ function MediaManager({apt, editApt, rooms}){
   const [zipping, setZipping] = useState(false);
   const [mp, setMp] = useState(apt.matterportUrl || "");
   const [vidUp, setVidUp] = useState(false);
-  async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>200*1024*1024){ alert("Video zu gross (max. 200 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ alert("Video-Upload fehlgeschlagen: "+(err.message||err)); } setVidUp(false); e.target.value=""; }
+  async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>500*1024*1024){ alert("Video zu gross (max. 500 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ alert("Video-Upload fehlgeschlagen: "+(err.message||err)); } setVidUp(false); e.target.value=""; }
   async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ alert("Entfernen fehlgeschlagen: "+(err.message||err)); } setVidUp(false); }
   const [mpSaving, setMpSaving] = useState(false);
   const fileInputRef = React.useRef(null);
@@ -3234,7 +3234,7 @@ function MediaManager({apt, editApt, rooms}){
         ) : (
           <label className="btn btn-p btn-sm" style={{cursor:vidUp?"wait":"pointer"}}>{vidUp?"⏳ lädt hoch …":"+ Video hochladen"}<input type="file" accept="video/*" onChange={uploadVideo} disabled={vidUp} style={{display:"none"}}/></label>
         )}
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Wird im Inserat gezeigt, besonders wenn keine Matterport-Tour vorhanden ist. Empfohlen: kurzes Handy-Video, max. ca. 200 MB.</div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Wird im Inserat gezeigt, besonders wenn keine Matterport-Tour vorhanden ist. Empfohlen: kurzes Handy-Video, max. ca. 500 MB.</div>
       </div>
     </div>
   );
