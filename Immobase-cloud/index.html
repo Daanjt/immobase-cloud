@@ -2936,8 +2936,27 @@ function MediaManager({apt, editApt, rooms}){
   async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>500*1024*1024){ alert("Video zu gross (max. 500 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ alert("Video-Upload fehlgeschlagen: "+(err.message||err)); } setVidUp(false); e.target.value=""; }
   async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ alert("Entfernen fehlgeschlagen: "+(err.message||err)); } setVidUp(false); }
   const [mpSaving, setMpSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const fileInputRef = React.useRef(null);
   const photos = apt.photos || [];
+  async function importFromListing(){
+    const url = window.prompt("Link zum Flatfox-Inserat einf\u00fcgen. Die Bilder werden geholt und dieser Wohnung als Medien hinzugef\u00fcgt:", "");
+    if(!url) return;
+    if(!/flatfox\.ch/i.test(url)){ alert("Bitte einen flatfox.ch-Link einf\u00fcgen."); return; }
+    setImporting(true);
+    try{
+      const { data, error } = await supabase.functions.invoke("import-listing-images", { body: { url: url.trim(), apartment_id: apt.id } });
+      if(error) throw error;
+      if(data && data.error) throw new Error(data.error);
+      const paths = (data && data.paths) || [];
+      if(!paths.length){ alert("Es wurden keine Bilder gefunden."); setImporting(false); return; }
+      const start = photos.length;
+      const newEntries = paths.map((p,i)=>({ path:p, sort_order:start+i, category:null }));
+      await editApt(apt.id, { photos:[...photos, ...newEntries] });
+      alert("\u2713 "+paths.length+" Bild(er) importiert. Ordne sie unten den Kategorien zu (K\u00fcche, Bad, Zimmer \u2026).");
+    }catch(e){ alert("Import fehlgeschlagen: "+(e.message||e)); }
+    setImporting(false);
+  }
   
   // Build category options: Apartment's rooms + fixed common categories
   const aptRooms = (rooms || []).filter(r => r.aptId === apt.id);
@@ -3167,6 +3186,11 @@ function MediaManager({apt, editApt, rooms}){
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} disabled={uploading} multiple accept="image/*,.heic,.heif,.pdf,application/pdf" style={{display:"none"}}/>
           <button className="btn btn-p btn-sm" disabled={uploading} onClick={()=>fileInputRef.current?.click()} style={{flex:1}}>
             {uploading ? "⏳ Lädt…" : "📎 Mehrere Bilder gleichzeitig wählen"}
+          </button>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+          <button className="btn btn-g btn-sm" disabled={importing||uploading} onClick={importFromListing} style={{flex:1}}>
+            {importing ? "\u23f3 Importiere Bilder\u2026" : "Bilder von Inserat holen (Flatfox)"}
           </button>
         </div>
         <div style={{padding:"12px 14px",background:dragOver?"rgba(26,24,20,.06)":"transparent",border:dragOver?"1px dashed #1a1a1a":"1px dashed #c5b896",borderRadius:6,textAlign:"center",fontSize:11.5,color:dragOver?"#1a1a1a":"#8a8174",fontStyle:"italic",transition:"all .15s ease",pointerEvents:"none"}}>
