@@ -4314,8 +4314,17 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   // ─── KAUTIONS-AUFSCHLÄGE ───────────────────────────────────────
   // Mieter, die einen monatlichen Aufschlag wegen reduzierter Kaution zahlen
   // (archivierte Mieter ausschliessen - sie zahlen nicht mehr)
+  const _heuteMid = new Date(); _heuteMid.setHours(0,0,0,0);
+  const istAktuellerMieter = (t) => {
+    const ein = parseDMY(t.einzug);
+    if (ein && ein > _heuteMid) return false;   // Einzug liegt noch in der Zukunft
+    const aus = parseDMY(t.auszug);
+    if (aus && aus < _heuteMid) return false;    // bereits ausgezogen
+    return true;
+  };
   const aufschlagMieter = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
+    .filter(istAktuellerMieter)
     .map(t => {
       // Mehrere Wege um das Zimmer zu finden
       let room = rooms.find(r => r.id === t.roomId);
@@ -4347,6 +4356,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   const wgAufschlag = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .filter(t => wgTenantIds.has(t.id))
+    .filter(istAktuellerMieter)
     .reduce((s,t) => s + (+t.kautionAufschlag || 0), 0);
   
   // Moeblierung: Summe der monatlichen Moeblierungsgebuehren der aktiven WG-Mieter (nur Modus monatlich)
@@ -4499,6 +4509,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax + aMoeblierung;
               // Kautionsaufschläge pro Wohnung
               const aAufschlag = aptTenants
+                .filter(istAktuellerMieter)
                 .reduce((s, t) => {
                   let auf = +t.kautionAufschlag || 0;
                   if (!auf) {
