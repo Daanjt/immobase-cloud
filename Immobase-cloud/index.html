@@ -2045,6 +2045,18 @@ function useSupabaseData() {
     setRooms(p => [...p, nr]);
     return nr;
   }
+  async function insertRooms(aptId, roomList) {
+    const list = (roomList||[]).filter(Boolean);
+    if (!list.length) return [];
+    const nums = rooms.filter(r => r.aptId === aptId).map(r => { const m = String(r.id).match(/-(\d+)$/); return m ? +m[1] : 0; });
+    let n = nums.length ? Math.max(...nums) : 0;
+    const dbRows = list.map(d => { n += 1; return { id: `${aptId}-${n}`, apt_id: aptId, occupied: false, miete: +d.miete||0, groesse: formatGroesse(d.groesse), balkon: !!d.balkon }; });
+    const { error } = await supabase.from("rooms").insert(dbRows);
+    if (error) { console.error("insertRooms error:", error); alert("Zimmer konnten nicht angelegt werden: " + error.message); return null; }
+    const mapped = dbRows.map(r => ({ id: r.id, aptId: r.apt_id, occupied: false, miete: r.miete, groesse: r.groesse, balkon: r.balkon, tenantId: null, ausschreibOverride: "auto" }));
+    setRooms(p => [...p, ...mapped]);
+    return mapped;
+  }
   async function updateBewerber(id, fields) {
     const dbFields = {};
     const map = {
@@ -2798,7 +2810,7 @@ function useSupabaseData() {
     setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
   }
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -7766,7 +7778,7 @@ www.dthomes.ch`;
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
+function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -7780,6 +7792,12 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({type:"WG",ort:"Zürich"});
   const [roomList,setRoomList]=useState([]);
+  const [addRoomsFor,setAddRoomsFor]=useState(null);
+  const [addRoomList,setAddRoomList]=useState([]);
+  function openAddRooms(aptId){ setAddRoomsFor(aptId); setAddRoomList([{miete:"",groesse:"",balkon:false}]); }
+  function syncAddUnits(v){ const nn=Math.max(0,Math.min(20,+v||0)); setAddRoomList(prev=>{const nx=[...prev]; while(nx.length<nn)nx.push({miete:"",groesse:"",balkon:false}); while(nx.length>nn)nx.pop(); return nx;}); }
+  function updAddRoom(i,key,val){ setAddRoomList(prev=>prev.map((r,idx)=>idx===i?{...r,[key]:val}:r)); }
+  async function submitAddRooms(){ const list=(addRoomList||[]).filter(Boolean); if(!list.length){ setAddRoomsFor(null); return; } const res=await insertRooms(addRoomsFor,list); if(res){ setAddRoomsFor(null); setAddRoomList([]); } }
   const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id).sort((a,b)=>natSort(a.id, b.id)):[];
   const wgApts=apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
   const airbnbApts=apts.filter(a=>a.type==="Airbnb" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
@@ -8098,13 +8116,31 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
               </div>);
             })()}
-            {tab==="zimmer"&&(<div>{apt.type==="WG"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={async()=>{ if(!confirm("Neues Zimmer zu dieser Wohnung hinzufügen?"))return; const nr=await insertRoom(apt.id); if(nr&&navigateTo)navigateTo("zimmer",nr.id); }}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
+            {tab==="zimmer"&&(<div>{apt.type==="WG"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
       </div>
 
+      {addRoomsFor&&(()=>{
+        const ex=rooms.filter(r=>r.aptId===addRoomsFor).map(r=>{const m=String(r.id).match(/-(\d+)$/);return m?+m[1]:0;});
+        const startN=ex.length?Math.max(...ex):0;
+        return <div className="ov" onClick={e=>e.target===e.currentTarget&&setAddRoomsFor(null)}><div className="modal" style={{width:600}}>
+          <div className="mt">+ Zimmer hinzufügen · {addRoomsFor}</div>
+          <div className="fg"><label className="fl">Anzahl Zimmer *</label><input className="fi" type="number" min="1" max="20" value={addRoomList.length||""} onChange={e=>syncAddUnits(e.target.value)} placeholder="z.B. 3"/><div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Neue IDs: {addRoomsFor}-{startN+1}, {addRoomsFor}-{startN+2} …</div></div>
+          {addRoomList.length>0&&<div style={{marginTop:16,padding:"16px 18px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"64px 1fr 120px 70px",gap:8,marginBottom:6,fontSize:10,color:"#8a8174",fontWeight:600,letterSpacing:".05em",textTransform:"uppercase"}}><div>Zimmer</div><div>Grösse</div><div>Miete CHF/Mt.</div><div style={{textAlign:"center"}}>Balkon</div></div>
+            {addRoomList.map((r,i)=>(<div key={i} style={{display:"grid",gridTemplateColumns:"64px 1fr 120px 70px",gap:8,marginBottom:6,alignItems:"center"}}>
+              <div style={{fontSize:11.5,fontWeight:600,color:"#1a1814"}}>{addRoomsFor}-{startN+i+1}</div>
+              <input className="fi" style={{margin:0,padding:"7px 10px"}} value={r.groesse} onChange={e=>updAddRoom(i,"groesse",e.target.value)} placeholder="z.B. 14"/>
+              <input className="fi" style={{margin:0,padding:"7px 10px"}} type="number" value={r.miete} onChange={e=>updAddRoom(i,"miete",e.target.value)} placeholder="1490"/>
+              <label style={{display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><input type="checkbox" checked={r.balkon} onChange={e=>updAddRoom(i,"balkon",e.target.checked)}/></label>
+            </div>))}
+          </div>}
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:18}}><button className="btn btn-g btn-sm" onClick={()=>setAddRoomsFor(null)}>Abbrechen</button><button className="btn btn-p btn-sm" onClick={submitAddRooms}>{addRoomList.length||0} Zimmer hinzufügen</button></div>
+        </div></div>;
+      })()}
       {adding&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setAdding(false)}><div className="modal" style={{width:620}}>
         <div className="mt">+ Neue Wohnung erfassen</div>
 
