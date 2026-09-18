@@ -2940,8 +2940,17 @@ function MediaManager({apt, editApt, rooms}){
   const fileInputRef = React.useRef(null);
   const photos = apt.photos || [];
   async function importFromListing(){
-    const url = window.prompt("Link zum Flatfox-Inserat einf\u00fcgen. Die Bilder werden geholt und dieser Wohnung als Medien hinzugef\u00fcgt:", "");
-    if(!url) return;
+    let url = null;
+    try {
+      const { data: dl } = await supabase.from("pipeline").select("url").eq("won_apartment_id", apt.id).not("url","is",null).limit(1);
+      if (dl && dl[0] && dl[0].url) url = dl[0].url;
+    } catch (e) { /* Fallback auf manuelle Eingabe */ }
+    if (url) {
+      if (!confirm("Bilder vom verkn\u00fcpften Inserat holen?\n\n" + url + "\n\nSie werden dieser Wohnung als Medien hinzugef\u00fcgt.")) return;
+    } else {
+      url = window.prompt("Link zum Flatfox-Inserat einf\u00fcgen. Die Bilder werden geholt und dieser Wohnung als Medien hinzugef\u00fcgt:", "");
+      if (!url) return;
+    }
     if(!/flatfox\.ch/i.test(url)){ alert("Bitte einen flatfox.ch-Link einf\u00fcgen."); return; }
     setImporting(true);
     try{
