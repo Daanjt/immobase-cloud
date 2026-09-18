@@ -2958,11 +2958,26 @@ function MediaManager({apt, editApt, rooms}){
       if(error) throw error;
       if(data && data.error) throw new Error(data.error);
       const paths = (data && data.paths) || [];
-      if(!paths.length){ alert("Es wurden keine Bilder gefunden."); setImporting(false); return; }
-      const start = photos.length;
-      const newEntries = paths.map((p,i)=>({ path:p, sort_order:start+i, category:null }));
-      await editApt(apt.id, { photos:[...photos, ...newEntries] });
-      alert("\u2713 "+paths.length+" Bild(er) importiert. Ordne sie unten den Kategorien zu (K\u00fcche, Bad, Zimmer \u2026).");
+      const meta = (data && data.meta) || {};
+      const fields = {};
+      const filled = [];
+      // Eckdaten aus dem Inserat nur in leere Felder übernehmen
+      [["zimmer","zimmer","Zimmer"],["stockwerk","stockwerk","Stockwerk"],["mietbeginn","mietbeginn","Mietbeginn"],["mietende","mietende","befristet bis"],["miete","miete","Miete"],["beschreibung","beschreibung","Beschreibung"],["adresse","adresse","Adresse"],["plz","plz","PLZ"],["ort","ort","Ort"],["matterport_url","matterportUrl","3D-Tour"]].forEach(function(t){
+        var mk=t[0], ak=t[1], lbl=t[2], cur=apt[ak];
+        var empty=(cur===null||cur===undefined||cur==="");
+        if(empty && meta[mk]!==undefined && meta[mk]!==null && meta[mk]!==""){ fields[ak]=meta[mk]; filled.push(lbl); }
+      });
+      // Bilder: keine Duplikate, wenn schon Inseratsbilder vorhanden sind
+      var addedImgs=0;
+      var hasFlatfox=(photos||[]).some(function(p){return String((p&&p.path)||"").indexOf("/flatfox_")>=0;});
+      if(paths.length && (!hasFlatfox || confirm("Es sind bereits Inseratsbilder vorhanden. Bilder trotzdem erneut hinzufügen?"))){
+        var start=photos.length;
+        fields.photos=[...photos, ...paths.map(function(p,i){return { path:p, sort_order:start+i, category:null };})];
+        addedImgs=paths.length;
+      }
+      if(!addedImgs && !filled.length){ alert("Nichts zu übernehmen: keine neuen Bilder und keine offenen Felder."); setImporting(false); return; }
+      await editApt(apt.id, fields);
+      alert("✓ Import abgeschlossen. "+addedImgs+" Bild(er)"+(filled.length?" und Angaben übernommen ("+filled.join(", ")+")":"")+". Ordne die Bilder unten den Kategorien zu.");
     }catch(e){ alert("Import fehlgeschlagen: "+(e.message||e)); }
     setImporting(false);
   }
