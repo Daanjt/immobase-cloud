@@ -2543,6 +2543,13 @@ function useSupabaseData() {
   }
   
   async function acceptHandoverProtocol(protocolId) {
+    // Schutz: nur ein eingereichtes Protokoll darf als "eingereicht" bestaetigt werden,
+    // sonst ginge eine falsche "danke fuers Ausfuellen"-Mail fuer ein leeres Protokoll raus.
+    const { data: pr } = await supabase.from("handover_protocols").select("status, tenant_signature").eq("id", protocolId).single();
+    if (pr && !["submitted","accepted","auto_accepted"].includes(pr.status) && !(pr.tenant_signature && String(pr.tenant_signature).trim())) {
+      alert("Dieses Protokoll wurde vom Mieter noch nicht ausgefüllt und eingereicht. Es kann erst nach Einreichung bestätigt werden. Nach Ablauf der 14-tägigen Frist wird es automatisch abgeschlossen.");
+      return;
+    }
     // finalize-handover: PDF serverseitig erzeugen, Bestaetigungs-Mail senden,
     // Dokument speichern und Protokoll abschliessen.
     let emailOk = false, emailErr = null;
@@ -6104,6 +6111,7 @@ function HandoverConfirmButton({protocol, onDone}){
   }
   function closePreview(){ if(previewUrl){ try{URL.revokeObjectURL(previewUrl);}catch(_){} } setPreviewUrl(null); }
   async function confirmSend(){
+    if (p.status !== "submitted") { alert("Dieses Protokoll wurde noch nicht eingereicht und kann darum nicht bestätigt werden."); return; }
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id } });
