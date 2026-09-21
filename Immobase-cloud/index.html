@@ -3969,7 +3969,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       else kategorie = "todo"; // cancelled -> zurueck auf todo
       // Altbestand: manuell als erledigt markiert oder altes Protokoll als Dokument hinterlegt
       const hatAltesProtokoll = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===t.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
-      if ((t.uebergabeStatus||"offen")==="erledigt" || hatAltesProtokoll) kategorie = "done";
+      const istLaufend = latest && ["sent","in_progress","submitted"].includes(latest.status);
+      if (!istLaufend && ((t.uebergabeStatus||"offen")==="erledigt" || hatAltesProtokoll)) kategorie = "done";
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
       return { tenant: t, room, apt, einzugDate, daysTilEinzug, kategorie, latest };
