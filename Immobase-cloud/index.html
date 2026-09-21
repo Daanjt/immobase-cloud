@@ -4321,7 +4321,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   );
 }
 
-function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols}){
+function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
   const heute=new Date();
   heute.setHours(0,0,0,0);
 
@@ -4467,16 +4467,27 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
 
       {(() => {
-        const cPend = (contracts||[]).filter(c=>c.status==="mieter_signiert").length;
-        const pPend = (handoverProtocols||[]).filter(h=>h.status==="submitted").length;
-        if (!cPend && !pPend) return null;
-        const btn = {display:"inline-flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #e8d2a8",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#7a5a1e",fontWeight:600};
+        const pPendList = (handoverProtocols||[]).filter(h=>h.status==="submitted");
+        const cPendList = (contracts||[]).filter(c=>c.status==="mieter_signiert");
+        if (!cPendList.length && !pPendList.length) return null;
+        const row = {display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",background:"#fff",border:"1px solid #ecd7ab",borderRadius:8,padding:"9px 12px"};
+        const nm = (v,n)=>`${(v||"").trim()} ${(n||"").trim()}`.trim();
         return (
           <div style={{background:"#fdf6e3",border:"1px solid #e8d2a8",borderRadius:10,padding:"14px 18px",margin:"16px 0 22px"}}>
             <div style={{fontSize:9,color:"#8a6a2e",textTransform:"uppercase",letterSpacing:".28em",fontWeight:700,marginBottom:10}}>Zu bestätigen</div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              {cPend>0 && <div onClick={()=>navigateTo&&navigateTo("bewerber",null)} style={btn}>✍ {cPend} {cPend===1?"Untermietvertrag":"Untermietverträge"} gegenzuzeichnen</div>}
-              {pPend>0 && <div onClick={()=>navigateTo&&navigateTo("uebergaben",null)} style={btn}>🔑 {pPend} {pPend===1?"Übernahmeprotokoll":"Übernahmeprotokolle"} zu bestätigen</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {pPendList.map(hp => (
+                <div key={"h"+hp.id} style={row}>
+                  <div style={{fontSize:12.5,color:"#3a352d",minWidth:0}}>🔑 <strong>Übernahmeprotokoll</strong>{nm(hp.mieterVorname,hp.mieterNachname)?` · ${nm(hp.mieterVorname,hp.mieterNachname)}`:""}{hp.submittedAt?<span style={{color:"#8a8478"}}> · eingereicht {new Date(hp.submittedAt).toLocaleDateString("de-CH")}</span>:null}</div>
+                  <HandoverConfirmButton protocol={hp} onDone={loadHandoverProtocols} />
+                </div>
+              ))}
+              {cPendList.map(ct => (
+                <div key={"c"+ct.id} style={row}>
+                  <div style={{fontSize:12.5,color:"#3a352d",minWidth:0}}>✍ <strong>Untermietvertrag</strong>{nm(ct.mieterVorname,ct.mieterNachname)?` · ${nm(ct.mieterVorname,ct.mieterNachname)}`:""} · gegenzuzeichnen</div>
+                  <CountersignButton contract={ct} onDone={loadContracts} light />
+                </div>
+              ))}
             </div>
           </div>
         );
