@@ -372,24 +372,14 @@ Deno.serve(async (req: Request) => {
         const name = (p.mieter_vorname || "").trim() || "zusammen";
 
         if (daysLeft <= 0 && !p.auto_accept_email_sent_at) {
-          await patchProtocol(p.id, {
-            status: "auto_accepted",
-            closed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            auto_accept_email_sent_at: new Date().toISOString(),
-          });
-
           // PDF einmal erzeugen und fuer beides nutzen: Dokumente-Sektion und Mail.
           let pdfBase64: string | null = null;
           const filename = `Uebernahmeprotokoll_${p.mieter_nachname || "Mieter"}_${p.mieter_vorname || ""}.pdf`.replace(/\s+/g, "_");
           try { pdfBase64 = await renderPdfViaApi(buildProtocolHtml(p), filename); } catch (pdfErr) { console.error(`PDF generation failed for ${p.id}:`, pdfErr); }
 
-          // Gleich wie der normale Ablauf (send-handover-pdf) das PDF in die
-          // Dokumente-Sektion ablegen, damit ein auto-akzeptiertes Protokoll
-          // dasselbe Dokument hat wie ein eingereichtes.
-          if (pdfBase64) await savePdfToDocuments(p, pdfBase64);
-
-          // Mail an Mieter mit PDF-Anhang (falls Adresse vorhanden).
+          // Mail ZUERST senden. Schlaegt der Versand fehl, wirft sendEmail und der
+          // Status wird NICHT gesetzt, sodass der naechste Lauf es erneut versucht
+          // (kein stiller Verlust der Auto-Abnahme-Mail).
           if (p.mieter_email && p.mieter_email.includes("@")) {
             const attachments = pdfBase64 ? [{ filename, content: pdfBase64 }] : undefined;
             await sendEmail(
@@ -399,6 +389,16 @@ Deno.serve(async (req: Request) => {
               attachments,
             );
           }
+
+          // Erst nach erfolgreichem Versand (oder wenn keine Adresse vorhanden):
+          // PDF in die Dokumente-Sektion ablegen und Protokoll abschliessen.
+          if (pdfBase64) await savePdfToDocuments(p, pdfBase64);
+          await patchProtocol(p.id, {
+            status: "auto_accepted",
+            closed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            auto_accept_email_sent_at: new Date().toISOString(),
+          });
           results.auto_accepted++;
           continue;
         }
