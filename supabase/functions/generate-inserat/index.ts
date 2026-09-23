@@ -27,7 +27,7 @@ serve(async (req) => {
       model = c.anthropic_model || "";
     }
     if (!key) return j({ error: "Kein Anthropic-Schluessel hinterlegt (Edge-Function-Secret ANTHROPIC_API_KEY oder app_config.anthropic_api_key)." }, 200);
-    if (!model) model = "claude-sonnet-5";
+    if (!model) model = "claude-haiku-4-5-20251001";
 
     // ---- Build a facts block from provided data only (no invented details) ----
     const lines: string[] = [];
@@ -114,6 +114,28 @@ Regeln:
 - Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
 - Nenne klar, ab wann das Zimmer frei ist (aus dem Faktum "Frei ab"). Uebernimm die Mietdauer exakt aus den Fakten: steht dort "Mietdauer: unbefristet", schreibe, das Zimmer sei unbefristet zu haben; steht ein "Befristet bis"-Datum, nenne dieses Datum klar. Erfinde keine Befristung und wandle das eine nicht ins andere um.
 - Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
+
+Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit Leerzeile zwischen den Absaetzen. Fuelle die eckigen Klammern aus den Fakten und lass eine Zeile ganz weg, wenn dazu keine Angabe vorliegt. Uebernimm die Aufzaehlungszeichen genau so. Bei einer Wohnung auf Zeit passe die Vorlage sinngemaess an (ohne WG-Groesse und Mitbewohner):
+
+[Einladender Einstieg, nennt die WG-Groesse und den Ort]
+
+[Das Zimmer ist bezugsbereit. Die Gemeinschaftsraeume sind moebliert, das Zimmer selbst wahlweise moebliert oder unmoebliert mietbar.]
+
+[Ihr wohnt zu Xt zusammen. Kueche und Bad werden gemeinsam genutzt.]
+
+[Die Liegenschaft befindet sich an <Adresse> in <Ort und Quartier>, mit guter Anbindung an die Zuercher Innenstadt.]
+• [Universitaeten und Fachhochschulen mit dem oeffentlichen Verkehr gut erreichbar]
+• [Einkaufsmoeglichkeiten, Restaurants und Cafes in der Umgebung]
+• [Sehr gute Anbindung an den oeffentlichen Verkehr und die Zuercher Innenstadt]
+• [Verschiedene Gruen- und Naherholungsgebiete in der Umgebung]
+• [Ideale Lage fuer Studierende und Young Professionals]
+
+Auf einen Blick: Miete [Betrag], frei ab [Datum], [unbefristet oder befristet bis Datum], Kaution [Angabe].
+
+Die Moeblierung auf den Bildern ist vom aktuellen Mieter. Bei der Anmietung wird das nicht so sein.
+
+Die Bewerbung laeuft einfach online, in wenigen Minuten.
+
 
 Antworte NUR mit gueltigem JSON, ohne Markdown und ohne weiteren Text, genau in dieser Form:
 {"titel": "...", "beschreibung": "..."}
