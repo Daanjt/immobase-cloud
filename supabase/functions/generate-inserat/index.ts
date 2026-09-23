@@ -58,14 +58,17 @@ serve(async (req) => {
     const startDate = roomAvail.length ? new Date(Math.min(...roomAvail.map((d) => d.getTime()))) : parseDate(p.mietbeginn);
     const freiAb = (roomsArr.length && roomsArr[0].verfuegbarAb) ? roomsArr[0].verfuegbarAb : p.mietbeginn;
     add("Frei ab", freiAb);
+    const fmtShort = (v: any): string => { const d = parseDate(v); if (!d) return String(v || "").trim(); const p2 = (n: number) => String(n).padStart(2, "0"); return `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)}`; };
+    let titelZeitraum = "";
     if (istWG) {
       const endDate = parseDate(p.mietende);
-      if (p.mietende && endDate && startDate && (endDate.getTime() - startDate.getTime()) / 86400000 > 366) {
-        add("Mietdauer", "unbefristet");
-      } else if (p.mietende) {
+      const langfristig = !!(p.mietende && endDate && startDate && (endDate.getTime() - startDate.getTime()) / 86400000 > 366);
+      if (p.mietende && !langfristig) {
         add("Befristet bis", p.mietende);
+        titelZeitraum = `befristet von ${fmtShort(freiAb)} bis ${fmtShort(p.mietende)}`;
       } else {
         add("Mietdauer", "unbefristet");
+        titelZeitraum = freiAb ? `ab ${fmtShort(freiAb)}` : "unbefristet";
       }
     } else {
       add("Befristet bis", p.mietende);
@@ -77,6 +80,8 @@ serve(async (req) => {
       const zuWort: Record<number, string> = { 2: "zu zweit", 3: "zu dritt", 4: "zu viert", 5: "zu fuenft", 6: "zu sechst", 7: "zu siebt", 8: "zu acht" };
       if (wz >= 2) add("WG-Groesse", `${wgWord[wz] || wz + "er-WG"}, man wohnt ${zuWort[wz] || "zu " + wz + "."}`);
       add("Moeblierung", "Gemeinschaftsraeume sind moebliert; Zimmer wahlweise moebliert oder unmoebliert mietbar");
+      add("Foto-Hinweis", "Die Moeblierung auf den Bildern gehoert dem aktuellen Mieter und ist bei der Anmietung nicht vorhanden.");
+      if (wz >= 2) add("Titel-Vorgabe", `WG-Zimmer in ${wz}er-WG${titelZeitraum ? ", " + titelZeitraum : ""}`);
     }
 
     const rooms = Array.isArray(p.rooms) ? p.rooms : [];
@@ -101,14 +106,14 @@ serve(async (req) => {
 
 Regeln:
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
-- Zur Lage darfst du allgemein bekannte, plausible Merkmale der genannten Adresse und des Quartiers nennen (OeV-Anbindung, Naehe zu Zentrum, Uni oder Einkauf), aber nichts Konkretes erfinden.
+- Zur Lage: schreibe einen kurzen Einleitungssatz mit der konkreten Adresse und dem Quartier und der Anbindung an die Zuercher Innenstadt, gefolgt von vier bis fuenf kurzen Aufzaehlungspunkten. Jeder Punkt beginnt mit "• " und steht auf einer eigenen Zeile. Inhalte, soweit fuer die Adresse plausibel: Erreichbarkeit von Universitaeten und Fachhochschulen mit dem oeffentlichen Verkehr; Einkaufsmoeglichkeiten, Restaurants und Cafes in der Umgebung; sehr gute Anbindung an den oeffentlichen Verkehr und die Zuercher Innenstadt; verschiedene Gruen- und Naherholungsgebiete in der Umgebung; ideale Lage fuer Studierende und Young Professionals. Nutze nur allgemein bekannte, plausible Merkmale, erfinde nichts Konkretes.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
-- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, moebliert, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne die WG-Groesse aus den Fakten (zum Beispiel Vierer-WG, man wohnt zu viert) und die Moeblierung" : "Ausstattung und Umfeld"}, 4) die Lage, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, Kaution soweit bekannt), 6) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
+- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne die WG-Groesse aus den Fakten (zum Beispiel Vierer-WG, man wohnt zu viert) und die Moeblierung" : "Ausstattung und Umfeld"}, 4) die Lage im vorgegebenen Aufzaehlungsstil, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, Kaution soweit bekannt), 6) den Foto-Hinweis aus den Fakten, 7) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
 - Bei einer WG: nenne die WG-Groesse genau wie im Faktum WG-Groesse (zum Beispiel Vierer-WG, man wohnt zu viert). Die Groesse ergibt sich aus der Zahl der Zimmer in der Wohnung, nicht aus belegten Zimmern. Erfinde keine andere Personenzahl.
 - Erwaehne bei einer WG die Moeblierung: die Gemeinschaftsraeume sind moebliert, und die Zimmer koennen wahlweise moebliert oder unmoebliert gemietet werden. Behaupte nicht, das Zimmer sei fix moebliert.
 - Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
 - Nenne klar, ab wann das Zimmer frei ist (aus dem Faktum "Frei ab"). Uebernimm die Mietdauer exakt aus den Fakten: steht dort "Mietdauer: unbefristet", schreibe, das Zimmer sei unbefristet zu haben; steht ein "Befristet bis"-Datum, nenne dieses Datum klar. Erfinde keine Befristung und wandle das eine nicht ins andere um.
-- Der Titel ist kurz (hoechstens rund 60 Zeichen), konkret und ansprechend und nennt Objektart und Lage.
+- Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
 
 Antworte NUR mit gueltigem JSON, ohne Markdown und ohne weiteren Text, genau in dieser Form:
 {"titel": "...", "beschreibung": "..."}
