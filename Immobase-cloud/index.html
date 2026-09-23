@@ -2960,8 +2960,18 @@ function MediaManager({apt, editApt, rooms}){
   const [besch, setBesch] = useState(apt.beschreibung || "");
   const [beschSaving, setBeschSaving] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
+  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState("");
   async function saveBesch(){ setBeschSaving(true); try{ await editApt(apt.id,{beschreibung: besch}); }catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); } setBeschSaving(false); }
   async function generateBesch(){ setGenBusy(true); try{ const {data,error}=await supabase.functions.invoke("generate-beschreibung",{body:{adresse:apt.adresse,plz:apt.plz,ort:apt.ort,zimmer:apt.zimmer}}); if(error) throw error; if(data&&data.text){ setBesch(data.text); } else { alert("Kein Text erhalten. Ist der Anthropic-Schlüssel hinterlegt?"); } }catch(err){ alert("Automatische Generierung nicht möglich: "+(err.message||err)+"\n\n(Benötigt den Anthropic-API-Schlüssel in app_config.)"); } setGenBusy(false); }
+  async function generateInserat(){ setInsBusy(true); try{
+    const aptRooms = (rooms||[]).filter(r=> r.aptId===apt.id && r.ausschreibOverride!=="nicht" && (r.ausschreibOverride==="ausschreiben" || !r.occupied));
+    const payloadRooms = aptRooms.map(r=>({ groesse:r.groesse||"", qm:r.qm||null, miete:r.miete||null, balkon:!!r.balkon, moebliert:!!r.moebliert, verfuegbarAb:r.mieter_auszug||apt.mietbeginn||"" }));
+    const body={ typ:apt.type||"", adresse:apt.adresse||"", plz:apt.plz||"", ort:apt.ort||"", stockwerk:apt.stockwerk||"", wgGroesse:apt.zimmer||"", mietbeginn:apt.mietbeginn||"", mietende:apt.mietende||"", kaution:apt.kaution||null, kautionType:apt.kautionType||apt.kaution_type||"", miete:apt.miete||null, rooms:payloadRooms };
+    const {data,error}=await supabase.functions.invoke("generate-inserat",{body}); if(error) throw error;
+    if(data&&(data.titel||data.beschreibung)){ setInsTitel(data.titel||""); setInsText(data.beschreibung||""); }
+    else { alert(data&&data.error ? data.error : "Kein Text erhalten."); }
+  }catch(err){ alert("Generierung nicht möglich: "+(err.message||err)); } setInsBusy(false); }
+  function copyIns(txt,which){ try{ navigator.clipboard.writeText(txt||""); setInsCopied(which); setTimeout(()=>setInsCopied(""),1500); }catch(e){} }
   const [vidUp, setVidUp] = useState(false);
   async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>500*1024*1024){ alert("Video zu gross (max. 500 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ alert("Video-Upload fehlgeschlagen: "+(err.message||err)); } setVidUp(false); e.target.value=""; }
   async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ alert("Entfernen fehlgeschlagen: "+(err.message||err)); } setVidUp(false); }
@@ -3314,6 +3324,25 @@ function MediaManager({apt, editApt, rooms}){
           <button className="btn btn-p btn-sm" disabled={beschSaving} onClick={saveBesch}>{beschSaving?"⏳":"✓ Speichern"}</button>
         </div>
         <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Wird auf der Webseite unter der Karte angezeigt.</div>
+      </div>
+      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16}}>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🏷️ Flatfox-Inseratstext</div>
+        <button className="btn btn-sm" disabled={insBusy} onClick={generateInserat}>{insBusy?"⏳ generiert …":"✨ Inseratstext generieren"}</button>
+        {(insTitel||insText) && (
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".2em",marginBottom:4,fontWeight:500}}>Titel</div>
+            <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+              <input className="fi" style={{flex:1,margin:0}} value={insTitel} onChange={e=>setInsTitel(e.target.value)}/>
+              <button className="btn btn-sm" onClick={()=>copyIns(insTitel,"t")}>{insCopied==="t"?"✓ kopiert":"Kopieren"}</button>
+            </div>
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".2em",margin:"12px 0 4px",fontWeight:500}}>Beschreibung</div>
+            <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+              <textarea className="fi" style={{flex:1,minHeight:200,margin:0,resize:"vertical",lineHeight:1.5}} value={insText} onChange={e=>setInsText(e.target.value)}/>
+              <button className="btn btn-sm" onClick={()=>copyIns(insText,"b")}>{insCopied==="b"?"✓ kopiert":"Kopieren"}</button>
+            </div>
+          </div>
+        )}
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Fertiger Text für Flatfox aus den Objekt- und Zimmerdaten. Vor dem Veröffentlichen kurz prüfen. Bilder separat hochladen.</div>
       </div>
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16}}>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🎬 Video-Rundgang</div>
