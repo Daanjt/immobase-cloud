@@ -3369,8 +3369,8 @@ function MediaManager({apt, editApt, rooms}){
   );
 }
 
-function FlatfoxTab({apt, rooms}){
-  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [zipping,setZipping]=useState(false);
+function FlatfoxTab({apt, rooms, editApt}){
+  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [zipping,setZipping]=useState(false); const [savingWeb,setSavingWeb]=useState(false); const [savedWeb,setSavedWeb]=useState(false);
   const photos=(apt.photos||[]).filter(p=>p&&p.path&&!String(p.path).toLowerCase().endsWith(".pdf")&&!p.hidden);
   const publicUrl=(path)=>supabase.storage.from("assets").getPublicUrl(path).data.publicUrl;
   const fileExt=(path)=>(String(path).split(".").pop()||"jpg").toLowerCase();
@@ -3395,6 +3395,13 @@ function FlatfoxTab({apt, rooms}){
     if(data&&(data.titel||data.beschreibung)){ setInsTitel(data.titel||""); setInsText(data.beschreibung||""); } else { alert(data&&data.error?data.error:"Kein Text erhalten. Ist der Anthropic-Schluessel hinterlegt?"); }
   }catch(err){ alert("Generierung nicht moeglich: "+(err.message||err)); } setInsBusy(false); }
   function copyIns(txt,which){ try{ navigator.clipboard.writeText(txt||""); setInsCopied(which); setTimeout(()=>setInsCopied(""),1500); }catch(e){} }
+  async function saveToWebsite(){
+    if(!insText){ alert("Zuerst Titel und Beschreibung generieren."); return; }
+    setSavingWeb(true);
+    try{ await editApt(apt.id,{beschreibung:insText}); setSavedWeb(true); setTimeout(()=>setSavedWeb(false),2500); }
+    catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); }
+    setSavingWeb(false);
+  }
   const mono={fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500};
   const card={background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16};
   return (
@@ -3422,6 +3429,7 @@ function FlatfoxTab({apt, rooms}){
             </div>
             <div style={{marginTop:8}}>
               <button className="btn btn-sm" onClick={()=>copyIns((insTitel?insTitel+"\n\n":"")+(insText||""),"all")}>{insCopied==="all"?"alles kopiert":"Titel und Beschreibung kopieren"}</button>
+              <button className="btn btn-p btn-sm" style={{marginLeft:8}} disabled={savingWeb||!insText} onClick={saveToWebsite}>{savedWeb?"✓ auf Website":(savingWeb?"speichert …":"Auf Website übernehmen")}</button>
             </div>
           </div>
         )}
@@ -8237,7 +8245,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             {tab==="zimmer"&&(<div>{apt.type==="WG"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="flatfox"&&<FlatfoxTab apt={apt} rooms={rooms}/>}
+            {tab==="flatfox"&&<FlatfoxTab apt={apt} rooms={rooms} editApt={updateApt}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
       </div>
