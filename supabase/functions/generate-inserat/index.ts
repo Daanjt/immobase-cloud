@@ -43,9 +43,35 @@ serve(async (req) => {
     add("PLZ / Ort", [p.plz, p.ort].filter(Boolean).join(" "));
     add("Stockwerk", p.stockwerk);
     add("Wohnungsgroesse (Zimmer der ganzen Wohnung)", p.wgGroesse);
-    add("Mietbeginn (Wohnung)", p.mietbeginn);
-    add("Befristet bis", p.mietende);
+    // Verfuegbarkeit und Befristung
+    const roomsArr = Array.isArray(p.rooms) ? p.rooms : [];
+    const parseDate = (v: any): Date | null => {
+      if (!v) return null;
+      const t = String(v).trim();
+      let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      m = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+      if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      const d = new Date(t); return isNaN(d.getTime()) ? null : d;
+    };
+    const roomAvail = roomsArr.map((r: any) => parseDate(r.verfuegbarAb)).filter((d: Date | null) => !!d) as Date[];
+    const startDate = roomAvail.length ? new Date(Math.min(...roomAvail.map((d) => d.getTime()))) : parseDate(p.mietbeginn);
+    const freiAb = (roomsArr.length && roomsArr[0].verfuegbarAb) ? roomsArr[0].verfuegbarAb : p.mietbeginn;
+    add("Frei ab", freiAb);
+    if (istWG) {
+      const endDate = parseDate(p.mietende);
+      if (p.mietende && endDate && startDate && (endDate.getTime() - startDate.getTime()) / 86400000 > 366) {
+        add("Mietdauer", "unbefristet");
+      } else if (p.mietende) {
+        add("Befristet bis", p.mietende);
+      } else {
+        add("Mietdauer", "unbefristet");
+      }
+    } else {
+      add("Befristet bis", p.mietende);
+    }
     add("Kaution", p.kaution ? `CHF ${p.kaution}${p.kautionType ? " (" + p.kautionType + ")" : ""}` : null);
+    if (istWG && Number(p.mitbewohner) > 0) add("Aktuelle Mitbewohner (Personen, die bereits in der WG wohnen)", p.mitbewohner);
 
     const rooms = Array.isArray(p.rooms) ? p.rooms : [];
     if (rooms.length) {
@@ -72,7 +98,9 @@ Regeln:
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
 - Zur Lage darfst du allgemein bekannte, plausible Merkmale der genannten Adresse und des Quartiers nennen (OeV-Anbindung, Naehe zu Zentrum, Uni oder Einkauf), aber nichts Konkretes erfinden.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
-- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, moebliert, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG und die Wohnung" : "Ausstattung und Umfeld"}, 4) die Lage, 5) das Wichtigste in Kuerze (Miete, verfuegbar ab, befristet bis, Kaution soweit bekannt), 6) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
+- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, moebliert, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne, mit wie vielen Personen man zusammenwohnt, falls die Fakten das angeben, und nur die gemeinsam genutzten Raeume, die belegt sind" : "Ausstattung und Umfeld"}, 4) die Lage, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, Kaution soweit bekannt), 6) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
+- Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
+- Nenne klar, ab wann das Zimmer frei ist (aus dem Faktum "Frei ab"). Uebernimm die Mietdauer exakt aus den Fakten: steht dort "Mietdauer: unbefristet", schreibe, das Zimmer sei unbefristet zu haben; steht ein "Befristet bis"-Datum, nenne dieses Datum klar. Erfinde keine Befristung und wandle das eine nicht ins andere um.
 - Der Titel ist kurz (hoechstens rund 60 Zeichen), konkret und ansprechend und nennt Objektart und Lage.
 
 Antworte NUR mit gueltigem JSON, ohne Markdown und ohne weiteren Text, genau in dieser Form:

@@ -2966,7 +2966,7 @@ function MediaManager({apt, editApt, rooms}){
   async function generateInserat(){ setInsBusy(true); try{
     const aptRooms = (rooms||[]).filter(r=> r.aptId===apt.id && r.ausschreibOverride!=="nicht" && (r.ausschreibOverride==="ausschreiben" || !r.occupied));
     const payloadRooms = aptRooms.map(r=>({ groesse:r.groesse||"", qm:r.qm||null, miete:r.miete||null, balkon:!!r.balkon, moebliert:!!r.moebliert, verfuegbarAb:r.mieter_auszug||apt.mietbeginn||"" }));
-    const body={ typ:apt.type||"", adresse:apt.adresse||"", plz:apt.plz||"", ort:apt.ort||"", stockwerk:apt.stockwerk||"", wgGroesse:apt.zimmer||"", mietbeginn:apt.mietbeginn||"", mietende:apt.mietende||"", kaution:apt.kaution||null, kautionType:apt.kautionType||apt.kaution_type||"", miete:apt.miete||null, rooms:payloadRooms };
+    const body={ typ:apt.type||"", adresse:apt.adresse||"", plz:apt.plz||"", ort:apt.ort||"", stockwerk:apt.stockwerk||"", wgGroesse:apt.zimmer||"", mietbeginn:apt.mietbeginn||"", mietende:apt.mietende||"", kaution:apt.kaution||null, kautionType:apt.kautionType||apt.kaution_type||"", miete:apt.miete||null, mitbewohner:(rooms||[]).filter(r=>r.aptId===apt.id&&r.occupied).length, rooms:payloadRooms };
     const {data,error}=await supabase.functions.invoke("generate-inserat",{body}); if(error) throw error;
     if(data&&(data.titel||data.beschreibung)){ setInsTitel(data.titel||""); setInsText(data.beschreibung||""); }
     else { alert(data&&data.error ? data.error : "Kein Text erhalten."); }
@@ -3383,7 +3383,7 @@ function FlatfoxTab({apt, rooms}){
   async function generateInserat(){ setInsBusy(true); try{
     const aptRooms=(rooms||[]).filter(r=> r.aptId===apt.id && r.ausschreibOverride!=="nicht" && (r.ausschreibOverride==="ausschreiben" || !r.occupied));
     const payloadRooms=aptRooms.map(r=>({groesse:r.groesse||"",qm:r.qm||null,miete:r.miete||null,balkon:!!r.balkon,moebliert:!!r.moebliert,verfuegbarAb:r.mieter_auszug||apt.mietbeginn||""}));
-    const body={typ:apt.type||"",adresse:apt.adresse||"",plz:apt.plz||"",ort:apt.ort||"",stockwerk:apt.stockwerk||"",wgGroesse:apt.zimmer||"",mietbeginn:apt.mietbeginn||"",mietende:apt.mietende||"",kaution:apt.kaution||null,kautionType:apt.kautionType||apt.kaution_type||"",miete:apt.miete||null,rooms:payloadRooms};
+    const body={typ:apt.type||"",adresse:apt.adresse||"",plz:apt.plz||"",ort:apt.ort||"",stockwerk:apt.stockwerk||"",wgGroesse:apt.zimmer||"",mietbeginn:apt.mietbeginn||"",mietende:apt.mietende||"",kaution:apt.kaution||null,kautionType:apt.kautionType||apt.kaution_type||"",miete:apt.miete||null,mitbewohner:(rooms||[]).filter(r=>r.aptId===apt.id&&r.occupied).length,rooms:payloadRooms};
     const {data,error}=await supabase.functions.invoke("generate-inserat",{body}); if(error) throw error;
     if(data&&(data.titel||data.beschreibung)){ setInsTitel(data.titel||""); setInsText(data.beschreibung||""); } else { alert(data&&data.error?data.error:"Kein Text erhalten. Ist der Anthropic-Schluessel hinterlegt?"); }
   }catch(err){ alert("Generierung nicht moeglich: "+(err.message||err)); } setInsBusy(false); }
