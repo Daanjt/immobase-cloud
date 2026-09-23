@@ -125,12 +125,13 @@ ${facts}`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 1200, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model, max_tokens: 2000, messages: [{ role: "user", content: prompt }] }),
     });
     const jr = await r.json();
     if (!r.ok) return j({ error: jr?.error?.message || "Anthropic-Fehler" }, 200);
 
-    let raw = (jr.content?.[0]?.text || "").trim();
+    const blocks = Array.isArray(jr.content) ? jr.content : [];
+    let raw = blocks.filter((b: any) => b && b.type === "text").map((b: any) => b.text || "").join("").trim();
     // strip accidental code fences
     raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     let titel = "", beschreibung = "";
@@ -142,7 +143,10 @@ ${facts}`;
       // fallback: return the raw text as description if JSON parsing failed
       beschreibung = raw;
     }
-    if (!titel && !beschreibung) return j({ error: "Leere Antwort vom Modell." }, 200);
+    if (!titel && !beschreibung) {
+      const types = blocks.map((b: any) => b && b.type).join(",") || "keine";
+      return j({ error: `Leere Antwort vom Modell (stop=${jr.stop_reason || "?"}, blocks=${types}).` }, 200);
+    }
     return j({ titel, beschreibung });
   } catch (e) {
     return j({ error: String(e) }, 200);
