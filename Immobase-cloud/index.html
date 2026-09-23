@@ -3222,6 +3222,11 @@ function MediaManager({apt, editApt, rooms}){
     await editApt(apt.id, { photos: nextPhotos });
   }
   
+  async function toggleHidden(idx){
+    const nextPhotos = photos.map((p,i) => i === idx ? {...p, hidden: !p.hidden} : p);
+    await editApt(apt.id, { photos: nextPhotos });
+  }
+  
   async function saveMatterport(){
     setMpSaving(true);
     try {
@@ -3278,8 +3283,9 @@ function MediaManager({apt, editApt, rooms}){
                   <PdfPreview url={publicUrl(p.path)}/>
                 </a>
               ) : (
-                <img src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
+                <img src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block",opacity:p.hidden?.35:1}}/>
               )}
+              {p.hidden && <div style={{position:"absolute",top:6,left:6,background:"rgba(26,24,20,.85)",color:"#fff",fontSize:9,fontWeight:600,padding:"3px 7px",borderRadius:5,letterSpacing:".03em"}}>Nicht im Inserat</div>}
               <div style={{padding:"6px 8px",borderTop:"1px solid #e8e0cd",background:"#fafafa"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                   <span style={{fontSize:10,color:"#8a8174"}}>#{i+1}</span>
@@ -3287,6 +3293,7 @@ function MediaManager({apt, editApt, rooms}){
                     <button onClick={()=>movePhoto(i,-1)} disabled={i===0} title="Nach oben" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===0?"default":"pointer",opacity:i===0?.3:1,fontSize:11}}>↑</button>
                     <button onClick={()=>movePhoto(i,1)} disabled={i===photos.length-1} title="Nach unten" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===photos.length-1?"default":"pointer",opacity:i===photos.length-1?.3:1,fontSize:11}}>↓</button>
                     <button onClick={()=>downloadPhoto(p,i)} title="Herunterladen" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>⬇</button>
+                    <button onClick={()=>toggleHidden(i)} title={p.hidden?"Wieder im Inserat zeigen":"Im Inserat verbergen"} style={{background:p.hidden?"#efe4cd":"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>{p.hidden?"🚫":"👁"}</button>
                     <button onClick={()=>deletePhoto(i)} title="Löschen" style={{background:"none",border:"1px solid #c08070",color:"#9b4a3e",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>×</button>
                   </div>
                 </div>
@@ -3364,7 +3371,7 @@ function MediaManager({apt, editApt, rooms}){
 
 function FlatfoxTab({apt, rooms}){
   const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [zipping,setZipping]=useState(false);
-  const photos=(apt.photos||[]).filter(p=>p&&p.path&&!String(p.path).toLowerCase().endsWith(".pdf"));
+  const photos=(apt.photos||[]).filter(p=>p&&p.path&&!String(p.path).toLowerCase().endsWith(".pdf")&&!p.hidden);
   const publicUrl=(path)=>supabase.storage.from("assets").getPublicUrl(path).data.publicUrl;
   const fileExt=(path)=>(String(path).split(".").pop()||"jpg").toLowerCase();
   const safeName=(s)=>String(s||"").replace(/[^a-z0-9]+/gi,"_").replace(/^_+|_+$/g,"").slice(0,40)||"Foto";
