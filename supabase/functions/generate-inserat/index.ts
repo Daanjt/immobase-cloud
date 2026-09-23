@@ -73,12 +73,12 @@ serve(async (req) => {
     } else {
       add("Befristet bis", p.mietende);
     }
-    add("Kaution", p.kaution ? `CHF ${p.kaution}${p.kautionType ? " (" + p.kautionType + ")" : ""}` : null);
+    add("Kaution", "laeuft ueber Evorest (Mietkautionsversicherung, keine Barkaution noetig)");
     if (istWG) {
       const wz = Number(p.wgZimmer) || 0;
       const wgWord: Record<number, string> = { 2: "Zweier-WG", 3: "Dreier-WG", 4: "Vierer-WG", 5: "Fuenfer-WG", 6: "Sechser-WG", 7: "Siebener-WG", 8: "Achter-WG" };
       const zuWort: Record<number, string> = { 2: "zu zweit", 3: "zu dritt", 4: "zu viert", 5: "zu fuenft", 6: "zu sechst", 7: "zu siebt", 8: "zu acht" };
-      if (wz >= 2) add("WG-Groesse", `${wgWord[wz] || wz + "er-WG"}, man wohnt ${zuWort[wz] || "zu " + wz + "."}`);
+      if (wz >= 2) add("WG-Groesse", `${wgWord[wz] || wz + "er-WG"}, insgesamt ${zuWort[wz] || "zu " + wz + "."}`);
       add("Moeblierung", "Gemeinschaftsraeume sind moebliert; Zimmer wahlweise moebliert oder unmoebliert mietbar");
       add("Foto-Hinweis", "Die Moeblierung auf den Bildern gehoert dem aktuellen Mieter und ist bei der Anmietung nicht vorhanden.");
       if (wz >= 2) add("Titel-Vorgabe", `WG-Zimmer in ${wz}er-WG${titelZeitraum ? ", " + titelZeitraum : ""}`);
@@ -108,11 +108,13 @@ Regeln:
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
 - Zur Lage: schreibe einen kurzen Einleitungssatz mit der konkreten Adresse und dem Quartier und der Anbindung an die Zuercher Innenstadt, gefolgt von vier bis fuenf kurzen Aufzaehlungspunkten. Jeder Punkt beginnt mit "• " und steht auf einer eigenen Zeile. Inhalte, soweit fuer die Adresse plausibel: Erreichbarkeit von Universitaeten und Fachhochschulen mit dem oeffentlichen Verkehr; Einkaufsmoeglichkeiten, Restaurants und Cafes in der Umgebung; sehr gute Anbindung an den oeffentlichen Verkehr und die Zuercher Innenstadt; verschiedene Gruen- und Naherholungsgebiete in der Umgebung; ideale Lage fuer Studierende und Young Professionals. Nutze nur allgemein bekannte, plausible Merkmale, erfinde nichts Konkretes.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
-- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne die WG-Groesse aus den Fakten (zum Beispiel Vierer-WG, man wohnt zu viert) und die Moeblierung" : "Ausstattung und Umfeld"}, 4) die Lage im vorgegebenen Aufzaehlungsstil, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, Kaution soweit bekannt), 6) den Foto-Hinweis aus den Fakten, 7) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
-- Bei einer WG: nenne die WG-Groesse genau wie im Faktum WG-Groesse (zum Beispiel Vierer-WG, man wohnt zu viert). Die Groesse ergibt sich aus der Zahl der Zimmer in der Wohnung, nicht aus belegten Zimmern. Erfinde keine andere Personenzahl.
+- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne die WG-Groesse aus den Fakten (zum Beispiel Vierer-WG, insgesamt zu viert) und die Moeblierung" : "Ausstattung und Umfeld"}, 4) die Lage im vorgegebenen Aufzaehlungsstil, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, die Kaution laeuft ueber Evorest), 6) den Foto-Hinweis aus den Fakten, 7) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
+- Bei einer WG: nenne die WG-Groesse genau wie im Faktum WG-Groesse (zum Beispiel Vierer-WG, insgesamt zu viert). Die Groesse ergibt sich aus der Zahl der Zimmer in der Wohnung, nicht aus belegten Zimmern. Erfinde keine andere Personenzahl.
 - Erwaehne bei einer WG die Moeblierung: die Gemeinschaftsraeume sind moebliert, und die Zimmer koennen wahlweise moebliert oder unmoebliert gemietet werden. Behaupte nicht, das Zimmer sei fix moebliert.
 - Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
 - Nenne klar, ab wann das Zimmer frei ist (aus dem Faktum "Frei ab"). Uebernimm die Mietdauer exakt aus den Fakten: steht dort "Mietdauer: unbefristet", schreibe, das Zimmer sei unbefristet zu haben; steht ein "Befristet bis"-Datum, nenne dieses Datum klar. Erfinde keine Befristung und wandle das eine nicht ins andere um.
+- Schreibe durchgehend in der Du-Form (du, dein, dich, dir), niemals Sie und niemals Ihr.
+- Die Kaution laeuft immer ueber Evorest. Nenne keinen Kautionsbetrag, sondern schreibe, dass die Kaution unkompliziert ueber Evorest laeuft (Mietkautionsversicherung, keine Barkaution).
 - Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
 
 Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit Leerzeile zwischen den Absaetzen. Fuelle die eckigen Klammern aus den Fakten und lass eine Zeile ganz weg, wenn dazu keine Angabe vorliegt. Uebernimm die Aufzaehlungszeichen genau so. Bei einer Wohnung auf Zeit passe die Vorlage sinngemaess an (ohne WG-Groesse und Mitbewohner):
@@ -121,7 +123,7 @@ Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit Leerzeile 
 
 [Das Zimmer ist bezugsbereit. Die Gemeinschaftsraeume sind moebliert, das Zimmer selbst wahlweise moebliert oder unmoebliert mietbar.]
 
-[Ihr wohnt zu Xt zusammen. Kueche und Bad werden gemeinsam genutzt.]
+[Du wohnst in einer Vierer-WG, insgesamt zu viert (nutze die tatsaechliche WG-Groesse). Kueche und Bad werden gemeinsam genutzt.]
 
 [Die Liegenschaft befindet sich an <Adresse> in <Ort und Quartier>, mit guter Anbindung an die Zuercher Innenstadt.]
 • [Universitaeten und Fachhochschulen mit dem oeffentlichen Verkehr gut erreichbar]
@@ -130,7 +132,7 @@ Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit Leerzeile 
 • [Verschiedene Gruen- und Naherholungsgebiete in der Umgebung]
 • [Ideale Lage fuer Studierende und Young Professionals]
 
-Auf einen Blick: Miete [Betrag], frei ab [Datum], [unbefristet oder befristet bis Datum], Kaution [Angabe].
+Auf einen Blick: Miete [Betrag], frei ab [Datum], [unbefristet oder befristet bis Datum]. Die Kaution laeuft ueber Evorest.
 
 Die Moeblierung auf den Bildern ist vom aktuellen Mieter. Bei der Anmietung wird das nicht so sein.
 
