@@ -2960,7 +2960,7 @@ function MediaManager({apt, editApt, rooms}){
   const [besch, setBesch] = useState(apt.beschreibung || "");
   const [beschSaving, setBeschSaving] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
-  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState("");
+  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [savingWeb,setSavingWeb]=useState(false); const [savedWeb,setSavedWeb]=useState(false);
   async function saveBesch(){ setBeschSaving(true); try{ await editApt(apt.id,{beschreibung: besch}); }catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); } setBeschSaving(false); }
   async function generateBesch(){ setGenBusy(true); try{ const {data,error}=await supabase.functions.invoke("generate-beschreibung",{body:{adresse:apt.adresse,plz:apt.plz,ort:apt.ort,zimmer:apt.zimmer}}); if(error) throw error; if(data&&data.text){ setBesch(data.text); } else { alert("Kein Text erhalten. Ist der Anthropic-Schlüssel hinterlegt?"); } }catch(err){ alert("Automatische Generierung nicht möglich: "+(err.message||err)+"\n\n(Benötigt den Anthropic-API-Schlüssel in app_config.)"); } setGenBusy(false); }
   async function generateInserat(){ setInsBusy(true); try{
@@ -2972,6 +2972,13 @@ function MediaManager({apt, editApt, rooms}){
     else { alert(data&&data.error ? data.error : "Kein Text erhalten."); }
   }catch(err){ alert("Generierung nicht möglich: "+(err.message||err)); } setInsBusy(false); }
   function copyIns(txt,which){ try{ navigator.clipboard.writeText(txt||""); setInsCopied(which); setTimeout(()=>setInsCopied(""),1500); }catch(e){} }
+  async function saveInseratToWeb(){
+    if(!insText){ alert("Zuerst Inseratstext generieren."); return; }
+    setSavingWeb(true);
+    try{ await editApt(apt.id,{beschreibung:insText}); setSavedWeb(true); setTimeout(()=>setSavedWeb(false),2500); }
+    catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); }
+    setSavingWeb(false);
+  }
   const [vidUp, setVidUp] = useState(false);
   async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>500*1024*1024){ alert("Video zu gross (max. 500 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ alert("Video-Upload fehlgeschlagen: "+(err.message||err)); } setVidUp(false); e.target.value=""; }
   async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ alert("Entfernen fehlgeschlagen: "+(err.message||err)); } setVidUp(false); }
@@ -3347,9 +3354,13 @@ function MediaManager({apt, editApt, rooms}){
               <textarea className="fi" style={{flex:1,minHeight:200,margin:0,resize:"vertical",lineHeight:1.5}} value={insText} onChange={e=>setInsText(e.target.value)}/>
               <button className="btn btn-sm" onClick={()=>copyIns(insText,"b")}>{insCopied==="b"?"✓ kopiert":"Kopieren"}</button>
             </div>
+            <div style={{marginTop:10,display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button className="btn btn-sm" onClick={()=>copyIns((insTitel?insTitel+"\n\n":"")+(insText||""),"all")}>{insCopied==="all"?"✓ alles kopiert":"Alles kopieren"}</button>
+              <button className="btn btn-p btn-sm" disabled={savingWeb||!insText} onClick={saveInseratToWeb}>{savedWeb?"✓ auf Website":(savingWeb?"speichert …":"Auf Website übernehmen")}</button>
+            </div>
           </div>
         )}
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Fertiger Text für Flatfox aus den Objekt- und Zimmerdaten. Vor dem Veröffentlichen kurz prüfen. Bilder separat hochladen.</div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Fertiger Text für Flatfox aus den Objekt- und Zimmerdaten. Vor dem Veröffentlichen kurz prüfen. „Auf Website übernehmen" zeigt die Beschreibung auf der Wohnungsseite.</div>
       </div>
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16}}>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🎬 Video-Rundgang</div>
@@ -3364,76 +3375,6 @@ function MediaManager({apt, editApt, rooms}){
           <label className="btn btn-p btn-sm" style={{cursor:vidUp?"wait":"pointer"}}>{vidUp?"⏳ lädt hoch …":"+ Video hochladen"}<input type="file" accept="video/*" onChange={uploadVideo} disabled={vidUp} style={{display:"none"}}/></label>
         )}
         <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Wird im Inserat gezeigt, besonders wenn keine Matterport-Tour vorhanden ist. Empfohlen: kurzes Handy-Video, max. ca. 500 MB.</div>
-      </div>
-    </div>
-  );
-}
-
-function FlatfoxTab({apt, rooms, editApt}){
-  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [zipping,setZipping]=useState(false); const [savingWeb,setSavingWeb]=useState(false); const [savedWeb,setSavedWeb]=useState(false);
-  const photos=(apt.photos||[]).filter(p=>p&&p.path&&!String(p.path).toLowerCase().endsWith(".pdf")&&!p.hidden);
-  const publicUrl=(path)=>supabase.storage.from("assets").getPublicUrl(path).data.publicUrl;
-  const fileExt=(path)=>(String(path).split(".").pop()||"jpg").toLowerCase();
-  const safeName=(s)=>String(s||"").replace(/[^a-z0-9]+/gi,"_").replace(/^_+|_+$/g,"").slice(0,40)||"Foto";
-  async function downloadAll(){
-    if(!window.JSZip){ alert("Zip-Bibliothek noch nicht geladen, bitte kurz warten und erneut versuchen."); return; }
-    if(!photos.length){ alert("Keine Bilder vorhanden."); return; }
-    setZipping(true);
-    try{
-      const zip=new window.JSZip();
-      for(let i=0;i<photos.length;i++){ const p=photos[i]; const res=await fetch(publicUrl(p.path)); if(!res.ok) continue; const blob=await res.blob(); zip.file(String(i+1).padStart(2,"0")+"_"+(p.category?safeName(p.category):"Foto")+"."+fileExt(p.path), blob); }
-      const out=await zip.generateAsync({type:"blob"});
-      const url=URL.createObjectURL(out); const a=document.createElement("a"); a.href=url; a.download="Flatfox_"+safeName(apt.adresse||apt.id)+".zip"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
-    }catch(e){ alert("Download fehlgeschlagen: "+(e.message||e)); }
-    setZipping(false);
-  }
-  async function generateInserat(){ setInsBusy(true); try{
-    const aptRooms=(rooms||[]).filter(r=> r.aptId===apt.id && r.ausschreibOverride!=="nicht" && (r.ausschreibOverride==="ausschreiben" || !r.occupied));
-    const payloadRooms=aptRooms.map(r=>({groesse:r.groesse||"",qm:r.qm||null,miete:r.miete||null,balkon:!!r.balkon,moebliert:!!r.moebliert,verfuegbarAb:r.mieter_auszug||apt.mietbeginn||""}));
-    const body={typ:apt.type||"",adresse:apt.adresse||"",plz:apt.plz||"",ort:apt.ort||"",stockwerk:apt.stockwerk||"",wgGroesse:apt.zimmer||"",mietbeginn:apt.mietbeginn||"",mietende:apt.mietende||"",kaution:apt.kaution||null,kautionType:apt.kautionType||apt.kaution_type||"",miete:apt.miete||null,wgZimmer:(rooms||[]).filter(r=>r.aptId===apt.id).length,rooms:payloadRooms};
-    const {data,error}=await supabase.functions.invoke("generate-inserat",{body}); if(error) throw error;
-    if(data&&(data.titel||data.beschreibung)){ setInsTitel(data.titel||""); setInsText(data.beschreibung||""); } else { alert(data&&data.error?data.error:"Kein Text erhalten. Ist der Anthropic-Schluessel hinterlegt?"); }
-  }catch(err){ alert("Generierung nicht moeglich: "+(err.message||err)); } setInsBusy(false); }
-  function copyIns(txt,which){ try{ navigator.clipboard.writeText(txt||""); setInsCopied(which); setTimeout(()=>setInsCopied(""),1500); }catch(e){} }
-  async function saveToWebsite(){
-    if(!insText){ alert("Zuerst Titel und Beschreibung generieren."); return; }
-    setSavingWeb(true);
-    try{ await editApt(apt.id,{beschreibung:insText}); setSavedWeb(true); setTimeout(()=>setSavedWeb(false),2500); }
-    catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); }
-    setSavingWeb(false);
-  }
-  const mono={fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500};
-  const card={background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16};
-  return (
-    <div>
-      <div style={{fontSize:12,color:"#5a5346",lineHeight:1.55,marginBottom:2}}>Alles fuer ein Flatfox-Inserat an einem Ort: Bilder herunterladen, Titel und Beschreibung erzeugen, kopieren und auf Flatfox einfuegen.</div>
-      <div style={card}>
-        <div style={mono}>Bilder</div>
-        <div style={{fontSize:12,color:"#5a5346",marginBottom:10}}>{photos.length>0?(photos.length+" Bild"+(photos.length===1?"":"er")+" fuer dieses Objekt."):"Noch keine Bilder. Lade sie im Tab Medien hoch oder importiere sie vom Inserat."}</div>
-        <button className="btn btn-p btn-sm" disabled={zipping||!photos.length} onClick={downloadAll}>{zipping?"packt ...":"Alle Bilder als ZIP"}</button>
-      </div>
-      <div style={card}>
-        <div style={mono}>Titel und Beschreibung</div>
-        <button className="btn btn-sm" disabled={insBusy} onClick={generateInserat}>{insBusy?"generiert ...":"Titel und Beschreibung generieren"}</button>
-        {(insTitel||insText)&&(
-          <div style={{marginTop:12}}>
-            <div style={{...mono,letterSpacing:".2em",marginBottom:4}}>Titel</div>
-            <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-              <input className="fi" style={{flex:1,margin:0}} value={insTitel} onChange={e=>setInsTitel(e.target.value)}/>
-              <button className="btn btn-sm" onClick={()=>copyIns(insTitel,"t")}>{insCopied==="t"?"kopiert":"Kopieren"}</button>
-            </div>
-            <div style={{...mono,letterSpacing:".2em",margin:"12px 0 4px"}}>Beschreibung (inkl. Lage)</div>
-            <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-              <textarea className="fi" style={{flex:1,minHeight:220,margin:0,resize:"vertical",lineHeight:1.5}} value={insText} onChange={e=>setInsText(e.target.value)}/>
-              <button className="btn btn-sm" onClick={()=>copyIns(insText,"b")}>{insCopied==="b"?"kopiert":"Kopieren"}</button>
-            </div>
-            <div style={{marginTop:8}}>
-              <button className="btn btn-sm" onClick={()=>copyIns((insTitel?insTitel+"\n\n":"")+(insText||""),"all")}>{insCopied==="all"?"alles kopiert":"Titel und Beschreibung kopieren"}</button>
-              <button className="btn btn-p btn-sm" style={{marginLeft:8}} disabled={savingWeb||!insText} onClick={saveToWebsite}>{savedWeb?"✓ auf Website":(savingWeb?"speichert …":"Auf Website übernehmen")}</button>
-            </div>
-          </div>
-        )}
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:10,fontStyle:"italic"}}>Erzeugt aus den Objekt- und Zimmerdaten, inklusive Lage. Nur echte Fakten, nichts erfunden. Vor dem Veroeffentlichen kurz pruefen. Benoetigt den hinterlegten Anthropic-Schluessel.</div>
       </div>
     </div>
   );
@@ -8160,7 +8101,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
-            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["medien","Medien"],["docs","Dokumente"],["flatfox","Flatfox"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["medien","Medien"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&(() => {
               const isWG = apt.type === "WG";
               const aptRooms = rooms.filter(r => r.aptId === apt.id);
@@ -8245,7 +8186,6 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             {tab==="zimmer"&&(<div>{apt.type==="WG"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
-            {tab==="flatfox"&&<FlatfoxTab apt={apt} rooms={rooms} editApt={updateApt}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
       </div>
