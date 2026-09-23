@@ -27,7 +27,7 @@ serve(async (req) => {
       model = c.anthropic_model || "";
     }
     if (!key) return j({ error: "Kein Anthropic-Schluessel hinterlegt (Edge-Function-Secret ANTHROPIC_API_KEY oder app_config.anthropic_api_key)." }, 200);
-    if (!model) model = "claude-haiku-4-5-20251001";
+    if (!model) model = "claude-sonnet-5";
 
     // ---- Build a facts block from provided data only (no invented details) ----
     const lines: string[] = [];
@@ -149,7 +149,7 @@ ${facts}`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 2000, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model, max_tokens: 2000, output_config: { effort: "low" }, messages: [{ role: "user", content: prompt }] }),
     });
     const jr = await r.json();
     if (!r.ok) return j({ error: jr?.error?.message || "Anthropic-Fehler" }, 200);
