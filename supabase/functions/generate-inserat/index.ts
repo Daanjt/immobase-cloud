@@ -26,8 +26,8 @@ serve(async (req) => {
       key = c.anthropic_api_key || "";
       model = c.anthropic_model || "";
     }
-    if (!key) return j({ error: "Kein Anthropic-Schluessel hinterlegt (Edge-Function-Secret ANTHROPIC_API_KEY oder app_config.anthropic_api_key)." }, 400);
-    if (!model) model = "claude-3-5-sonnet-latest";
+    if (!key) return j({ error: "Kein Anthropic-Schluessel hinterlegt (Edge-Function-Secret ANTHROPIC_API_KEY oder app_config.anthropic_api_key)." }, 200);
+    if (!model) model = "claude-sonnet-5";
 
     // ---- Build a facts block from provided data only (no invented details) ----
     const lines: string[] = [];
@@ -128,7 +128,7 @@ ${facts}`;
       body: JSON.stringify({ model, max_tokens: 1200, messages: [{ role: "user", content: prompt }] }),
     });
     const jr = await r.json();
-    if (!r.ok) return j({ error: jr?.error?.message || "Anthropic-Fehler" }, 502);
+    if (!r.ok) return j({ error: jr?.error?.message || "Anthropic-Fehler" }, 200);
 
     let raw = (jr.content?.[0]?.text || "").trim();
     // strip accidental code fences
@@ -142,9 +142,9 @@ ${facts}`;
       // fallback: return the raw text as description if JSON parsing failed
       beschreibung = raw;
     }
-    if (!titel && !beschreibung) return j({ error: "Leere Antwort vom Modell." }, 502);
+    if (!titel && !beschreibung) return j({ error: "Leere Antwort vom Modell." }, 200);
     return j({ titel, beschreibung });
   } catch (e) {
-    return j({ error: String(e) }, 500);
+    return j({ error: String(e) }, 200);
   }
 });
