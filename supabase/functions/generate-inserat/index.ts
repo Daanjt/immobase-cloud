@@ -71,7 +71,13 @@ serve(async (req) => {
       add("Befristet bis", p.mietende);
     }
     add("Kaution", p.kaution ? `CHF ${p.kaution}${p.kautionType ? " (" + p.kautionType + ")" : ""}` : null);
-    if (istWG && Number(p.mitbewohner) > 0) add("Aktuelle Mitbewohner (Personen, die bereits in der WG wohnen)", p.mitbewohner);
+    if (istWG) {
+      const wz = Number(p.wgZimmer) || 0;
+      const wgWord: Record<number, string> = { 2: "Zweier-WG", 3: "Dreier-WG", 4: "Vierer-WG", 5: "Fuenfer-WG", 6: "Sechser-WG", 7: "Siebener-WG", 8: "Achter-WG" };
+      const zuWort: Record<number, string> = { 2: "zu zweit", 3: "zu dritt", 4: "zu viert", 5: "zu fuenft", 6: "zu sechst", 7: "zu siebt", 8: "zu acht" };
+      if (wz >= 2) add("WG-Groesse", `${wgWord[wz] || wz + "er-WG"}, man wohnt ${zuWort[wz] || "zu " + wz + "."}`);
+      add("Moeblierung", "Gemeinschaftsraeume sind moebliert; Zimmer wahlweise moebliert oder unmoebliert mietbar");
+    }
 
     const rooms = Array.isArray(p.rooms) ? p.rooms : [];
     if (rooms.length) {
@@ -82,7 +88,6 @@ serve(async (req) => {
         if (r.qm) parts.push(`${r.qm} m2`);
         if (r.miete) parts.push(`CHF ${r.miete}/Monat`);
         if (r.balkon) parts.push("mit Balkon");
-        if (r.moebliert) parts.push("moebliert");
         if (r.verfuegbarAb) parts.push(`verfuegbar ab ${r.verfuegbarAb}`);
         lines.push(`  ${i + 1}. ${parts.join(", ") || "keine weiteren Angaben"}`);
       });
@@ -98,7 +103,9 @@ Regeln:
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
 - Zur Lage darfst du allgemein bekannte, plausible Merkmale der genannten Adresse und des Quartiers nennen (OeV-Anbindung, Naehe zu Zentrum, Uni oder Einkauf), aber nichts Konkretes erfinden.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
-- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, moebliert, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne, mit wie vielen Personen man zusammenwohnt, falls die Fakten das angeben, und nur die gemeinsam genutzten Raeume, die belegt sind" : "Ausstattung und Umfeld"}, 4) die Lage, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, Kaution soweit bekannt), 6) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
+- Aufbau der Beschreibung in kurzen Absaetzen (getrennt durch eine Leerzeile): 1) einladender Einstieg, 2) ${istWG ? "das Zimmer" : "die Wohnung"} (Groesse, moebliert, Balkon, Preis soweit bekannt), 3) ${istWG ? "die WG: nenne die WG-Groesse aus den Fakten (zum Beispiel Vierer-WG, man wohnt zu viert) und die Moeblierung" : "Ausstattung und Umfeld"}, 4) die Lage, 5) das Wichtigste in Kuerze (Miete, frei ab, Mietdauer, Kaution soweit bekannt), 6) kurzer Hinweis, dass die Bewerbung einfach online laeuft.
+- Bei einer WG: nenne die WG-Groesse genau wie im Faktum WG-Groesse (zum Beispiel Vierer-WG, man wohnt zu viert). Die Groesse ergibt sich aus der Zahl der Zimmer in der Wohnung, nicht aus belegten Zimmern. Erfinde keine andere Personenzahl.
+- Erwaehne bei einer WG die Moeblierung: die Gemeinschaftsraeume sind moebliert, und die Zimmer koennen wahlweise moebliert oder unmoebliert gemietet werden. Behaupte nicht, das Zimmer sei fix moebliert.
 - Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
 - Nenne klar, ab wann das Zimmer frei ist (aus dem Faktum "Frei ab"). Uebernimm die Mietdauer exakt aus den Fakten: steht dort "Mietdauer: unbefristet", schreibe, das Zimmer sei unbefristet zu haben; steht ein "Befristet bis"-Datum, nenne dieses Datum klar. Erfinde keine Befristung und wandle das eine nicht ins andere um.
 - Der Titel ist kurz (hoechstens rund 60 Zeichen), konkret und ansprechend und nennt Objektart und Lage.
