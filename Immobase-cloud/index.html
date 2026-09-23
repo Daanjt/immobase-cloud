@@ -2984,6 +2984,21 @@ function MediaManager({apt, editApt, rooms}){
   async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ alert("Entfernen fehlgeschlagen: "+(err.message||err)); } setVidUp(false); }
   const [mpSaving, setMpSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [aiIdx, setAiIdx] = useState(null);
+  async function editPhotoAI(idx, mode){
+    const p = photos[idx];
+    if(!p || !p.path) return;
+    if(!confirm("KI erstellt eine moebelfreie, aufgeraeumte Version dieses Bildes. Das Original bleibt erhalten; die neue Version wird als zusaetzliches, zunaechst verborgenes Bild hinzugefuegt, damit du sie pruefen kannst. Fortfahren?")) return;
+    setAiIdx(idx);
+    try{
+      const {data,error}=await supabase.functions.invoke("edit-image",{body:{path:p.path, apartment_id:apt.id, mode:mode||"leeren"}});
+      if(error) throw error;
+      if(data&&data.error) throw new Error(data.error);
+      if(data&&data.path){ await editApt(apt.id,{photos:[...photos,{path:data.path, sort_order:photos.length, category:p.category||null, hidden:true, edited:true}]}); }
+      else { alert("Keine bearbeitete Version erhalten."); }
+    }catch(err){ alert("KI-Bearbeitung nicht moeglich: "+(err.message||err)); }
+    setAiIdx(null);
+  }
   const fileInputRef = React.useRef(null);
   const photos = apt.photos || [];
   async function importFromListing(){
@@ -3300,6 +3315,7 @@ function MediaManager({apt, editApt, rooms}){
                     <button onClick={()=>movePhoto(i,-1)} disabled={i===0} title="Nach oben" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===0?"default":"pointer",opacity:i===0?.3:1,fontSize:11}}>↑</button>
                     <button onClick={()=>movePhoto(i,1)} disabled={i===photos.length-1} title="Nach unten" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===photos.length-1?"default":"pointer",opacity:i===photos.length-1?.3:1,fontSize:11}}>↓</button>
                     <button onClick={()=>downloadPhoto(p,i)} title="Herunterladen" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>⬇</button>
+                    {!String(p.path).toLowerCase().endsWith(".pdf") && <button onClick={()=>editPhotoAI(i,"leeren")} disabled={aiIdx!==null} title="Möbel entfernen und aufräumen (KI)" style={{background:aiIdx===i?"#efe4cd":"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:aiIdx!==null?"default":"pointer",fontSize:11,opacity:(aiIdx!==null&&aiIdx!==i)?.4:1}}>{aiIdx===i?"⏳":"✨"}</button>}
                     <button onClick={()=>toggleHidden(i)} title={p.hidden?"Wieder im Inserat zeigen":"Im Inserat verbergen"} style={{background:p.hidden?"#efe4cd":"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>{p.hidden?"🚫":"👁"}</button>
                     <button onClick={()=>deletePhoto(i)} title="Löschen" style={{background:"none",border:"1px solid #c08070",color:"#9b4a3e",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>×</button>
                   </div>
