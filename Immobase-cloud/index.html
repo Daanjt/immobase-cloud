@@ -7835,7 +7835,7 @@ www.dthomes.ch`;
             
             {/* Custom Aufschlag */}
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
-              <span>Servicegebühr / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {vertragData.kautionMonate}× Miete: CHF {[0,100,50,0,0][3-vertragData.kautionMonate] ?? 0}{vertragData.kautionMonate===0?150:vertragData.kautionMonate===1?100:vertragData.kautionMonate===2?50:0})</span></span>
+              <span>Servicegebühr / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {vertragData.kautionMonate}× Miete: CHF {vertragData.kautionMonate===0?150:vertragData.kautionMonate===1?100:vertragData.kautionMonate===2?50:0})</span></span>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <span style={{color:"#1a1814"}}>CHF</span>
                 <input className="fi" type="number" step="1" value={vertragData.aufschlag||0} onChange={e=>{
