@@ -26,11 +26,10 @@ const norm = (m: string) => (m || "").replace(/\s*\(ZH\)\s*$/i, "").trim();
 // Zwischennutzungs-relevante Vorhaben (Gebaeude wird vor den Arbeiten frei)
 function categorize(desc: string): string | null {
   const d = (desc || "").toLowerCase();
+  // Nur Faelle, in denen ein Gebaeude frei wird: Abriss oder Sanierung
   if (d.includes("abbruch") || d.includes("rückbau") || d.includes("rueckbau")) return "Abbruch/Rückbau";
   if (d.includes("ersatzneubau")) return "Ersatzneubau";
-  if (d.includes("umnutzung")) return "Umnutzung";
-  if (d.includes("gesamtsanier")) return "Gesamtsanierung";
-  if (d.includes("umbau")) return "Umbau";
+  if (d.includes("sanier")) return "Sanierung";
   return null;
 }
 

@@ -13046,7 +13046,7 @@ function Bauradar(){
     if(q){ const t=((r.project_description||"")+" "+(r.street||"")+" "+(r.town||"")+" "+(r.municipality||"")+" "+(r.zip||"")).toLowerCase(); if(!t.includes(q.toLowerCase())) return false; }
     return true;
   });
-  const catColor={"Abbruch/Rückbau":"#b45b3e","Ersatzneubau":"#8a6d3b","Umnutzung":"#4a7a6a","Gesamtsanierung":"#6a5b8a","Umbau":"#54503f"};
+  const catColor={"Abbruch/Rückbau":"#b45b3e","Ersatzneubau":"#8a6d3b","Sanierung":"#6a5b8a"};
   return (
     <div style={{padding:"8px 4px 40px",maxWidth:1080}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:6}}>
