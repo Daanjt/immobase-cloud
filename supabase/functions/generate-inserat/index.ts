@@ -132,7 +132,7 @@ Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit einer Leer
 
 Du suchst ein WG-Zimmer in [Ort] mit guter Anbindung an die Innenstadt? An der [Strasse und Hausnummer] vermieten wir [mehrere Zimmer oder ein Zimmer] in einer [Zahl]er-WG. Die Zimmer sind [zwischen A und B oder ca. A] m² gross[ und verfügen teilweise über einen eigenen Balkon].
 
-Die Wohnung wird von insgesamt [Anzahl] Personen bewohnt. Küche, Bad und die möblierten Gemeinschaftsbereiche werden gemeinsam genutzt. Dein eigenes Zimmer kannst du möbliert oder unmöbliert mieten.
+Die Wohnung wird von insgesamt [Anzahl] Personen bewohnt. Küche, Bad und die Gemeinschaftsbereiche sind möbliert und werden gemeinsam genutzt. Dein eigenes Zimmer kannst du möbliert oder unmöbliert mieten.
 
 Die Lage in [Ort und Quartier] eignet sich ideal für Studierende und Young Professionals. Einkaufsmöglichkeiten, Restaurants und Cafés befinden sich in der Umgebung. Dank der guten ÖV-Anbindung erreichst du die Zürcher Innenstadt sowie Universitäten und Hochschulen schnell und unkompliziert. Auch verschiedene Grün- und Naherholungsgebiete liegen in unmittelbarer Nähe.
 
