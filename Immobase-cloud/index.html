@@ -2987,8 +2987,8 @@ function MediaManager({apt, editApt, rooms}){
   const [aiIdx, setAiIdx] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [aiReview, setAiReview] = useState(null);
-  const CAT_ORDER = ["aussen","eingang","wohnzimmer","kueche","__room","bad","balkon","grundriss","sonstiges"];
-  function catRank(cat){ if(!cat) return 90; const c=String(cat); if(c.indexOf("room:")===0) return CAT_ORDER.indexOf("__room"); const i=CAT_ORDER.indexOf(c); return i>=0?i:80; }
+  const CAT_ORDER = ["aussen","balkon","__room","kueche","wohnzimmer","bad","eingang","sonstiges"];
+  function catRank(cat){ if(!cat) return 90; const c=String(cat); if(c==="grundriss") return 100; if(c.indexOf("room:")===0) return CAT_ORDER.indexOf("__room"); const i=CAT_ORDER.indexOf(c); return i>=0?i:80; }
   function roomKey(cat){ const id=String(cat||"").replace(/^room:/,""); const n=parseInt(id.split("-")[1],10); return isNaN(n)?9999:n; }
   async function editPhotoAI(idx, mode){
     const p = photos[idx];
@@ -3384,15 +3384,6 @@ function MediaManager({apt, editApt, rooms}){
           </div>
         )}
         <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Diese 3D-Tour wird unter den Fotos im Bewerbungsformular angezeigt.</div>
-      </div>
-      <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16}}>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>📍 Lage-Beschreibung</div>
-        <textarea className="fi" style={{width:"100%",minHeight:92,margin:0,resize:"vertical",lineHeight:1.5}} value={besch} onChange={e=>setBesch(e.target.value)} placeholder="Kurzer Text zur Lage: Quartier, ÖV-Anbindung, Einkaufsmöglichkeiten …"/>
-        <div style={{display:"flex",gap:8,marginTop:8}}>
-          <button className="btn btn-sm" disabled={genBusy} onClick={generateBesch}>{genBusy?"⏳ generiert …":"✨ Automatisch generieren"}</button>
-          <button className="btn btn-p btn-sm" disabled={beschSaving} onClick={saveBesch}>{beschSaving?"⏳":"✓ Speichern"}</button>
-        </div>
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Wird auf der Webseite unter der Karte angezeigt.</div>
       </div>
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16}}>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🏷️ Flatfox-Inseratstext</div>
