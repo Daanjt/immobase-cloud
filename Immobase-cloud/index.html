@@ -12949,6 +12949,121 @@ function Kontakte(){
   );
 }
 
+function Bauradar(){
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [refreshing,setRefreshing]=useState(false);
+  const [q,setQ]=useState("");
+  const [stat,setStat]=useState("alle");
+  const [msg,setMsg]=useState("");
+  async function load(){
+    setLoading(true);
+    try{
+      const {data,error}=await supabase.from("baugesuche").select("*").order("publication_date",{ascending:false}).limit(800);
+      if(error) throw error;
+      setRows(data||[]);
+    }catch(e){ setMsg("Laden fehlgeschlagen: "+(e.message||e)); }
+    setLoading(false);
+  }
+  useEffect(()=>{ load(); },[]);
+  async function refresh(){
+    setRefreshing(true); setMsg("");
+    try{
+      const {data,error}=await supabase.functions.invoke("bauradar-fetch",{body:{}});
+      if(error) throw error;
+      if(data&&data.error) throw new Error(data.error);
+      setMsg("Aktualisiert: "+(data&&data.matched!=null?data.matched:"?")+" Vorhaben in der Region.");
+      await load();
+    }catch(e){ setMsg("Aktualisierung fehlgeschlagen: "+(e.message||e)); }
+    setRefreshing(false);
+  }
+  async function setStatus(pub, s){
+    setRows(rs=>rs.map(r=>r.publication_number===pub?{...r,status:s}:r));
+    try{ await supabase.from("baugesuche").update({status:s}).eq("publication_number",pub); }catch(e){}
+  }
+  function pitch(r){
+    const addr=[r.street,r.house_number].filter(Boolean).join(" ");
+    const ort=[r.zip,r.town].filter(Boolean).join(" ");
+    const ol=(addr?addr+", ":"")+ort;
+    const subject="Zwischennutzung Ihrer Liegenschaft "+(ol||r.municipality||"");
+    const body=[
+      "Guten Tag",
+      "",
+      "wir haben Ihr Bauvorhaben an der Adresse "+(ol||("in "+(r.municipality||"")))+" gesehen ("+(r.category||"Umbau/Neubau")+").",
+      "",
+      "Wir sind D&T Homes und betreiben möblierten Wohnraum in der ganzen Schweiz. Für die Zeit bis zum Baustart übernehmen wir Ihre Liegenschaft als Zwischennutzung: feste Miete, kein Leerstand, kein Vermietungsaufwand, klar befristet, und wir tragen das ganze Vermietungsrisiko.",
+      "",
+      "Gerne bespreche ich mit Ihnen unverbindlich, ob sich Ihr Objekt dafür eignet.",
+      "",
+      "Freundliche Grüsse",
+      "Daan Theijse · D&T Homes · daan.theijse@dthomes.ch",
+    ].join("\n");
+    window.open("mailto:?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body));
+  }
+  const filtered=rows.filter(r=>{
+    if(stat!=="alle" && (r.status||"neu")!==stat) return false;
+    if(q){ const t=((r.project_description||"")+" "+(r.street||"")+" "+(r.town||"")+" "+(r.municipality||"")+" "+(r.zip||"")).toLowerCase(); if(!t.includes(q.toLowerCase())) return false; }
+    return true;
+  });
+  const catColor={"Abbruch/Rückbau":"#b45b3e","Ersatzneubau":"#8a6d3b","Umnutzung":"#4a7a6a","Gesamtsanierung":"#6a5b8a","Umbau":"#54503f"};
+  return (
+    <div style={{padding:"8px 4px 40px",maxWidth:1080}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:6}}>
+        <div>
+          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Bauradar</div>
+          <div style={{fontSize:12.5,color:"var(--ink-soft)",marginTop:2,maxWidth:640}}>Neue Bauvorhaben in Zürich und Umgebung, bei denen ein Gebäude vor den Arbeiten frei wird. Kandidaten für eine Zwischennutzung. Den Namen der Bauherrschaft findest du über den Amtsblatt-Link.</div>
+        </div>
+        <button className="btn btn-p btn-sm" disabled={refreshing} onClick={refresh}>{refreshing?"⏳ lädt Daten …":"↻ Aktualisieren"}</button>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",margin:"10px 0"}}>
+        <input className="fi" style={{flex:"1 1 260px",margin:0}} placeholder="Suche nach Adresse, Ort, Beschreibung …" value={q} onChange={e=>setQ(e.target.value)}/>
+        <select className="fi" style={{margin:0,maxWidth:170}} value={stat} onChange={e=>setStat(e.target.value)}>
+          <option value="alle">Alle Status</option>
+          <option value="neu">Neu</option>
+          <option value="kontaktiert">Kontaktiert</option>
+          <option value="ignoriert">Ignoriert</option>
+        </select>
+        <span style={{fontSize:12,color:"var(--ink-soft)"}}>{filtered.length} Vorhaben</span>
+      </div>
+      {msg && <div style={{fontSize:12,color:"var(--ink-soft)",marginBottom:10}}>{msg}</div>}
+      {loading ? <div style={{padding:20,color:"var(--ink-soft)"}}>Lädt …</div> : (
+        rows.length===0 ? <div style={{padding:20,color:"var(--ink-soft)"}}>Noch keine Daten. Klick auf „Aktualisieren", um die aktuellen Baugesuche zu laden.</div> :
+        <div style={{display:"grid",gap:10}}>
+          {filtered.map(function(r){
+            const addr=[r.street,r.house_number].filter(Boolean).join(" ");
+            const ort=[r.zip,r.town].filter(Boolean).join(" ");
+            return (
+            <div key={r.publication_number} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 14px",opacity:(r.status==="ignoriert")?.55:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                <div style={{fontWeight:600,fontSize:14,color:"var(--ink)"}}>{addr||"(Adresse im Gesuch)"}{ort?", "+ort:""}</div>
+                <span style={{fontSize:10,fontWeight:600,color:"#fff",background:catColor[r.category]||"#54503f",borderRadius:20,padding:"2px 9px",alignSelf:"flex-start"}}>{r.category}</span>
+              </div>
+              <div style={{fontSize:12.5,color:"var(--ink-soft)",margin:"5px 0 8px",lineHeight:1.45}}>{(r.project_description||"").replace(/^BG Nr\.?\s*[\d-]+:?\s*/,"")}</div>
+              <div style={{fontSize:11.5,color:"#8a8174",display:"flex",gap:14,flexWrap:"wrap",marginBottom:10}}>
+                <span>{r.municipality}</span>
+                <span>Publiziert {r.publication_date||"-"}</span>
+                {r.entry_deadline && <span>Frist {r.entry_deadline}</span>}
+                {r.building_zone && <span>Zone {String(r.building_zone).slice(0,40)}</span>}
+                {r.contractor_town && <span>Bauherr-Ort {r.contractor_town}</span>}
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <a className="btn btn-sm" href={r.amtsblatt_url} target="_blank" rel="noopener">Amtsblatt (Name)</a>
+                <button className="btn btn-p btn-sm" onClick={()=>pitch(r)}>Pitch-Mail</button>
+                <select className="fi" style={{margin:0,maxWidth:150,fontSize:12}} value={r.status||"neu"} onChange={e=>setStatus(r.publication_number,e.target.value)}>
+                  <option value="neu">Neu</option>
+                  <option value="kontaktiert">Kontaktiert</option>
+                  <option value="ignoriert">Ignoriert</option>
+                </select>
+              </div>
+            </div>);
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -12964,6 +13079,7 @@ const PAGES=[
   {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
   {id:"marktradar",icon:"🔭",label:"Marktradar"},
+  {id:"bauradar",icon:"🏗️",label:"Bauradar"},
   {id:"pipeline",icon:"📇",label:"Pipeline"},
   {id:"kontakte",icon:"👥",label:"Kontakte"},
   {id:"dokumente",icon:"📁",label:"Dokumente"},
@@ -12974,7 +13090,7 @@ const PAGES=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
   mitarbeiter: ["zeit"],
 };
 
@@ -13113,7 +13229,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
