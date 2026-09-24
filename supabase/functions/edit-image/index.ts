@@ -48,7 +48,7 @@ serve(async (req) => {
       if (!model) model = c.openai_image_model || "";
     }
     if (!key) return j({ error: "Kein OpenAI-Schluessel hinterlegt (Edge-Function-Secret OPENAI_API_KEY oder app_config.openai_api_key)." }, 200);
-    if (!model) model = "gpt-image-1";
+    if (!model) model = "gpt-image-1.5";
 
     const prompt = PROMPTS[mode] || PROMPTS["leeren"];
 
@@ -67,6 +67,7 @@ serve(async (req) => {
     form.append("image", new File([imgBuf], "photo." + (imgType.split("/")[1] || "jpg"), { type: imgType }));
     form.append("prompt", prompt);
     form.append("size", "auto");
+    form.append("quality", "medium");
     form.append("n", "1");
 
     const oa = await fetch("https://api.openai.com/v1/images/edits", {
