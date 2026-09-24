@@ -7805,7 +7805,8 @@ www.dthomes.ch`;
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Spezielle Klausel</div>
             <div style={{marginBottom:18}}>
-              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={vertragData.sonderklausel||""} onChange={e=>setVertragData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Wird als Punkt 15.7 in den Untermietvertrag aufgenommen und für die englische Version automatisch übersetzt."/>
+              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={vertragData.sonderklausel||""} onChange={e=>setVertragData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.7 in den Untermietvertrag aufgenommen."/>
+              <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={vertragData.sonderklausel_en||""} onChange={e=>setVertragData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="English version of the clause (for the English contract). Leave empty = clause stays in German there."/>
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
@@ -10254,7 +10255,8 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Spezielle Klausel</div>
             <div style={{marginBottom:18}}>
-              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={tvData.sonderklausel||""} onChange={e=>setTvData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Wird als Punkt 15.7 in den Untermietvertrag aufgenommen und für die englische Version automatisch übersetzt."/>
+              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={tvData.sonderklausel||""} onChange={e=>setTvData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.7 in den Untermietvertrag aufgenommen."/>
+              <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={tvData.sonderklausel_en||""} onChange={e=>setTvData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="English version of the clause (for the English contract). Leave empty = clause stays in German there."/>
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
