@@ -116,7 +116,7 @@ serve(async (req) => {
 
 Regeln:
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
-- Zur Lage: schreibe einen Fliesstext-Absatz, KEINE Aufzaehlungspunkte. Nenne das Quartier, die Eignung fuer Studierende und Young Professionals, Einkaufsmoeglichkeiten, Restaurants und Cafes in der Umgebung, die gute OeV-Anbindung an die Zuercher Innenstadt sowie Universitaeten und Hochschulen, und die Naehe zu Gruen- und Naherholungsgebieten. Nutze nur allgemein bekannte, plausible Merkmale, erfinde nichts Konkretes.
+- Zur Lage: schreibe einen individuellen Fliesstext-Absatz, der zur TATSAECHLICHEN Lage der Adresse passt (keine Aufzaehlungspunkte). Nutze dein Wissen ueber das konkrete Quartier und die Umgebung, damit die Beschreibung wirklich zu diesem Ort passt und sich von anderen Lagen unterscheidet: Charakter des Viertels, konkrete und bekannte Verkehrsanbindungen (zum Beispiel bestimmte Tram-, Bus- oder S-Bahn-Verbindungen, nahe Bahnhoefe), Naehe zu See, Fluss, Wald oder Parks, bekannte Orientierungspunkte und was das Gebiet ausmacht. Bleibe bei allgemein bekannten, zutreffenden Merkmalen des Gebiets und erfinde keine konkreten Details wie bestimmte Geschaeftsnamen oder erfundene Distanzen. Erwaehne die Eignung fuer Studierende und Young Professionals und die gute Anbindung an die Zuercher Innenstadt sowie Universitaeten und Hochschulen.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
 - Halte dich strikt an die Vorlage unten und ihre Reihenfolge. Nenne die Verfuegbarkeit und, falls das Objekt befristet ist, die Befristung immer im oberen Teil (im Einstiegsabsatz).
 - Bei einer WG: nenne die WG-Groesse genau wie im Faktum WG-Groesse (zum Beispiel Vierer-WG, insgesamt zu viert). Die Groesse ergibt sich aus der Zahl der Zimmer in der Wohnung, nicht aus belegten Zimmern. Erfinde keine andere Personenzahl.
@@ -127,7 +127,7 @@ Regeln:
 - Erwaehne die Kaution im Text NICHT. Kein Satz zur Kaution, zu Evorest oder zur Mietkautionsversicherung.
 - Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
 
-Nutze die folgende Vorlage als Orientierung fuer Aufbau, Reihenfolge und Ton, mit einer Leerzeile zwischen den Absaetzen. Formuliere die Saetze aber jedes Mal etwas individuell (anderer Einstieg, andere Satzanfaenge und Wortwahl), damit nicht jedes Inserat identisch klingt. Struktur, Reihenfolge, Kernaussagen und Fakten bleiben gleich, erfinde nichts dazu und lass nichts Wichtiges weg. Fuelle die eckigen Klammern aus den Fakten und lass optionale Teile weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl, bei mehreren die Bereiche:
+Nutze die folgende Vorlage als Orientierung fuer Aufbau, Reihenfolge und Ton, mit einer Leerzeile zwischen den Absaetzen. Formuliere jedes Inserat kreativ und deutlich unterschiedlich: variiere Einstieg, Satzbau, Wortwahl und Betonung, sodass sich die Texte spuerbar voneinander unterscheiden und lebendig wirken, nicht wie aus einer Schablone. Struktur, Reihenfolge, Kernaussagen und Fakten bleiben gleich, erfinde nichts dazu und lass nichts Wichtiges weg. Fuelle die eckigen Klammern aus den Fakten und lass optionale Teile weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl, bei mehreren die Bereiche:
 
 Du suchst ein WG-Zimmer in [Ort] mit guter Anbindung an die Innenstadt? An der [Strasse und Hausnummer] vermieten wir [mehrere Zimmer oder ein Zimmer] in einer [Zahl]er-WG. Die Zimmer sind [zwischen A und B oder ca. A] m² gross[ und verfügen teilweise über einen eigenen Balkon]. Verfügbar ab [Datum][, befristet bis [Datum]].
 
@@ -148,7 +148,7 @@ ${facts}`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 2000, output_config: { effort: "low" }, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model, max_tokens: 2000, output_config: { effort: "medium" }, messages: [{ role: "user", content: prompt }] }),
     });
     const jr = await r.json();
     if (!r.ok) return j({ error: jr?.error?.message || "Anthropic-Fehler" }, 200);
