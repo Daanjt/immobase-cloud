@@ -5886,7 +5886,8 @@ ${v.kautionMonate<3
 <p class="clause"><span class="clause-num">15.4</span>Die WG-Zimmer sind ausschliesslich für Wohnzwecke der im Vertrag eingetragenen Person bestimmt. Eine Belegung durch mehrere Personen ist unzulässig.</p>
 <p class="clause"><span class="clause-num">15.5</span>Bei Zahlungsverzug kann der Hauptmieter Mahngebühren von <strong>CHF 20 pro Mahnung</strong> sowie Verzugszinsen von <strong>5 % p. a.</strong> erheben.</p>
 <p class="clause"><span class="clause-num">15.6</span>Der Hauptmieter ist berechtigt, das Zimmer nach angemessener Vorankündigung zur Kontrolle, Instandhaltung, Besichtigung mit Interessenten oder bei Vertragsverletzungen zu betreten.</p>
-${(v.sonderklausel && String(v.sonderklausel).trim()) ? ('<p class="clause"><span class="clause-num">15.7</span>'+String(v.sonderklausel).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(String.fromCharCode(10)).join('<br>')+'</p>') : ''}
+<p class="clause"><span class="clause-num">15.7</span>Sofern zur Wohnung ein Garten gehört, darf der Untermieter diesen nutzen. Er verpflichtet sich, den Garten selbständig und ordentlich zu pflegen und in gepflegtem Zustand zu halten (insbesondere Rasen- und Grünpflege) sowie im Winter den Schnee auf den zum Mietobjekt gehörenden Wegen und Flächen zu räumen.</p>
+${(v.sonderklausel && String(v.sonderklausel).trim()) ? ('<p class="clause"><span class="clause-num">15.8</span>'+String(v.sonderklausel).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(String.fromCharCode(10)).join('<br>')+'</p>') : ''}
 </div>
 
 <!-- CLOSING + SIGNATURES (zusammenhalten) -->
@@ -7812,7 +7813,7 @@ www.dthomes.ch`;
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Spezielle Klausel</div>
             <div style={{marginBottom:18}}>
-              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={vertragData.sonderklausel||""} onChange={e=>setVertragData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.7 in den Untermietvertrag aufgenommen."/>
+              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={vertragData.sonderklausel||""} onChange={e=>setVertragData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.8 in den Untermietvertrag aufgenommen."/>
               <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={vertragData.sonderklausel_en||""} onChange={e=>setVertragData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="Optional: übersteuert die automatische Übersetzung. Leer lassen = wird beim Erstellen einmal automatisch übersetzt und gespeichert."/>
             </div>
 
@@ -10262,7 +10263,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Spezielle Klausel</div>
             <div style={{marginBottom:18}}>
-              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={tvData.sonderklausel||""} onChange={e=>setTvData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.7 in den Untermietvertrag aufgenommen."/>
+              <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={tvData.sonderklausel||""} onChange={e=>setTvData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.8 in den Untermietvertrag aufgenommen."/>
               <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={tvData.sonderklausel_en||""} onChange={e=>setTvData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="Optional: übersteuert die automatische Übersetzung. Leer lassen = wird beim Erstellen einmal automatisch übersetzt und gespeichert."/>
             </div>
 
