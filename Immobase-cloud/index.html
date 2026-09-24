@@ -4459,7 +4459,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     const aOcc=rs.filter(r=>r.occupied).length;
     const aIst=rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0)+aOcc*25;
     const aMax=rs.reduce((s,r)=>s+(+r.miete||0),0)+rs.length*25;
-    const aAufschlag=tenants.filter(t=>(t.status||"aktiv")==="aktiv").filter(t=>{ if(t.aptId===a.id)return true; if(t.roomId){const tRoom=rooms.find(r=>r.id===t.roomId); if(tRoom&&tRoom.aptId===a.id)return true;} const myRoom=rooms.find(r=>r.tenantId===t.id); if(myRoom&&myRoom.aptId===a.id)return true; return false;}).reduce((s,t)=>{let auf=+t.kautionAufschlag||0; if(!auf){if(t.kautionOpt==="0x")auf=150;else if(t.kautionOpt==="1x")auf=100;else if(t.kautionOpt==="2x")auf=50;} return s+auf;},0);
+    const aAufschlag=tenants.filter(t=>(t.status||"aktiv")==="aktiv").filter(t=>{ if(t.aptId===a.id)return true; if(t.roomId){const tRoom=rooms.find(r=>r.id===t.roomId); if(tRoom&&tRoom.aptId===a.id)return true;} const myRoom=rooms.find(r=>r.tenantId===t.id); if(myRoom&&myRoom.aptId===a.id)return true; return false;}).reduce((s,t)=>s+(+t.kautionAufschlag||0),0);
     acc.ausgabe+=(+a.miete||0); acc.ist+=aIst; acc.max+=aMax;
     acc.margeIst+=(aIst-(+a.miete||0)); acc.margeMax+=(aMax-(+a.miete||0));
     acc.aufschlag+=aAufschlag; acc.margeTotal+=((aMax-(+a.miete||0))+aAufschlag);
@@ -4490,13 +4490,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       if (!room) room = rooms.find(r => r.tenantId === t.id);
       let apt = room ? apts.find(a => a.id === room.aptId) : null;
       if (!apt && t.aptId) apt = apts.find(a => a.id === t.aptId);
-      let aufschlag = +t.kautionAufschlag || 0;
-      // Fallback: aus kautionOpt ableiten falls Aufschlag nicht gesetzt
-      if (!aufschlag) {
-        if (t.kautionOpt === "0x") aufschlag = 150;
-        else if (t.kautionOpt === "1x") aufschlag = 100;
-        else if (t.kautionOpt === "2x") aufschlag = 50;
-      }
+      const aufschlag = +t.kautionAufschlag || 0;
       return { tenant: t, room, apt, aufschlag };
     })
     .filter(x => x.aufschlag > 0);
@@ -4515,7 +4509,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   // Servicegebuehr-Total = exakt die Summe der Wohnungs-Zeilen: gleiche Zuordnung
   // wie pro Wohnung (aptId / roomId / room.tenantId) UND gleicher Fee inkl.
   // kautionOpt-Fallback (0x=150, 1x=100, 2x=50), nur aktuelle Mieter.
-  const _feeVon = (t) => { let auf = +t.kautionAufschlag || 0; if (!auf) { if (t.kautionOpt==="0x") auf=150; else if (t.kautionOpt==="1x") auf=100; else if (t.kautionOpt==="2x") auf=50; } return auf; };
+  const _feeVon = (t) => (+t.kautionAufschlag || 0);
   const _gehoertZuApt = (t,a) => { if (t.aptId===a.id) return true; if (t.roomId){const tr=rooms.find(r=>r.id===t.roomId); if(tr&&tr.aptId===a.id)return true;} const mr=rooms.find(r=>r.tenantId===t.id); if(mr&&mr.aptId===a.id)return true; return false; };
   const wgAufschlag = wgApts.reduce((sum,a) => sum + tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
