@@ -2986,22 +2986,36 @@ function MediaManager({apt, editApt, rooms}){
   const [importing, setImporting] = useState(false);
   const [aiIdx, setAiIdx] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [aiReview, setAiReview] = useState(null);
   const CAT_ORDER = ["aussen","eingang","wohnzimmer","kueche","__room","bad","balkon","grundriss","sonstiges"];
   function catRank(cat){ if(!cat) return 90; const c=String(cat); if(c.indexOf("room:")===0) return CAT_ORDER.indexOf("__room"); const i=CAT_ORDER.indexOf(c); return i>=0?i:80; }
   function roomKey(cat){ const id=String(cat||"").replace(/^room:/,""); const n=parseInt(id.split("-")[1],10); return isNaN(n)?9999:n; }
   async function editPhotoAI(idx, mode){
     const p = photos[idx];
     if(!p || !p.path) return;
-    if(!confirm("KI erstellt eine moebelfreie, aufgeraeumte Version dieses Bildes. Das Original wird danach verborgen und durch die KI-Version ersetzt. Das Original bleibt gespeichert und kann jederzeit wieder eingeblendet werden. Fortfahren?")) return;
     setAiIdx(idx);
     try{
       const {data,error}=await supabase.functions.invoke("edit-image",{body:{path:p.path, apartment_id:apt.id, mode:mode||"leeren"}});
       if(error) throw error;
       if(data&&data.error) throw new Error(data.error);
-      if(data&&data.path){ const next=photos.map((ph,ix)=>ix===idx?{...ph,hidden:true}:ph); next.push({path:data.path, sort_order:(p.sort_order!=null?p.sort_order:photos.length), category:p.category||null, hidden:false, edited:true}); await editApt(apt.id,{photos:next}); }
+      if(data&&data.path){ setAiReview({idx, origPath:p.path, aiPath:data.path, category:p.category||null, sort_order:p.sort_order}); }
       else { alert("Keine bearbeitete Version erhalten."); }
     }catch(err){ alert("KI-Bearbeitung nicht moeglich: "+(err.message||err)); }
     setAiIdx(null);
+  }
+  async function confirmAi(){
+    const rv=aiReview; if(!rv) return;
+    try{
+      const next=photos.map((ph,ix)=>ix===rv.idx?{...ph,hidden:true}:ph);
+      next.push({path:rv.aiPath, sort_order:(rv.sort_order!=null?rv.sort_order:photos.length), category:rv.category||null, hidden:false, edited:true});
+      await editApt(apt.id,{photos:next});
+    }catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); }
+    setAiReview(null);
+  }
+  async function rejectAi(){
+    const rv=aiReview; if(!rv) return;
+    try{ await supabase.storage.from("assets").remove([rv.aiPath]); }catch(e){}
+    setAiReview(null);
   }
   const fileInputRef = React.useRef(null);
   const photos = apt.photos || [];
@@ -3301,6 +3315,26 @@ function MediaManager({apt, editApt, rooms}){
         </div>
       )}
       {lightbox && <div onClick={()=>setLightbox(null)} style={{position:"fixed",inset:0,background:"rgba(20,18,15,.92)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,cursor:"zoom-out"}}><img src={lightbox} style={{maxWidth:"96%",maxHeight:"96%",objectFit:"contain",borderRadius:6,boxShadow:"0 10px 40px rgba(0,0,0,.5)"}}/></div>}
+      {aiReview && (
+        <div style={{position:"fixed",inset:0,background:"rgba(20,18,15,.93)",zIndex:10000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,gap:14}}>
+          <div style={{color:"#fff",fontSize:14,fontWeight:600}}>KI-Vorschau: Möbel entfernt</div>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center",maxWidth:"100%"}}>
+            <div style={{textAlign:"center"}}>
+              <div style={{color:"#c7bfae",fontSize:11,marginBottom:6,textTransform:"uppercase",letterSpacing:".12em"}}>Original</div>
+              <img src={publicUrl(aiReview.origPath)} style={{maxWidth:"44vw",maxHeight:"62vh",objectFit:"contain",borderRadius:6,border:"1px solid rgba(255,255,255,.2)"}}/>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{color:"#c7bfae",fontSize:11,marginBottom:6,textTransform:"uppercase",letterSpacing:".12em"}}>Ohne Möbel (KI)</div>
+              <img src={publicUrl(aiReview.aiPath)} style={{maxWidth:"44vw",maxHeight:"62vh",objectFit:"contain",borderRadius:6,border:"1px solid rgba(255,255,255,.2)"}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:4}}>
+            <button className="btn btn-p btn-sm" onClick={confirmAi}>Übernehmen</button>
+            <button className="btn btn-sm" style={{background:"#fff"}} onClick={rejectAi}>Verwerfen</button>
+          </div>
+          <div style={{color:"#9a9384",fontSize:11,maxWidth:540,textAlign:"center",lineHeight:1.4}}>Übernehmen verbirgt das Original und nutzt die KI-Version für die Ausschreibungen. Verwerfen löscht die KI-Version, das Original bleibt.</div>
+        </div>
+      )}
       {photos.length > 0 ? (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(200px, 100%), 1fr))",gap:10,marginBottom:24}}>
           {photos.map((p,i)=>({p,i})).sort((a,b)=>{var d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;var ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){var rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(({p,i}) => (
