@@ -6361,8 +6361,10 @@ function CountersignButton({contract, onDone, light}){
   </>);
 }
 
-function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung, onSelectBewerber, withdrawContract}){
+function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung, onSelectBewerber, withdrawContract, updateBewerber}){
   const [waTpl, setWaTpl] = useState(null);
+  const [meName, setMeName] = useState("");
+  useEffect(()=>{ resolveMeName().then(setMeName); },[]);
   useEffect(()=>{
     supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
       .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTpl(tpls[0]); })
@@ -6378,11 +6380,12 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
       zimmer: (roomObj&&roomObj.id)||"",
       zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
-      absender: (b.owner&&String(b.owner).trim()) ? String(b.owner).trim() : "Daan",
+      absender: meName || (b.owner&&String(b.owner).trim()) || "Daan",
     };
     const tplText = waTpl ? ((b.sprache==="en" ? (waTpl.inhalt_en||waTpl.inhalt) : waTpl.inhalt) || "") : "";
     const text = tplText ? platzhalterFuellen(tplText, empf) : "";
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
+    if(meName && !(b.owner&&String(b.owner).trim()) && updateBewerber){ updateBewerber(b.id,{owner:meName}); }
   }
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
   const isFrei = (r)=> !r.occupied && !r.tenantId;
@@ -6521,6 +6524,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [vertragModal,setVertragModal]=useState(false);
   const [editModal,setEditModal]=useState(false);
   const [waTplB, setWaTplB] = useState(null);
+  const [meNameB, setMeNameB] = useState("");
+  useEffect(()=>{ resolveMeName().then(setMeNameB); },[]);
   useEffect(()=>{
     supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
       .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTplB(tpls[0]); })
@@ -6536,11 +6541,12 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
       zimmer: (roomObj&&roomObj.id)||"",
       zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
-      absender: (bb.owner&&String(bb.owner).trim()) ? String(bb.owner).trim() : "Daan",
+      absender: meNameB || (bb.owner&&String(bb.owner).trim()) || "Daan",
     };
     const tplText = waTplB ? ((bb.sprache==="en" ? (waTplB.inhalt_en||waTplB.inhalt) : waTplB.inhalt) || "") : "";
     const text = tplText ? platzhalterFuellen(tplText, empf) : "";
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
+    if(meNameB && !(bb.owner&&String(bb.owner).trim())){ updateBewerber(bb.id,{owner:meNameB}); }
   }
   const [editForm,setEditForm]=useState({});
   const [vertragData,setVertragData]=useState(null);
@@ -7252,7 +7258,7 @@ www.dthomes.ch`;
       </div>
       <div onTouchStart={e=>{touchX.current=e.touches[0].clientX;}} onTouchEnd={e=>{ if(touchX.current==null)return; const dx=e.changedTouches[0].clientX-touchX.current; touchX.current=null; if(Math.abs(dx)>60) setAnsicht(dx<0?"uebersicht":"liste"); }}>
       {ansicht==="uebersicht" ? (
-        <BewerberUebersicht bewerber={bewerber} apts={apts} rooms={rooms} tenants={tenants} contracts={contracts} withdrawContract={withdrawContract} onSelectBewerber={(id)=>{ setNachmieterFor(null); setSel(id); setAnsicht("liste"); }} onWohnung={()=>{ setNachmieterFor(null); setBewSearch(""); setFilterStatus("Neu"); setAnsicht("liste"); }} />
+        <BewerberUebersicht bewerber={bewerber} apts={apts} rooms={rooms} tenants={tenants} contracts={contracts} withdrawContract={withdrawContract} updateBewerber={updateBewerber} onSelectBewerber={(id)=>{ setNachmieterFor(null); setSel(id); setAnsicht("liste"); }} onWohnung={()=>{ setNachmieterFor(null); setBewSearch(""); setFilterStatus("Neu"); setAnsicht("liste"); }} />
       ) : (
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
         <div>
@@ -7495,7 +7501,7 @@ www.dthomes.ch`;
                 tour_link: aptObj?.matterportUrl || "",
                 vormieter_name: vormieter ? `${vormieter.vorname||""} ${vormieter.nachname||""}`.trim() : "",
                 vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
-                absender: (b.owner&&String(b.owner).trim()) ? String(b.owner).trim() : "Daan",
+                absender: meName || (b.owner&&String(b.owner).trim()) || "Daan",
                 sprache: b.sprache || "de",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
@@ -13485,6 +13491,20 @@ function MainApp({rolle}) {
 // Nachricht an Mieter/Bewerber senden: Vorlage waehlen, Platzhalter werden
 // automatisch gefuellt, Text vor dem Senden anpassbar. Versand per E-Mail
 // (Resend, ueber Edge Function) oder WhatsApp (wa.me-Link mit vorgefuelltem Text).
+let __meNameCache = null;
+async function resolveMeName(){
+  if (__meNameCache !== null) return __meNameCache;
+  try {
+    const { data: u } = await supabase.auth.getUser();
+    const email = ((u && u.user && u.user.email) || "").toLowerCase();
+    if (!email) { __meNameCache = ""; return ""; }
+    const { data: emps } = await supabase.from("employees").select("vorname,email");
+    const me = (emps||[]).find(e => (e.email||"").toLowerCase() === email);
+    __meNameCache = (me && me.vorname) ? String(me.vorname).trim() : "";
+  } catch (e) { __meNameCache = ""; }
+  return __meNameCache;
+}
+
 function platzhalterFuellen(text, empfaenger) {
   if (!text) return "";
   const map = {
