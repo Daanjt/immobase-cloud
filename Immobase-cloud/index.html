@@ -6372,7 +6372,15 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
     if(e) e.stopPropagation();
     const cleanPhone = String(b.phone||"").replace(/\D/g,"");
     if(!cleanPhone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
-    const text = waTpl ? platzhalterFuellen(waTpl, b) : "";
+    const roomObj = (rooms||[]).find(r=>r.id===b.zimmerWunsch);
+    const aptObj = roomObj ? (apts||[]).find(a=>a.id===roomObj.aptId) : null;
+    const empf = { ...b,
+      adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      zimmer: (roomObj&&roomObj.id)||"",
+      zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
+      absender: (b.owner&&String(b.owner).trim()) ? String(b.owner).trim() : "Daan",
+    };
+    const text = waTpl ? platzhalterFuellen(waTpl, empf) : "";
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
   }
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
@@ -7462,6 +7470,7 @@ www.dthomes.ch`;
                 tour_link: aptObj?.matterportUrl || "",
                 vormieter_name: vormieter ? `${vormieter.vorname||""} ${vormieter.nachname||""}`.trim() : "",
                 vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
+                absender: (b.owner&&String(b.owner).trim()) ? String(b.owner).trim() : "Daan",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
             })()}
@@ -13469,6 +13478,7 @@ function platzhalterFuellen(text, empfaenger) {
     vormieter_telefon: empfaenger.vormieter_telefon || "",
     nachmieter_name: empfaenger.nachmieter_name || "",
     nachmieter_telefon: empfaenger.nachmieter_telefon || "",
+    absender: empfaenger.absender || "",
   };
   return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
 }
