@@ -6362,6 +6362,19 @@ function CountersignButton({contract, onDone, light}){
 }
 
 function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung, onSelectBewerber, withdrawContract}){
+  const [waTpl, setWaTpl] = useState("");
+  useEffect(()=>{
+    supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
+      .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTpl(tpls[0].inhalt||""); })
+      .catch(()=>{});
+  },[]);
+  function waShortcut(b, e){
+    if(e) e.stopPropagation();
+    const cleanPhone = String(b.phone||"").replace(/\D/g,"");
+    if(!cleanPhone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
+    const text = waTpl ? platzhalterFuellen(waTpl, b) : "";
+    window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
+  }
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
   const isFrei = (r)=> !r.occupied && !r.tenantId;
   const tenantKeys = new Set();
@@ -6382,6 +6395,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"3px 0",fontSize:11}}>
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}><span style={{textDecoration:"underline",textDecorationColor:"var(--line)"}}>{nameOf(b)}</span>{context?<span style={{color:"var(--muted)",fontSize:10}}> · {context}</span>:null}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+          <button onClick={(e)=>waShortcut(b,e)} title="Erste WhatsApp-Nachricht senden" style={{border:"none",background:"none",cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>💬</button>
           {b.owner && <span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:3,background:b.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:b.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em",whiteSpace:"nowrap"}}>👤 {b.owner}</span>}
           {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag ausgestellt"))}
         </span>
