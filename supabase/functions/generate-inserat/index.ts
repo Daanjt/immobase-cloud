@@ -119,7 +119,7 @@ Regeln:
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
 - Zur Lage: schreibe einen Fliesstext-Absatz, KEINE Aufzaehlungspunkte. Nenne das Quartier, die Eignung fuer Studierende und Young Professionals, Einkaufsmoeglichkeiten, Restaurants und Cafes in der Umgebung, die gute OeV-Anbindung an die Zuercher Innenstadt sowie Universitaeten und Hochschulen, und die Naehe zu Gruen- und Naherholungsgebieten. Nutze nur allgemein bekannte, plausible Merkmale, erfinde nichts Konkretes.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
-- Halte dich strikt an die Vorlage unten und ihre Reihenfolge. Der Fakten-Block am Schluss (Miete, Zimmergroesse, Verfuegbar ab, Mietdauer, Kaution, Moeblierung) steht als beschriftete Liste, jede Angabe auf einer eigenen Zeile, ohne Leerzeile dazwischen.
+- Halte dich strikt an die Vorlage unten und ihre Reihenfolge. Nenne die Verfuegbarkeit und, falls das Objekt befristet ist, die Befristung immer im oberen Teil (im Einstiegsabsatz).
 - Bei einer WG: nenne die WG-Groesse genau wie im Faktum WG-Groesse (zum Beispiel Vierer-WG, insgesamt zu viert). Die Groesse ergibt sich aus der Zahl der Zimmer in der Wohnung, nicht aus belegten Zimmern. Erfinde keine andere Personenzahl.
 - Erwaehne bei einer WG die Moeblierung: die Gemeinschaftsraeume sind moebliert, und die Zimmer koennen wahlweise moebliert oder unmoebliert gemietet werden. Behaupte nicht, das Zimmer sei fix moebliert.
 - Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
@@ -128,21 +128,13 @@ Regeln:
 - Die Kaution laeuft immer ueber Evorest. Nenne keinen Kautionsbetrag, sondern schreibe, dass die Kaution unkompliziert ueber Evorest laeuft (Mietkautionsversicherung, keine Barkaution).
 - Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
 
-Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit einer Leerzeile zwischen den Absaetzen. Fuelle die eckigen Klammern aus den Fakten und lass eine Fakten-Zeile ganz weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl (ein Zimmer, eine Groesse, eine Miete ohne "je nach Zimmer"); bei mehreren die Bereiche. Der Fakten-Block am Schluss steht als beschriftete Liste, jede Angabe auf einer eigenen Zeile, OHNE Leerzeile zwischen den Fakten-Zeilen:
+Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit einer Leerzeile zwischen den Absaetzen. Fuelle die eckigen Klammern aus den Fakten und lass optionale Teile in eckigen Klammern weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl, bei mehreren die Bereiche:
 
-Du suchst ein WG-Zimmer in [Ort] mit guter Anbindung an die Innenstadt? An der [Strasse und Hausnummer] vermieten wir [mehrere Zimmer oder ein Zimmer] in einer [Zahl]er-WG. Die Zimmer sind [zwischen A und B oder ca. A] m² gross[ und verfügen teilweise über einen eigenen Balkon].
+Du suchst ein WG-Zimmer in [Ort] mit guter Anbindung an die Innenstadt? An der [Strasse und Hausnummer] vermieten wir [mehrere Zimmer oder ein Zimmer] in einer [Zahl]er-WG. Die Zimmer sind [zwischen A und B oder ca. A] m² gross[ und verfügen teilweise über einen eigenen Balkon]. Verfügbar ab [Datum][, befristet bis [Datum]].
 
 Die Wohnung wird von insgesamt [Anzahl] Personen bewohnt. Küche, Bad und die Gemeinschaftsbereiche sind möbliert und werden gemeinsam genutzt. Das WLAN ist inklusive. Dein eigenes Zimmer kannst du möbliert oder unmöbliert mieten.
 
 Die Lage in [Ort und Quartier] eignet sich ideal für Studierende und Young Professionals. Einkaufsmöglichkeiten, Restaurants und Cafés befinden sich in der Umgebung. Dank der guten ÖV-Anbindung erreichst du die Zürcher Innenstadt sowie Universitäten und Hochschulen schnell und unkompliziert. Auch verschiedene Grün- und Naherholungsgebiete liegen in unmittelbarer Nähe.
-
-Miete: [Betrag oder Bereich] pro Monat[, je nach Zimmer]
-Zimmergrösse: ca. [A–B] m²
-Verfügbar ab: [Datum]
-Mietdauer: [befristet bis Datum oder unbefristet]
-Kaution: über Evorest
-Möblierung: möbliert oder unmöbliert möglich
-WLAN: inklusive
 
 Interesse? Die Bewerbung erfolgt unkompliziert online und dauert nur wenige Minuten.
 
