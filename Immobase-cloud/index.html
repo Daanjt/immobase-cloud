@@ -6014,6 +6014,13 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   const wantAmz = selectedTypes.includes("amz");
   if (!wantUmv && !wantAmz) throw new Error("Keine Vertragsart ausgewählt");
   if (!b || !vertragData) throw new Error("Person oder Vertragsdaten fehlen");
+  // Sonderklausel einmalig ins Englische uebersetzen und speichern (fuer die EN-Vertragsversion); keine wiederholten API-Aufrufe beim Anzeigen
+  if (vertragData.sonderklausel && String(vertragData.sonderklausel).trim() && !(vertragData.sonderklausel_en && String(vertragData.sonderklausel_en).trim())) {
+    try {
+      const { data: _tr } = await supabase.functions.invoke("translate-clause", { body: { text: vertragData.sonderklausel } });
+      if (_tr && _tr.en && String(_tr.en).trim()) vertragData = { ...vertragData, sonderklausel_en: String(_tr.en).trim() };
+    } catch (_e) {}
+  }
   if (!b.email) throw new Error("Person hat keine Email-Adresse");
   const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
   if (!fullName) throw new Error("Person hat keinen Namen");
@@ -7806,7 +7813,7 @@ www.dthomes.ch`;
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Spezielle Klausel</div>
             <div style={{marginBottom:18}}>
               <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={vertragData.sonderklausel||""} onChange={e=>setVertragData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.7 in den Untermietvertrag aufgenommen."/>
-              <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={vertragData.sonderklausel_en||""} onChange={e=>setVertragData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="English version of the clause (for the English contract). Leave empty = clause stays in German there."/>
+              <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={vertragData.sonderklausel_en||""} onChange={e=>setVertragData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="Optional: übersteuert die automatische Übersetzung. Leer lassen = wird beim Erstellen einmal automatisch übersetzt und gespeichert."/>
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
@@ -10256,7 +10263,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Spezielle Klausel</div>
             <div style={{marginBottom:18}}>
               <textarea className="fi" style={{width:"100%",minHeight:70,resize:"vertical",lineHeight:1.5}} value={tvData.sonderklausel||""} onChange={e=>setTvData(p=>({...p,sonderklausel:e.target.value}))} placeholder="Deutsch. Wird als Punkt 15.7 in den Untermietvertrag aufgenommen."/>
-              <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={tvData.sonderklausel_en||""} onChange={e=>setTvData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="English version of the clause (for the English contract). Leave empty = clause stays in German there."/>
+              <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={tvData.sonderklausel_en||""} onChange={e=>setTvData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="Optional: übersteuert die automatische Übersetzung. Leer lassen = wird beim Erstellen einmal automatisch übersetzt und gespeichert."/>
             </div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
