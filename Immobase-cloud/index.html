@@ -6362,10 +6362,10 @@ function CountersignButton({contract, onDone, light}){
 }
 
 function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnung, onSelectBewerber, withdrawContract}){
-  const [waTpl, setWaTpl] = useState("");
+  const [waTpl, setWaTpl] = useState(null);
   useEffect(()=>{
     supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
-      .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTpl(tpls[0].inhalt||""); })
+      .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTpl(tpls[0]); })
       .catch(()=>{});
   },[]);
   function waShortcut(b, e){
@@ -6380,7 +6380,8 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
       absender: (b.owner&&String(b.owner).trim()) ? String(b.owner).trim() : "Daan",
     };
-    const text = waTpl ? platzhalterFuellen(waTpl, empf) : "";
+    const tplText = waTpl ? ((b.sprache==="en" ? (waTpl.inhalt_en||waTpl.inhalt) : waTpl.inhalt) || "") : "";
+    const text = tplText ? platzhalterFuellen(tplText, empf) : "";
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
   }
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
@@ -6404,6 +6405,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}><span style={{textDecoration:"underline",textDecorationColor:"var(--line)"}}>{nameOf(b)}</span>{context?<span style={{color:"var(--muted)",fontSize:10}}> · {context}</span>:null}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={(e)=>waShortcut(b,e)} title="Erste WhatsApp-Nachricht senden" style={{border:"none",background:"none",cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>💬</button>
+          {b.sprache==="en" && <span title="Bewirbt sich auf Englisch" style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#e6eef6",color:"#2c4a6e"}}>EN</span>}
           {b.owner && <span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:3,background:b.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:b.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em",whiteSpace:"nowrap"}}>👤 {b.owner}</span>}
           {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag ausgestellt"))}
         </span>
@@ -7471,6 +7473,7 @@ www.dthomes.ch`;
                 vormieter_name: vormieter ? `${vormieter.vorname||""} ${vormieter.nachname||""}`.trim() : "",
                 vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
                 absender: (b.owner&&String(b.owner).trim()) ? String(b.owner).trim() : "Daan",
+                sprache: b.sprache || "de",
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
             })()}
@@ -13490,7 +13493,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [sprache, setSprache] = useState("de");
+  const [sprache, setSprache] = useState(empfaenger && empfaenger.sprache==="en" ? "en" : "de");
 
   useEffect(() => {
     supabase.from("message_templates").select("*").eq("aktiv", true).order("sortierung")
