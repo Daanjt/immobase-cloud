@@ -89,13 +89,11 @@ serve(async (req) => {
         const parts: string[] = [];
         if (r.groesse) parts.push(`Bezeichnung ${r.groesse}`);
         if (r.qm) parts.push(`${r.qm} m2`);
-        if (r.miete) parts.push(`CHF ${r.miete}/Monat`);
         if (r.balkon) parts.push("mit Balkon");
         if (r.verfuegbarAb) parts.push(`verfuegbar ab ${r.verfuegbarAb}`);
         lines.push(`  ${i + 1}. ${parts.join(", ") || "keine weiteren Angaben"}`);
       });
     } else {
-      add("Miete", p.miete ? `CHF ${p.miete}/Monat` : null);
     }
 
     // Aggregate fuer WG: Bereiche Groesse/Miete, Balkon, Anzahl
@@ -103,10 +101,8 @@ serve(async (req) => {
       const toNums = (a: any[]) => a.map((x) => Number(x)).filter((n) => !isNaN(n) && n > 0);
       const grp = (n: number) => (n >= 1000 ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "\u2019") : String(n));
       const qms = toNums(roomsArr.map((r: any) => r.qm));
-      const mieten = toNums(roomsArr.map((r: any) => r.miete));
       add("Anzahl ausgeschriebene Zimmer", String(roomsArr.length));
       if (qms.length) { const lo = Math.min(...qms), hi = Math.max(...qms); add("Zimmergroesse", lo === hi ? `ca. ${lo} m\u00b2` : `${lo}\u2013${hi} m\u00b2`); }
-      if (mieten.length) { const lo = Math.min(...mieten), hi = Math.max(...mieten); add("Miete", lo === hi ? `CHF ${grp(lo)} pro Monat` : `CHF ${grp(lo)}\u2013${grp(hi)} pro Monat, je nach Zimmer`); }
       if (roomsArr.some((r: any) => r.balkon)) add("Balkon", "teilweise eigener Balkon vorhanden");
     }
 
@@ -115,6 +111,7 @@ serve(async (req) => {
     const prompt = `Du schreibst ein Wohnungsinserat fuer die Schweizer Plattform Flatfox fuer D&T Homes, einen Anbieter von hochwertigem moebliertem Wohnraum (${istWG ? "hier ein WG-Zimmer" : "hier eine moeblierte Wohnung auf Zeit"}).
 
 Regeln:
+- WICHTIG: Nenne NIEMALS eine Miete, die D&T bezahlt, keine Einstandsmiete, keine Kosten, keine Marge und keine Gewinnspanne, ueberhaupt keine internen Finanzzahlen. Im Beschreibungstext kommt gar kein Mietbetrag vor. Die Miete gibt D&T separat als Flatfox-Feld an, nicht im Text.
 - Nutze AUSSCHLIESSLICH die unten gelieferten Fakten. Erfinde nichts: keine erfundene Quadratmeterzahl, keine erfundene Ausstattung, keine erfundenen Preise oder Daten. Fehlt eine Angabe, lass sie weg.
 - Zur Lage: schreibe einen individuellen Fliesstext-Absatz, der zur TATSAECHLICHEN Lage der Adresse passt (keine Aufzaehlungspunkte). Nutze dein Wissen ueber das konkrete Quartier und die Umgebung, damit die Beschreibung wirklich zu diesem Ort passt und sich von anderen Lagen unterscheidet: Charakter des Viertels, konkrete und bekannte Verkehrsanbindungen (zum Beispiel bestimmte Tram-, Bus- oder S-Bahn-Verbindungen, nahe Bahnhoefe), Naehe zu See, Fluss, Wald oder Parks, bekannte Orientierungspunkte und was das Gebiet ausmacht. Bleibe bei allgemein bekannten, zutreffenden Merkmalen des Gebiets und erfinde keine konkreten Details wie bestimmte Geschaeftsnamen oder erfundene Distanzen. Erwaehne die Eignung fuer Studierende und Young Professionals und die gute Anbindung an die Zuercher Innenstadt sowie Universitaeten und Hochschulen.
 - Schweizer Rechtschreibung (ss statt scharfem s). Warm und einladend, aber sachlich und ehrlich, kein Werbe-Ueberschwang. Keine Emojis, kein Fettdruck, keine Gedankenstriche.
