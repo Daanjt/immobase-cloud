@@ -6520,6 +6520,28 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [copied,setCopied]=useState(false);
   const [vertragModal,setVertragModal]=useState(false);
   const [editModal,setEditModal]=useState(false);
+  const [waTplB, setWaTplB] = useState(null);
+  useEffect(()=>{
+    supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
+      .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTplB(tpls[0]); })
+      .catch(()=>{});
+  },[]);
+  function waShortcutB(bb, e){
+    if(e) e.stopPropagation();
+    const cleanPhone = String(bb.phone||"").replace(/\D/g,"");
+    if(!cleanPhone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
+    const roomObj = (rooms||[]).find(r=>r.id===bb.zimmerWunsch);
+    const aptObj = roomObj ? (apts||[]).find(a=>a.id===roomObj.aptId) : null;
+    const empf = { ...bb,
+      adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      zimmer: (roomObj&&roomObj.id)||"",
+      zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
+      absender: (bb.owner&&String(bb.owner).trim()) ? String(bb.owner).trim() : "Daan",
+    };
+    const tplText = waTplB ? ((bb.sprache==="en" ? (waTplB.inhalt_en||waTplB.inhalt) : waTplB.inhalt) || "") : "";
+    const text = tplText ? platzhalterFuellen(tplText, empf) : "";
+    window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
+  }
   const [editForm,setEditForm]=useState({});
   const [vertragData,setVertragData]=useState(null);
   const [emailMenu,setEmailMenu]=useState(false);
@@ -7310,6 +7332,7 @@ www.dthomes.ch`;
                 </div>
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp-Nachricht senden" style={{background:"#25D366",color:"#fff",borderColor:"#25D366"}}>💬 WhatsApp</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
