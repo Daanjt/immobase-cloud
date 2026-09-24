@@ -2988,6 +2988,7 @@ function MediaManager({apt, editApt, rooms}){
   const [lightbox, setLightbox] = useState(null);
   const CAT_ORDER = ["aussen","eingang","wohnzimmer","kueche","__room","bad","balkon","grundriss","sonstiges"];
   function catRank(cat){ if(!cat) return 90; const c=String(cat); if(c.indexOf("room:")===0) return CAT_ORDER.indexOf("__room"); const i=CAT_ORDER.indexOf(c); return i>=0?i:80; }
+  function roomKey(cat){ const id=String(cat||"").replace(/^room:/,""); const n=parseInt(id.split("-")[1],10); return isNaN(n)?9999:n; }
   async function editPhotoAI(idx, mode){
     const p = photos[idx];
     if(!p || !p.path) return;
@@ -3302,7 +3303,7 @@ function MediaManager({apt, editApt, rooms}){
       {lightbox && <div onClick={()=>setLightbox(null)} style={{position:"fixed",inset:0,background:"rgba(20,18,15,.92)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,cursor:"zoom-out"}}><img src={lightbox} style={{maxWidth:"96%",maxHeight:"96%",objectFit:"contain",borderRadius:6,boxShadow:"0 10px 40px rgba(0,0,0,.5)"}}/></div>}
       {photos.length > 0 ? (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(200px, 100%), 1fr))",gap:10,marginBottom:24}}>
-          {photos.map((p,i)=>({p,i})).sort((a,b)=>(catRank(a.p.category)-catRank(b.p.category))||((a.p.sort_order||0)-(b.p.sort_order||0))).map(({p,i}) => (
+          {photos.map((p,i)=>({p,i})).sort((a,b)=>{var d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;var ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){var rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(({p,i}) => (
             <div key={p.path} style={{border:`1px solid ${p.category ? "#e1d8c5" : "#e8d2a8"}`,borderRadius:8,overflow:"hidden",background:"#fff",position:"relative",boxShadow: p.category ? "none" : "0 0 0 1px #fdf7e8 inset"}}>
               {p.path.toLowerCase().endsWith(".pdf") ? (
                 <a href={publicUrl(p.path)} target="_blank" rel="noopener" title="PDF in neuem Tab öffnen" style={{display:"block",height:140,background:"#fafafa",borderBottom:"1px solid #e8e0cd"}}>
