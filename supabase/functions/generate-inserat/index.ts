@@ -127,7 +127,7 @@ Regeln:
 - Erwaehne die Kaution im Text NICHT. Kein Satz zur Kaution, zu Evorest oder zur Mietkautionsversicherung.
 - Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
 
-Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit einer Leerzeile zwischen den Absaetzen. Fuelle die eckigen Klammern aus den Fakten und lass optionale Teile in eckigen Klammern weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl, bei mehreren die Bereiche:
+Nutze die folgende Vorlage als Orientierung fuer Aufbau, Reihenfolge und Ton, mit einer Leerzeile zwischen den Absaetzen. Formuliere die Saetze aber jedes Mal etwas individuell (anderer Einstieg, andere Satzanfaenge und Wortwahl), damit nicht jedes Inserat identisch klingt. Struktur, Reihenfolge, Kernaussagen und Fakten bleiben gleich, erfinde nichts dazu und lass nichts Wichtiges weg. Fuelle die eckigen Klammern aus den Fakten und lass optionale Teile weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl, bei mehreren die Bereiche:
 
 Du suchst ein WG-Zimmer in [Ort] mit guter Anbindung an die Innenstadt? An der [Strasse und Hausnummer] vermieten wir [mehrere Zimmer oder ein Zimmer] in einer [Zahl]er-WG. Die Zimmer sind [zwischen A und B oder ca. A] m² gross[ und verfügen teilweise über einen eigenen Balkon]. Verfügbar ab [Datum][, befristet bis [Datum]].
 
