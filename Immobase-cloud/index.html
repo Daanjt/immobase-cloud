@@ -2960,7 +2960,18 @@ function MediaManager({apt, editApt, rooms}){
   const [besch, setBesch] = useState(apt.beschreibung || "");
   const [beschSaving, setBeschSaving] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
-  const [insTitel,setInsTitel]=useState(""); const [insText,setInsText]=useState(""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [savingWeb,setSavingWeb]=useState(false); const [savedWeb,setSavedWeb]=useState(false);
+  const [insTitel,setInsTitel]=useState(apt.inserat_titel||""); const [insText,setInsText]=useState(apt.inserat_text||""); const [insBusy,setInsBusy]=useState(false); const [insCopied,setInsCopied]=useState(""); const [savingWeb,setSavingWeb]=useState(false); const [savedWeb,setSavedWeb]=useState(false);
+  const savedInsRef = useRef({t:apt.inserat_titel||"", x:apt.inserat_text||""});
+  useEffect(()=>{ setInsTitel(apt.inserat_titel||""); setInsText(apt.inserat_text||""); savedInsRef.current={t:apt.inserat_titel||"",x:apt.inserat_text||""}; }, [apt.id]);
+  useEffect(()=>{
+    const t=setTimeout(()=>{
+      if(insTitel!==savedInsRef.current.t || insText!==savedInsRef.current.x){
+        savedInsRef.current={t:insTitel,x:insText};
+        editApt(apt.id,{inserat_titel:insTitel, inserat_text:insText}).catch(function(){});
+      }
+    }, 900);
+    return ()=>clearTimeout(t);
+  }, [insTitel, insText]);
   async function saveBesch(){ setBeschSaving(true); try{ await editApt(apt.id,{beschreibung: besch}); }catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); } setBeschSaving(false); }
   async function generateBesch(){ setGenBusy(true); try{ const {data,error}=await supabase.functions.invoke("generate-beschreibung",{body:{adresse:apt.adresse,plz:apt.plz,ort:apt.ort,zimmer:apt.zimmer}}); if(error) throw error; if(data&&data.text){ setBesch(data.text); } else { alert("Kein Text erhalten. Ist der Anthropic-Schlüssel hinterlegt?"); } }catch(err){ alert("Automatische Generierung nicht möglich: "+(err.message||err)+"\n\n(Benötigt den Anthropic-API-Schlüssel in app_config.)"); } setGenBusy(false); }
   async function generateInserat(){ setInsBusy(true); try{
@@ -3406,7 +3417,7 @@ function MediaManager({apt, editApt, rooms}){
             </div>
           </div>
         )}
-        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Fertiger Text für Flatfox aus den Objekt- und Zimmerdaten. Vor dem Veröffentlichen kurz prüfen. „Auf Website übernehmen" zeigt die Beschreibung auf der Wohnungsseite.</div>
+        <div style={{fontSize:10.5,color:"#8a8174",marginTop:8,fontStyle:"italic"}}>Fertiger Text für Flatfox aus den Objekt- und Zimmerdaten. Wird automatisch gespeichert und bleibt erhalten, du kannst ihn jederzeit manuell bearbeiten. „Auf Website übernehmen" zeigt die Beschreibung auf der Wohnungsseite.</div>
       </div>
       <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 16px",marginTop:16}}>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>🎬 Video-Rundgang</div>
