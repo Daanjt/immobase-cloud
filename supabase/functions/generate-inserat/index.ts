@@ -73,7 +73,6 @@ serve(async (req) => {
     } else {
       add("Befristet bis", p.mietende);
     }
-    add("Kaution", "laeuft ueber Evorest (Mietkautionsversicherung, keine Barkaution noetig)");
     if (istWG) {
       const wz = Number(p.wgZimmer) || 0;
       const wgWord: Record<number, string> = { 2: "Zweier-WG", 3: "Dreier-WG", 4: "Vierer-WG", 5: "Fuenfer-WG", 6: "Sechser-WG", 7: "Siebener-WG", 8: "Achter-WG" };
@@ -125,7 +124,7 @@ Regeln:
 - Gehe NICHT davon aus, dass es ein Wohnzimmer oder einen gemeinsamen Wohnbereich gibt. Die meisten unserer WGs haben keines. Erwaehne ein Wohnzimmer nur, wenn es ausdruecklich in den Fakten steht. Kueche und Bad als gemeinsam genutzte Raeume sind bei einer WG in Ordnung.
 - Nenne klar, ab wann das Zimmer frei ist (aus dem Faktum "Frei ab"). Uebernimm die Mietdauer exakt aus den Fakten: steht dort "Mietdauer: unbefristet", schreibe, das Zimmer sei unbefristet zu haben; steht ein "Befristet bis"-Datum, nenne dieses Datum klar. Erfinde keine Befristung und wandle das eine nicht ins andere um.
 - Schreibe durchgehend in der Du-Form (du, dein, dich, dir), niemals Sie und niemals Ihr.
-- Die Kaution laeuft immer ueber Evorest. Nenne keinen Kautionsbetrag, sondern schreibe, dass die Kaution unkompliziert ueber Evorest laeuft (Mietkautionsversicherung, keine Barkaution).
+- Erwaehne die Kaution im Text NICHT. Kein Satz zur Kaution, zu Evorest oder zur Mietkautionsversicherung.
 - Der Titel folgt bei einer WG dem Faktum "Titel-Vorgabe", zum Beispiel: WG-Zimmer in 4er-WG, befristet von 01.11.26 bis 31.07.27. Uebernimm ihn im Wesentlichen so, hoechstens rund 70 Zeichen. Bei einer Wohnung auf Zeit: kurzer Titel mit Objektart und Lage.
 
 Verwende fuer "beschreibung" genau diese Vorlage und Reihenfolge, mit einer Leerzeile zwischen den Absaetzen. Fuelle die eckigen Klammern aus den Fakten und lass optionale Teile in eckigen Klammern weg, wenn dazu keine Angabe vorliegt. Bei nur einem ausgeschriebenen Zimmer nutze die Einzahl, bei mehreren die Bereiche:
