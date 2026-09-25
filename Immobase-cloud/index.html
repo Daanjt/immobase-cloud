@@ -4681,11 +4681,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 .filter(istAktuellerMieter)
                 .reduce((s, t) => {
                   let auf = +t.kautionAufschlag || 0;
-                  if (!auf) {
-                    if (t.kautionOpt === "0x") auf = 150;
-                    else if (t.kautionOpt === "1x") auf = 100;
-                    else if (t.kautionOpt === "2x") auf = 50;
-                  }
                   return s + auf;
                 }, 0);
               // Marge IST/MAX: Einnahmen (inkl. Strom) - Ausgaben, OHNE Aufschlag (bleibt separat)
@@ -4781,7 +4776,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                     })
                     .reduce((s, t) => {
                       let auf = +t.kautionAufschlag || 0;
-                      if (!auf) { if (t.kautionOpt === "0x") auf = 150; else if (t.kautionOpt === "1x") auf = 100; else if (t.kautionOpt === "2x") auf = 50; }
                       return s + auf;
                     }, 0);
                   const aMargeIst = aIst - (+a.miete||0);
@@ -4913,11 +4907,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 })
                 .reduce((s, t) => {
                   let auf = +t.kautionAufschlag || 0;
-                  if (!auf) {
-                    if (t.kautionOpt === "0x") auf = 150;
-                    else if (t.kautionOpt === "1x") auf = 100;
-                    else if (t.kautionOpt === "2x") auf = 50;
-                  }
                   return s + auf;
                 }, 0);
               const aMargeIst = aIst - (+a.miete||0);
