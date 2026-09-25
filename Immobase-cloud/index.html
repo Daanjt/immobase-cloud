@@ -3112,14 +3112,16 @@ function MediaManager({apt, editApt, rooms}){
     } catch(e){ alert("Download fehlgeschlagen: "+(e.message||e)); }
   }
 
-  async function downloadAll(){
+  async function downloadAll(onlyVisible){
     if(!window.JSZip){ alert("Zip-Bibliothek noch nicht geladen, bitte kurz warten und erneut versuchen."); return; }
-    if(!photos.length) return;
+    let list = onlyVisible ? photos.filter(p=>!p.hidden) : photos.slice();
+    list = list.map((p,i)=>({p,i})).sort((a,b)=>{const d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;const ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){const rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(x=>x.p);
+    if(!list.length){ alert(onlyVisible ? "Keine publizierten Bilder vorhanden." : "Keine Bilder vorhanden."); return; }
     setZipping(true);
     try {
       const zip = new window.JSZip();
-      for(let i=0;i<photos.length;i++){
-        const p = photos[i];
+      for(let i=0;i<list.length;i++){
+        const p = list[i];
         const res = await fetch(publicUrl(p.path));
         if(!res.ok) continue;
         const blob = await res.blob();
@@ -3127,7 +3129,7 @@ function MediaManager({apt, editApt, rooms}){
       }
       const content = await zip.generateAsync({type:"blob"});
       const url = URL.createObjectURL(content);
-      const a = document.createElement("a"); a.href=url; a.download=`${safeName(apt.adresse||apt.id)}_Medien.zip`; document.body.appendChild(a); a.click(); a.remove();
+      const a = document.createElement("a"); a.href=url; a.download=`${safeName(apt.adresse||apt.id)}_${onlyVisible?"Publiziert":"Alle"}.zip`; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 1500);
     } catch(e){ alert("Zip fehlgeschlagen: "+(e.message||e)); }
     setZipping(false);
@@ -3322,7 +3324,8 @@ function MediaManager({apt, editApt, rooms}){
       {photos.length > 0 && (
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <span style={{fontSize:11,color:"#8a8174"}}>{photos.length} Datei{photos.length>1?"en":""}</span>
-          <button onClick={downloadAll} disabled={zipping} style={{background:"none",border:"1px solid #d8c9a4",borderRadius:6,padding:"4px 10px",cursor:zipping?"default":"pointer",fontSize:11,color:"#1a1814"}}>{zipping ? "⏳ ZIP wird erstellt…" : "⬇ Alle als ZIP"}</button>
+          <button onClick={()=>downloadAll(false)} disabled={zipping} style={{background:"none",border:"1px solid #d8c9a4",borderRadius:6,padding:"4px 10px",cursor:zipping?"default":"pointer",fontSize:11,color:"#1a1814"}}>{zipping ? "⏳ ZIP wird erstellt…" : "⬇ Alle als ZIP"}</button>
+          <button onClick={()=>downloadAll(true)} disabled={zipping} title="Ohne verborgene Bilder" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:6,padding:"4px 10px",cursor:zipping?"default":"pointer",fontSize:11,color:"#1a1814",marginLeft:6}}>⬇ Nur publizierte</button>
         </div>
       )}
       {lightbox && <div onClick={()=>setLightbox(null)} style={{position:"fixed",inset:0,background:"rgba(20,18,15,.92)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,cursor:"zoom-out"}}><img src={lightbox} style={{maxWidth:"96%",maxHeight:"96%",objectFit:"contain",borderRadius:6,boxShadow:"0 10px 40px rgba(0,0,0,.5)"}}/></div>}
