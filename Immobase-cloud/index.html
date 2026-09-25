@@ -10471,6 +10471,8 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   const [search, setSearch] = useState("");
   const [showOnlyOffen, setShowOnlyOffen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null); // { tenantId, ... }
+  const [showMore, setShowMore] = useState(false);
+  const [showUeb, setShowUeb] = useState(false);
   const [mahnungConfirm, setMahnungConfirm] = useState(null); // { row, stufe, monatLabel }
   
   const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -11042,27 +11044,6 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
             
             <div className="frow">
               <div className="fg">
-                <label className="fl">Status</label>
-                <select className="fi" value={editingPayment.status} onChange={e=>setEditingPayment({...editingPayment, status:e.target.value})}>
-                  <option value="offen">Offen</option>
-                  <option value="bezahlt">Bezahlt</option>
-                  <option value="teilweise">Teilweise bezahlt</option>
-                  <option value="erlassen">Erlassen</option>
-                </select>
-              </div>
-              <div className="fg">
-                <label className="fl">Zahlungsart</label>
-                <select className="fi" value={editingPayment.bezahltVia} onChange={e=>setEditingPayment({...editingPayment, bezahltVia:e.target.value})}>
-                  <option value="Überweisung">Überweisung</option>
-                  <option value="TWINT">TWINT</option>
-                  <option value="Bar">Bar</option>
-                  <option value="Andere">Andere</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="frow">
-              <div className="fg">
                 <label className="fl" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span>Soll-Betrag (CHF)</span>
                   {editingPayment.tenant?.einzug && (() => {
@@ -11076,9 +11057,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                         const miete = room?.miete || editingPayment.tenant?.miete || 0;
                         const result = calcProrataBetrag(editingPayment.tenant.einzug, editingPayment.jahr, editingPayment.monat, miete);
                         if (!result) { alert("Berechnung nicht moeglich. Pruefe Einzugsdatum und Miete."); return; }
-                        setEditingPayment({...editingPayment, betragSoll: result.betrag, bemerkung: (editingPayment.bemerkung ? editingPayment.bemerkung + " · " : "") + `Pro-rata: ${result.verbleibendTage}/${result.daysInMonth} Tage ab ${einzug.toLocaleDateString("de-CH")}`});
+                        setEditingPayment({...editingPayment, betragSoll: result.betrag, bemerkung: (editingPayment.bemerkung ? editingPayment.bemerkung + " \u00b7 " : "") + `Pro-rata: ${result.verbleibendTage}/${result.daysInMonth} Tage ab ${einzug.toLocaleDateString("de-CH")}`});
                       }} style={{fontSize:10.5,padding:"3px 8px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:4,cursor:"pointer"}}>
-                        🧮 Pro-rata (Einzug {editingPayment.tenant.einzug})
+                        \ud83e\uddee Pro-rata (Einzug {editingPayment.tenant.einzug})
                       </button>
                     );
                   })()}
@@ -11086,43 +11067,68 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                 <input className="fi" type="number" step="0.01" value={editingPayment.betragSoll||""} onChange={e=>setEditingPayment({...editingPayment, betragSoll:+e.target.value})}/>
               </div>
               <div className="fg">
-                <label className="fl">Ist-Betrag (CHF)</label>
+                <label className="fl">Bezahlt (CHF)</label>
                 <input className="fi" type="number" step="0.01" value={editingPayment.betragIst||""} onChange={e=>setEditingPayment({...editingPayment, betragIst:+e.target.value})}/>
               </div>
             </div>
 
-            <div className="fg">
-              <label className="fl">Übertrag / Anpassung (CHF)</label>
-              <input className="fi" type="number" step="0.01" value={editingPayment.uebertrag||""} onChange={e=>setEditingPayment({...editingPayment, uebertrag:e.target.value===""?0:+e.target.value})}/>
-              <div style={{fontSize:10.5,color:"#8a8174",marginTop:4}}>Positiv = Nachzahlung aus dem Vormonat (z.B. +10 wenn letzten Monat zu wenig bezahlt), negativ = Guthaben. Wird zum Soll addiert.</div>
-            </div>
             {(() => {
-              const soll = (+editingPayment.betragSoll||0) + (+editingPayment.uebertrag||0);
+              const ue = +editingPayment.uebertrag||0;
+              const soll = (+editingPayment.betragSoll||0) + ue;
               const ist = +editingPayment.betragIst||0;
               const diff = ist - soll;
               return (
-                <div style={{padding:"10px 12px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,fontSize:12,marginBottom:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#8a8174"}}>Effektiver Soll</span><span style={{fontWeight:600}}>CHF {soll.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}><span style={{color:"#8a8174"}}>Differenz</span><span style={{fontWeight:600,color:diff<0?"#c0392b":diff>0?"#2f6b3a":"#8a8174"}}>{diff===0?"ausgeglichen":`${diff<0?"−":"+"}CHF ${Math.abs(diff).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}${diff<0?" zu wenig":" zu viel"}`}</span></div>
+                <div style={{padding:"12px 14px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,fontSize:12.5,marginBottom:12}}>
+                  {ue !== 0 && <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#8a8174"}}>\u00dcbertrag aus Vormonat</span><span style={{fontWeight:600}}>{ue>0?"+":"\u2212"}CHF {Math.abs(ue).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>}
+                  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#8a8174"}}>Effektiver Soll</span><span style={{fontWeight:700}}>CHF {soll.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:5,paddingTop:6,borderTop:"1px solid #eee5d6"}}><span style={{color:"#8a8174"}}>Differenz</span><span style={{fontWeight:700,fontSize:13.5,color:diff<0?"#c0392b":diff>0?"#2f6b3a":"#8a8174"}}>{diff===0?"ausgeglichen":`${diff<0?"\u2212":"+"}CHF ${Math.abs(diff).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}${diff<0?" zu wenig":" zu viel"}`}</span></div>
+                  <div style={{marginTop:8}}>
+                    <button type="button" onClick={()=>setShowUeb(!showUeb)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:10.5,cursor:"pointer",padding:0,textDecoration:"underline"}}>\u00dcbertrag manuell anpassen</button>
+                    {showUeb && <input className="fi" type="number" step="0.01" placeholder="+ Nachzahlung, \u2212 Guthaben" value={editingPayment.uebertrag||""} onChange={e=>setEditingPayment({...editingPayment, uebertrag:e.target.value===""?0:+e.target.value})} style={{marginTop:6}}/>}
+                  </div>
                 </div>
               );
             })()}
             {(() => { const rest = Math.round(((+editingPayment.betragSoll||0)+(+editingPayment.uebertrag||0) - (+editingPayment.betragIst||0))*100)/100; if (rest === 0) return null; return (
-              <button onClick={carryOverToNextMonth} style={{width:"100%",padding:"9px 12px",marginBottom:12,background:"#f5efe4",color:"#5a4a2e",border:"1px solid #d8ccb0",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:500}}>
-                ↪ Als bezahlt markieren, {rest>0?"Rest":"Guthaben"} CHF {Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})} in nächsten Monat
+              <button onClick={carryOverToNextMonth} style={{width:"100%",padding:"10px 12px",marginBottom:12,background:"#f5efe4",color:"#5a4a2e",border:"1px solid #d8ccb0",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:600}}>
+                \u21aa Differenz in n\u00e4chsten Monat \u00fcbertragen ({rest>0?"Rest":"Guthaben"} CHF {Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})})
               </button>
             ); })()}
-            
-            <div className="fg">
-              <label className="fl">Bezahlt am</label>
-              <input className="fi" type="date" value={editingPayment.bezahltAm||""} onChange={e=>setEditingPayment({...editingPayment, bezahltAm:e.target.value})}/>
-            </div>
-            
-            <div className="fg">
-              <label className="fl">Bemerkung</label>
-              <textarea className="fi" rows={2} value={editingPayment.bemerkung||""} onChange={e=>setEditingPayment({...editingPayment, bemerkung:e.target.value})} style={{resize:"vertical",fontFamily:"inherit"}}/>
-            </div>
-            
+
+            <button type="button" onClick={()=>setShowMore(!showMore)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:11.5,cursor:"pointer",padding:"4px 0",marginBottom:showMore?8:12}}>Weitere Angaben {showMore?"\u25b2":"\u25bc"}</button>
+            {showMore && (
+              <div style={{marginBottom:4}}>
+                <div className="frow">
+                  <div className="fg">
+                    <label className="fl">Status</label>
+                    <select className="fi" value={editingPayment.status} onChange={e=>setEditingPayment({...editingPayment, status:e.target.value})}>
+                      <option value="offen">Offen</option>
+                      <option value="bezahlt">Bezahlt</option>
+                      <option value="teilweise">Teilweise bezahlt</option>
+                      <option value="erlassen">Erlassen</option>
+                    </select>
+                  </div>
+                  <div className="fg">
+                    <label className="fl">Zahlungsart</label>
+                    <select className="fi" value={editingPayment.bezahltVia} onChange={e=>setEditingPayment({...editingPayment, bezahltVia:e.target.value})}>
+                      <option value="\u00dcberweisung">\u00dcberweisung</option>
+                      <option value="TWINT">TWINT</option>
+                      <option value="Bar">Bar</option>
+                      <option value="Andere">Andere</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="fg">
+                  <label className="fl">Bezahlt am</label>
+                  <input className="fi" type="date" value={editingPayment.bezahltAm||""} onChange={e=>setEditingPayment({...editingPayment, bezahltAm:e.target.value})}/>
+                </div>
+                <div className="fg">
+                  <label className="fl">Bemerkung</label>
+                  <textarea className="fi" rows={2} value={editingPayment.bemerkung||""} onChange={e=>setEditingPayment({...editingPayment, bemerkung:e.target.value})} style={{resize:"vertical",fontFamily:"inherit"}}/>
+                </div>
+              </div>
+            )}
+
             <div className="ma" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
               {editingPayment.id ? (
                 <button className="btn" onClick={async()=>{
