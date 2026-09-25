@@ -4068,7 +4068,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const einzuegeMitStatus = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
     .map(t => {
-      const room = rooms.find(r => r.tenantId === t.id);
+      const room = rooms.find(r => r.tenantId === t.id) || (t.roomId ? rooms.find(r => r.id === t.roomId) : null);
       if (!room) return null;
       const apt = apts.find(a => a.id === room.aptId);
       const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === t.id);
