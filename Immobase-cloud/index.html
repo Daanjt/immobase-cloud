@@ -10906,7 +10906,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                     <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>
                       CHF {row.soll.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})}
                       {row.uebertrag!==0 && (
-                        <div style={{fontSize:10,color:row.uebertrag>0?"#8a3a2e":"#3a5230",fontWeight:400,marginTop:2}}>inkl. {row.uebertrag>0?"+":""}{row.uebertrag.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Übertrag</div>
+                        <div style={{fontSize:10,color:row.uebertrag>0?"#8a3a2e":"#3a5230",fontWeight:500,marginTop:2}}>{row.uebertrag>0?"Rest":"Guthaben"} aus {MONATS_NAMEN[(monat===1?12:monat-1)-1]}: {row.uebertrag>0?"+":"−"}CHF {Math.abs(row.uebertrag).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}</div>
                       )}
                       {(+row.tenant.kautionAufschlag||0)>0 && (
                         <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Aufschlag</div>
