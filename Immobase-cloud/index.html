@@ -10600,7 +10600,10 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     .filter(r => `${r.tenant.vorname} ${r.tenant.nachname} ${r.tenant.id}`.toLowerCase().includes(search.toLowerCase()))
     .filter(r => !showOnlyOffen || r.status === "offen")
     .sort((a,b) => {
-      // Offene zuerst, dann nach ID
+      // Zahlungen mit Differenz zuoberst, dann offene, dann nach ID
+      const aDiff = (a.diff != null && a.diff !== 0) || a.status === "teilweise";
+      const bDiff = (b.diff != null && b.diff !== 0) || b.status === "teilweise";
+      if (aDiff !== bDiff) return aDiff ? -1 : 1;
       if (a.status !== b.status) {
         const order = {offen:0, teilweise:1, bezahlt:2, erlassen:3};
         return (order[a.status]||0) - (order[b.status]||0);
@@ -10883,8 +10886,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
               ) : filtered.map(row => {
                 const isPaid = row.status === "bezahlt";
                 const isErlassen = row.status === "erlassen";
+                const hatDiff = (row.diff != null && row.diff !== 0) || row.status === "teilweise";
                 return (
-                  <tr key={row.tenant.id} style={{borderBottom:"1px solid #f0ebe1",background:isPaid?"#f5f8f1":isErlassen?"#fefcf7":"transparent"}}>
+                  <tr key={row.tenant.id} style={{borderBottom:"1px solid #f0ebe1",background:hatDiff?"#fdf1e3":isPaid?"#f5f8f1":isErlassen?"#fefcf7":"transparent"}}>
                     <td style={{padding:"12px 14px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <Av name={row.tenant.vorname} size={32}/>
