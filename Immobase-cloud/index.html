@@ -7385,9 +7385,8 @@ www.dthomes.ch`;
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
-                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.kautionType||"-"}</div>
-                  {b.kautionAufschlag>0&&<div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {b.kautionAufschlag}.- / Monat</div>}
-                  {b.kautionAufschlag===0&&<div style={{fontSize:11,color:"#5a7c5e",marginTop:2}}>Kein Aufschlag</div>}
+                  <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.kautionType || ({"3x":"3× Miete (volle Kaution)","2x":"2× Miete","1x":"1× Miete","0x":"Keine Kaution"}[b.kautionOpt]) || "-"}</div>
+                  {(() => { const auf = (b.kautionAufschlag!=null && b.kautionAufschlag!=="") ? +b.kautionAufschlag : ({"3x":0,"2x":50,"1x":100,"0x":150}[b.kautionOpt]); return auf>0 ? <div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {auf}.- / Monat</div> : auf===0 ? <div style={{fontSize:11,color:"#5a7c5e",marginTop:2}}>Kein Aufschlag</div> : null; })()}
                 </div>
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
