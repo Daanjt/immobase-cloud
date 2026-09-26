@@ -7957,6 +7957,65 @@ www.dthomes.ch`;
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
+function SchluesselRegister({apts, rooms, tenants}) {
+  const [keys, setKeys] = useState([]);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("alle");
+  const [loading, setLoading] = useState(true);
+  useEffect(()=>{ (async()=>{ setLoading(true); const {data}=await supabase.from("schluessel").select("*").order("apt_id"); setKeys(data||[]); setLoading(false); })(); },[]);
+  async function patchKey(id, patch){ setKeys(p=>p.map(k=>k.id===id?{...k,...patch}:k)); await supabase.from("schluessel").update({...patch, updated_at:new Date().toISOString()}).eq("id", id); }
+  async function delKey(id){ if(!confirm("Diesen Schlüssel wirklich löschen?")) return; setKeys(p=>p.filter(k=>k.id!==id)); await supabase.from("schluessel").delete().eq("id", id); }
+  const aptById = (id) => (apts||[]).find(a=>a.id===id);
+  const tenantById = (id) => (tenants||[]).find(t=>t.id===id);
+  const aptTenants = (aptId) => (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===aptId) || (rooms||[]).some(r=>r.aptId===aptId && (r.tenantId===t.id || r.id===t.roomId))));
+  const ql = q.trim().toLowerCase();
+  const filtered = keys.filter(k=>{
+    if(statusFilter!=="alle" && (k.status||"im_buero")!==statusFilter) return false;
+    if(!ql) return true;
+    const a=aptById(k.apt_id); const t=tenantById(k.tenant_id);
+    return [k.nummer,k.typ,a&&a.adresse,a&&a.id,t&&t.vorname,t&&t.nachname].filter(Boolean).join(" ").toLowerCase().includes(ql);
+  });
+  return (
+    <div style={{maxWidth:1000,margin:"0 auto"}}>
+      <div className="pt">🔑 Schlüsselregister</div>
+      <div style={{fontSize:12,color:"#8a8174",marginBottom:16}}>{keys.length} Schlüssel über {new Set(keys.map(k=>k.apt_id)).size} Wohnungen · {keys.filter(k=>k.tenant_id).length} ausgegeben · {keys.filter(k=>k.status==="verloren").length} verloren</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+        <input className="fi" style={{flex:"1 1 220px",margin:0}} placeholder="Suche: Nummer, Wohnung, Mieter, Typ …" value={q} onChange={e=>setQ(e.target.value)}/>
+        <select className="fi" style={{flex:"0 0 160px",margin:0}} value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+          <option value="alle">Alle Status</option>
+          <option value="im_buero">Im Büro</option>
+          <option value="ausgegeben">Ausgegeben</option>
+          <option value="verloren">Verloren</option>
+        </select>
+      </div>
+      {loading ? <div className="empty">Lädt …</div> : filtered.length===0 ? <div className="empty">Keine Schlüssel gefunden. Schlüssel erfasst du in der jeweiligen Wohnung unter dem Tab Schlüssel.</div> : (
+        <table><thead><tr><th>Wohnung</th><th>Nummer</th><th>Typ</th><th>Zugewiesen an</th><th>Status</th><th></th></tr></thead><tbody>
+        {filtered.map(k=>{ const a=aptById(k.apt_id); return (
+          <tr key={k.id} style={{borderBottom:"1px solid #f0ebe1", background:k.status==="verloren"?"#fbeae6":"transparent"}}>
+            <td style={{fontWeight:600}}>{a?(a.adresse||a.id):"-"}</td>
+            <td data-label="Nummer" style={{fontWeight:600}}>{k.nummer||"-"}</td>
+            <td data-label="Typ">{k.typ}</td>
+            <td data-label="Zugewiesen">
+              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.tenant_id||""} onChange={e=>{const tid=e.target.value||null; patchKey(k.id,{tenant_id:tid,status:tid?"ausgegeben":"im_buero"});}}>
+                <option value="">Büro / nicht ausgegeben</option>
+                {aptTenants(k.apt_id).map(t=><option key={t.id} value={t.id}>{t.vorname} {t.nachname}</option>)}
+              </select>
+            </td>
+            <td data-label="Status">
+              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.status||"im_buero"} onChange={e=>patchKey(k.id,{status:e.target.value})}>
+                <option value="im_buero">Im Büro</option>
+                <option value="ausgegeben">Ausgegeben</option>
+                <option value="verloren">Verloren</option>
+              </select>
+            </td>
+            <td style={{textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>delKey(k.id)}>Löschen</button></td>
+          </tr>); })}
+        </tbody></table>
+      )}
+    </div>
+  );
+}
+
 function SchluesselManager({apt, rooms, tenants}) {
   const [keys, setKeys] = useState([]);
   const [neu, setNeu] = useState({nummer:"", typ:"Wohnungstür"});
@@ -13236,6 +13295,7 @@ const PAGES=[
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
   {id:"mieter",icon:"👤",label:"Mieter"},
+  {id:"schluesselregister",icon:"🔑",label:"Schlüssel"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
   {id:"partner",icon:"🏢",label:"Partner"},
@@ -13394,7 +13454,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,schluesselregister:SchluesselRegister,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
