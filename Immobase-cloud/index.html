@@ -7957,6 +7957,76 @@ www.dthomes.ch`;
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
+function SchluesselManager({apt, rooms, tenants}) {
+  const [keys, setKeys] = useState([]);
+  const [neu, setNeu] = useState({nummer:"", typ:"Wohnungstür"});
+  const [busy, setBusy] = useState(false);
+  useEffect(()=>{
+    supabase.from("schluessel").select("*").eq("apt_id", apt.id).order("created_at").then(({data})=>setKeys(data||[]));
+  },[apt.id]);
+  const aptTenants = (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===apt.id) || (rooms||[]).some(r=>r.aptId===apt.id && (r.tenantId===t.id || r.id===t.roomId))));
+  const TYPEN = ["Wohnungstür","Zimmertür","Hauseingang","Briefkasten","Keller","Waschküche","Extra","Sonstiges"];
+  async function addKey(){
+    if(!neu.nummer.trim()){ alert("Bitte eine Schlüsselnummer eingeben."); return; }
+    setBusy(true);
+    const id = "SCH-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
+    const row = {id, apt_id:apt.id, nummer:neu.nummer.trim(), typ:neu.typ, tenant_id:null, status:"im_buero", bemerkung:""};
+    const {error} = await supabase.from("schluessel").insert(row);
+    if(!error){ setKeys(p=>[...p,row]); setNeu({nummer:"", typ:neu.typ}); }
+    else alert("Speichern fehlgeschlagen: "+error.message);
+    setBusy(false);
+  }
+  async function patchKey(id, patch){
+    setKeys(p=>p.map(k=>k.id===id?{...k,...patch}:k));
+    await supabase.from("schluessel").update({...patch, updated_at:new Date().toISOString()}).eq("id", id);
+  }
+  async function delKey(id){
+    if(!confirm("Diesen Schlüssel wirklich löschen?")) return;
+    setKeys(p=>p.filter(k=>k.id!==id));
+    await supabase.from("schluessel").delete().eq("id", id);
+  }
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",marginBottom:16,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 14px"}}>
+        <div style={{flex:"1 1 150px"}}>
+          <label className="fl">Schlüsselnummer</label>
+          <input className="fi" value={neu.nummer} onChange={e=>setNeu({...neu, nummer:e.target.value})} placeholder="z.B. 12345 oder A-01"/>
+        </div>
+        <div style={{flex:"1 1 150px"}}>
+          <label className="fl">Typ</label>
+          <select className="fi" value={neu.typ} onChange={e=>setNeu({...neu, typ:e.target.value})}>{TYPEN.map(t=><option key={t} value={t}>{t}</option>)}</select>
+        </div>
+        <button className="btn btn-p btn-sm" disabled={busy} onClick={addKey} style={{height:38}}>+ Schlüssel</button>
+      </div>
+      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>{keys.length} Schlüssel erfasst · {keys.filter(k=>k.tenant_id).length} ausgegeben · {keys.filter(k=>!k.tenant_id && k.status!=="verloren").length} im Büro · {keys.filter(k=>k.status==="verloren").length} verloren</div>
+      {keys.length===0 ? <div className="empty">Noch keine Schlüssel erfasst. Füge oben welche hinzu.</div> : (
+        <table><thead><tr><th>Nummer</th><th>Typ</th><th>Zugewiesen an</th><th>Status</th><th></th></tr></thead><tbody>
+        {keys.map(k=>(
+          <tr key={k.id} style={{borderBottom:"1px solid #f0ebe1", background: k.status==="verloren"?"#fbeae6":"transparent"}}>
+            <td style={{fontWeight:600}}>{k.nummer||"-"}</td>
+            <td data-label="Typ">{k.typ}</td>
+            <td data-label="Zugewiesen">
+              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.tenant_id||""} onChange={e=>{const tid=e.target.value||null; patchKey(k.id, {tenant_id:tid, status: tid ? "ausgegeben" : "im_buero"});}}>
+                <option value="">Büro / nicht ausgegeben</option>
+                {aptTenants.map(t=><option key={t.id} value={t.id}>{t.vorname} {t.nachname}</option>)}
+              </select>
+            </td>
+            <td data-label="Status">
+              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.status||"im_buero"} onChange={e=>patchKey(k.id, {status:e.target.value})}>
+                <option value="im_buero">Im Büro</option>
+                <option value="ausgegeben">Ausgegeben</option>
+                <option value="verloren">Verloren</option>
+              </select>
+            </td>
+            <td style={{textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>delKey(k.id)}>Löschen</button></td>
+          </tr>
+        ))}
+        </tbody></table>
+      )}
+    </div>
+  );
+}
+
 function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
@@ -8213,7 +8283,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
-            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["medien","Medien"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["medien","Medien"],["schluessel","🔑 Schlüssel"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&(() => {
               const isWG = apt.type === "WG";
               const aptRooms = rooms.filter(r => r.aptId === apt.id);
@@ -8297,6 +8367,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             })()}
             {tab==="zimmer"&&(<div>{apt.type==="WG"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
+            {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
