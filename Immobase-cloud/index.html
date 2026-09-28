@@ -4051,6 +4051,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                     roomLabel: room?.id || null,
                     einzugDatum: tenant.einzug || null,
                     schluesselInfo: snapshot || null,
+                    schluesselData,
                   });
                   setShowStartModal(false);
                 } catch(e) {
