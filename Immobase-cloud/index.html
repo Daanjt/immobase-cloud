@@ -13351,7 +13351,6 @@ const PAGES=[
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
   {id:"mieter",icon:"👤",label:"Mieter"},
-  {id:"schluesselregister",icon:"🔑",label:"Schlüssel"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
   {id:"partner",icon:"🏢",label:"Partner"},
@@ -13510,7 +13509,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,schluesselregister:SchluesselRegister,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
