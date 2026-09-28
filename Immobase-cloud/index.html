@@ -3985,11 +3985,10 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               Nach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.
             </div>
             
-            {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null || Object.keys(refKeyInfo.byTyp).length>0) && (
+            {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && (
               <div style={{background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:6,padding:"8px 10px",marginBottom:12,fontSize:12.5,color:"#3a5230"}}>
                 <div style={{fontWeight:600,marginBottom:2}}>Für diese Wohnung erhalten</div>
                 {(refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && <div>{refKeyInfo.erhNormal||0} normale · {refKeyInfo.erhExtra||0} extra</div>}
-                {Object.keys(refKeyInfo.byTyp).length>0 && <div style={{color:"#8a8174",marginTop:2}}>Register: {Object.entries(refKeyInfo.byTyp).map(([ty,n])=>`${n}× ${ty}`).join(", ")}</div>}
               </div>
             )}
             <div style={{marginBottom:12}}>
@@ -4414,11 +4413,10 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               {startFor.tenant.vorname} {startFor.tenant.nachname} · {startFor.room?.id||"-"} · {startFor.apt?.adresse||"-"}<br/>
               Der Mieter erhält einen Link und hat 14 Tage Zeit, das Protokoll auszufüllen.
             </div>
-            {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null || Object.keys(refKeyInfo.byTyp).length>0) && (
+            {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && (
               <div style={{background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:6,padding:"8px 10px",marginBottom:12,fontSize:12,color:"#3a5230"}}>
                 <div style={{fontWeight:600,marginBottom:2}}>Für diese Wohnung erhalten</div>
                 {(refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && <div>{refKeyInfo.erhNormal||0} normale · {refKeyInfo.erhExtra||0} extra</div>}
-                {Object.keys(refKeyInfo.byTyp).length>0 && <div style={{color:"#8a8174",marginTop:2}}>Register: {Object.entries(refKeyInfo.byTyp).map(([ty,n])=>`${n}× ${ty}`).join(", ")}</div>}
               </div>
             )}
             <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl normale Schlüssel (Wohnung/Haus)</label>
