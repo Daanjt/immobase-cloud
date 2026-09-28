@@ -3829,6 +3829,16 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   const [startExtraSchluessel, setStartExtraSchluessel] = React.useState("");
   const [starting, setStarting] = React.useState(false);
   const [openProto, setOpenProto] = React.useState(null);
+  const [refKeyInfo, setRefKeyInfo] = React.useState(null);
+  React.useEffect(()=>{
+    if(!showStartModal || !apt || !apt.id){ return; }
+    (async()=>{
+      const {data:a} = await supabase.from("apartments").select("schluessel_erhalten_normal,schluessel_erhalten_extra").eq("id",apt.id).single();
+      const {data:ks} = await supabase.from("schluessel").select("typ").eq("apt_id",apt.id);
+      const byTyp={}; (ks||[]).forEach(k=>{ byTyp[k.typ]=(byTyp[k.typ]||0)+1; });
+      setRefKeyInfo({ erhNormal:a?a.schluessel_erhalten_normal:null, erhExtra:a?a.schluessel_erhalten_extra:null, byTyp });
+    })();
+  },[showStartModal, apt]);
   
   // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
   React.useEffect(() => {
@@ -3975,6 +3985,13 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               Nach Ablauf gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.
             </div>
             
+            {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null || Object.keys(refKeyInfo.byTyp).length>0) && (
+              <div style={{background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:6,padding:"8px 10px",marginBottom:12,fontSize:12.5,color:"#3a5230"}}>
+                <div style={{fontWeight:600,marginBottom:2}}>Für diese Wohnung erhalten</div>
+                {(refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && <div>{refKeyInfo.erhNormal||0} normale · {refKeyInfo.erhExtra||0} extra</div>}
+                {Object.keys(refKeyInfo.byTyp).length>0 && <div style={{color:"#8a8174",marginTop:2}}>Register: {Object.entries(refKeyInfo.byTyp).map(([ty,n])=>`${n}× ${ty}`).join(", ")}</div>}
+              </div>
+            )}
             <div style={{marginBottom:12}}>
               <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Schlüsselnummer</label>
               <input
