@@ -1647,6 +1647,7 @@ function useSupabaseData() {
       kautionOpt: x.kaution_opt,
       kautionType: x.kaution_type,
       kautionAufschlag: x.kaution_aufschlag,
+      bexioContactId: x.bexio_contact_id,
       moeblierungPauschale: x.moeblierung_pauschale, moeblierungModus: x.moeblierung_modus||"einmalig",
       zimmerWunsch: x.zimmer_wunsch,
       noDebt: x.no_debt,
@@ -9749,6 +9750,26 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                   </div>
                 </div>
               );
+            })()}
+            {room && (() => {
+              const basis = (tenant.mietzins != null && tenant.mietzins !== "") ? +tenant.mietzins : (+room.miete||0);
+              const netto = Math.max(0, basis - 100);
+              const doBexio = async () => {
+                if(!confirm("QR-Rechnung(en) als Entwurf in Bexio erstellen?")) return;
+                toast("Bexio: erstelle Rechnung …");
+                const { data, error } = await supabase.functions.invoke("bexio-invoice", { body: {
+                  tenantId: tenant.id,
+                  bexioContactId: tenant.bexioContactId || null,
+                  contact: { name_1: tenant.nachname, name_2: tenant.vorname, mail: tenant.email, phone: tenant.telefon, address: tenant.adresse, postcode: tenant.plz, city: tenant.ort, country_id: 1 },
+                  aptAdresse: apt ? apt.adresse : "",
+                  einzug: tenant.einzug || "",
+                  amounts: { nettomiete: netto, nebenkosten: 125, aufschlag: feeVon(tenant), moeblierung: moeblVon(tenant) },
+                }});
+                if(error || (data && data.error)){ toast("Bexio-Fehler", "error"); console.error("bexio-invoice", error||data); return; }
+                const nrs = ((data&&data.invoices)||[]).map(x=>x.nr).filter(Boolean).join(", ");
+                toast("Entwurf erstellt: " + (nrs||"OK"));
+              };
+              return <button className="btn btn-p btn-sm" onClick={doBexio} style={{marginTop:10}}>Bexio: QR-Rechnung erstellen (Entwurf)</button>;
             })()}
             <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
