@@ -3843,8 +3843,8 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
   React.useEffect(() => {
     if (showStartModal && tenant) {
-      setStartSchluesselNr(tenant.schluesselNr || tenant.schluessel_nr || "");
-      setStartExtraSchluessel(tenant.extraSchluessel || tenant.extra_schluessel || "");
+      setStartSchluesselNr(String((apt&&apt.schluesselAnzahl)||tenant.schluesselAnzahl||""));
+      setStartExtraSchluessel((apt&&apt.extraSchluessel)||"");
     }
   }, [showStartModal, tenant?.id]);
   const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
@@ -3992,17 +3992,18 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               </div>
             )}
             <div style={{marginBottom:12}}>
-              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Schlüsselnummer</label>
+              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Anzahl normale Schlüssel</label>
               <input
-                type="text"
+                type="number"
+                min="0"
                 value={startSchluesselNr}
                 onChange={e=>setStartSchluesselNr(e.target.value)}
-                placeholder="z.B. 123-456"
+                placeholder="z.B. 4"
                 style={{width:"100%",padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}
               />
             </div>
             <div style={{marginBottom:16}}>
-              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Extra-Schlüssel (optional)</label>
+              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Extraschlüssel</label>
               <textarea
                 value={startExtraSchluessel}
                 onChange={e=>setStartExtraSchluessel(e.target.value)}
@@ -4021,19 +4022,18 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               <button onClick={async()=>{
                 setStarting(true);
                 try {
-                  const nrTrim = startSchluesselNr.trim();
+                  const nCount = Math.max(0, parseInt(startSchluesselNr)||0);
                   const extraTrim = startExtraSchluessel.trim();
-                  // 1. Update tenant fields
                   await updateTenant(tenant.id, {
-                    schluessel_nr: nrTrim,
+                    schluessel_anzahl: nCount,
                     extra_schluessel: extraTrim,
-                    schluessel_uebergeben: !!(nrTrim || extraTrim),
+                    schluessel_uebergeben: false,
                   });
-                  // 2. Build snapshot for handover_protocol (fuer Sign-Portal + PDF)
+                  const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
                   const snapshot = [
-                    nrTrim && `Schlüsselnummer: ${nrTrim}`,
-                    extraTrim && `Extra-Schlüssel:\n${extraTrim}`
-                  ].filter(Boolean).join("\n\n");
+                    nCount>0 && `${nCount} normale Schlüssel`,
+                    extraTrim && `Extra: ${extraTrim}`
+                  ].filter(Boolean).join("\n");
                   // 3. Start the protocol mit vollem Snapshot
                   await startHandoverProtocol({
                     tenantId: tenant.id,
