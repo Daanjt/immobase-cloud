@@ -3833,10 +3833,10 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   React.useEffect(()=>{
     if(!showStartModal || !apt || !apt.id){ return; }
     (async()=>{
-      const {data:a} = await supabase.from("apartments").select("schluessel_erhalten_normal,schluessel_erhalten_extra").eq("id",apt.id).single();
+      const {data:a} = await supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id",apt.id).single();
       const {data:ks} = await supabase.from("schluessel").select("typ").eq("apt_id",apt.id);
       const byTyp={}; (ks||[]).forEach(k=>{ byTyp[k.typ]=(byTyp[k.typ]||0)+1; });
-      setRefKeyInfo({ erhNormal:a?a.schluessel_erhalten_normal:null, erhExtra:a?a.schluessel_erhalten_extra:null, byTyp });
+      setRefKeyInfo({ erhNormal:a?a.schluessel_anzahl:null, erhExtra:a?a.extra_schluessel:null, byTyp });
     })();
   },[showStartModal, apt]);
   
@@ -4124,10 +4124,10 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   useEffect(()=>{
     if(!startFor||!startFor.apt||!startFor.apt.id){ setRefKeyInfo(null); return; }
     (async()=>{
-      const {data:a} = await supabase.from("apartments").select("schluessel_erhalten_normal,schluessel_erhalten_extra").eq("id",startFor.apt.id).single();
+      const {data:a} = await supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id",startFor.apt.id).single();
       const {data:ks} = await supabase.from("schluessel").select("typ").eq("apt_id",startFor.apt.id);
       const byTyp={}; (ks||[]).forEach(k=>{ byTyp[k.typ]=(byTyp[k.typ]||0)+1; });
-      setRefKeyInfo({ erhNormal:a?a.schluessel_erhalten_normal:null, erhExtra:a?a.schluessel_erhalten_extra:null, byTyp });
+      setRefKeyInfo({ erhNormal:a?a.schluessel_anzahl:null, erhExtra:a?a.extra_schluessel:null, byTyp });
     })();
   },[startFor]);
   const [sNr, setSNr] = useState("");
@@ -8067,7 +8067,7 @@ function SchluesselManager({apt, rooms, tenants}) {
   const [erhExtra, setErhExtra] = useState("");
   useEffect(()=>{
     supabase.from("schluessel").select("*").eq("apt_id", apt.id).order("created_at").then(({data})=>setKeys(data||[]));
-    supabase.from("apartments").select("schluessel_erhalten_normal,schluessel_erhalten_extra").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_erhalten_normal!=null?String(data.schluessel_erhalten_normal):""); setErhExtra(data.schluessel_erhalten_extra!=null?String(data.schluessel_erhalten_extra):""); } });
+    supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_erhalten_normal!=null?String(data.schluessel_erhalten_normal):""); setErhExtra(data.schluessel_erhalten_extra!=null?String(data.schluessel_erhalten_extra):""); } });
   },[apt.id]);
   async function saveErhalten(n, e){ await supabase.from("apartments").update({schluessel_erhalten_normal: n===""?null:+n, schluessel_erhalten_extra: e===""?null:+e}).eq("id", apt.id); }
   const aptTenants = (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===apt.id) || (rooms||[]).some(r=>r.aptId===apt.id && (r.tenantId===t.id || r.id===t.roomId))));
