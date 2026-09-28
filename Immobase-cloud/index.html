@@ -4431,6 +4431,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 onClick={async ()=>{
                   setStarting(true);
                   try {
+                    const nCount = Math.max(0, parseInt(normalCount)||0);
                     const t = startFor.tenant;
                     const extraTrim = (extraText||"").trim();
                     const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
