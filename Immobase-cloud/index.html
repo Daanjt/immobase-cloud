@@ -9673,7 +9673,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
             {room && (() => {
               const istMoeb = (tenant.moebliert===true||tenant.moebliert==="ja") && tenant.moeblierungModus==="monatlich";
               const moeb = istMoeb ? (+tenant.moeblierungPauschale||0) : 0;
-              const aufschlag = +tenant.kautionAufschlag||0;
+              const aufschlag = feeVon(tenant);
               const basis = (tenant.mietzins != null && tenant.mietzins !== "") ? +tenant.mietzins : (+room.miete||0);
               const netto = Math.max(0, basis - 100);
               const nk = 100, strom = 25;
