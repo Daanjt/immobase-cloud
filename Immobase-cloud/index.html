@@ -9960,6 +9960,17 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
           <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!form.moebliert} onChange={FB("moebliert")}/> Möbliert</label>
           <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 0"}}><input type="checkbox" checked={!!form.noDebt} onChange={FB("noDebt")}/> Keine offenen Betreibungen</label>
         </div>
+        {form.moebliert && <div className="frow">
+          <div className="fg"><label className="fl">Möblierung</label>
+            <select className="fi" value={form.moeblierungModus||"monatlich"} onChange={F("moeblierungModus")}>
+              <option value="monatlich">Monatlich</option>
+              <option value="einmalig">Einmalig</option>
+            </select>
+          </div>
+          <div className="fg"><label className="fl">Möblierung {form.moeblierungModus==="einmalig"?"einmalig CHF":"CHF/Mt."}</label>
+            <input className="fi" type="number" value={form.moeblierungPauschale||""} onChange={F("moeblierungPauschale")} placeholder={form.moeblierungModus==="einmalig"?"z.B. 990":"z.B. 150"}/>
+          </div>
+        </div>}
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Bemerkung</div>
         <div className="fg"><textarea className="fi" rows={3} value={form.bemerkung||""} onChange={F("bemerkung")} placeholder="Interne Notizen..."/></div>
