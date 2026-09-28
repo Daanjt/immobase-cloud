@@ -2031,7 +2031,7 @@ function useSupabaseData() {
     const {error} = await supabase.from("rooms").update(dbFields).eq("id", id);
     if (error) {
       console.error("updateRoom error:", error);
-      alert("Speichern fehlgeschlagen: " + error.message);
+      toast("Speichern fehlgeschlagen", "error");
       return;
     }
     setRooms(p => p.map(r => r.id === id ? {...r, ...fields} : r));
@@ -2083,7 +2083,7 @@ function useSupabaseData() {
     const {error} = await supabase.from("applicants").update(dbFields).eq("id", id);
     if (error) {
       console.error("updateBewerber error:", error);
-      alert("Speichern fehlgeschlagen: " + error.message);
+      toast("Speichern fehlgeschlagen", "error");
       return;
     }
     setBewerber(p => p.map(b => b.id === id ? {...b, ...fields} : b));
@@ -2093,7 +2093,7 @@ function useSupabaseData() {
     const {error} = await supabase.from("applicants").delete().eq("id", id);
     if (error) {
       console.error("deleteBewerber error:", error);
-      alert("Löschen fehlgeschlagen: " + error.message);
+      toast("Löschen fehlgeschlagen", "error");
       return;
     }
     setBewerber(p => p.filter(b => b.id !== id));
@@ -2104,7 +2104,7 @@ function useSupabaseData() {
     const {error} = await supabase.from("tenants").update({deleted_at: new Date().toISOString()}).eq("id", id);
     if (error) {
       console.error("deleteTenant error:", error);
-      alert("Löschen fehlgeschlagen: " + error.message);
+      toast("Löschen fehlgeschlagen", "error");
       return false;
     }
     setTenants(p => p.filter(t => t.id !== id));
@@ -2112,7 +2112,7 @@ function useSupabaseData() {
   }
   async function restoreTenant(id) {
     const {error} = await supabase.from("tenants").update({deleted_at: null}).eq("id", id);
-    if (error) { alert("Wiederherstellen fehlgeschlagen: " + error.message); return false; }
+    if (error) { toast("Wiederherstellen fehlgeschlagen", "error"); return false; }
     await loadAll();
     return true;
   }
@@ -2121,7 +2121,7 @@ function useSupabaseData() {
     try { await supabase.from("payments").delete().eq("tenant_id", id); } catch(e) {}
     try { await supabase.from("uebergabe_protokolle").delete().eq("tenant_id", id); } catch(e) {}
     const {error} = await supabase.from("tenants").delete().eq("id", id);
-    if (error) { alert("Endgültiges Löschen fehlgeschlagen: " + error.message); return false; }
+    if (error) { toast("Endgültiges Löschen fehlgeschlagen", "error"); return false; }
     return true;
   }
   const [deletedTenants, setDeletedTenants] = useState([]);
@@ -2182,7 +2182,7 @@ function useSupabaseData() {
       status: p.status || "entwurf",
     };
     const {data, error} = await supabase.from("uebergabe_protokolle").insert([dbRow]).select().single();
-    if (error) { console.error("insertProtokoll:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("insertProtokoll:", error); toast("Speichern fehlgeschlagen", "error"); throw error; }
     await loadProtokolle();
     return data;
   }
@@ -2203,13 +2203,13 @@ function useSupabaseData() {
       dbFields[map[k] || k] = fields[k];
     }
     const {error} = await supabase.from("uebergabe_protokolle").update(dbFields).eq("id", id);
-    if (error) { console.error("updateProtokoll:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("updateProtokoll:", error); toast("Speichern fehlgeschlagen", "error"); throw error; }
     await loadProtokolle();
   }
   
   async function deleteProtokoll(id) {
     const {error} = await supabase.from("uebergabe_protokolle").delete().eq("id", id);
-    if (error) { console.error("deleteProtokoll:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("deleteProtokoll:", error); toast("Löschen fehlgeschlagen", "error"); throw error; }
     setProtokolle(p => p.filter(x => x.id !== id));
   }
   
@@ -2275,7 +2275,7 @@ function useSupabaseData() {
   
   async function deletePayment(id) {
     const {error} = await supabase.from("payments").delete().eq("id", id);
-    if (error) { console.error("deletePayment:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("deletePayment:", error); toast("Löschen fehlgeschlagen", "error"); throw error; }
     setPayments(p => p.filter(x => x.id !== id));
   }
 
@@ -2301,7 +2301,7 @@ function useSupabaseData() {
       telefon: p.telefon || "", kontaktperson: p.kontaktperson || "", notizen: p.notizen || "", kontakte: p.kontakte || [],
     };
     const {data, error} = await supabase.from("partners").insert([row]).select().single();
-    if (error) { console.error("insertPartner:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("insertPartner:", error); toast("Speichern fehlgeschlagen", "error"); throw error; }
     await loadPartners();
     return data;
   }
@@ -2310,12 +2310,12 @@ function useSupabaseData() {
     for (const k of Object.keys(fields)) { if (fields[k]===undefined) continue; dbFields[map[k]||k] = fields[k]; }
     dbFields.updated_at = new Date().toISOString();
     const {error} = await supabase.from("partners").update(dbFields).eq("id", id);
-    if (error) { console.error("updatePartner:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("updatePartner:", error); toast("Speichern fehlgeschlagen", "error"); throw error; }
     await loadPartners();
   }
   async function deletePartner(id) {
     const {error} = await supabase.from("partners").delete().eq("id", id);
-    if (error) { console.error("deletePartner:", error); alert("Löschen fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("deletePartner:", error); toast("Löschen fehlgeschlagen", "error"); throw error; }
     setPartners(p => p.filter(x => x.id !== id));
   }
   useEffect(() => { loadPartners(); }, []);
@@ -2354,7 +2354,7 @@ function useSupabaseData() {
       faellig_am:e.faelligAm||null,
     };
     const {error} = await supabase.from("todos").insert([row]);
-    if (error) { console.error("insertTodo:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("insertTodo:", error); toast("Speichern fehlgeschlagen", "error"); throw error; }
     await loadTodos();
   }
   async function updateTodo(id, fields) {
@@ -2431,13 +2431,13 @@ function useSupabaseData() {
       status: "zurueckgezogen", 
       updated_at: new Date().toISOString() 
     }).eq("id", contractId);
-    if (error) { console.error("withdrawContract:", error); alert("Zurueckziehen fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("withdrawContract:", error); toast("Zurueckziehen fehlgeschlagen", "error"); throw error; }
     await loadContracts();
   }
   
   async function deleteContract(contractId) {
     const { error } = await supabase.from("contracts").delete().eq("id", contractId);
-    if (error) { console.error("deleteContract:", error); alert("Loeschen fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("deleteContract:", error); toast("Loeschen fehlgeschlagen", "error"); throw error; }
     setContracts(c => c.filter(x => x.id !== contractId));
   }
   
@@ -2735,7 +2735,7 @@ function useSupabaseData() {
         status: "Neu",
       };
       const { error } = await supabase.from("applicants").insert([dbApplicant]);
-      if (error) { console.error("convertTenantToBewerber insert error:", error); alert("Anlegen des Bewerbers fehlgeschlagen: " + error.message); return { ok: false, error }; }
+      if (error) { console.error("convertTenantToBewerber insert error:", error); toast("Anlegen des Bewerbers fehlgeschlagen", "error"); return { ok: false, error }; }
     }
     // Dokumente zurueck migrieren: tenant -> applicant (bleiben so erhalten)
     try {
@@ -2768,12 +2768,12 @@ function useSupabaseData() {
     if ("pensum" in fields) db.pensum = (fields.pensum===""||fields.pensum==null)?null:+fields.pensum;
     db.updated_at = new Date().toISOString();
     const {error} = await supabase.from("employees").update(db).eq("id", id);
-    if (error) { console.error("updateEmployee", error); alert("Speichern fehlgeschlagen: "+error.message); return; }
+    if (error) { console.error("updateEmployee", error); toast("Speichern fehlgeschlagen", "error"); return; }
     setEmployees(p => p.map(x => x.id===id ? {...x, ...fields} : x));
   }
   async function deleteEmployee(id) {
     const {error} = await supabase.from("employees").delete().eq("id", id);
-    if (error) { console.error("deleteEmployee", error); alert("Löschen fehlgeschlagen: "+error.message); return; }
+    if (error) { console.error("deleteEmployee", error); toast("Löschen fehlgeschlagen", "error"); return; }
     setEmployees(p => p.filter(x => x.id!==id));
     setTimeEntries(p => p.filter(t => t.employeeId!==id));
   }
@@ -2801,23 +2801,23 @@ function useSupabaseData() {
     const db = toDbTimeEntry(fields, true);
     db.updated_at = new Date().toISOString();
     const {error} = await supabase.from("time_entries").update(db).eq("id", id);
-    if (error) { console.error("updateTimeEntry", error); alert("Speichern fehlgeschlagen: "+error.message); return; }
+    if (error) { console.error("updateTimeEntry", error); toast("Speichern fehlgeschlagen", "error"); return; }
     setTimeEntries(p => p.map(x => x.id===id ? {...x, ...fields} : x));
   }
   async function deleteTimeEntry(id) {
     const {error} = await supabase.from("time_entries").delete().eq("id", id);
-    if (error) { console.error("deleteTimeEntry", error); alert("Löschen fehlgeschlagen: "+error.message); return; }
+    if (error) { console.error("deleteTimeEntry", error); toast("Löschen fehlgeschlagen", "error"); return; }
     setTimeEntries(p => p.filter(x => x.id!==id));
   }
   async function approveMonth(employeeId, jahr, monat, approvedBy) {
     const {data, error} = await supabase.from("time_approvals").upsert([{employee_id:employeeId, jahr, monat, approved_by:approvedBy||null, approved_at:new Date().toISOString()}], {onConflict:"employee_id,jahr,monat"}).select();
-    if (error) { console.error("approveMonth", error); alert("Genehmigen fehlgeschlagen: "+error.message); return; }
+    if (error) { console.error("approveMonth", error); toast("Genehmigen fehlgeschlagen", "error"); return; }
     const rec = (data&&data[0])||{};
     setTimeApprovals(p => [...p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)), {id:rec.id, employeeId, jahr, monat, approvedAt:rec.approved_at, approvedBy}]);
   }
   async function revokeMonth(employeeId, jahr, monat) {
     const {error} = await supabase.from("time_approvals").delete().eq("employee_id",employeeId).eq("jahr",jahr).eq("monat",monat);
-    if (error) { console.error("revokeMonth", error); alert("Aufheben fehlgeschlagen: "+error.message); return; }
+    if (error) { console.error("revokeMonth", error); toast("Aufheben fehlgeschlagen", "error"); return; }
     setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
   }
 
@@ -2976,7 +2976,7 @@ function MediaManager({apt, editApt, rooms}){
     }, 900);
     return ()=>clearTimeout(t);
   }, [insTitel, insText]);
-  async function saveBesch(){ setBeschSaving(true); try{ await editApt(apt.id,{beschreibung: besch}); }catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); } setBeschSaving(false); }
+  async function saveBesch(){ setBeschSaving(true); try{ await editApt(apt.id,{beschreibung: besch}); }catch(err){ toast("Speichern fehlgeschlagen", "error"); } setBeschSaving(false); }
   async function generateBesch(){ setGenBusy(true); try{ const {data,error}=await supabase.functions.invoke("generate-beschreibung",{body:{adresse:apt.adresse,plz:apt.plz,ort:apt.ort,zimmer:apt.zimmer}}); if(error) throw error; if(data&&data.text){ setBesch(data.text); } else { alert("Kein Text erhalten. Ist der Anthropic-Schlüssel hinterlegt?"); } }catch(err){ alert("Automatische Generierung nicht möglich: "+(err.message||err)+"\n\n(Benötigt den Anthropic-API-Schlüssel in app_config.)"); } setGenBusy(false); }
   async function generateInserat(){ setInsBusy(true); try{
     const aptRooms = (rooms||[]).filter(r=> r.aptId===apt.id && r.ausschreibOverride!=="nicht" && (r.ausschreibOverride==="ausschreiben" || !r.occupied));
@@ -2991,12 +2991,12 @@ function MediaManager({apt, editApt, rooms}){
     if(!insText){ alert("Zuerst Inseratstext generieren."); return; }
     setSavingWeb(true);
     try{ await editApt(apt.id,{beschreibung:insText}); setSavedWeb(true); setTimeout(()=>setSavedWeb(false),2500); }
-    catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); }
+    catch(err){ toast("Speichern fehlgeschlagen", "error"); }
     setSavingWeb(false);
   }
   const [vidUp, setVidUp] = useState(false);
-  async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>500*1024*1024){ alert("Video zu gross (max. 500 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ alert("Video-Upload fehlgeschlagen: "+(err.message||err)); } setVidUp(false); e.target.value=""; }
-  async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ alert("Entfernen fehlgeschlagen: "+(err.message||err)); } setVidUp(false); }
+  async function uploadVideo(e){ const f=e.target.files&&e.target.files[0]; if(!f) return; if(f.size>500*1024*1024){ alert("Video zu gross (max. 500 MB)."); e.target.value=""; return; } setVidUp(true); try{ const ext=(f.name.split(".").pop()||"mp4").toLowerCase(); const path=`apartments/${apt.id}/video_${Date.now()}.${ext}`; const {error}=await supabase.storage.from("assets").upload(path,f,{contentType:f.type||"video/mp4",upsert:false}); if(error) throw error; if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:path}); }catch(err){ toast("Video-Upload fehlgeschlagen", "error"); } setVidUp(false); e.target.value=""; }
+  async function removeVideo(){ if(!confirm("Video entfernen?")) return; setVidUp(true); try{ if(apt.videoPath){ try{ await supabase.storage.from("assets").remove([apt.videoPath]); }catch(_){} } await editApt(apt.id,{videoPath:null}); }catch(err){ toast("Entfernen fehlgeschlagen", "error"); } setVidUp(false); }
   const [mpSaving, setMpSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [aiIdx, setAiIdx] = useState(null);
@@ -3024,7 +3024,7 @@ function MediaManager({apt, editApt, rooms}){
       const next=photos.map((ph,ix)=>ix===rv.idx?{...ph,hidden:true}:ph);
       next.push({path:rv.aiPath, sort_order:(rv.sort_order!=null?rv.sort_order:photos.length), category:rv.category||null, hidden:false, edited:true});
       await editApt(apt.id,{photos:next});
-    }catch(err){ alert("Speichern fehlgeschlagen: "+(err.message||err)); }
+    }catch(err){ toast("Speichern fehlgeschlagen", "error"); }
     setAiReview(null);
   }
   async function rejectAi(){
@@ -3073,7 +3073,7 @@ function MediaManager({apt, editApt, rooms}){
       if(!addedImgs && !filled.length){ alert("Nichts zu übernehmen: keine neuen Bilder und keine offenen Felder."); setImporting(false); return; }
       await editApt(apt.id, fields);
       alert("✓ Import abgeschlossen. "+addedImgs+" Bild(er)"+(filled.length?" und Angaben übernommen ("+filled.join(", ")+")":"")+". Ordne die Bilder unten den Kategorien zu.");
-    }catch(e){ alert("Import fehlgeschlagen: "+(e.message||e)); }
+    }catch(e){ toast("Import fehlgeschlagen", "error"); }
     setImporting(false);
   }
   
@@ -3113,7 +3113,7 @@ function MediaManager({apt, editApt, rooms}){
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 1500);
-    } catch(e){ alert("Download fehlgeschlagen: "+(e.message||e)); }
+    } catch(e){ toast("Download fehlgeschlagen", "error"); }
   }
 
   async function downloadAll(onlyVisible){
@@ -3135,7 +3135,7 @@ function MediaManager({apt, editApt, rooms}){
       const url = URL.createObjectURL(content);
       const a = document.createElement("a"); a.href=url; a.download=`${safeName(apt.adresse||apt.id)}_${onlyVisible?"Publiziert":"Alle"}.zip`; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 1500);
-    } catch(e){ alert("Zip fehlgeschlagen: "+(e.message||e)); }
+    } catch(e){ toast("Zip fehlgeschlagen", "error"); }
     setZipping(false);
   }
   
@@ -3292,7 +3292,7 @@ function MediaManager({apt, editApt, rooms}){
       await editApt(apt.id, { matterportUrl: url || null });
       alert("✓ Matterport URL gespeichert.");
     } catch(e){
-      alert("Speichern fehlgeschlagen: " + (e.message || e));
+      toast("Speichern fehlgeschlagen", "error");
     } finally {
       setMpSaving(false);
     }
@@ -3462,7 +3462,7 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
       await uploadDocument(entityType, entityId, selCategory, file);
       setSelCategory("");
     } catch (err) {
-      alert("Upload fehlgeschlagen: " + (err.message || err));
+      toast("Upload fehlgeschlagen", "error");
       console.error(err);
     } finally {
       setUploading(false);
@@ -3528,7 +3528,7 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
     try {
       await deleteDocument(doc);
     } catch (err) {
-      alert("Löschen fehlgeschlagen: " + (err.message || err));
+      toast("Löschen fehlgeschlagen", "error");
     }
   }
   
@@ -3748,7 +3748,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
   async function saveKind(kind){
     const c = CFG[kind]; setBusy(kind+":save");
     try { await updateTenant(tenant.id, { [c.fields.status]:c.state.status, [c.fields.datum]:c.state.datum||null, [c.fields.notiz]:c.state.notiz }); }
-    catch(e){ alert("Speichern fehlgeschlagen: "+(e.message||e)); }
+    catch(e){ toast("Speichern fehlgeschlagen", "error"); }
     finally { setBusy(null); }
   }
   async function uploadKind(kind, file){
@@ -3757,7 +3757,7 @@ function DrittmeldungTab({ tenant, updateTenant, documents, uploadDocument, getD
       await uploadDocument("tenant", tenant.id, c.cat, file);
       c.setState(s=>({...s, status:"gemeldet"}));
       await updateTenant(tenant.id, { [c.fields.status]:"gemeldet", [c.fields.datum]:c.state.datum||null, [c.fields.notiz]:c.state.notiz });
-    } catch(err){ alert("Upload fehlgeschlagen: "+(err.message||err)); }
+    } catch(err){ toast("Upload fehlgeschlagen", "error"); }
     finally { setBusy(null); if(c.fileRef.current) c.fileRef.current.value=""; }
   }
   function renderSection(kind){
@@ -6310,7 +6310,7 @@ function CountersignButton({contract, onDone, light}){
       setActiveIdx(0);
     } catch(e){
       console.error("countersign preview:", e);
-      alert("Vorschau fehlgeschlagen: " + (e.message || e));
+      toast("Vorschau fehlgeschlagen", "error");
     } finally { setBusy(false); }
   }
 
@@ -6330,7 +6330,7 @@ function CountersignButton({contract, onDone, light}){
       alert("Vertrag gegengezeichnet. Die Bestaetigung wurde an den Mieter gesendet.");
     } catch(e){
       console.error("countersign confirm:", e);
-      alert("Gegenzeichnung fehlgeschlagen: " + (e.message || e));
+      toast("Gegenzeichnung fehlgeschlagen", "error");
     } finally { setBusy(false); }
   }
 
@@ -8066,7 +8066,7 @@ function SchluesselManager({apt, rooms, tenants}) {
     supabase.from("schluessel").select("*").eq("apt_id", apt.id).order("created_at").then(({data})=>setKeys(data||[]));
     supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel!=null?String(data.extra_schluessel):""); } });
   },[apt.id]);
-  async function saveErhalten(n, e){ await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id); }
+  async function saveErhalten(n, e){ const {error}=await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id); toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok"); }
   const aptTenants = (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===apt.id) || (rooms||[]).some(r=>r.aptId===apt.id && (r.tenantId===t.id || r.id===t.roomId))));
   const TYPEN = ["Wohnungstür","Zimmertür","Hauseingang","Briefkasten","Keller","Waschküche","Extra","Sonstiges"];
   async function addKey(){
@@ -8076,7 +8076,7 @@ function SchluesselManager({apt, rooms, tenants}) {
     const row = {id, apt_id:apt.id, nummer:neu.nummer.trim(), typ:neu.typ, tenant_id:null, status:"im_buero", bemerkung:""};
     const {error} = await supabase.from("schluessel").insert(row);
     if(!error){ setKeys(p=>[...p,row]); setNeu({nummer:"", typ:neu.typ}); }
-    else alert("Speichern fehlgeschlagen: "+error.message);
+    else toast("Speichern fehlgeschlagen", "error");
     setBusy(false);
   }
   async function patchKey(id, patch){
@@ -8803,7 +8803,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       await updateBewerber(b.id,{status:"Zugeteilt"});
       setAssigning(null);
     } catch (err) {
-      alert("Zuteilung fehlgeschlagen: " + (err.message || err));
+      toast("Zuteilung fehlgeschlagen", "error");
     }
   }
   
@@ -8835,7 +8835,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       setSelOldTenantId("");
       alert(`✓ ${old.vorname} ${old.nachname} wurde reaktiviert und Zimmer ${assigning.id} zugewiesen.`);
     } catch (err) {
-      alert("Zuteilung fehlgeschlagen: " + (err.message || err));
+      toast("Zuteilung fehlgeschlagen", "error");
     }
   }
   async function assignManual(){
@@ -12824,7 +12824,7 @@ function Pipeline(){
     }
   };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
-  const saveNewDeal=()=>{ const nd=newDeal; if(!nd) return; if(!(nd.agency_name||nd.strasse||nd.contact_name)){ alert("Bitte mindestens Verwaltung, Adresse oder Ansprechperson angeben."); return; } const rec={ flatfox_pk:null, source:"manual", agency_name:nd.agency_name||null, contact_name:nd.contact_name||null, contact_email:nd.contact_email||null, strasse:nd.strasse||null, plz:nd.plz||null, ort:nd.ort||null, zimmer:nd.zimmer?Number(nd.zimmer):null, preis:nd.preis?Number(nd.preis):null, befristet:!!nd.befristet, url:nd.url||null, stage:nd.stage||"neu", notizen:nd.notizen||null }; supabase.from("pipeline").insert(rec).select().then(({data,error})=>{ if(error){ alert("Anlegen fehlgeschlagen: "+error.message); return; } setNewDeal(null); if(data&&data[0]) setDeals(ds=>[data[0],...ds]); else laden(); }); };
+  const saveNewDeal=()=>{ const nd=newDeal; if(!nd) return; if(!(nd.agency_name||nd.strasse||nd.contact_name)){ alert("Bitte mindestens Verwaltung, Adresse oder Ansprechperson angeben."); return; } const rec={ flatfox_pk:null, source:"manual", agency_name:nd.agency_name||null, contact_name:nd.contact_name||null, contact_email:nd.contact_email||null, strasse:nd.strasse||null, plz:nd.plz||null, ort:nd.ort||null, zimmer:nd.zimmer?Number(nd.zimmer):null, preis:nd.preis?Number(nd.preis):null, befristet:!!nd.befristet, url:nd.url||null, stage:nd.stage||"neu", notizen:nd.notizen||null }; supabase.from("pipeline").insert(rec).select().then(({data,error})=>{ if(error){ toast("Anlegen fehlgeschlagen", "error"); return; } setNewDeal(null); if(data&&data[0]) setDeals(ds=>[data[0],...ds]); else laden(); }); };
   const patchAbsage=(d,g)=>{ patch(d.id,{verlust_grund:g}); if(d.agency_name && g==="Kein Interesse am Modell") supabase.from("org_status").upsert({organisation:d.agency_name,status:"kein_interesse",grund:g||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); };
   const defaultTpl=(d)=>{ const _os=orgStatus[(d.agency_name||"").toLowerCase()]||{}; return _os.status==="partner"?"warm":"kalt"; };
   const _htmlEsc=(x)=>String(x||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -12876,7 +12876,7 @@ function Pipeline(){
   const ndField=(label,key,span)=>(<div style={span?{gridColumn:span}:{}}><label style={LBL2}>{label}</label><input value={(newDeal&&newDeal[key])||""} onChange={e=>setNewDeal({...newDeal,[key]:e.target.value})} style={NDI}/></div>);
   const _q=(q||"").toLowerCase().trim();
   const visibleDeals=deals.filter(z=>{ if(filt==="reply"&&!z.reply_pending) return false; if(filt==="scheduled"&&!scheduled.some(s=>s.deal_id===z.id)) return false; if(!_q) return true; return [z.strasse,z.ort,z.plz,z.agency_name,z.contact_name,z.contact_email,z.notizen].filter(Boolean).some(v=>String(v).toLowerCase().includes(_q)); });
-  const saveEdit=()=>{ if(!editForm) return; const f=editForm; const upd={agency_name:f.agency_name||null,contact_name:f.contact_name||null,contact_email:f.contact_email||null,strasse:f.strasse||null,plz:(f.plz?(Number(f.plz)||null):null),ort:f.ort||null,zimmer:(f.zimmer?Number(f.zimmer):null),preis:(f.preis?Number(f.preis):null),url:f.url||null,befristet:!!f.befristet,notizen:f.notizen||null}; supabase.from("pipeline").update(upd).eq("id",f.id).then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setDeals(ds=>ds.map(x=>x.id===f.id?{...x,...upd}:x)); setSelected(s=>s?{...s,...upd}:s); setEditForm(null); }); };
+  const saveEdit=()=>{ if(!editForm) return; const f=editForm; const upd={agency_name:f.agency_name||null,contact_name:f.contact_name||null,contact_email:f.contact_email||null,strasse:f.strasse||null,plz:(f.plz?(Number(f.plz)||null):null),ort:f.ort||null,zimmer:(f.zimmer?Number(f.zimmer):null),preis:(f.preis?Number(f.preis):null),url:f.url||null,befristet:!!f.befristet,notizen:f.notizen||null}; supabase.from("pipeline").update(upd).eq("id",f.id).then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} setDeals(ds=>ds.map(x=>x.id===f.id?{...x,...upd}:x)); setSelected(s=>s?{...s,...upd}:s); setEditForm(null); }); };
   const d=selected;
   return (
     <div style={{padding:"8px",maxWidth:1300}}>
@@ -13012,7 +13012,7 @@ function Pipeline(){
               <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px"}}>
                 <div style={{fontSize:12,color:"#2f5a2a",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span onClick={()=>setOpenSched(openSched===s.id?null:s.id)} style={{cursor:"pointer"}}>📅 <strong>Geplant</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject} <span style={{color:"#6a8a5a"}}>{openSched===s.id?"▲ Inhalt":"▼ Inhalt"}</span></span>
-                  <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?"))return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(({error})=>{ if(error){alert("Abbrechen fehlgeschlagen: "+error.message);return;} setScheduled(sc=>sc.filter(x=>x.id!==s.id)); if(openSched===s.id)setOpenSched(null); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#9b4a3e",fontSize:11.5,cursor:"pointer",textDecoration:"underline"}}>abbrechen</button>
+                  <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?"))return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(({error})=>{ if(error){toast("Abbrechen fehlgeschlagen", "error");return;} setScheduled(sc=>sc.filter(x=>x.id!==s.id)); if(openSched===s.id)setOpenSched(null); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#9b4a3e",fontSize:11.5,cursor:"pointer",textDecoration:"underline"}}>abbrechen</button>
                 </div>
                 {openSched===s.id&&<iframe title="geplante-mail" srcDoc={s.html||('<pre style="font-family:sans-serif;white-space:pre-wrap;font-size:13px;padding:8px;margin:0">'+((s.body||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"))+'</pre>')} sandbox="" style={{width:"100%",height:340,border:"1px solid #cfe0c4",borderRadius:6,background:"#fff",marginTop:8}}/>}
               </div>
@@ -13107,10 +13107,10 @@ function Kontakte(){
   const firmen=firmNames.filter(org=>{ if(!pass(org,tab))return false; if(q){ const persons=firmKontakte(org).map(k=>(k.name||"")+" "+(k.email||"")+" "+(k.rolle||"")).join(" "); const s=(org+" "+persons+" "+((orgs[org]&&orgs[org].email)||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; } return true; }).sort((a,b)=>a.localeCompare(b));
   const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||"",website:rr.website||""}); setFirm(org); setCf(null); };
   const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:"",website:""}); setFirm("*neu*"); setCf(null); };
-  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); }); };
+  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); }); };
   const mergeFirm=(target)=>{ if(!target||target===fd.organisation)return; if(!confirm('Firma "'+fd.organisation+'" in "'+target+'" zusammenführen? Alle Kontakte werden übernommen.'))return; supabase.from("kontakte").update({organisation:target,updated_at:new Date().toISOString()}).eq("organisation",fd.organisation).then(()=>{ supabase.from("org_status").delete().eq("organisation",fd.organisation).then(()=>{ setFirm(null); setCf(null); setMergeT(""); ladeK(); ladeOrgs(); }); }); };
   const openContact=(k)=>{ if(k){ setCf({...k}); setNote(""); if(k.id) ladeActs(k.id); else setActs([]); } else { setCf({organisation:firm,org_type:(fd&&fd.typ)||"verwaltung"}); setActs([]); setNote(""); } };
-  const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){alert("Speichern fehlgeschlagen: "+error.message);return;} setCf(null); ladeK(); }); };
+  const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} setCf(null); ladeK(); }); };
   const delContact=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{ setCf(null); ladeK(); }); };
   const addNote=()=>{ if(!note.trim()||!cf||!cf.id)return; supabase.from("kontakt_aktivitaet").insert({kontakt_id:cf.id,typ:"notiz",text:note.trim()}).then(({error})=>{ if(!error){ setNote(""); ladeActs(cf.id); } }); };
   const delNote=(aid)=>supabase.from("kontakt_aktivitaet").delete().eq("id",aid).then(()=>ladeActs(cf.id));
