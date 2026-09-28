@@ -33,7 +33,7 @@ const ZH_RING = new Set([
   8902,8903,8904,
   8951,8952,8953,8954,8955,
 ]);
-const inRegion = (zip) => { const z = Number(zip); if (!z) return false; if (z >= 8000 && z <= 8099) return true; return ZH_RING.has(z); };
+const inRegion = (zip) => { const z = Number(zip); if (!z) return false; if (z >= 8000 && z <= 8099) return true; if (z >= 3000 && z <= 3018) return true; /* Bern Stadt inkl. Innenstadt/Altstadt 3011 */ return ZH_RING.has(z); };
 
 async function ff(offset, limit = PAGE) {
   const r = await fetch(`${FLATFOX}?limit=${limit}&offset=${offset}`,
