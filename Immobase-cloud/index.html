@@ -10668,13 +10668,11 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       bruttomiete = Math.round((+tenant.kautionBetrag || 0) / (+tenant.kautionMonate || 3));
     }
     
-    // Kautions-Aufschlag dazurechnen (monatlicher Aufpreis bei reduzierter Kaution) - abgeleitet wie im Rest (feeVon)
-    const aufschlag = feeVon(tenant);
     // Monatliche Moeblierungsgebuehr dazurechnen (nur wenn moebliert und Modus monatlich)
     const istMoebliert = tenant.moebliert === true || tenant.moebliert === "ja";
     const moeblMonatlich = (istMoebliert && tenant.moeblierungModus === "monatlich") ? (+tenant.moeblierungPauschale || 0) : 0;
-
-    return bruttomiete + aufschlag + moeblMonatlich;
+    // Kautions-Aufschlag ist NICHT im monatlichen Miet-Soll (wird separat gefuehrt / in den Finanzen als Einnahme gezaehlt)
+    return bruttomiete + moeblMonatlich;
   }
   
   // Helper: Payment für Mieter + Monat
