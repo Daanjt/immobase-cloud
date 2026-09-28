@@ -10671,8 +10671,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     // Monatliche Moeblierungsgebuehr dazurechnen (nur wenn moebliert und Modus monatlich)
     const istMoebliert = tenant.moebliert === true || tenant.moebliert === "ja";
     const moeblMonatlich = (istMoebliert && tenant.moeblierungModus === "monatlich") ? (+tenant.moeblierungPauschale || 0) : 0;
-    // Kautions-Aufschlag ist NICHT im monatlichen Miet-Soll (wird separat gefuehrt / in den Finanzen als Einnahme gezaehlt)
-    return bruttomiete + moeblMonatlich;
+    // Kautions-Aufschlag (monatlicher Aufpreis bei reduzierter Kaution) gehoert in den monatlichen Soll
+    const aufschlag = feeVon(tenant);
+    return bruttomiete + aufschlag + moeblMonatlich;
   }
   
   // Helper: Payment für Mieter + Monat
