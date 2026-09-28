@@ -4133,14 +4133,14 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [sNr, setSNr] = useState("");
   const [sExtra, setSExtra] = useState("");
   const [normalCount, setNormalCount] = useState(1);
-  const [extraCount, setExtraCount] = useState("");
+  const [extraKeys, setExtraKeys] = useState([]);
   const [starting, setStarting] = useState(false);
   const oeffneStart = (eintrag) => {
     const t = eintrag.tenant;
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
-    setExtraCount(String(parseInt(eintrag.apt&&eintrag.apt.extraSchluessel)||0));
+    setExtraKeys([]);
     setStartFor(eintrag);
   };
   const schluesselText = (t) => {
@@ -4422,22 +4422,31 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
             <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl normale Schlüssel (Wohnung/Haus)</label>
             <input type="number" min="0" value={normalCount} onChange={e=>setNormalCount(e.target.value)}
               style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:14,fontFamily:"inherit"}}/>
-            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl Extraschlüssel</label>
-            <input type="number" min="0" value={extraCount} onChange={e=>setExtraCount(e.target.value)}
-              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit"}}/>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Extraschlüssel</label>
+            <div style={{fontSize:11,color:"var(--muted)",marginBottom:8}}>Bezeichnung und Anzahl, z.B. Briefkasten 1, Keller 2.</div>
+            {extraKeys.map((k,i)=>(
+              <div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+                <input value={k.bez||""} onChange={e=>setExtraKeys(extraKeys.map((x,j)=>j===i?{...x,bez:e.target.value}:x))} placeholder="z.B. Briefkasten"
+                  style={{flex:1,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+                <input type="number" min="1" value={k.count||1} onChange={e=>setExtraKeys(extraKeys.map((x,j)=>j===i?{...x,count:e.target.value}:x))}
+                  style={{width:70,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+                <button type="button" className="btn btn-g btn-sm" onClick={()=>setExtraKeys(extraKeys.filter((_,j)=>j!==i))}>✕</button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-g btn-sm" onClick={()=>setExtraKeys([...extraKeys,{bez:"",count:1}])} style={{marginBottom:16}}>+ Extraschlüssel</button>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
               <button className="btn btn-sm" disabled={starting}
                 onClick={async ()=>{
                   setStarting(true);
                   try {
-                    const eCount = Math.max(0, parseInt(extraCount)||0);
                     const t = startFor.tenant;
-                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraCount: eCount };
+                    const extras = extraKeys.map(k=>({bez:(k.bez||"").trim(), count:Math.max(1,parseInt(k.count)||1)})).filter(k=>k.bez);
+                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extra: extras };
                     await updateTenant(t.id, { schluessel_anzahl: nCount, schluessel_uebergeben: false });
                     const snapshot = [
                       nCount>0 && `${nCount} normale Schlüssel`,
-                      eCount>0 && `${eCount} Extraschlüssel`
+                      extras.length && `Extra: ${extras.map(e=>`${e.count}× ${e.bez}`).join(", ")}`
                     ].filter(Boolean).join("\n");
                     await startHandoverProtocol({
                       tenantId: t.id,
