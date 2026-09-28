@@ -8031,9 +8031,13 @@ function SchluesselManager({apt, rooms, tenants}) {
   const [keys, setKeys] = useState([]);
   const [neu, setNeu] = useState({nummer:"", typ:"Wohnungstür"});
   const [busy, setBusy] = useState(false);
+  const [erhNormal, setErhNormal] = useState("");
+  const [erhExtra, setErhExtra] = useState("");
   useEffect(()=>{
     supabase.from("schluessel").select("*").eq("apt_id", apt.id).order("created_at").then(({data})=>setKeys(data||[]));
+    supabase.from("apartments").select("schluessel_erhalten_normal,schluessel_erhalten_extra").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_erhalten_normal!=null?String(data.schluessel_erhalten_normal):""); setErhExtra(data.schluessel_erhalten_extra!=null?String(data.schluessel_erhalten_extra):""); } });
   },[apt.id]);
+  async function saveErhalten(n, e){ await supabase.from("apartments").update({schluessel_erhalten_normal: n===""?null:+n, schluessel_erhalten_extra: e===""?null:+e}).eq("id", apt.id); }
   const aptTenants = (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===apt.id) || (rooms||[]).some(r=>r.aptId===apt.id && (r.tenantId===t.id || r.id===t.roomId))));
   const TYPEN = ["Wohnungstür","Zimmertür","Hauseingang","Briefkasten","Keller","Waschküche","Extra","Sonstiges"];
   async function addKey(){
@@ -8057,6 +8061,12 @@ function SchluesselManager({apt, rooms, tenants}) {
   }
   return (
     <div>
+      <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end",marginBottom:14,background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:8,padding:"12px 14px"}}>
+        <div style={{fontSize:12,fontWeight:600,color:"#3a5230",flexBasis:"100%",marginBottom:2}}>Erhaltene Schlüssel (von Verwaltung/Eigentümer)</div>
+        <div style={{flex:"0 0 130px"}}><label className="fl">Normale</label><input className="fi" type="number" min="0" value={erhNormal} onChange={e=>setErhNormal(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 3"/></div>
+        <div style={{flex:"0 0 130px"}}><label className="fl">Extra</label><input className="fi" type="number" min="0" value={erhExtra} onChange={e=>setErhExtra(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 2"/></div>
+        <div style={{fontSize:11,color:"#8a8174",flex:"1 1 200px"}}>Im Register erfasst: {keys.length} · davon ausgegeben: {keys.filter(k=>k.tenant_id).length}</div>
+      </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",marginBottom:16,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 14px"}}>
         <div style={{flex:"1 1 150px"}}>
           <label className="fl">Schlüsselnummer</label>
