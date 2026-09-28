@@ -4133,14 +4133,14 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [sNr, setSNr] = useState("");
   const [sExtra, setSExtra] = useState("");
   const [normalCount, setNormalCount] = useState(1);
-  const [extraKeys, setExtraKeys] = useState([]);
+  const [extraText, setExtraText] = useState("");
   const [starting, setStarting] = useState(false);
   const oeffneStart = (eintrag) => {
     const t = eintrag.tenant;
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
-    setExtraKeys([]);
+    setExtraText((eintrag.apt&&eintrag.apt.extraSchluessel)||"");
     setStartFor(eintrag);
   };
   const schluesselText = (t) => {
@@ -4423,17 +4423,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
             <input type="number" min="0" value={normalCount} onChange={e=>setNormalCount(e.target.value)}
               style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:14,fontFamily:"inherit"}}/>
             <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Extraschlüssel</label>
-            <div style={{fontSize:11,color:"var(--muted)",marginBottom:8}}>Bezeichnung und Anzahl, z.B. Briefkasten 1, Keller 2.</div>
-            {extraKeys.map((k,i)=>(
-              <div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
-                <input value={k.bez||""} onChange={e=>setExtraKeys(extraKeys.map((x,j)=>j===i?{...x,bez:e.target.value}:x))} placeholder="z.B. Briefkasten"
-                  style={{flex:1,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
-                <input type="number" min="1" value={k.count||1} onChange={e=>setExtraKeys(extraKeys.map((x,j)=>j===i?{...x,count:e.target.value}:x))}
-                  style={{width:70,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
-                <button type="button" className="btn btn-g btn-sm" onClick={()=>setExtraKeys(extraKeys.filter((_,j)=>j!==i))}>✕</button>
-              </div>
-            ))}
-            <button type="button" className="btn btn-g btn-sm" onClick={()=>setExtraKeys([...extraKeys,{bez:"",count:1}])} style={{marginBottom:16}}>+ Extraschlüssel</button>
+            <textarea value={extraText} onChange={e=>setExtraText(e.target.value)} rows={2} placeholder="z.B. 1x Briefkasten, 2x Keller"
+              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
               <button className="btn btn-sm" disabled={starting}
@@ -4441,12 +4432,12 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                   setStarting(true);
                   try {
                     const t = startFor.tenant;
-                    const extras = extraKeys.map(k=>({bez:(k.bez||"").trim(), count:Math.max(1,parseInt(k.count)||1)})).filter(k=>k.bez);
-                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extra: extras };
-                    await updateTenant(t.id, { schluessel_anzahl: nCount, schluessel_uebergeben: false });
+                    const extraTrim = (extraText||"").trim();
+                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
+                    await updateTenant(t.id, { schluessel_anzahl: nCount, extra_schluessel: extraTrim, schluessel_uebergeben: false });
                     const snapshot = [
                       nCount>0 && `${nCount} normale Schlüssel`,
-                      extras.length && `Extra: ${extras.map(e=>`${e.count}× ${e.bez}`).join(", ")}`
+                      extraTrim && `Extra: ${extraTrim}`
                     ].filter(Boolean).join("\n");
                     await startHandoverProtocol({
                       tenantId: t.id,
