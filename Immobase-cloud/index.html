@@ -4562,7 +4562,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     .filter(t => (t.status||"aktiv") === "aktiv")
     .filter(t => wgTenantIds.has(t.id))
     .filter(t => (t.moebliert===true||t.moebliert==="ja") && t.moeblierungModus==="monatlich")
-    .reduce((s,t) => s + (+t.moeblierungPauschale || 0), 0);
+    .reduce((s,t) => s + moeblVon(t), 0);
   
   // Einnahmen = Zimmer-Miete + Strom + Aufschlag + monatliche Moeblierung (alles inkl.)
   const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + wgStromIst + wgAufschlag + wgMoeblierung;
@@ -4713,7 +4713,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 });
               const aMoeblierung = aptTenants
                 .filter(t => (t.moebliert===true||t.moebliert==="ja") && t.moeblierungModus==="monatlich")
-                .reduce((s,t) => s + (+t.moeblierungPauschale || 0), 0);
+                .reduce((s,t) => s + moeblVon(t), 0);
               const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + aStromIst + aMoeblierung;
               const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax + aMoeblierung;
               // Kautionsaufschläge pro Wohnung
@@ -9719,7 +9719,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
             </div>}
             {room && (() => {
               const istMoeb = (tenant.moebliert===true||tenant.moebliert==="ja") && tenant.moeblierungModus==="monatlich";
-              const moeb = istMoeb ? (+tenant.moeblierungPauschale||0) : 0;
+              const moeb = moeblVon(tenant);
               const aufschlag = feeVon(tenant);
               const basis = (tenant.mietzins != null && tenant.mietzins !== "") ? +tenant.mietzins : (+room.miete||0);
               const netto = Math.max(0, basis - 100);
@@ -10728,7 +10728,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     
     // Monatliche Moeblierungsgebuehr dazurechnen (nur wenn moebliert und Modus monatlich)
     const istMoebliert = tenant.moebliert === true || tenant.moebliert === "ja";
-    const moeblMonatlich = (istMoebliert && tenant.moeblierungModus === "monatlich") ? (+tenant.moeblierungPauschale || 0) : 0;
+    const moeblMonatlich = moeblVon(tenant);
     // Kautions-Aufschlag (monatlicher Aufpreis bei reduzierter Kaution) gehoert in den monatlichen Soll
     const aufschlag = feeVon(tenant);
     return bruttomiete + aufschlag + moeblMonatlich;
@@ -13677,6 +13677,12 @@ function feeVon(t){
   if (t.kautionOpt === "1x") return 100;
   if (t.kautionOpt === "2x") return 50;
   return 0;
+}
+
+function moeblVon(t){
+  if (!t) return 0;
+  const m = (t.moebliert===true || t.moebliert==="ja") && t.moeblierungModus==="monatlich";
+  return m ? (+t.moeblierungPauschale || 0) : 0;   // nur monatliche Moeblierung zaehlt, wie im Soll
 }
 
 function platzhalterFuellen(text, empfaenger) {
