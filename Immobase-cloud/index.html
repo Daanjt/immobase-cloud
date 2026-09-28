@@ -1898,10 +1898,11 @@ function useSupabaseData() {
     const {error} = await supabase.from("apartments").update(dbFields).eq("id", id);
     if (error) {
       console.error("updateApt error:", error);
-      alert("Speichern fehlgeschlagen: " + error.message);
+      toast("Fehler beim Speichern", "error");
       return;
     }
     setApts(p => p.map(a => a.id === id ? {...a, ...fields} : a));
+    toast("Gespeichert");
   }
   async function insertApt(a, roomDetails) {
     const dbA = toDbApt(a);
@@ -1954,10 +1955,11 @@ function useSupabaseData() {
     const {error} = await supabase.from("tenants").update(dbFields).eq("id", id);
     if (error) {
       console.error("updateTenant error:", error);
-      alert("Speichern fehlgeschlagen: " + error.message);
+      toast("Fehler beim Speichern", "error");
       return;
     }
     setTenants(p => p.map(t => t.id === id ? {...t, ...fields} : t));
+    toast("Gespeichert");
     // Auszugsdatum aufs Zimmer spiegeln, damit das Bewerbungsformular die 45-Tage-Regel selbst rechnen kann
     if (Object.prototype.hasOwnProperty.call(fields, "auszug")) {
       const rm = rooms.find(r => r.tenantId === id);
@@ -2266,8 +2268,9 @@ function useSupabaseData() {
       bemerkung: payment.bemerkung || null,
     };
     const {error} = await supabase.from("payments").upsert(dbRow, {onConflict:"tenant_id,jahr,monat"});
-    if (error) { console.error("upsertPayment:", error); alert("Speichern fehlgeschlagen: " + error.message); throw error; }
+    if (error) { console.error("upsertPayment:", error); toast("Fehler beim Speichern", "error"); throw error; }
     await loadPayments();
+    toast("Gespeichert");
   }
   
   async function deletePayment(id) {
@@ -13451,6 +13454,20 @@ function DokumenteSection({documents, uploadDocument, getDocumentUrl, deleteDocu
   );
 }
 
+let _toastFn = null;
+function toast(msg, type){ if(_toastFn) _toastFn(msg, type||"ok"); }
+function Toast(){
+  const [t, setT] = React.useState(null);
+  React.useEffect(()=>{ _toastFn = (msg, type)=>setT({msg, type, id:Date.now()}); return ()=>{ _toastFn = null; }; },[]);
+  React.useEffect(()=>{ if(!t) return; const to=setTimeout(()=>setT(null), t.type==="error"?4000:1800); return ()=>clearTimeout(to); },[t]);
+  if(!t) return null;
+  return (
+    <div key={t.id} style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:(t.type==="error"?"#c0392b":"#2f6b3a"),color:"#fff",padding:"10px 18px",borderRadius:8,fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,.2)",zIndex:99999,maxWidth:"90vw"}}>
+      {(t.type==="error"?"\u26a0 ":"\u2713 ")+t.msg}
+    </div>
+  );
+}
+
 function MainApp({rolle}) {
   const sichtbareSeiten = seitenFuerRolle(rolle);
   const [page, setPage] = useState(() => { try { const s = localStorage.getItem("immobase_page"); if (s && sichtbareSeiten.some(x=>x.id===s)) return s; } catch(e){} return sichtbareSeiten[0]?.id || "dashboard"; });
@@ -14016,7 +14033,7 @@ function App() {
     if (window.history.replaceState) window.history.replaceState(null, "", window.location.pathname);
   }}/>;
   if (rolle === null) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
-  return <MainApp rolle={rolle}/>;
+  return <React.Fragment><MainApp rolle={rolle}/><Toast/></React.Fragment>;
 }
 
 class ErrorBoundary extends React.Component {
