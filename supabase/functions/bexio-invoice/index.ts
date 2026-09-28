@@ -123,7 +123,8 @@ serve(async (req) => {
     }
 
     // 3) Ein oder zwei Rechnungen je nach Einzugstag
-    const adr = p.aptAdresse ? ` – ${p.aptAdresse}` : "";
+    const obj = [p.aptAdresse, p.roomLabel].filter(Boolean).join(", ");
+    const adr = obj ? ` – ${obj}` : "";
     const halb = einzugTag(p.einzug || "") >= 15;
     const invoices: unknown[] = [];
     if (halb) {

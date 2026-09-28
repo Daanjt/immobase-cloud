@@ -9762,6 +9762,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                   bexioContactId: tenant.bexioContactId || null,
                   contact: { name_1: tenant.nachname, name_2: tenant.vorname, mail: tenant.email, phone: tenant.telefon, address: tenant.adresse, postcode: tenant.plz, city: tenant.ort, country_id: 1 },
                   aptAdresse: apt ? apt.adresse : "",
+                  roomLabel: room ? ("Zimmer " + (room.id||"")) : "",
                   einzug: tenant.einzug || "",
                   amounts: { nettomiete: netto, nebenkosten: 125, aufschlag: feeVon(tenant), moeblierung: moeblVon(tenant) },
                 }});
