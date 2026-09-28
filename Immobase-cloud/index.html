@@ -4104,6 +4104,16 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const offene = einzuegeMitStatus.filter(e => e.kategorie !== "done");
   const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
   const [startFor, setStartFor] = useState(null);
+  const [refKeyInfo, setRefKeyInfo] = useState(null);
+  useEffect(()=>{
+    if(!startFor||!startFor.apt||!startFor.apt.id){ setRefKeyInfo(null); return; }
+    (async()=>{
+      const {data:a} = await supabase.from("apartments").select("schluessel_erhalten_normal,schluessel_erhalten_extra").eq("id",startFor.apt.id).single();
+      const {data:ks} = await supabase.from("schluessel").select("typ").eq("apt_id",startFor.apt.id);
+      const byTyp={}; (ks||[]).forEach(k=>{ byTyp[k.typ]=(byTyp[k.typ]||0)+1; });
+      setRefKeyInfo({ erhNormal:a?a.schluessel_erhalten_normal:null, erhExtra:a?a.schluessel_erhalten_extra:null, byTyp });
+    })();
+  },[startFor]);
   const [sNr, setSNr] = useState("");
   const [sExtra, setSExtra] = useState("");
   const [normalCount, setNormalCount] = useState(1);
@@ -4387,6 +4397,13 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               {startFor.tenant.vorname} {startFor.tenant.nachname} · {startFor.room?.id||"-"} · {startFor.apt?.adresse||"-"}<br/>
               Der Mieter erhält einen Link und hat 14 Tage Zeit, das Protokoll auszufüllen.
             </div>
+            {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null || Object.keys(refKeyInfo.byTyp).length>0) && (
+              <div style={{background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:6,padding:"8px 10px",marginBottom:12,fontSize:12,color:"#3a5230"}}>
+                <div style={{fontWeight:600,marginBottom:2}}>Für diese Wohnung erhalten</div>
+                {(refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && <div>{refKeyInfo.erhNormal||0} normale · {refKeyInfo.erhExtra||0} extra</div>}
+                {Object.keys(refKeyInfo.byTyp).length>0 && <div style={{color:"#8a8174",marginTop:2}}>Register: {Object.entries(refKeyInfo.byTyp).map(([ty,n])=>`${n}× ${ty}`).join(", ")}</div>}
+              </div>
+            )}
             <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl normale Schlüssel (Wohnung/Haus)</label>
             <input type="number" min="0" value={normalCount} onChange={e=>setNormalCount(e.target.value)}
               style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:14,fontFamily:"inherit"}}/>
