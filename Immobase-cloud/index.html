@@ -2479,7 +2479,7 @@ function useSupabaseData() {
   }
   useEffect(() => { loadHandoverProtocols(); }, []);
   
-  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum }) {
+  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum }) {
     const now = new Date();
     const deadline = new Date(now.getTime() + 14*24*60*60*1000);
     const { data, error } = await supabase.from("handover_protocols").insert({
@@ -2504,6 +2504,7 @@ function useSupabaseData() {
       started_at: now.toISOString(),
       deadline: deadline.toISOString(),
       schluessel_info: schluesselInfo || null,
+      schluessel_data: schluesselData || null,
       schluessel_uebergeben_am: schluesselInfo ? now.toISOString() : null,
     }).select().single();
     if (error) { console.error("startHandoverProtocol:", error); throw error; }
@@ -4105,11 +4106,15 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [startFor, setStartFor] = useState(null);
   const [sNr, setSNr] = useState("");
   const [sExtra, setSExtra] = useState("");
+  const [normalCount, setNormalCount] = useState(1);
+  const [extraKeys, setExtraKeys] = useState([]);
   const [starting, setStarting] = useState(false);
   const oeffneStart = (eintrag) => {
     const t = eintrag.tenant;
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
+    setNormalCount(+(t.schluesselAnzahl)||1);
+    setExtraKeys([]);
     setStartFor(eintrag);
   };
   const schluesselText = (t) => {
@@ -4382,29 +4387,34 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               {startFor.tenant.vorname} {startFor.tenant.nachname} · {startFor.room?.id||"-"} · {startFor.apt?.adresse||"-"}<br/>
               Der Mieter erhält einen Link und hat 14 Tage Zeit, das Protokoll auszufüllen.
             </div>
-            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Schlüsselnummer</label>
-            <input value={sNr} onChange={e=>setSNr(e.target.value)} placeholder="z.B. 1-LA008031-31.2"
-              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:12,fontFamily:"inherit"}}/>
-            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Zusätzliche Schlüssel</label>
-            <textarea value={sExtra} onChange={e=>setSExtra(e.target.value)} rows={2} placeholder="z.B. Eingangstür Wohnung"
-              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl normale Schlüssel (Wohnung/Haus)</label>
+            <input type="number" min="0" value={normalCount} onChange={e=>setNormalCount(e.target.value)}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:14,fontFamily:"inherit"}}/>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Extraschlüssel</label>
+            <div style={{fontSize:11,color:"var(--muted)",marginBottom:8}}>Bezeichnung je Extraschlüssel. Die Nummer trägt der Mieter im Protokoll ein (optional).</div>
+            {extraKeys.map((k,i)=>(
+              <div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+                <input value={k.bez||""} onChange={e=>setExtraKeys(extraKeys.map((x,j)=>j===i?{...x,bez:e.target.value}:x))} placeholder="z.B. Keller, Briefkasten, Garage"
+                  style={{flex:1,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+                <button type="button" className="btn btn-g btn-sm" onClick={()=>setExtraKeys(extraKeys.filter((_,j)=>j!==i))}>✕</button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-g btn-sm" onClick={()=>setExtraKeys([...extraKeys,{bez:""}])} style={{marginBottom:16}}>+ Extraschlüssel</button>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
               <button className="btn btn-sm" disabled={starting}
                 onClick={async ()=>{
                   setStarting(true);
                   try {
-                    const nrTrim = sNr.trim(), extraTrim = sExtra.trim();
+                    const nCount = Math.max(0, parseInt(normalCount)||0);
+                    const extras = extraKeys.map(k=>({bez:(k.bez||"").trim()})).filter(k=>k.bez);
                     const t = startFor.tenant;
-                    await updateTenant(t.id, {
-                      schluessel_nr: nrTrim,
-                      extra_schluessel: extraTrim,
-                      schluessel_uebergeben: !!(nrTrim || extraTrim),
-                    });
+                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extra: extras.map(e=>({bez:e.bez, nr:""})) };
+                    await updateTenant(t.id, { schluessel_anzahl: nCount, schluessel_uebergeben: false });
                     const snapshot = [
-                      nrTrim && `Schlüsselnummer: ${nrTrim}`,
-                      extraTrim && `Extra-Schlüssel:\n${extraTrim}`
-                    ].filter(Boolean).join("\n\n");
+                      nCount>0 && `${nCount} normale Schlüssel`,
+                      extras.length && `Extra: ${extras.map(e=>e.bez).join(", ")}`
+                    ].filter(Boolean).join("\n");
                     await startHandoverProtocol({
                       tenantId: t.id,
                       aptId: startFor.apt?.id,
@@ -4421,6 +4431,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       roomLabel: startFor.room?.id || null,
                       einzugDatum: t.einzug || null,
                       schluesselInfo: snapshot || null,
+                      schluesselData,
                     });
                     setStartFor(null);
                   } catch(e) {
