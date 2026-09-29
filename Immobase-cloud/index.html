@@ -13611,7 +13611,7 @@ function MainApp({rolle}) {
   }).length;
   const offeneUebergaben = data.tenants.filter(t => {
     if ((t.status||"aktiv") !== "aktiv") return false;
-    const room = data.rooms.find(r => r.tenantId === t.id);
+    const room = data.rooms.find(r => r.tenantId === t.id) || (t.roomId ? data.rooms.find(r => r.id === t.roomId) : null);
     if (!room) return false;
     const meine = (data.handoverProtocols||[]).filter(h => h.tenantId === t.id)
       .sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
