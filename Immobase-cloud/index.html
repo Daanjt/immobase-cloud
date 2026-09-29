@@ -7704,7 +7704,7 @@ www.dthomes.ch`;
                         )}
                         {c.status === "mieter_signiert" && (
                           <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
-                            <CountersignButton contract={c} onDone={loadContracts} onSigned={(rid)=>{ if(rid) setSelZimmer(rid); setZuteilModal(true); }} />
+                            <CountersignButton contract={c} onDone={loadContracts} onSigned={(rid)=>{ if(rid) setSelZimmer(rid); if(b&&b.einzug){ var _d=_pdZ(b.einzug); if(_d){ setEinzugDate(_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0")); } } setZuteilModal(true); }} />
                           </div>
                         )}
                       </div>
