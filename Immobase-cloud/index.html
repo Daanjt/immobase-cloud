@@ -12672,6 +12672,7 @@ function PortfolioWatch(){
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState("neu");
   const [status,setStatus]=useState(null);
+  const [inPl,setInPl]=useState({});
   const laden=()=>{
     supabase.from("flatfox_treffer").select("*").order("ff_created",{ascending:false}).limit(300)
       .then(({data})=>{ setItems(data||[]); setLoading(false); })
@@ -12688,6 +12689,12 @@ function PortfolioWatch(){
   const markiere=(id)=>{
     supabase.from("flatfox_treffer").update({gesehen:true}).eq("id",id)
       .then(()=>setItems(xs=>xs.map(x=>x.id===id?{...x,gesehen:true}:x)));
+  };
+  const inPipeline=async(t)=>{
+    if(t.agency_name) supabase.from("org_status").upsert({organisation:t.agency_name,typ:"verwaltung",updated_at:new Date().toISOString()},{onConflict:"organisation",ignoreDuplicates:true}).then(()=>{});
+    const markSeen=()=>{ setInPl(m=>({...m,[t.id]:"ok"})); supabase.from("flatfox_treffer").update({gesehen:true}).eq("id",t.id).then(()=>setItems(xs=>xs.map(x=>x.id===t.id?{...x,gesehen:true}:x))); };
+    if(t.strasse){ try{ const {data:ex}=await supabase.from("pipeline").select("id,zimmer,preis").ilike("strasse",t.strasse).eq("plz",t.plz); if((ex||[]).some(e=>String(e.zimmer??"")===String(t.zimmer??"")&&String(e.preis??"")===String(t.preis??""))){ markSeen(); return; } }catch(_e){} }
+    supabase.from("pipeline").upsert({flatfox_pk:t.flatfox_pk,source:"portfoliowatch",strasse:t.strasse,plz:t.plz,ort:t.ort,zimmer:t.zimmer,preis:t.preis,agency_name:t.agency_name,url:t.url,wert:t.preis,stage:"neu"},{onConflict:"flatfox_pk",ignoreDuplicates:true}).then(({error})=>{ if(error){ setInPl(m=>({...m,[t.id]:"err"})); console.error("pipeline",error); } else { markSeen(); } });
   };
   const neu=items.filter(x=>!x.gesehen);
   const liste=tab==="neu"?neu:items;
@@ -12717,9 +12724,12 @@ function PortfolioWatch(){
               </div>
               <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.quelle?" · "+(t.quelle==="homegate"?"Homegate":"Flatfox"):""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
             </div>
-            {!t.gesehen
-              ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",flexShrink:0,fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
-              : <span style={{fontSize:11,color:"#a0968a",flexShrink:0,alignSelf:"center"}}>gesehen</span>}
+            <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
+              <button onClick={()=>inPipeline(t)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:inPl[t.id]==="ok"?"#3a5230":inPl[t.id]==="err"?"#9b4a3e":"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{inPl[t.id]==="ok"?"✓ in Pipeline":inPl[t.id]==="err"?"Fehler":"→ Pipeline"}</button>
+              {!t.gesehen
+                ? <button onClick={()=>markiere(t.id)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>gesehen</button>
+                : <span style={{fontSize:11,color:"#a0968a"}}>gesehen</span>}
+            </div>
           </div>
         ))}
       </div>
