@@ -6286,7 +6286,7 @@ function HandoverConfirmButton({protocol, onDone}){
     )}
   </>);
 }
-function CountersignButton({contract, onDone, light}){
+function CountersignButton({contract, onDone, onSigned, light}){
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -6329,6 +6329,7 @@ function CountersignButton({contract, onDone, light}){
       closePreview();
       if (onDone) await onDone();
       alert("Vertrag gegengezeichnet. Die Bestaetigung wurde an den Mieter gesendet.");
+      if (onSigned) onSigned(contract && contract.roomId);
     } catch(e){
       console.error("countersign confirm:", e);
       toast("Gegenzeichnung fehlgeschlagen", "error");
@@ -7703,7 +7704,7 @@ www.dthomes.ch`;
                         )}
                         {c.status === "mieter_signiert" && (
                           <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
-                            <CountersignButton contract={c} onDone={loadContracts} />
+                            <CountersignButton contract={c} onDone={loadContracts} onSigned={(rid)=>{ if(rid) setSelZimmer(rid); setZuteilModal(true); }} />
                           </div>
                         )}
                       </div>
