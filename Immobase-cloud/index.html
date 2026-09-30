@@ -1785,6 +1785,8 @@ function useSupabaseData() {
             status: "archiviert",
             archived_at: new Date().toISOString(),
             auszug: t.auszug || new Date().toLocaleDateString("de-CH"),
+            room_id: (myRoom && myRoom.id) || t.roomId || null,   // Zimmer-Info fuer die Historie erhalten
+            apt_id: (myRoom && myRoom.aptId) || t.aptId || null,
           }).eq("id", t.id);
           archivedCount++;
         } catch (e) {
