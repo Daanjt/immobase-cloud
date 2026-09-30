@@ -1775,7 +1775,7 @@ function useSupabaseData() {
           if (myRoom) {
             const nach = tenants.find(n => n.id !== t.id && (n.status||"aktiv")!=="archiviert" && n.roomId === myRoom.id);
             if (nach) {
-              await supabase.from("rooms").update({tenant_id: nach.id, occupied: true}).eq("id", myRoom.id);
+              await supabase.from("rooms").update({tenant_id: nach.id, occupied: true, mieter_auszug: nach.auszug || null}).eq("id", myRoom.id);
             } else {
               await supabase.from("rooms").update({tenant_id:null, occupied:false}).eq("id", myRoom.id);
             }
