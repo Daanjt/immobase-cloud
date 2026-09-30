@@ -4576,7 +4576,13 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     .reduce((s,t) => s + moeblVon(t), 0);
   
   // Einnahmen = Zimmer-Miete + Strom + Aufschlag + monatliche Moeblierung (alles inkl.)
-  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + wgStromIst + wgAufschlag + wgMoeblierung;
+  const _tMietzins = (t) => { if (t.mietzins!=null && t.mietzins!=="") return +t.mietzins||0; const rr=rooms.find(r=>r.tenantId===t.id)||rooms.find(r=>r.id===t.roomId); return rr?(+rr.miete||0):0; };
+  const wgMieteStromIst = wgApts.reduce((sum,a) => sum + tenants
+    .filter(t => (t.status||"aktiv")==="aktiv")
+    .filter(istAktuellerMieter)
+    .filter(t => _gehoertZuApt(t,a))
+    .reduce((s,t) => s + _tMietzins(t) + 25, 0), 0);
+  const wgEinnahmenIst = wgMieteStromIst + wgAufschlag + wgMoeblierung;
   const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0) + wgStromMax + wgAufschlag + wgMoeblierung;
   
   const wgMargeIst = wgEinnahmenIst - wgAusgaben;
@@ -4725,7 +4731,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               const aMoeblierung = aptTenants
                 .filter(t => (t.moebliert===true||t.moebliert==="ja") && t.moeblierungModus==="monatlich")
                 .reduce((s,t) => s + moeblVon(t), 0);
-              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + aStromIst + aMoeblierung;
+              const aIst = aptTenants.filter(istAktuellerMieter).reduce((s,t)=> s + _tMietzins(t) + 25, 0) + aMoeblierung;
               const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax + aMoeblierung;
               // Kautionsaufschläge pro Wohnung
               const aAufschlag = aptTenants
