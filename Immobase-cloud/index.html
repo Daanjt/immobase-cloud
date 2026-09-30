@@ -4576,13 +4576,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     .reduce((s,t) => s + moeblVon(t), 0);
   
   // Einnahmen = Zimmer-Miete + Strom + Aufschlag + monatliche Moeblierung (alles inkl.)
-  const _tMietzins = (t) => { if (t.mietzins!=null && t.mietzins!=="") return +t.mietzins||0; const rr=rooms.find(r=>r.tenantId===t.id)||rooms.find(r=>r.id===t.roomId); return rr?(+rr.miete||0):0; };
-  const wgMieteStromIst = wgApts.reduce((sum,a) => sum + tenants
-    .filter(t => (t.status||"aktiv")==="aktiv")
-    .filter(istAktuellerMieter)
-    .filter(t => _gehoertZuApt(t,a))
-    .reduce((s,t) => s + _tMietzins(t) + 25, 0), 0);
-  const wgEinnahmenIst = wgMieteStromIst + wgAufschlag + wgMoeblierung;
+  const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + wgStromIst + wgAufschlag + wgMoeblierung;
   const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0) + wgStromMax + wgAufschlag + wgMoeblierung;
   
   const wgMargeIst = wgEinnahmenIst - wgAusgaben;
@@ -4731,7 +4725,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               const aMoeblierung = aptTenants
                 .filter(t => (t.moebliert===true||t.moebliert==="ja") && t.moeblierungModus==="monatlich")
                 .reduce((s,t) => s + moeblVon(t), 0);
-              const aIst = aptTenants.filter(istAktuellerMieter).reduce((s,t)=> s + _tMietzins(t) + 25, 0) + aMoeblierung;
+              const aIst = rs.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + aStromIst + aMoeblierung;
               const aMax = rs.reduce((s,r)=>s+(+r.miete||0),0) + aStromMax + aMoeblierung;
               // Kautionsaufschläge pro Wohnung
               const aAufschlag = aptTenants
@@ -11686,23 +11680,31 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         ausgaben+=(+a.miete||0)*f; activeApts.add(a.id);
       }
     });
-    let miete=0, strom=0, aufschlag=0, belegt=0, total=0, leerstandskosten=0;
+    let miete=0, strom=0, aufschlag=0, moebl=0, belegt=0, total=0, leerstandskosten=0;
     wgRooms.forEach(r=>{
       if (!activeApts.has(r.aptId)) return;
       const f = aptFactor.get(r.aptId) || 1;
       total++;
-      const t = r.tenantId ? tenantById(r.tenantId) : null;
-      const apt = aptById(r.aptId);
-      const ein = parseDMY(t && t.einzug) || parseDMY(apt && apt.mietbeginn);
-      const aus = parseDMY(t && t.auszug) || parseDMY(apt && apt.mietende);
-      const isOcc = !!r.occupied && (!ein || ein <= e) && (!aus || aus >= s);
-      // In Prognosemonaten wird Vollbelegung angenommen: jedes aktive Zimmer
-      // gilt als vermietet, damit Umsatz und Marge das volle Potenzial zeigen.
-      if (isOcc || annahmeVoll) { belegt++; miete+=(+r.miete||0)*f; strom+=25*f; aufschlag += ((isOcc && t)?feeVon(t):0)*f; }
-      else { leerstandskosten += (+r.miete||0)*f; }
+      // Wer war in DIESEM Monat in DIESEM Zimmer? Ueber Ein-/Auszug, aktiv ODER archiviert.
+      const cand = (tenants||[]).filter(x => {
+        const belongs = (x.roomId===r.id) || (r.tenantId && x.id===r.tenantId);
+        if (!belongs) return false;
+        const ein = parseDMY(x.einzug), aus = parseDMY(x.auszug);
+        return (!ein || ein <= e) && (!aus || aus >= s);
+      });
+      const t = cand.sort((a,b)=>{ const ea=parseDMY(a.einzug)||new Date(0), eb=parseDMY(b.einzug)||new Date(0); return eb-ea; })[0] || null;
+      const isOcc = !!t;
+      // In Prognosemonaten wird Vollbelegung angenommen.
+      if (isOcc || annahmeVoll) {
+        belegt++;
+        const rent = (t && t.mietzins!=null && t.mietzins!=="") ? (+t.mietzins||0) : (+r.miete||0);
+        miete += rent*f; strom += 25*f;
+        aufschlag += ((isOcc && t)?feeVon(t):0)*f;
+        moebl += ((isOcc && t)?moeblVon(t):0)*f;
+      } else { leerstandskosten += (+r.miete||0)*f; }
     });
-    const einnahmen=miete+strom+aufschlag;
-    return {miete,strom,aufschlag,einnahmen,ausgaben,marge:einnahmen-ausgaben,belegt,total,frei:total-belegt,leerstandskosten,auslastung: total?belegt/total:0};
+    const einnahmen=miete+strom+aufschlag+moebl;
+    return {miete,strom,aufschlag,moebl,einnahmen,ausgaben,marge:einnahmen-ausgaben,belegt,total,frei:total-belegt,leerstandskosten,auslastung: total?belegt/total:0};
   };
   const now = new Date();
   const floorFut = (v, fut) => (fut && v<0) ? 0 : v;
