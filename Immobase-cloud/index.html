@@ -1723,7 +1723,7 @@ function useSupabaseData() {
     };
     
     const today = new Date();
-    today.setHours(23,59,59,999); // Ende des aktuellen Tages = inkl. heute
+    today.setHours(0,0,0,0); // Anfang des heutigen Tages: erst NACH dem Auszugstag archivieren, nicht am letzten Tag selbst
     
     const toArchive = [];
     
