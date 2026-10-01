@@ -4086,6 +4086,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
 // ─── ÜBERGABEN (Einzug + Auszug Tab) ─────────────────────────────────────────
 function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
+  const [kautionTenant,setKautionTenant]=React.useState(null);
   const heute = new Date();
   heute.setHours(0,0,0,0);
   
@@ -4376,10 +4377,19 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
             </div>
           ) : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10}}>
+              {kautionTenant && <div onClick={()=>setKautionTenant(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"36px 14px",overflowY:"auto"}}>
+                <div onClick={e=>e.stopPropagation()} style={{background:"#f7f3eb",borderRadius:16,maxWidth:560,width:"100%"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px 4px"}}>
+                    <div style={{fontSize:15,fontWeight:700}}>{kautionTenant.vorname} {kautionTenant.nachname}</div>
+                    <button onClick={()=>setKautionTenant(null)} style={{border:"none",background:"none",fontSize:24,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
+                  </div>
+                  <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant}/></div>
+                </div>
+              </div>}
               {reminders.map(r => {
                 const cat = reminderCat(r.daysLeft, r.aptEndsToo);
                 return (
-                  <div key={r.tenant.id} onClick={()=>navigateTo&&navigateTo("mieter",r.tenant.id)} style={{background:cat.bg,border:`1px solid ${cat.border}`,borderRadius:8,padding:"12px 14px",transition:"all .15s",cursor:"pointer"}}>
+                  <div key={r.tenant.id} onClick={()=>setKautionTenant(r.tenant)} style={{background:cat.bg,border:`1px solid ${cat.border}`,borderRadius:8,padding:"12px 14px",transition:"all .15s",cursor:"pointer"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
                       <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{r.kautionOffen ? "Kautionsabrechnung offen" : (cat.icon+" "+cat.label)}</div>
                       <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{r.kautionOffen ? "ausgezogen" : (r.daysLeft < 0 ? `${Math.abs(r.daysLeft)} T. überfällig` : `in ${r.daysLeft} Tagen`)}</div>
@@ -9060,6 +9070,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
   const [tab,setTab]=useState("info");
+  const [uebTab,setUebTab]=useState("einzug");
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({});
   const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
@@ -9949,8 +9960,12 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
-            {tab==="uebergabe" && tenant.auszug && <KautionsAbrechnung tenant={tenant}/>}
-            {tab==="uebergabe"&&(()=>{
+            {tab==="uebergabe" && tenant.auszug && <div style={{display:"flex",background:"#f1ece2",borderRadius:9,padding:3,marginBottom:16,maxWidth:300}}>
+              <button onClick={()=>setUebTab("einzug")} style={{flex:1,textAlign:"center",background:uebTab==="einzug"?"var(--ink)":"transparent",color:uebTab==="einzug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Einzug</button>
+              <button onClick={()=>setUebTab("auszug")} style={{flex:1,textAlign:"center",background:uebTab==="auszug"?"var(--ink)":"transparent",color:uebTab==="auszug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Auszug</button>
+            </div>}
+            {tab==="uebergabe" && tenant.auszug && uebTab==="auszug" && <KautionsAbrechnung tenant={tenant}/>}
+            {tab==="uebergabe" && (!tenant.auszug || uebTab==="einzug") && (()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
               const manuell = (tenant.uebergabeStatus||"offen")==="erledigt";
