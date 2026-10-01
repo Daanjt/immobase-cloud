@@ -4401,8 +4401,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                         📅 Hauptmietvertrag endet {r.apt?.mietende}
                       </div>
                     )}
-                    <div style={{fontSize:10,color:cat.color,fontStyle:"italic",lineHeight:1.4,marginBottom:10}}>→ {r.kautionOffen ? "Anklicken zum Abrechnen der Kaution" : cat.action}</div>
-                    {!r.kautionOffen && <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <div style={{fontSize:10,color:cat.color,fontStyle:"italic",lineHeight:1.4,marginBottom:10}}>→ {"Anklicken zum Abrechnen der Kaution"}</div>
+                    {false && <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       {!r.aptEndsToo && (
                         <button 
                           onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("bewerber",{nachmieterFor:r.room?.id});}}
