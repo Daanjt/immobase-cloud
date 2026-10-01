@@ -9947,7 +9947,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
-            {tab==="uebergabe" && <KautionsAbrechnung tenant={tenant}/>}
+            {tab==="uebergabe" && tenant.auszug && <KautionsAbrechnung tenant={tenant}/>}
             {tab==="uebergabe"&&(()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
