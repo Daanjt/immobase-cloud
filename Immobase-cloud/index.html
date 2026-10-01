@@ -13554,7 +13554,7 @@ function WerbungTab(){
         let r=(td.data||[]).filter(t=>(t.status||"aktiv")==="aktiv"&&t.email&&t.email.includes("@"));
         if(!includeFuture) r=r.filter(t=>{const ez=pd(t.einzug);return !(ez&&ez>heute);});
         const seen=new Set(); r=r.filter(t=>{const k=t.email.trim().toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
-        setList(r.map(t=>{ const apt=t.apt_id||(byTenant[t.id]&&byTenant[t.id].apt_id)||(t.room_id&&byId[t.room_id]&&byId[t.room_id].apt_id)||null; return {email:t.email.trim(),vorname:(t.vorname||"").trim(),name:((t.vorname||"")+" "+(t.nachname||"")).trim()||t.email,aptId:apt,status:t.status}; }));
+        setList(r.map(t=>{ const apt=t.apt_id||(byTenant[t.id]&&byTenant[t.id].apt_id)||(t.room_id&&byId[t.room_id]&&byId[t.room_id].apt_id)||null; const _ez=pd(t.einzug); return {email:t.email.trim(),vorname:(t.vorname||"").trim(),name:((t.vorname||"")+" "+(t.nachname||"")).trim()||t.email,aptId:apt,status:t.status,future:!!(_ez&&_ez>heute)}; }));
       } else {
         const [m,b]=await Promise.all([
           supabase.from("tenants").select("email"),
@@ -13663,7 +13663,7 @@ function WerbungTab(){
                     {wOpen && <div style={{borderTop:"1px solid #eee5d6"}}>
                       {w.rows.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px 8px 14px",cursor:"pointer",borderTop:i?"1px solid #f5f0e6":"none"}}>
                         <Cb checked={isOn(r)} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} sz={15}/>
-                        <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13,fontWeight:500}}>{r.name}</span><span style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
+                        <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13,fontWeight:500}}>{r.name}{r.future && <span style={{marginLeft:6,fontSize:10,color:"#8a6a2e",background:"#fdf1e3",padding:"1px 6px",borderRadius:4,fontWeight:600}}>künftig</span>}</span><span style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
                       </label>))}
                     </div>}
                   </div>);
