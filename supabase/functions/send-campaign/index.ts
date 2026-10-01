@@ -52,7 +52,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     if (!RESEND_API_KEY) return j({ error: "Missing RESEND_API_KEY" }, 500);
-    const { group, subject, text, test_email, exclude, include_future } = await req.json();
+    const { group, subject, text, test_email, exclude, include_future, recipients: inRecip } = await req.json();
     if (!subject || !text) return j({ error: "Betreff und Text erforderlich" }, 400);
 
     const sb = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -61,6 +61,8 @@ serve(async (req) => {
     let recipients: { email: string; vorname: string }[] = [];
     if (test_email) {
       recipients = [{ email: String(test_email), vorname: "" }];
+    } else if (Array.isArray(inRecip) && inRecip.length) {
+      recipients = inRecip.filter((r: any) => r && r.email && String(r.email).includes("@")).map((r: any) => ({ email: String(r.email).trim(), vorname: String(r.vorname || "").trim() }));
     } else if (group === "mieter") {
       const { data } = await sb.from("tenants").select("vorname,email,status,einzug").not("email", "is", null);
       const heute = Date.now();
