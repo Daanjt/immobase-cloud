@@ -13532,22 +13532,24 @@ function WerbungTab(){
   const [sending,setSending]=React.useState(false);
   const [log,setLog]=React.useState([]);
   const [saved,setSaved]=React.useState([]);
+  const [filter,setFilter]=React.useState("alle");
+  const [apts,setApts]=React.useState([]);
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
   const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage l\u00f6schen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
-  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); },[]);
+  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
-    setExcluded({});
+    setExcluded({}); setFilter("alle");
     try{
       if(group==="mieter"){
-        const {data}=await supabase.from("tenants").select("vorname,nachname,email,status,einzug").not("email","is",null);
+        const {data}=await supabase.from("tenants").select("vorname,nachname,email,status,einzug,apt_id").not("email","is",null);
         const heute=Date.now();
         let r=(data||[]).filter(t=>(t.status||"aktiv")==="aktiv"&&t.email&&t.email.includes("@"));
         if(!includeFuture) r=r.filter(t=>{const ez=pd(t.einzug);return !(ez&&ez>heute);});
         const seen=new Set(); r=r.filter(t=>{const k=t.email.trim().toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
-        setList(r.map(t=>({email:t.email.trim(),name:((t.vorname||"")+" "+(t.nachname||"")).trim()||t.email})));
+        setList(r.map(t=>({email:t.email.trim(),vorname:(t.vorname||"").trim(),name:((t.vorname||"")+" "+(t.nachname||"")).trim()||t.email,aptId:t.apt_id,status:t.status})));
       } else {
         const [m,b]=await Promise.all([
           supabase.from("tenants").select("email"),
@@ -13556,11 +13558,12 @@ function WerbungTab(){
         const tm=new Set((m.data||[]).filter(t=>t.email).map(t=>t.email.trim().toLowerCase()));
         const aktiv=["Neu","In Prüfung","Zugeteilt","Kontaktiert"]; const cutoff=Date.now()-31*86400000; const seen=new Set();
         const r=(b.data||[]).filter(x=>{ if(!(x.email&&x.email.includes("@")))return false; if(!(!x.status||aktiv.includes(x.status)))return false; if(!(x.created_at&&new Date(x.created_at).getTime()>=cutoff))return false; const k=x.email.trim().toLowerCase(); if(tm.has(k)||seen.has(k))return false; seen.add(k); return true; });
-        setList(r.map(x=>({email:x.email.trim(),name:((x.vorname||"")+" "+(x.nachname||"")).trim()||x.email})));
+        setList(r.map(x=>({email:x.email.trim(),vorname:(x.vorname||"").trim(),name:((x.vorname||"")+" "+(x.nachname||"")).trim()||x.email,status:x.status})));
       }
     }catch(_e){ setList([]); }
   })();},[group,includeFuture]);
-  const aktiveEmpf=list.filter(r=>!excluded[r.email.toLowerCase()]);
+  const filteredList=list.filter(r=>{ if(filter==="alle")return true; if(group==="mieter")return r.aptId===filter; if(group==="bewerber"&&filter==="ohne_zuteilung")return r.status!=="Zugeteilt"; return true; });
+  const aktiveEmpf=filteredList.filter(r=>!excluded[r.email.toLowerCase()]);
   const vorlagen={
     empfehlung:{subject:"Verdiene 100 Franken \u2013 empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Z\u00fcrich sucht? Dann haben wir ein Angebot f\u00fcr dich.\n\nF\u00fcr jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner n\u00e4chsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der n\u00e4chsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
     freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige sch\u00f6ne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
@@ -13571,7 +13574,7 @@ function WerbungTab(){
     if(!testEmail && !confirm("E-Mail an "+aktiveEmpf.length+" "+(group==="mieter"?"Mieter":"Bewerber")+" senden?")) return;
     setSending(true);
     const exclude = testEmail ? [] : list.filter(r=>excluded[r.email.toLowerCase()]).map(r=>r.email);
-    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined, exclude, include_future: includeFuture }});
+    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined, exclude, include_future: includeFuture, recipients: testEmail?undefined:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})) }});
     setSending(false);
     if(error||(data&&data.error)){ toast("Fehler: "+((data&&data.error)||(error&&error.message)||"unbekannt"),"error"); return; }
     toast(testEmail?"Testmail an dich gesendet":("Gesendet an "+data.sent+" von "+data.total));
@@ -13589,14 +13592,19 @@ function WerbungTab(){
         <button onClick={()=>setGroup("bewerber")} style={btn(group==="bewerber")}>Bewerber</button>
         {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:6,marginLeft:6,cursor:"pointer"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>Zuk\u00fcnftige Mieter einbeziehen</label>}
       </div>
+      <div><select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:"8px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+        <option value="alle">{group==="mieter"?"Alle WGs":"Alle Bewerber"}</option>
+        {group==="mieter" && apts.map(a=>(<option key={a.id} value={a.id}>{a.adresse}</option>))}
+        {group==="bewerber" && <option value="ohne_zuteilung">Nur ohne Zimmerzusage</option>}
+      </select></div>
       <div style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px",background:"#faf8f3"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setShowList(!showList)}>
-          <span style={{fontSize:13,fontWeight:600}}>{aktiveEmpf.length} von {list.length} Empf\u00e4nger ausgew\u00e4hlt</span>
+          <span style={{fontSize:13,fontWeight:600}}>{aktiveEmpf.length} von {filteredList.length} Empf\u00e4nger ausgew\u00e4hlt</span>
           <span style={{fontSize:12,color:"var(--muted)"}}>{showList?"ausblenden":"Empf\u00e4nger w\u00e4hlen"}</span>
         </div>
         {showList && <div style={{maxHeight:220,overflowY:"auto",marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
-          {list.length===0 && <div style={{fontSize:12,color:"var(--muted)"}}>Keine Empf\u00e4nger.</div>}
-          {list.map(r=>(<label key={r.email} style={{fontSize:13,display:"flex",alignItems:"center",gap:8,padding:"3px 0",cursor:"pointer"}}>
+          {filteredList.length===0 && <div style={{fontSize:12,color:"var(--muted)"}}>Keine Empf\u00e4nger.</div>}
+          {filteredList.map(r=>(<label key={r.email} style={{fontSize:13,display:"flex",alignItems:"center",gap:8,padding:"3px 0",cursor:"pointer"}}>
             <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))}/>
             <span>{r.name}</span><span style={{color:"var(--muted)",fontSize:11}}>{r.email}</span>
           </label>))}
