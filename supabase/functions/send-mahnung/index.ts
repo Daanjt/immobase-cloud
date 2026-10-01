@@ -106,7 +106,10 @@ serve(async (req) => {
 
     const { data: payment, error: pErr } = await supabase.from("payments").select("*").eq("id", payment_id).single();
     if (pErr || !payment) return new Response(JSON.stringify({ error: "Payment nicht gefunden: " + (pErr?.message || "") }), { status: 404, headers: { ...CORS, "Content-Type": "application/json" } });
-    if (payment.status === "bezahlt") return new Response(JSON.stringify({ error: "Diese Zahlung ist bereits als bezahlt markiert." }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+    const _restOffen = (betrag != null && Number(betrag) > 0)
+      ? Number(betrag)
+      : Math.max(0, (Number(payment.betrag_soll||0) + Number(payment.uebertrag||0)) - Number(payment.betrag_ist||0));
+    if (payment.status === "bezahlt" && _restOffen <= 0.01) return new Response(JSON.stringify({ error: "Diese Zahlung ist bereits vollstaendig bezahlt." }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
     if (stufeNum === 1 && payment.mahnung_1_sent_at) return new Response(JSON.stringify({ error: "1. Mahnung wurde bereits am " + new Date(payment.mahnung_1_sent_at).toLocaleDateString("de-CH") + " gesendet." }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
     if (stufeNum === 2) {
       if (!payment.mahnung_1_sent_at) return new Response(JSON.stringify({ error: "Sende erst die 1. Mahnung bevor du die 2. sendest." }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
