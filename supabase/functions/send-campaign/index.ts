@@ -52,7 +52,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     if (!RESEND_API_KEY) return j({ error: "Missing RESEND_API_KEY" }, 500);
-    const { group, subject, text, test_email, exclude, include_future, recipients: inRecip } = await req.json();
+    const { group, subject, text, test_email, exclude, include_future, recipients: inRecip, attachments: inAtt } = await req.json();
     if (!subject || !text) return j({ error: "Betreff und Text erforderlich" }, 400);
 
     const sb = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -96,7 +96,8 @@ serve(async (req) => {
 
     const logoB64 = await ladeLogo();
     const logoSrc = logoB64 ? "cid:dt-logo" : LOGO_URL;
-    const attachments = logoAnhang(logoB64);
+    let attachments = logoAnhang(logoB64);
+    if (Array.isArray(inAtt)) attachments = attachments.concat(inAtt.filter((a: any) => a && a.filename && a.content).map((a: any) => ({ filename: String(a.filename), content: String(a.content) })));
 
     let sent = 0; const failed: string[] = [];
     for (const r of recipients) {
