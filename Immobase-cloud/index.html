@@ -13533,7 +13533,7 @@ function WerbungTab(){
   const [log,setLog]=React.useState([]);
   const [saved,setSaved]=React.useState([]);
   const [apts,setApts]=React.useState([]);
-  const [openWg,setOpenWg]=React.useState({});
+  const [openN,setOpenN]=React.useState({});
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
@@ -13541,7 +13541,7 @@ function WerbungTab(){
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
   React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
-    setExcluded({});
+    setExcluded({}); setOpenN({});
     try{
       if(group==="mieter"){
         const [td,rd]=await Promise.all([
@@ -13569,17 +13569,16 @@ function WerbungTab(){
 
   const aptMap={}; apts.forEach(a=>{aptMap[a.id]=a.adresse;});
   const visible = group==="bewerber" && nurOhneZuteilung ? list.filter(r=>r.status!=="Zugeteilt") : list;
-  const aktiveEmpf = visible.filter(r=>!excluded[r.email.toLowerCase()]);
-  // Gruppieren nach WG (bei Bewerbern eine einzige Gruppe)
-  const groups=[];
-  if(group==="mieter"){
-    const by={}; visible.forEach(r=>{ const k=r.aptId||"_ohne"; (by[k]=by[k]||[]).push(r); });
-    const order=apts.map(a=>a.id).filter(id=>by[id]); if(by["_ohne"]) order.push("_ohne");
-    order.forEach(k=>groups.push({key:k,label:k==="_ohne"?"Ohne WG-Zuordnung":aptMap[k]||k,rows:by[k]}));
-  } else {
-    groups.push({key:"all",label:"Bewerber",rows:visible});
-  }
-  const setWgExcluded=(rows,exclude)=>{ setExcluded(p=>{const n={...p}; rows.forEach(r=>{ n[r.email.toLowerCase()]=exclude; }); return n;}); };
+  const isOn=(r)=>!excluded[r.email.toLowerCase()];
+  const aktiveEmpf = visible.filter(isOn);
+  // Baum Adresse -> Wohnung -> Bewohner
+  const byApt={}; visible.forEach(r=>{ const k=r.aptId||"_ohne"; (byApt[k]=byApt[k]||[]).push(r); });
+  const byAddr={};
+  Object.keys(byApt).forEach(aid=>{ const addr=aid==="_ohne"?"Ohne Zuordnung":(aptMap[aid]||aid); (byAddr[addr]=byAddr[addr]||[]).push({aid,rows:byApt[aid]}); });
+  const addrList=Object.keys(byAddr).sort();
+
+  const setRowsExcluded=(rows,exclude)=>{ setExcluded(p=>{const n={...p}; rows.forEach(r=>{ n[r.email.toLowerCase()]=exclude; }); return n;}); };
+  const nurDiese=(rows)=>{ setExcluded(p=>{const n={...p}; visible.forEach(r=>{ n[r.email.toLowerCase()]=true; }); rows.forEach(r=>{ n[r.email.toLowerCase()]=false; }); return n;}); };
 
   const vorlagen={
     empfehlung:{subject:"Verdiene 100 Franken – empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
@@ -13600,6 +13599,8 @@ function WerbungTab(){
   const seg=(active)=>({flex:1,textAlign:"center",background:active?"var(--ink)":"transparent",color:active?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"9px 0",fontSize:13.5,fontWeight:active?600:500,cursor:"pointer",fontFamily:"inherit"});
   const chip={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit"};
   const inp={width:"100%",padding:"11px 13px",border:"1px solid var(--line)",borderRadius:10,fontSize:14.5,fontFamily:"inherit",boxSizing:"border-box"};
+  const Chevron=({open})=><span style={{fontSize:14,color:"var(--muted)",display:"inline-block",transform:open?"rotate(180deg)":"none",flexShrink:0}}>⌄</span>;
+  const Cb=({checked,onChange,sz})=><input type="checkbox" checked={checked} onChange={onChange} onClick={e=>e.stopPropagation()} style={{width:sz||17,height:sz||17,flexShrink:0}}/>;
   const MONATE=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
   const fmtD=(iso)=>{try{const d=new Date(iso);return d.getDate()+". "+MONATE[d.getMonth()]+" "+d.getFullYear()+", "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}catch(_e){return iso;}};
   return (<div style={{maxWidth:620,margin:"0 auto"}}>
@@ -13616,32 +13617,57 @@ function WerbungTab(){
       {group==="bewerber" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={nurOhneZuteilung} onChange={e=>setNurOhneZuteilung(e.target.checked)}/>Nur ohne Zimmerzusage</label>}
     </div>
 
-    <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:7}}>{aktiveEmpf.length} von {visible.length} Empfängern ausgewählt {group==="mieter"?"· tippe eine WG an, um nur sie zu wählen":""}</div>
-    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:18}}>
-      {groups.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"12px 0"}}>Keine Empfänger.</div>}
-      {groups.map(g=>{
-        const aktiv=g.rows.filter(r=>!excluded[r.email.toLowerCase()]).length;
-        const alle=aktiv===g.rows.length; const offen=!!openWg[g.key];
-        const nurDiese=()=>{ setExcluded(p=>{const n={...p}; visible.forEach(r=>{ n[r.email.toLowerCase()]=true; }); g.rows.forEach(r=>{ n[r.email.toLowerCase()]=false; }); return n;}); };
-        return (<div key={g.key} style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#faf8f3"}}>
-            <input type="checkbox" checked={alle} onChange={e=>setWgExcluded(g.rows,!e.target.checked)} style={{width:17,height:17,flexShrink:0}}/>
-            <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpenWg(p=>({...p,[g.key]:!p[g.key]}))}>
-              <div style={{fontSize:13.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.label}</div>
-              <div style={{fontSize:11.5,color:"var(--muted)"}}>{aktiv} von {g.rows.length} ausgewählt</div>
-            </div>
-            {group==="mieter" && groups.length>1 && <button onClick={nurDiese} style={{...chip,padding:"5px 11px",fontSize:11.5}}>nur diese</button>}
-            <span onClick={()=>setOpenWg(p=>({...p,[g.key]:!p[g.key]}))} style={{fontSize:15,color:"var(--muted)",cursor:"pointer",transform:offen?"rotate(180deg)":"none"}}>⌄</span>
-          </div>
-          {offen && <div style={{borderTop:"1px solid var(--line)"}}>
-            {g.rows.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 14px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
-              <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} style={{width:16,height:16,flexShrink:0}}/>
-              <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
-            </label>))}
-          </div>}
-        </div>);
-      })}
-    </div>
+    <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:7}}>{aktiveEmpf.length} von {visible.length} Empfängern ausgewählt. Standardmässig alle. {group==="mieter"?"Tippe eine Adresse oder Wohnung an, um gezielt zu wählen.":""}</div>
+
+    {group==="bewerber"
+      ? <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",marginBottom:18,maxHeight:300,overflowY:"auto"}}>
+          {visible.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"12px 14px"}}>Keine Empfänger.</div>}
+          {visible.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 14px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
+            <Cb checked={isOn(r)} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} sz={16}/>
+            <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
+          </label>))}
+        </div>
+      : <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:18}}>
+          {addrList.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"8px 0"}}>Keine Empfänger.</div>}
+          {addrList.map(addr=>{
+            const whs=byAddr[addr]; const addrRows=whs.reduce((a,w)=>a.concat(w.rows),[]);
+            const addrAktiv=addrRows.filter(isOn).length; const addrAlle=addrAktiv===addrRows.length;
+            const ak="addr:"+addr; const aOpen=!!openN[ak];
+            return (<div key={addr} style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{display:"flex",alignItems:"center",gap:11,padding:"12px 14px",background:"#f5f1e8"}}>
+                <Cb checked={addrAlle} onChange={e=>setRowsExcluded(addrRows,!e.target.checked)}/>
+                <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpenN(p=>({...p,[ak]:!p[ak]}))}>
+                  <div style={{fontSize:14,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addr}</div>
+                  <div style={{fontSize:11.5,color:"var(--muted)"}}>{whs.length} Wohnung{whs.length>1?"en":""} · {addrAktiv}/{addrRows.length} ausgewählt</div>
+                </div>
+                <span onClick={()=>setOpenN(p=>({...p,[ak]:!p[ak]}))} style={{cursor:"pointer"}}><Chevron open={aOpen}/></span>
+              </div>
+              {aOpen && <div style={{borderTop:"1px solid var(--line)",padding:"6px 0 6px 0"}}>
+                {whs.map((w,wi)=>{
+                  const wAktiv=w.rows.filter(isOn).length; const wAlle=wAktiv===w.rows.length;
+                  const wk="apt:"+w.aid; const wOpen=!!openN[wk];
+                  return (<div key={w.aid} style={{margin:"0 10px 6px 10px",border:"1px solid #eee5d6",borderRadius:9,overflow:"hidden"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px"}}>
+                      <Cb checked={wAlle} onChange={e=>setRowsExcluded(w.rows,!e.target.checked)} sz={15}/>
+                      <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpenN(p=>({...p,[wk]:!p[wk]}))}>
+                        <div style={{fontSize:13,fontWeight:600}}>Wohnung {w.aid}</div>
+                        <div style={{fontSize:11,color:"var(--muted)"}}>{wAktiv}/{w.rows.length} ausgewählt</div>
+                      </div>
+                      <button onClick={()=>nurDiese(w.rows)} style={{...chip,padding:"4px 10px",fontSize:11}}>nur diese</button>
+                      <span onClick={()=>setOpenN(p=>({...p,[wk]:!p[wk]}))} style={{cursor:"pointer"}}><Chevron open={wOpen}/></span>
+                    </div>
+                    {wOpen && <div style={{borderTop:"1px solid #eee5d6"}}>
+                      {w.rows.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px 8px 14px",cursor:"pointer",borderTop:i?"1px solid #f5f0e6":"none"}}>
+                        <Cb checked={isOn(r)} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} sz={15}/>
+                        <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13,fontWeight:500}}>{r.name}</span><span style={{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
+                      </label>))}
+                    </div>}
+                  </div>);
+                })}
+              </div>}
+            </div>);
+          })}
+        </div>}
 
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
       <button style={chip} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Empfehlung</button>
