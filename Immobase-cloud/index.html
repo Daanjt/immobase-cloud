@@ -13538,7 +13538,7 @@ function WerbungTab(){
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
   const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
-  const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage l\u00f6schen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
+  const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
   React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
     setExcluded({}); setFilter("alle");
@@ -13565,12 +13565,12 @@ function WerbungTab(){
   const filteredList=list.filter(r=>{ if(filter==="alle")return true; if(group==="mieter")return r.aptId===filter; if(group==="bewerber"&&filter==="ohne_zuteilung")return r.status!=="Zugeteilt"; return true; });
   const aktiveEmpf=filteredList.filter(r=>!excluded[r.email.toLowerCase()]);
   const vorlagen={
-    empfehlung:{subject:"Verdiene 100 Franken \u2013 empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Z\u00fcrich sucht? Dann haben wir ein Angebot f\u00fcr dich.\n\nF\u00fcr jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner n\u00e4chsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der n\u00e4chsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
-    freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige sch\u00f6ne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
+    empfehlung:{subject:"Verdiene 100 Franken – empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
+    freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige schöne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
   };
   const senden=async(testEmail)=>{
-    if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausf\u00fcllen","error"); return; }
-    if(!testEmail && aktiveEmpf.length===0){ toast("Keine Empf\u00e4nger ausgew\u00e4hlt","error"); return; }
+    if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausfüllen","error"); return; }
+    if(!testEmail && aktiveEmpf.length===0){ toast("Keine Empfänger ausgewählt","error"); return; }
     if(!testEmail && !confirm("E-Mail an "+aktiveEmpf.length+" "+(group==="mieter"?"Mieter":"Bewerber")+" senden?")) return;
     setSending(true);
     const exclude = testEmail ? [] : list.filter(r=>excluded[r.email.toLowerCase()]).map(r=>r.email);
@@ -13580,57 +13580,66 @@ function WerbungTab(){
     toast(testEmail?"Testmail an dich gesendet":("Gesendet an "+data.sent+" von "+data.total));
     if(!testEmail) ladeLog();
   };
-  const btn=(active)=>({background:active?"var(--ink)":"#fff",color:active?"#fff":"var(--ink)",border:"1px solid var(--line)",borderRadius:8,padding:"8px 14px",fontSize:13,cursor:"pointer",fontFamily:"inherit"});
-  const MONATE=["Jan","Feb","M\u00e4r","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  const seg=(active)=>({flex:1,textAlign:"center",background:active?"var(--ink)":"transparent",color:active?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"9px 0",fontSize:13.5,fontWeight:active?600:500,cursor:"pointer",fontFamily:"inherit"});
+  const chip={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit"};
+  const inp={width:"100%",padding:"11px 13px",border:"1px solid var(--line)",borderRadius:10,fontSize:14.5,fontFamily:"inherit",boxSizing:"border-box"};
+  const MONATE=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
   const fmtD=(iso)=>{try{const d=new Date(iso);return d.getDate()+". "+MONATE[d.getMonth()]+" "+d.getFullYear()+", "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}catch(_e){return iso;}};
-  return (<div>
+  return (<div style={{maxWidth:620,margin:"0 auto"}}>
     <div className="pt">Werbung</div>
-    <div style={{fontSize:13,color:"var(--muted)",marginTop:4,marginBottom:16}}>Geb\u00fcndelte E-Mails an Mieter oder Bewerber, im D&T-Design mit pers\u00f6nlicher Anrede.</div>
-    <div style={{maxWidth:680,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        <button onClick={()=>setGroup("mieter")} style={btn(group==="mieter")}>Mieter</button>
-        <button onClick={()=>setGroup("bewerber")} style={btn(group==="bewerber")}>Bewerber</button>
-        {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:6,marginLeft:6,cursor:"pointer"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>Zuk\u00fcnftige Mieter einbeziehen</label>}
-      </div>
-      <div><select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:"8px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+    <div style={{fontSize:13,color:"var(--muted)",marginTop:2,marginBottom:18}}>Gebündelte E-Mails an Mieter oder Bewerber, mit persönlicher Anrede und im D&T-Design.</div>
+
+    <div style={{display:"flex",background:"#f1ece2",borderRadius:9,padding:3,marginBottom:14}}>
+      <button onClick={()=>setGroup("mieter")} style={seg(group==="mieter")}>Mieter</button>
+      <button onClick={()=>setGroup("bewerber")} style={seg(group==="bewerber")}>Bewerber</button>
+    </div>
+
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
+      <select value={filter} onChange={e=>setFilter(e.target.value)} style={{...inp,width:"auto",flex:"1 1 180px",padding:"9px 12px",fontSize:13.5}}>
         <option value="alle">{group==="mieter"?"Alle WGs":"Alle Bewerber"}</option>
         {group==="mieter" && apts.map(a=>(<option key={a.id} value={a.id}>{a.adresse}</option>))}
         {group==="bewerber" && <option value="ohne_zuteilung">Nur ohne Zimmerzusage</option>}
-      </select></div>
-      <div style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 14px",background:"#faf8f3"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setShowList(!showList)}>
-          <span style={{fontSize:13,fontWeight:600}}>{aktiveEmpf.length} von {filteredList.length} Empf\u00e4nger ausgew\u00e4hlt</span>
-          <span style={{fontSize:12,color:"var(--muted)"}}>{showList?"ausblenden":"Empf\u00e4nger w\u00e4hlen"}</span>
-        </div>
-        {showList && <div style={{maxHeight:220,overflowY:"auto",marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
-          {filteredList.length===0 && <div style={{fontSize:12,color:"var(--muted)"}}>Keine Empf\u00e4nger.</div>}
-          {filteredList.map(r=>(<label key={r.email} style={{fontSize:13,display:"flex",alignItems:"center",gap:8,padding:"3px 0",cursor:"pointer"}}>
-            <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))}/>
-            <span>{r.name}</span><span style={{color:"var(--muted)",fontSize:11}}>{r.email}</span>
-          </label>))}
-        </div>}
+      </select>
+      {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>künftige Mieter</label>}
+    </div>
+
+    <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",marginBottom:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 15px",cursor:"pointer",background:"#faf8f3"}} onClick={()=>setShowList(!showList)}>
+        <span style={{fontSize:13.5,fontWeight:600}}>{aktiveEmpf.length} von {filteredList.length} ausgewählt</span>
+        <span style={{fontSize:16,color:"var(--muted)",transform:showList?"rotate(180deg)":"none",transition:"transform .15s"}}>⌄</span>
       </div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        <button style={btn(false)} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Vorlage: Empfehlung</button>
-        <button style={btn(false)} onClick={()=>{setSubject(vorlagen.freieZimmer.subject);setText(vorlagen.freieZimmer.text);}}>Vorlage: Freie Zimmer</button>
-        {saved.map(v=>(<span key={v.id} style={{display:"inline-flex",alignItems:"center"}}><button style={btn(false)} onClick={()=>{setSubject(v.betreff||"");setText(v.text||"");}}>{v.name}</button><button onClick={()=>loeschenVorlage(v.id)} style={{border:"1px solid var(--line)",borderLeft:"none",borderRadius:"0 8px 8px 0",background:"#fff",color:"#b06a5a",cursor:"pointer",padding:"8px 9px",fontSize:12}}>x</button></span>))}
-        <button style={{...btn(false),borderStyle:"dashed"}} onClick={speichernVorlage}>+ Als Vorlage speichern</button>
-      </div>
-      <div><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Betreff</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}/></div>
-      <div><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Nachricht</label><textarea rows={11} value={text} onChange={e=>setText(e.target.value)} placeholder="Text der Nachricht. Die Anrede (Hallo Vorname,) und die Signatur werden automatisch erg\u00e4nzt." style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:14,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}/></div>
-      <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.5}}>Jede Mail erh\u00e4lt automatisch die pers\u00f6nliche Anrede mit Vornamen, das D&T-Logo und die Signatur. Eine Kopie geht per BCC an dich.</div>
-      <div style={{display:"flex",gap:10,marginTop:4}}>
-        <button style={btn(false)} disabled={sending} onClick={()=>senden("daan.theijse@dthomes.ch")}>Test an mich</button>
-        <button style={{...btn(true),opacity:sending?0.6:1}} disabled={sending} onClick={()=>senden()}>{sending?"Sende \u2026":("An "+aktiveEmpf.length+" senden")}</button>
-      </div>
-      <div style={{marginTop:24}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Logbuch</div>
-        {log.length===0 && <div style={{fontSize:12,color:"var(--muted)"}}>Noch keine Kampagnen gesendet.</div>}
-        {log.map(k=>(<div key={k.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"8px 0",borderTop:"1px solid #f0eadd",fontSize:12.5}}>
-          <div><div style={{fontWeight:600}}>{k.betreff}</div><div style={{color:"var(--muted)"}}>{fmtD(k.created_at)} \u00b7 {k.gruppe==="mieter"?"Mieter":"Bewerber"}</div></div>
-          <div style={{color:"var(--muted)",whiteSpace:"nowrap"}}>{k.gesendet}/{k.empfaenger_anzahl} gesendet</div>
-        </div>))}
-      </div>
+      {showList && <div style={{maxHeight:240,overflowY:"auto",borderTop:"1px solid var(--line)"}}>
+        {filteredList.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"14px 15px"}}>Keine Empfänger.</div>}
+        {filteredList.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 15px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
+          <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} style={{width:17,height:17,flexShrink:0}}/>
+          <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
+        </label>))}
+      </div>}
+    </div>
+
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+      <button style={chip} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Empfehlung</button>
+      <button style={chip} onClick={()=>{setSubject(vorlagen.freieZimmer.subject);setText(vorlagen.freieZimmer.text);}}>Freie Zimmer</button>
+      {saved.map(v=>(<span key={v.id} style={{display:"inline-flex",alignItems:"center"}}><button style={{...chip,borderRadius:"20px 0 0 20px"}} onClick={()=>{setSubject(v.betreff||"");setText(v.text||"");}}>{v.name}</button><button onClick={()=>loeschenVorlage(v.id)} style={{border:"1px solid var(--line)",borderLeft:"none",borderRadius:"0 20px 20px 0",background:"#fff",color:"#b06a5a",cursor:"pointer",padding:"7px 10px",fontSize:12}}>×</button></span>))}
+      <button style={{...chip,borderStyle:"dashed",color:"var(--muted)"}} onClick={speichernVorlage}>+ speichern</button>
+    </div>
+
+    <div style={{marginBottom:12}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Betreff</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={inp}/></div>
+    <div style={{marginBottom:10}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Nachricht</label><textarea rows={11} value={text} onChange={e=>setText(e.target.value)} placeholder="Text der Nachricht. Anrede (Hallo Vorname,) und Signatur werden automatisch ergänzt." style={{...inp,lineHeight:1.5,resize:"vertical"}}/></div>
+    <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.5,marginBottom:16}}>Jede Mail bekommt die persönliche Anrede mit Vornamen, das Logo und die Signatur. Eine Kopie geht per BCC an dich.</div>
+
+    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      <button style={{...chip,borderRadius:10,padding:"12px 18px",flex:"1 1 140px"}} disabled={sending} onClick={()=>senden("daan.theijse@dthomes.ch")}>Test an mich</button>
+      <button style={{flex:"2 1 180px",background:"var(--ink)",color:"#fff",border:"none",borderRadius:10,padding:"12px 18px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:sending?0.6:1}} disabled={sending} onClick={()=>senden()}>{sending?"Sende …":("An "+aktiveEmpf.length+" senden")}</button>
+    </div>
+
+    <div style={{marginTop:28}}>
+      <div style={{fontSize:13.5,fontWeight:700,marginBottom:6}}>Logbuch</div>
+      {log.length===0 && <div style={{fontSize:12.5,color:"var(--muted)"}}>Noch keine Kampagnen gesendet.</div>}
+      {log.map(k=>(<div key={k.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"10px 0",borderTop:"1px solid #f0eadd",fontSize:12.5}}>
+        <div style={{minWidth:0}}><div style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{k.betreff}</div><div style={{color:"var(--muted)"}}>{fmtD(k.created_at)} · {k.gruppe==="mieter"?"Mieter":"Bewerber"}</div></div>
+        <div style={{color:"var(--muted)",whiteSpace:"nowrap"}}>{k.gesendet}/{k.empfaenger_anzahl}</div>
+      </div>))}
     </div>
   </div>);
 }
