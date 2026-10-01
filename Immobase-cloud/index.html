@@ -9962,12 +9962,12 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
-            {tab==="uebergabe" && tenant.auszug && <div style={{display:"flex",background:"#f1ece2",borderRadius:9,padding:3,marginBottom:16,maxWidth:300}}>
+            {tab==="uebergabe" && <div style={{display:"flex",background:"#f1ece2",borderRadius:9,padding:3,marginBottom:16,maxWidth:300}}>
               <button onClick={()=>setUebTab("einzug")} style={{flex:1,textAlign:"center",background:uebTab==="einzug"?"var(--ink)":"transparent",color:uebTab==="einzug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Einzug</button>
               <button onClick={()=>setUebTab("auszug")} style={{flex:1,textAlign:"center",background:uebTab==="auszug"?"var(--ink)":"transparent",color:uebTab==="auszug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Auszug</button>
             </div>}
-            {tab==="uebergabe" && tenant.auszug && uebTab==="auszug" && <KautionsAbrechnung tenant={tenant}/>}
-            {tab==="uebergabe" && (!tenant.auszug || uebTab==="einzug") && (()=>{
+            {tab==="uebergabe" && uebTab==="auszug" && <KautionsAbrechnung tenant={tenant}/>}
+            {tab==="uebergabe" && uebTab==="einzug" && (()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
               const manuell = (tenant.uebergabeStatus||"offen")==="erledigt";
