@@ -13758,7 +13758,7 @@ function KautionsAbrechnung({tenant}){
   const [abzuege,setAbzuege]=React.useState([]);
   const [sent,setSent]=React.useState(null);
   const [busy,setBusy]=React.useState(false);
-  React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung,kaution_betrag").eq("id",tenant.id).single(); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):(data&&data.kaution_betrag!=null?String(data.kaution_betrag):"")); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); } else if(data&&data.kaution_betrag!=null){ setBetrag(String(data.kaution_betrag)); } }catch(_e){} })();},[tenant.id]);
+  React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung,kaution_betrag,kaution_monate,mietzins").eq("id",tenant.id).single(); const _kb=(data&&data.kaution_betrag!=null&&data.kaution_betrag!=="")?+data.kaution_betrag:((data&&+data.kaution_monate>0&&data.mietzins)?(+data.kaution_monate*+data.mietzins):null); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):(_kb!=null?String(_kb):"")); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); } else if(_kb!=null){ setBetrag(String(_kb)); } }catch(_e){} })();},[tenant.id]);
   const summe=abzuege.reduce((s,a)=>s+(+a.betrag||0),0);
   const rueck=Math.max(0,(+betrag||0)-summe);
   const addZeile=(grund)=>setAbzuege(p=>[...p,{grund:grund||"",betrag:""}]);
