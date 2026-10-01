@@ -97,7 +97,7 @@ serve(async (req) => {
     if (!RESEND_API_KEY) return new Response(JSON.stringify({ error: "Missing RESEND_API_KEY" }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
 
     const body = await req.json();
-    const { payment_id, stufe } = body;
+    const { payment_id, stufe, betrag } = body;
     if (!payment_id || ![1, 2].includes(Number(stufe))) {
       return new Response(JSON.stringify({ error: "payment_id und stufe (1 oder 2) erforderlich" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
     }
@@ -121,7 +121,8 @@ serve(async (req) => {
     const soll = Number(payment.betrag_soll || 0);
     const uebertrag = Number(payment.uebertrag || 0);
     const ist = Number(payment.betrag_ist || 0);
-    const betragSoll = Math.max(0, (soll + uebertrag) - ist);
+    let betragSoll = Math.max(0, (soll + uebertrag) - ist);
+    if (betrag != null && !isNaN(Number(betrag)) && Number(betrag) > 0) betragSoll = Number(betrag); // vom Nutzer angepasster Betrag
     const mahnungFee = Number(payment.mahnung_fee || 30);
     const totalOffen = betragSoll + (stufeNum === 2 ? mahnungFee : 0);
 
