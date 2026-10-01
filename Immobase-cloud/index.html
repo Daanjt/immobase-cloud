@@ -4087,6 +4087,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
 function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const [kautionTenant,setKautionTenant]=React.useState(null);
+  const [dismissed,setDismissed]=React.useState([]);
   const heute = new Date();
   heute.setHours(0,0,0,0);
   
@@ -4177,7 +4178,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   // ─── AUSZUG: Anstehende Auszüge ────────────────────────────────
   const reminders = tenants
     .filter(t => t.auszug && t.auszug.trim())
-    .filter(t => { const a=(t.status||"aktiv")==="aktiv"; const arch=t.status==="archiviert"; const kDone=!!(t.kautionAbrechnung&&(t.kautionAbrechnung.gesendet_am||t.kautionAbrechnung.erledigt_am)); return a || (arch && !kDone); })
+    .filter(t => { const a=(t.status||"aktiv")==="aktiv"; const arch=t.status==="archiviert"; const kDone=!!(t.kautionAbrechnung&&(t.kautionAbrechnung.gesendet_am||t.kautionAbrechnung.erledigt_am)); return !kDone && (a || arch); })
     .map(t => {
       const dt = parseD(t.auszug);
       if (!dt) return null;
@@ -4196,6 +4197,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       return { tenant: t, room, apt, dt, daysLeft, aptEndsToo, kautionOffen };
     })
     .filter(x => x && ((x.daysLeft >= -7 && x.daysLeft <= 90) || (x.kautionOffen && x.daysLeft >= -180)))
+    .filter(x => !dismissed.includes(x.tenant.id))
     .sort((a,b) => a.daysLeft - b.daysLeft);
   
   function reminderCat(daysLeft, aptEndsToo) {
@@ -4383,7 +4385,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     <div style={{fontSize:15,fontWeight:700}}>{kautionTenant.vorname} {kautionTenant.nachname}</div>
                     <button onClick={()=>setKautionTenant(null)} style={{border:"none",background:"none",fontSize:24,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
                   </div>
-                  <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant}/></div>
+                  <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant} onDone={()=>{setDismissed(d=>[...d,kautionTenant.id]); setKautionTenant(null);}}/></div>
                 </div>
               </div>}
               {reminders.map(r => {
@@ -13753,7 +13755,7 @@ function WerbungTab(){
   </div>);
 }
 
-function KautionsAbrechnung({tenant}){
+function KautionsAbrechnung({tenant,onDone}){
   const [betrag,setBetrag]=React.useState("");
   const [abzuege,setAbzuege]=React.useState([]);
   const [sent,setSent]=React.useState(null);
@@ -13766,9 +13768,9 @@ function KautionsAbrechnung({tenant}){
   const setZeile=(i,k,v)=>setAbzuege(p=>p.map((a,j)=>j===i?{...a,[k]:v}:a));
   const delZeile=(i)=>setAbzuege(p=>p.filter((_,j)=>j!==i));
   const clean=()=>abzuege.filter(a=>(+a.betrag||0)>0).map(a=>({grund:(a.grund||"Abzug").trim(),betrag:+a.betrag||0}));
-  const abschliessen=async()=>{ if(!confirm("Auszug ohne Mail als erledigt markieren?")) return; const {error}=await supabase.from("tenants").update({kaution_abrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,erledigt_am:new Date().toISOString()}}).eq("id",tenant.id); if(error){ toast("Fehler","error"); return; } setErledigt(new Date().toISOString()); toast("Als erledigt markiert"); };
+  const abschliessen=async()=>{ if(!confirm("Auszug ohne Mail als erledigt markieren?")) return; const {error}=await supabase.from("tenants").update({kaution_abrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,erledigt_am:new Date().toISOString()}}).eq("id",tenant.id); if(error){ toast("Fehler","error"); return; } setErledigt(new Date().toISOString()); toast("Als erledigt markiert"); onDone && onDone(); };
   const speichern=async()=>{ const {error}=await supabase.from("tenants").update({kaution_abrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck}}).eq("id",tenant.id); toast(error?"Fehler beim Speichern":"Gespeichert",error?"error":"ok"); };
-  const senden=async()=>{ if(!(+betrag>0)){ toast("Kautionsbetrag eintragen","error"); return; } if(!confirm("Kautionsabrechnung per Mail an den Mieter senden?")) return; setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean()}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } setSent(new Date().toISOString()); toast("Abrechnung gesendet"); };
+  const senden=async()=>{ if(!(+betrag>0)){ toast("Kautionsbetrag eintragen","error"); return; } if(!confirm("Kautionsabrechnung per Mail an den Mieter senden?")) return; setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean()}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } setSent(new Date().toISOString()); toast("Abrechnung gesendet"); onDone && onDone(); };
   const inp={padding:"9px 11px",border:"1px solid var(--line)",borderRadius:8,fontSize:13.5,fontFamily:"inherit",boxSizing:"border-box"};
   const chipb={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
   const fmt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("de-CH");}catch(_e){return "";}};
