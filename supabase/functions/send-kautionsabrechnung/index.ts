@@ -43,11 +43,16 @@ ${zeilen || ''}
 <tr><td style="padding:9px 0 0;font-weight:600;border-top:2px solid #1a1814;">Rückzahlung</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${chf(rueck)}</td></tr>
 </table>`;
 
-    const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
-<p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei uns. Hier die Abrechnung deiner Kaution:</p>
+    const dankSchluss = `<p style="font-size:14px;margin:0 0 18px;">Schön, dass du Teil von D&amp;T Homes warst. Wir wünschen dir viel Erfolg und alles Gute für die Zukunft.</p>`;
+    const inhalt = summe > 0
+      ? `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
+<p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei D&amp;T Homes, wir hoffen, du hattest eine schöne Zeit bei uns. Hier die Abrechnung deiner Kaution:</p>
 ${tabelle}
-${summe > 0 ? `<p style="font-size:14px;margin:0 0 18px;">Nach Abzug der oben aufgeführten Positionen erhältst du <strong>${chf(rueck)}</strong> zurück. Die Rückzahlung erfolgt über Evorest.</p>` : `<p style="font-size:14px;margin:0 0 18px;">Es gibt keine Abzüge. Du erhältst die volle Kaution von <strong>${chf(rueck)}</strong> zurück. Die Rückzahlung erfolgt über Evorest.</p>`}
-<p style="font-size:14px;margin:0 0 18px;">Falls du Fragen zur Abrechnung hast, melde dich gerne.</p>`;
+<p style="font-size:14px;margin:0 0 18px;">Nach Abzug der oben aufgeführten Positionen erhältst du <strong>${chf(rueck)}</strong> zurück. Die Verrechnung und Rückzahlung werden direkt über Evorest abgewickelt.</p>
+${dankSchluss}`
+      : `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
+<p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei D&amp;T Homes. Es freut uns, dir mitzuteilen, dass du deine volle Kaution von <strong>${chf(rueck)}</strong> zurückerhältst. Die Rückzahlung läuft direkt über Evorest.</p>
+${dankSchluss}`;
 
     const wa = `https://wa.me/${WA_DIGITS}`;
     const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
