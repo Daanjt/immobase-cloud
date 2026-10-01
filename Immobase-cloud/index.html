@@ -13532,7 +13532,8 @@ function WerbungTab(){
   const [sending,setSending]=React.useState(false);
   const [log,setLog]=React.useState([]);
   const [saved,setSaved]=React.useState([]);
-  const [filter,setFilter]=React.useState("alle");
+  const [wgSel,setWgSel]=React.useState({});
+  const [nurOhneZuteilung,setNurOhneZuteilung]=React.useState(false);
   const [apts,setApts]=React.useState([]);
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
@@ -13541,7 +13542,7 @@ function WerbungTab(){
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
   React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
-    setExcluded({}); setFilter("alle");
+    setExcluded({}); setWgSel({}); setNurOhneZuteilung(false);
     try{
       if(group==="mieter"){
         const {data}=await supabase.from("tenants").select("vorname,nachname,email,status,einzug,apt_id").not("email","is",null);
@@ -13562,7 +13563,9 @@ function WerbungTab(){
       }
     }catch(_e){ setList([]); }
   })();},[group,includeFuture]);
-  const filteredList=list.filter(r=>{ if(filter==="alle")return true; if(group==="mieter")return r.aptId===filter; if(group==="bewerber"&&filter==="ohne_zuteilung")return r.status!=="Zugeteilt"; return true; });
+  const aptMap={}; apts.forEach(a=>{aptMap[a.id]=a.adresse;});
+  const wgKeys=Object.keys(wgSel).filter(k=>wgSel[k]);
+  const filteredList=list.filter(r=>{ if(group==="mieter"){ if(wgKeys.length===0)return true; return wgKeys.includes(r.aptId); } if(group==="bewerber"){ return !nurOhneZuteilung || r.status!=="Zugeteilt"; } return true; });
   const aktiveEmpf=filteredList.filter(r=>!excluded[r.email.toLowerCase()]);
   const vorlagen={
     empfehlung:{subject:"Verdiene 100 Franken – empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
@@ -13594,13 +13597,15 @@ function WerbungTab(){
       <button onClick={()=>setGroup("bewerber")} style={seg(group==="bewerber")}>Bewerber</button>
     </div>
 
-    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
-      <select value={filter} onChange={e=>setFilter(e.target.value)} style={{...inp,width:"auto",flex:"1 1 180px",padding:"9px 12px",fontSize:13.5}}>
-        <option value="alle">{group==="mieter"?"Alle WGs":"Alle Bewerber"}</option>
-        {group==="mieter" && apts.map(a=>(<option key={a.id} value={a.id}>{a.adresse}</option>))}
-        {group==="bewerber" && <option value="ohne_zuteilung">Nur ohne Zimmerzusage</option>}
-      </select>
-      {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>künftige Mieter</label>}
+    <div style={{marginBottom:14}}>
+      {group==="mieter" && <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:apts.length?9:0}}>
+        {apts.map(a=>{const on=!!wgSel[a.id];return <button key={a.id} onClick={()=>setWgSel(p=>({...p,[a.id]:!p[a.id]}))} style={{...chip,background:on?"var(--ink)":"#fff",color:on?"#fff":"var(--ink)"}}>{a.adresse}</button>;})}
+        {wgKeys.length>0 && <button onClick={()=>setWgSel({})} style={{...chip,borderStyle:"dashed",color:"var(--muted)"}}>alle WGs</button>}
+      </div>}
+      <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+        {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>künftige Mieter</label>}
+        {group==="bewerber" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={nurOhneZuteilung} onChange={e=>setNurOhneZuteilung(e.target.checked)}/>Nur ohne Zimmerzusage</label>}
+      </div>
     </div>
 
     <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",marginBottom:18}}>
@@ -13612,7 +13617,7 @@ function WerbungTab(){
         {filteredList.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"14px 15px"}}>Keine Empfänger.</div>}
         {filteredList.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 15px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
           <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} style={{width:17,height:17,flexShrink:0}}/>
-          <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
+          <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}{group==="mieter"&&aptMap[r.aptId]?"  ·  "+aptMap[r.aptId]:""}</span></span>
         </label>))}
       </div>}
     </div>
