@@ -4537,7 +4537,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   const wgRooms = rooms.filter(r=>wgIds.includes(r.aptId));
   
   // ─── KAUTIONS-AUFSCHLÄGE ───────────────────────────────────────
-  // Mieter, die einen monatlichen Aufschlag wegen reduzierter Kaution zahlen
+  // Mieter, die einen monatlichen Servicegebühr wegen reduzierter Kaution zahlen
   // (archivierte Mieter ausschliessen - sie zahlen nicht mehr)
   const _heuteMid = new Date(); _heuteMid.setHours(0,0,0,0);
   const istAktuellerMieter = (t) => {
@@ -4562,7 +4562,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     .filter(x => x.aufschlag > 0);
   const totalAufschlagMonat = aufschlagMieter.reduce((s,x) => s + x.aufschlag, 0);
   
-  // WG calculations - IMMER inkl. Strom (CHF 25/belegtem Zimmer) und Kautions-Aufschlag
+  // WG calculations - IMMER inkl. Strom (CHF 25/belegtem Zimmer) und Kautions-Servicegebühr
   const wgAusgaben = wgApts.reduce((s,a)=>s+(+a.miete||0),0);
   
   // Strom: CHF 25 pro belegtem Zimmer (Pauschale)
@@ -4570,7 +4570,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   const wgStromIst = wgOcc * 25;
   const wgStromMax = wgRooms.length * 25; // bei Vollbelegung
   
-  // Aufschlag: Summe aller monatlichen Kautions-Aufschläge der aktiven Mieter in den WGs
+  // Servicegebühr: Summe aller monatlichen Kautions-Aufschläge der aktiven Mieter in den WGs
   const wgTenantIds = new Set(wgRooms.filter(r=>r.tenantId).map(r=>r.tenantId));
   // Servicegebuehr-Total = exakt die Summe der Wohnungs-Zeilen: gleiche Zuordnung
   // wie pro Wohnung (aptId / roomId / room.tenantId) UND gleicher Fee inkl.
@@ -4590,7 +4590,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
     .filter(t => (t.moebliert===true||t.moebliert==="ja") && t.moeblierungModus==="monatlich")
     .reduce((s,t) => s + moeblVon(t), 0);
   
-  // Einnahmen = Zimmer-Miete + Strom + Aufschlag + monatliche Moeblierung (alles inkl.)
+  // Einnahmen = Zimmer-Miete + Strom + Servicegebühr + monatliche Moeblierung (alles inkl.)
   const wgEinnahmenIst = wgRooms.filter(r=>r.occupied).reduce((s,r)=>{const _t=tenants.find(x=>x.id===r.tenantId);return s+((_t&&_t.mietzins!=null&&_t.mietzins!=="")?+_t.mietzins:(+r.miete||0));},0) + wgStromIst + wgAufschlag + wgMoeblierung;
   const wgEinnahmenMax = wgRooms.reduce((s,r)=>s+(+r.miete||0),0) + wgStromMax + wgAufschlag + wgMoeblierung;
   
@@ -4727,7 +4727,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
               const aStromIst = aOcc * 25;                  // bei aktueller Belegung
               const aStromMax = rs.length * 25;             // bei Vollbelegung
               // Einnahmen IMMER inkl. Strom
-              // Mieter dieser Wohnung ermitteln (fuer Aufschlag und monatliche Moeblierung)
+              // Mieter dieser Wohnung ermitteln (fuer Servicegebühr und monatliche Moeblierung)
               const aptTenants = tenants
                 .filter(t => (t.status||"aktiv") === "aktiv")
                 .filter(t => {
@@ -4749,10 +4749,10 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   let auf = feeVon(t);
                   return s + auf;
                 }, 0);
-              // Marge IST/MAX: Einnahmen (inkl. Strom) - Ausgaben, OHNE Aufschlag (bleibt separat)
+              // Marge IST/MAX: Einnahmen (inkl. Strom) - Ausgaben, OHNE Servicegebühr (bleibt separat)
               const aMargeIst = aIst - (+a.miete||0);
               const aMargeMax = aMax - (+a.miete||0);
-              // Marge Total: Marge MAX + Aufschlag = "alles inklusive bei Vollbelegung"
+              // Marge Total: Marge MAX + Servicegebühr = "alles inklusive bei Vollbelegung"
               const aMargeTotal = aMargeMax + aAufschlag;
               return (
                 <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer"}}>
@@ -4767,7 +4767,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
                   <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
-                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
+                  <td data-label="Servicegebühr" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
                   <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
                   <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -4783,15 +4783,15 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
             <tr style={{borderTop:"2px solid #1a1814"}}>
               <td colSpan={6} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
-              {/* Einnahmen IST/MAX: inkl. Strom, ohne Aufschlag (Aufschlag steht separat) */}
+              {/* Einnahmen IST/MAX: inkl. Strom, ohne Servicegebühr (Servicegebühr steht separat) */}
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst - wgAufschlag)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#8a8174",paddingTop:14}}>{chf(wgEinnahmenMax - wgAufschlag)}</td>
-              {/* Marge IST/MAX: ohne Aufschlag, mit Strom */}
+              {/* Marge IST/MAX: ohne Servicegebühr, mit Strom */}
               <td style={{textAlign:"right",fontWeight:700,color:(wgMargeIst-wgAufschlag)>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{(wgMargeIst-wgAufschlag)>=0?"+":""}{chf(wgMargeIst - wgAufschlag)}</td>
               <td style={{textAlign:"right",fontWeight:700,color:"#1a1814",paddingTop:14}}>+{chf(wgMargeMax - wgAufschlag)}</td>
-              {/* Aufschlag: separat */}
+              {/* Servicegebühr: separat */}
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>+{chf(wgAufschlag)}</td>
-              {/* Marge Total: Marge MAX + Aufschlag = alles inklusive bei Vollbelegung */}
+              {/* Marge Total: Marge MAX + Servicegebühr = alles inklusive bei Vollbelegung */}
               <td style={{textAlign:"right",fontWeight:700,color:wgMargeMax>=0?"#5a6e4a":"#9b4a3e",paddingTop:14}}>{wgMargeMax>=0?"+":""}{chf(wgMargeMax)}</td>
               <td style={{paddingTop:14}}><span style={{fontSize:11,color:"#8a8174"}}>{wgAuslastung}%</span></td>
             </tr>
@@ -4860,7 +4860,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                       <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
                       <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
                       <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
-                      <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
+                      <td data-label="Servicegebühr" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
                       <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
                       <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -4989,7 +4989,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(aMax)}</td>
                   <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:aMargeIst>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeIst>=0?"+":"")+chf(aMargeIst)}</td>
                   <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>+{chf(aMargeMax)}</td>
-                  <td data-label="Aufschlag" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
+                  <td data-label="Servicegebühr" style={{textAlign:"right",color:aAufschlag>0?"#5a6e4a":"#bab2a0"}}>{aAufschlag>0?"+"+chf(aAufschlag):"-"}</td>
                   <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:aMargeTotal>=0?"#5a6e4a":"#9b4a3e"}}>{(aMargeTotal>=0?"+":"")+chf(aMargeTotal)}</td>
                   <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -5134,7 +5134,7 @@ function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
   const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
   const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
   // Defensive recalculation - Strom fix 25 für dieses Formular
-  // Kautions-Aufschlag wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
+  // Kautions-Servicegebühr wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
   const stromFix = 25;
   const nettomiete = +v.nettomiete || 0;
   // Frueherer Mietzins: ein Bruttowert (inkl. NK + Strom), netto = brutto - NK - Strom
@@ -6693,7 +6693,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
         if (!confirm(`Das Einzugsdatum (${einT.toLocaleDateString("de-CH")}) liegt nicht nach dem Auszug des aktuellen Mieters (${ausT.toLocaleDateString("de-CH")}). Trotzdem anlegen?`)) return;
       }
     }
-    // Kautionsvariante und Aufschlag aus dem Bewerber ableiten (gleiche Logik wie im
+    // Kautionsvariante und Servicegebühr aus dem Bewerber ableiten (gleiche Logik wie im
     // Vertrag), damit Mieter und Vertrag uebereinstimmen und nichts manuell nachgetragen
     // werden muss.
     let zutKautionMonate = 3, zutKautionAufschlag = 0;
@@ -6926,7 +6926,7 @@ www.dthomes.ch`;
     const nebenkosten = 100;
     const nettomiete = bruttomiete - nebenkosten;
     const strom = 25; // Fix CHF 25 Stromkostenpauschale
-    // Kein Kautions-Aufschlag im Anfangsmietzins (gehört zum Untermietvertrag)
+    // Kein Kautions-Servicegebühr im Anfangsmietzins (gehört zum Untermietvertrag)
     const total = nettomiete + nebenkosten + strom;
     const tempData = {
       zimmerId: targetRoomId || "",
@@ -7153,7 +7153,7 @@ www.dthomes.ch`;
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     if (!fullName) throw new Error("Bewerber hat keinen Namen");
 
-    // AMZ braucht angepasste Daten (Strom=25, kein Aufschlag)
+    // AMZ braucht angepasste Daten (Strom=25, kein Servicegebühr)
     const stromFix = 25;
     const amzData = {
       ...vertragData,
@@ -7451,7 +7451,7 @@ www.dthomes.ch`;
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Kaution</div>
                   <div style={{fontSize:12.5,color:"#3a352d",fontWeight:500}}>{b.kautionType || ({"3x":"3× Miete (volle Kaution)","2x":"2× Miete","1x":"1× Miete","0x":"Keine Kaution"}[b.kautionOpt]) || "-"}</div>
-                  {(() => { const auf = (b.kautionAufschlag!=null && b.kautionAufschlag!=="") ? +b.kautionAufschlag : ({"3x":0,"2x":50,"1x":100,"0x":150}[b.kautionOpt]); return auf>0 ? <div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {auf}.- / Monat</div> : auf===0 ? <div style={{fontSize:11,color:"#5a7c5e",marginTop:2}}>Kein Aufschlag</div> : null; })()}
+                  {(() => { const auf = (b.kautionAufschlag!=null && b.kautionAufschlag!=="") ? +b.kautionAufschlag : ({"3x":0,"2x":50,"1x":100,"0x":150}[b.kautionOpt]); return auf>0 ? <div style={{fontSize:11,color:"#c89653",marginTop:2}}>+ CHF {auf}.- / Monat</div> : auf===0 ? <div style={{fontSize:11,color:"#5a7c5e",marginTop:2}}>Kein Servicegebühr</div> : null; })()}
                 </div>
                 <div>
                   <div style={{fontSize:10,color:"#8a8478",marginBottom:3,textTransform:"uppercase"}}>Möblierung</div>
@@ -7820,7 +7820,7 @@ www.dthomes.ch`;
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {vertragData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
                 {vertragData.aufschlag>0&&(<>
-                  <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
+                  <span style={{color:"#b8843e"}}>Kautions-Servicegebühr</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {vertragData.aufschlag}</span>
                 </>)}
                 <span style={{fontWeight:700,borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14}}>Total / Mt.</span>
@@ -7883,7 +7883,7 @@ www.dthomes.ch`;
               ) : <span style={{color:"#1a1814"}}>-</span>}
             </div>
             
-            {/* Custom Aufschlag */}
+            {/* Custom Servicegebühr */}
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
               <span>Servicegebühr / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {vertragData.kautionMonate}× Miete: CHF {vertragData.kautionMonate===0?150:vertragData.kautionMonate===1?100:vertragData.kautionMonate===2?50:0})</span></span>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -9771,7 +9771,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                     {zeile("Nettomiete", netto)}
                     {zeile("Nebenkosten", nk, {muted:true})}
                     {zeile("Strom", strom, {muted:true})}
-                    {aufschlag>0 && zeile("Kautions-Aufschlag", aufschlag)}
+                    {aufschlag>0 && zeile("Kautions-Servicegebühr", aufschlag)}
                     {moeb>0 && zeile("Möblierung (monatlich)", moeb)}
                   </div>
                 </div>
@@ -9843,7 +9843,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 ["Auszug",tenant.auszug||"-"],
                 istAdmin && ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"-")],
                 istAdmin && ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
-                istAdmin && ["Aufschlag/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
+                istAdmin && ["Servicegebühr/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
                 istAdmin && ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
                 istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale}${tenant.moeblierungModus==="monatlich"?"/Mt.":" einmalig"})`:""):"Nein"],
                 !istAdmin && ["Möbliert",tenant.moebliert?"Ja":"Nein"],
@@ -10449,7 +10449,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {tvData.bruttomiete.toLocaleString('de-CH')}</span>
                 <span>Stromkosten</span><input className="fi" type="number" value={tvData.strom} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
                 {tvData.aufschlag>0&&(<>
-                  <span style={{color:"#b8843e"}}>Kautions-Aufschlag</span>
+                  <span style={{color:"#b8843e"}}>Kautions-Servicegebühr</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {tvData.aufschlag}</span>
                 </>)}
                 <span style={{fontWeight:700,borderTop:"2px solid #1a1814",paddingTop:8,fontSize:14}}>Total / Mt.</span>
@@ -10512,7 +10512,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               ) : <span style={{color:"#1a1814"}}>-</span>}
             </div>
             
-            {/* Custom Aufschlag */}
+            {/* Custom Servicegebühr */}
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,fontWeight:600,gap:12}}>
               <span>Servicegebühr / Mt. <span style={{fontSize:10.5,color:"#8a8174",fontWeight:400,marginLeft:6}}>(Standard bei {tvData.kautionMonate}× Miete: CHF {[0,100,50,0,0][3-tvData.kautionMonate] ?? 0}{tvData.kautionMonate===0?150:tvData.kautionMonate===1?100:tvData.kautionMonate===2?50:0})</span></span>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -10763,7 +10763,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   });
   
   // Helper: Erwartete Miete pro Mieter aus Room (auch für archivierte Mieter - über Mieter-Daten)
-  // Soll = Bruttomiete (Zimmer-Miete + 25 CHF Strom) + Kautions-Aufschlag (falls vorhanden)
+  // Soll = Bruttomiete (Zimmer-Miete + 25 CHF Strom) + Kautions-Servicegebühr (falls vorhanden)
   function getExpectedMiete(tenant) {
     let bruttomiete = 0;
     
@@ -10786,7 +10786,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     // Monatliche Moeblierungsgebuehr dazurechnen (nur wenn moebliert und Modus monatlich)
     const istMoebliert = tenant.moebliert === true || tenant.moebliert === "ja";
     const moeblMonatlich = moeblVon(tenant);
-    // Kautions-Aufschlag (monatlicher Aufpreis bei reduzierter Kaution) gehoert in den monatlichen Soll
+    // Kautions-Servicegebühr (monatlicher Aufpreis bei reduzierter Kaution) gehoert in den monatlichen Soll
     const aufschlag = feeVon(tenant);
     return bruttomiete + aufschlag + moeblMonatlich;
   }
@@ -10855,7 +10855,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       return natSort(a.tenant.id, b.tenant.id);
     });
   
-  // Statistiken - IMMER mit Strom + Aufschlag (getExpectedMiete liefert das schon)
+  // Statistiken - IMMER mit Strom + Servicegebühr (getExpectedMiete liefert das schon)
   // Soll-Total = ALLE Mieter dieses Monats (egal welcher Status)
   const totalSoll = rows.reduce((s,r) => s + r.soll, 0);
   // Bezahlt-Total = was tatsächlich reingekommen ist
@@ -11069,7 +11069,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Soll-Total</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#1a1814"}}>CHF {totalSoll.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>inkl. Strom + Aufschlag</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>inkl. Strom + Servicegebühr</div>
         </div>
         <div className="card" style={{margin:0}}>
           <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:6,fontWeight:500}}>Quote</div>
@@ -11155,7 +11155,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                         <div style={{fontSize:10,color:row.uebertrag>0?"#8a3a2e":"#3a5230",fontWeight:500,marginTop:2}}>{row.uebertrag>0?"Rest":"Guthaben"} aus {MONATS_NAMEN[(monat===1?12:monat-1)-1]}: {row.uebertrag>0?"+":"−"}CHF {Math.abs(row.uebertrag).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}</div>
                       )}
                       {(+row.tenant.kautionAufschlag||0)>0 && (
-                        <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Aufschlag</div>
+                        <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Servicegebühr</div>
                       )}
                       {(row.tenant.moebliert===true||row.tenant.moebliert==="ja") && row.tenant.moeblierungModus==="monatlich" && (+row.tenant.moeblierungPauschale||0)>0 && (
                         <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.moeblierungPauschale).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Möblierung</div>
@@ -11911,7 +11911,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
 
       </div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-      <SectionHead title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Aufschlag, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
+      <SectionHead title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Servicegebühr, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
           <div key={l} style={{background:bg,borderRadius:10,padding:"14px 16px"}}>
@@ -11926,7 +11926,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
           const h = Math.max(2, Math.round(Math.abs(m.marge)/maxAbs*H));
           const neg = m.marge<0;
           return (
-            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(m.marge)} · Einnahmen ${chf(m.einnahmen)} (Strom ${chf(m.strom)}, Aufschlag ${chf(m.aufschlag)}) · Hauptmiete ${chf(m.ausgaben)}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(m.marge)} · Einnahmen ${chf(m.einnahmen)} (Strom ${chf(m.strom)}, Servicegebühr ${chf(m.aufschlag)}) · Hauptmiete ${chf(m.ausgaben)}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
               <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
               <div style={{width:"68%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#c5cda8":"#5a6e4a"),borderRadius:"3px 3px 0 0"}}/>
               <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
@@ -11943,7 +11943,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             <GrpRow label="Einnahmen" value={chf(m.einnahmen)} />
             <SubRow label="Zimmermieten" value={chf(m.miete)} />
             <SubRow label="Strom" value={chf(m.strom)} />
-            <SubRow label="Kautions-Aufschlag" value={chf(m.aufschlag)} />
+            <SubRow label="Kautions-Servicegebühr" value={chf(m.aufschlag)} />
             <GrpRow label="Hauptmiete" value={chf(m.ausgaben)} />
             <CardFoot marge={m.marge} />
           </div>

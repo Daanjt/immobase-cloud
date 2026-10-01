@@ -84,7 +84,7 @@ serve(async (req) => {
     const defs: Array<[string, number, number]> = [
       ["Nettomiete", +a.nettomiete || 0, taxMiete],
       ["Nebenkosten / Strom (pauschal)", +a.nebenkosten || 0, taxNebenkosten],
-      ["Serviceaufschlag", +a.aufschlag || 0, taxAufschlag],
+      ["Servicegebühr", +a.aufschlag || 0, taxAufschlag],
       ["Möblierung (monatlich)", +a.moeblierung || 0, taxMoeblierung],
     ];
     function positions(factor: number) {
