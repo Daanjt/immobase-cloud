@@ -9844,7 +9844,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 istAdmin && ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"-")],
                 istAdmin && ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
                 istAdmin && ["Servicegebühr/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
-                istAdmin && ["Kautionstyp",tenant.kautionType||tenant.kautionArt||"-"],
                 istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale}${tenant.moeblierungModus==="monatlich"?"/Mt.":" einmalig"})`:""):"Nein"],
                 !istAdmin && ["Möbliert",tenant.moebliert?"Ja":"Nein"],
                 ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
