@@ -1845,6 +1845,7 @@ function useSupabaseData() {
       aptId: "apt_id",
       roomId: "room_id",
       kautionMonate: "kaution_monate",
+      kautionAbrechnung: "kaution_abrechnung",
       kautionBetrag: "kaution_betrag",
       kautionOpt: "kaution_opt",
       kautionType: "kaution_type",
@@ -4385,7 +4386,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     <div style={{fontSize:15,fontWeight:700}}>{kautionTenant.vorname} {kautionTenant.nachname}</div>
                     <button onClick={()=>setKautionTenant(null)} style={{border:"none",background:"none",fontSize:24,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
                   </div>
-                  <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant} onDone={()=>{setDismissed(d=>[...d,kautionTenant.id]); setKautionTenant(null);}}/></div>
+                  <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant} updateTenant={updateTenant} onDone={()=>{setDismissed(d=>[...d,kautionTenant.id]); setKautionTenant(null);}}/></div>
                 </div>
               </div>}
               {reminders.map(r => {
@@ -9966,7 +9967,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               <button onClick={()=>setUebTab("einzug")} style={{flex:1,textAlign:"center",background:uebTab==="einzug"?"var(--ink)":"transparent",color:uebTab==="einzug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Einzug</button>
               <button onClick={()=>setUebTab("auszug")} style={{flex:1,textAlign:"center",background:uebTab==="auszug"?"var(--ink)":"transparent",color:uebTab==="auszug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Auszug</button>
             </div>}
-            {tab==="uebergabe" && uebTab==="auszug" && <KautionsAbrechnung tenant={tenant}/>}
+            {tab==="uebergabe" && uebTab==="auszug" && <KautionsAbrechnung tenant={tenant} updateTenant={updateTenant}/>}
             {tab==="uebergabe" && uebTab==="einzug" && (()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
@@ -13755,7 +13756,7 @@ function WerbungTab(){
   </div>);
 }
 
-function KautionsAbrechnung({tenant,onDone}){
+function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const [betrag,setBetrag]=React.useState("");
   const [abzuege,setAbzuege]=React.useState([]);
   const [sent,setSent]=React.useState(null);
@@ -13768,9 +13769,9 @@ function KautionsAbrechnung({tenant,onDone}){
   const setZeile=(i,k,v)=>setAbzuege(p=>p.map((a,j)=>j===i?{...a,[k]:v}:a));
   const delZeile=(i)=>setAbzuege(p=>p.filter((_,j)=>j!==i));
   const clean=()=>abzuege.filter(a=>(+a.betrag||0)>0).map(a=>({grund:(a.grund||"Abzug").trim(),betrag:+a.betrag||0}));
-  const abschliessen=async()=>{ if(!confirm("Auszug ohne Mail als erledigt markieren?")) return; const {error}=await supabase.from("tenants").update({kaution_abrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,erledigt_am:new Date().toISOString()}}).eq("id",tenant.id); if(error){ toast("Fehler","error"); return; } setErledigt(new Date().toISOString()); toast("Als erledigt markiert"); onDone && onDone(); };
-  const speichern=async()=>{ const {error}=await supabase.from("tenants").update({kaution_abrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck}}).eq("id",tenant.id); toast(error?"Fehler beim Speichern":"Gespeichert",error?"error":"ok"); };
-  const senden=async()=>{ if(!(+betrag>0)){ toast("Kautionsbetrag eintragen","error"); return; } if(!confirm("Kautionsabrechnung per Mail an den Mieter senden?")) return; setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean()}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } setSent(new Date().toISOString()); toast("Abrechnung gesendet"); onDone && onDone(); };
+  const abschliessen=async()=>{ if(!confirm("Auszug ohne Mail als erledigt markieren?")) return; await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,erledigt_am:new Date().toISOString()}}); setErledigt(new Date().toISOString()); onDone && onDone(); };
+  const speichern=async()=>{ await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck}}); };
+  const senden=async()=>{ if(!(+betrag>0)){ toast("Kautionsbetrag eintragen","error"); return; } if(!confirm("Kautionsabrechnung per Mail an den Mieter senden?")) return; setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean()}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,gesendet_am:new Date().toISOString()}}); setSent(new Date().toISOString()); toast("Abrechnung gesendet"); onDone && onDone(); };
   const inp={padding:"9px 11px",border:"1px solid var(--line)",borderRadius:8,fontSize:13.5,fontFamily:"inherit",boxSizing:"border-box"};
   const chipb={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
   const fmt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("de-CH");}catch(_e){return "";}};
