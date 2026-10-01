@@ -4003,7 +4003,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               </div>
             )}
             <div style={{marginBottom:12}}>
-              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Anzahl normale Schlüssel</label>
+              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Anzahl Wohnungsschlüssel</label>
               <input
                 type="number"
                 min="0"
@@ -4042,7 +4042,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   });
                   const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
                   const snapshot = [
-                    nCount>0 && `${nCount} normale Schlüssel`,
+                    nCount>0 && `${nCount}x Wohnungsschlüssel`,
                     extraTrim && `Extra: ${extraTrim}`
                   ].filter(Boolean).join("\n");
                   // 3. Start the protocol mit vollem Snapshot
@@ -4431,7 +4431,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 {(refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && <div>{refKeyInfo.erhNormal||0} normale · {refKeyInfo.erhExtra||0} extra</div>}
               </div>
             )}
-            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl normale Schlüssel (Wohnung/Haus)</label>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl Wohnungsschlüssel</label>
             <input type="number" min="0" value={normalCount} onChange={e=>setNormalCount(e.target.value)}
               style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:14,fontFamily:"inherit"}}/>
             <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Extraschlüssel</label>
@@ -4449,7 +4449,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
                     await updateTenant(t.id, { schluessel_anzahl: nCount, extra_schluessel: extraTrim, schluessel_uebergeben: false });
                     const snapshot = [
-                      nCount>0 && `${nCount} normale Schlüssel`,
+                      nCount>0 && `${nCount}x Wohnungsschlüssel`,
                       extraTrim && `Extra: ${extraTrim}`
                     ].filter(Boolean).join("\n");
                     await startHandoverProtocol({
