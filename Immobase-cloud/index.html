@@ -11161,7 +11161,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                         <button onClick={()=>toggleBezahlt(row)} className={`btn btn-sm ${isPaid?"btn-g":"btn-p"}`} style={{fontSize:11,padding:"5px 10px"}}>
                           {isPaid ? "↺ Zurücksetzen" : "✓ Bezahlt"}
                         </button>
-                        {!isPaid && !isErlassen && (() => {
+                        {!isErlassen && (((row.soll||0) - (+(row.payment&&row.payment.betragIst)||0)) > 0.01) && (() => {
                           const both = row.payment?.mahnung1SentAt && row.payment?.mahnung2SentAt;
                           const nextStufe = row.payment?.mahnung1SentAt ? 2 : 1;
                           const label = both ? "✓ Mahnungen" : (nextStufe === 1 ? "⚠ 1. Mahnung" : "🚨 2. Mahnung");
