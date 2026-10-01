@@ -13537,12 +13537,14 @@ function WerbungTab(){
   const [openN,setOpenN]=React.useState({});
   const [showPicker,setShowPicker]=React.useState(false);
   const [q,setQ]=React.useState("");
+  const [erfolg,setErfolg]=React.useState(null);
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
+  const ladeErfolg=async()=>{ try{ const [ap,km]=await Promise.all([ supabase.from("applicants").select("empfohlen_von,created_at"), supabase.from("kampagnen").select("created_at").order("created_at",{ascending:false}).limit(1) ]); const ref=(ap.data||[]).filter(a=>a.empfohlen_von&&String(a.empfohlen_von).trim()); const last=km.data&&km.data[0]&&km.data[0].created_at; const seit=last?ref.filter(a=>a.created_at&&new Date(a.created_at)>=new Date(last)).length:null; setErfolg({total:ref.length,seit}); }catch(_e){} };
   const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
-  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,etage,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
+  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); ladeErfolg(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,etage,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
     setExcluded({}); setOpenN({});
     try{
@@ -13599,7 +13601,7 @@ function WerbungTab(){
     setSending(false);
     if(error||(data&&data.error)){ toast("Fehler: "+((data&&data.error)||(error&&error.message)||"unbekannt"),"error"); return; }
     toast(testEmail?"Testmail an dich gesendet":("Gesendet an "+data.sent+" von "+data.total));
-    if(!testEmail) ladeLog();
+    if(!testEmail){ ladeLog(); ladeErfolg(); }
   };
   const seg=(active)=>({flex:1,textAlign:"center",background:active?"var(--ink)":"transparent",color:active?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"9px 0",fontSize:13.5,fontWeight:active?600:500,cursor:"pointer",fontFamily:"inherit"});
   const chip={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit"};
@@ -13695,7 +13697,11 @@ function WerbungTab(){
       <button style={{flex:"2 1 180px",background:"var(--ink)",color:"#fff",border:"none",borderRadius:10,padding:"12px 18px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:sending?0.6:1}} disabled={sending} onClick={()=>senden()}>{sending?"Sende …":("An "+aktiveEmpf.length+" senden")}</button>
     </div>
 
-    <div style={{marginTop:28}}>
+    {erfolg && <div style={{marginTop:24,border:"1px solid #e8d2a8",background:"#fdf7e8",borderRadius:12,padding:"13px 16px"}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#8a6a2e"}}>Empfehlungs-Erfolg</div>
+      <div style={{fontSize:12.5,color:"#8a6a2e",marginTop:3}}>{erfolg.total} Bewerbung{erfolg.total!==1?"en":""} über Empfehlungen insgesamt{erfolg.seit!=null?(" · "+erfolg.seit+" seit der letzten Kampagne"):""}</div>
+    </div>}
+    <div style={{marginTop:erfolg?18:28}}>
       <div style={{fontSize:13.5,fontWeight:700,marginBottom:6}}>Logbuch</div>
       {log.length===0 && <div style={{fontSize:12.5,color:"var(--muted)"}}>Noch keine Kampagnen gesendet.</div>}
       {log.map(k=>(<div key={k.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"10px 0",borderTop:"1px solid #f0eadd",fontSize:12.5}}>
