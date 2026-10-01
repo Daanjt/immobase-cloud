@@ -52,7 +52,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     if (!RESEND_API_KEY) return j({ error: "Missing RESEND_API_KEY" }, 500);
-    const { group, subject, text, test_email } = await req.json();
+    const { group, subject, text, test_email, exclude, include_future } = await req.json();
     if (!subject || !text) return j({ error: "Betreff und Text erforderlich" }, 400);
 
     const sb = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -62,9 +62,14 @@ serve(async (req) => {
     if (test_email) {
       recipients = [{ email: String(test_email), vorname: "" }];
     } else if (group === "mieter") {
-      const { data } = await sb.from("tenants").select("vorname,email,status").not("email", "is", null);
-      recipients = (data || []).filter((t: any) => (t.status || "aktiv") === "aktiv" && t.email && t.email.includes("@"))
-        .map((t: any) => ({ email: t.email.trim(), vorname: (t.vorname || "").trim() }));
+      const { data } = await sb.from("tenants").select("vorname,email,status,einzug").not("email", "is", null);
+      const heute = Date.now();
+      const pd = (x: string) => { const m = (x || "").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); return m ? new Date(+m[3], +m[2]-1, +m[1]).getTime() : null; };
+      recipients = (data || []).filter((t: any) => {
+        if ((t.status || "aktiv") !== "aktiv" || !t.email || !t.email.includes("@")) return false;
+        if (!include_future) { const ez = pd(t.einzug); if (ez && ez > heute) return false; }
+        return true;
+      }).map((t: any) => ({ email: t.email.trim(), vorname: (t.vorname || "").trim() }));
     } else if (group === "bewerber") {
       const { data } = await sb.from("applicants").select("vorname,email,status,created_at").not("email", "is", null);
       const aktiv = ["Neu", "In Pr\u00fcfung", "Zugeteilt", "Kontaktiert"];
@@ -83,6 +88,8 @@ serve(async (req) => {
     // Duplikate per Email entfernen
     const seen = new Set<string>();
     recipients = recipients.filter(r => { const k = r.email.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    const excl = new Set((Array.isArray(exclude) ? exclude : []).map((e: string) => String(e).trim().toLowerCase()));
+    if (excl.size) recipients = recipients.filter(r => !excl.has(r.email.toLowerCase()));
     if (recipients.length === 0) return j({ error: "Keine Empfaenger mit g\u00fcltiger Email gefunden", sent: 0 }, 200);
 
     const logoB64 = await ladeLogo();
@@ -102,6 +109,7 @@ serve(async (req) => {
       } catch { failed.push(r.email); }
     }
 
+    if (!test_email) { try { await sb.from("kampagnen").insert({ gruppe: group, betreff: subject, text, empfaenger_anzahl: recipients.length, gesendet: sent, fehlgeschlagen: failed.length }); } catch (_e) { /* Log best-effort */ } }
     return j({ success: true, total: recipients.length, sent, failed });
   } catch (e) {
     return j({ error: String((e as Error).message || e) }, 500);
