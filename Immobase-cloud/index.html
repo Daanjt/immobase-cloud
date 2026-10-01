@@ -7415,6 +7415,7 @@ www.dthomes.ch`;
             <div className="igrid" style={{marginBottom:16}}>
               {[
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
+                ["Empfohlen von", b.empfohlen_von ? <strong style={{color:"#8a6a2e"}}>{b.empfohlen_von}</strong> : "-"],
                 ["Telefon",b.phone?<a href={`tel:${b.phone}`}>{b.phone}</a>:"-"],
                 ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
                 ["Geschlecht",b.gender||"-"],
