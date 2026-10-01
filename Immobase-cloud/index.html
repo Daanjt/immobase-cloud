@@ -13526,15 +13526,14 @@ function WerbungTab(){
   const [subject,setSubject]=React.useState("");
   const [text,setText]=React.useState("");
   const [includeFuture,setIncludeFuture]=React.useState(false);
+  const [nurOhneZuteilung,setNurOhneZuteilung]=React.useState(false);
   const [list,setList]=React.useState([]);
   const [excluded,setExcluded]=React.useState({});
-  const [showList,setShowList]=React.useState(false);
   const [sending,setSending]=React.useState(false);
   const [log,setLog]=React.useState([]);
   const [saved,setSaved]=React.useState([]);
-  const [wgSel,setWgSel]=React.useState({});
-  const [nurOhneZuteilung,setNurOhneZuteilung]=React.useState(false);
   const [apts,setApts]=React.useState([]);
+  const [openWg,setOpenWg]=React.useState({});
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
@@ -13542,15 +13541,19 @@ function WerbungTab(){
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
   React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
-    setExcluded({}); setWgSel({}); setNurOhneZuteilung(false);
+    setExcluded({});
     try{
       if(group==="mieter"){
-        const {data}=await supabase.from("tenants").select("vorname,nachname,email,status,einzug,apt_id").not("email","is",null);
+        const [td,rd]=await Promise.all([
+          supabase.from("tenants").select("id,vorname,nachname,email,status,einzug,apt_id,room_id").not("email","is",null),
+          supabase.from("rooms").select("id,apt_id,tenant_id"),
+        ]);
+        const rooms=rd.data||[]; const byTenant={},byId={}; rooms.forEach(ro=>{ if(ro.tenant_id) byTenant[ro.tenant_id]=ro; byId[ro.id]=ro; });
         const heute=Date.now();
-        let r=(data||[]).filter(t=>(t.status||"aktiv")==="aktiv"&&t.email&&t.email.includes("@"));
+        let r=(td.data||[]).filter(t=>(t.status||"aktiv")==="aktiv"&&t.email&&t.email.includes("@"));
         if(!includeFuture) r=r.filter(t=>{const ez=pd(t.einzug);return !(ez&&ez>heute);});
         const seen=new Set(); r=r.filter(t=>{const k=t.email.trim().toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
-        setList(r.map(t=>({email:t.email.trim(),vorname:(t.vorname||"").trim(),name:((t.vorname||"")+" "+(t.nachname||"")).trim()||t.email,aptId:t.apt_id,status:t.status})));
+        setList(r.map(t=>{ const apt=t.apt_id||(byTenant[t.id]&&byTenant[t.id].apt_id)||(t.room_id&&byId[t.room_id]&&byId[t.room_id].apt_id)||null; return {email:t.email.trim(),vorname:(t.vorname||"").trim(),name:((t.vorname||"")+" "+(t.nachname||"")).trim()||t.email,aptId:apt,status:t.status}; }));
       } else {
         const [m,b]=await Promise.all([
           supabase.from("tenants").select("email"),
@@ -13559,25 +13562,36 @@ function WerbungTab(){
         const tm=new Set((m.data||[]).filter(t=>t.email).map(t=>t.email.trim().toLowerCase()));
         const aktiv=["Neu","In Prüfung","Zugeteilt","Kontaktiert"]; const cutoff=Date.now()-31*86400000; const seen=new Set();
         const r=(b.data||[]).filter(x=>{ if(!(x.email&&x.email.includes("@")))return false; if(!(!x.status||aktiv.includes(x.status)))return false; if(!(x.created_at&&new Date(x.created_at).getTime()>=cutoff))return false; const k=x.email.trim().toLowerCase(); if(tm.has(k)||seen.has(k))return false; seen.add(k); return true; });
-        setList(r.map(x=>({email:x.email.trim(),vorname:(x.vorname||"").trim(),name:((x.vorname||"")+" "+(x.nachname||"")).trim()||x.email,status:x.status})));
+        setList(r.map(x=>({email:x.email.trim(),vorname:(x.vorname||"").trim(),name:((x.vorname||"")+" "+(x.nachname||"")).trim()||x.email,aptId:null,status:x.status})));
       }
     }catch(_e){ setList([]); }
   })();},[group,includeFuture]);
+
   const aptMap={}; apts.forEach(a=>{aptMap[a.id]=a.adresse;});
-  const wgKeys=Object.keys(wgSel).filter(k=>wgSel[k]);
-  const filteredList=list.filter(r=>{ if(group==="mieter"){ if(wgKeys.length===0)return true; return wgKeys.includes(r.aptId); } if(group==="bewerber"){ return !nurOhneZuteilung || r.status!=="Zugeteilt"; } return true; });
-  const aktiveEmpf=filteredList.filter(r=>!excluded[r.email.toLowerCase()]);
+  const visible = group==="bewerber" && nurOhneZuteilung ? list.filter(r=>r.status!=="Zugeteilt") : list;
+  const aktiveEmpf = visible.filter(r=>!excluded[r.email.toLowerCase()]);
+  // Gruppieren nach WG (bei Bewerbern eine einzige Gruppe)
+  const groups=[];
+  if(group==="mieter"){
+    const by={}; visible.forEach(r=>{ const k=r.aptId||"_ohne"; (by[k]=by[k]||[]).push(r); });
+    const order=apts.map(a=>a.id).filter(id=>by[id]); if(by["_ohne"]) order.push("_ohne");
+    order.forEach(k=>groups.push({key:k,label:k==="_ohne"?"Ohne WG-Zuordnung":aptMap[k]||k,rows:by[k]}));
+  } else {
+    groups.push({key:"all",label:"Bewerber",rows:visible});
+  }
+  const setWgExcluded=(rows,exclude)=>{ setExcluded(p=>{const n={...p}; rows.forEach(r=>{ n[r.email.toLowerCase()]=exclude; }); return n;}); };
+
   const vorlagen={
     empfehlung:{subject:"Verdiene 100 Franken – empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
     freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige schöne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
+    zugang:{subject:"Ankündigung: Arbeiten in deiner Wohnung",text:"wir möchten dich kurz informieren, dass bei dir Arbeiten anstehen.\n\nDatum und Uhrzeit: [bitte eintragen]\nWas: [kurz beschreiben]\n\nBitte ermögliche an diesem Termin den Zugang zur Wohnung. Falls es dir nicht passt, melde dich kurz, dann finden wir einen anderen Termin.\n\nDanke dir!"},
   };
   const senden=async(testEmail)=>{
     if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausfüllen","error"); return; }
     if(!testEmail && aktiveEmpf.length===0){ toast("Keine Empfänger ausgewählt","error"); return; }
     if(!testEmail && !confirm("E-Mail an "+aktiveEmpf.length+" "+(group==="mieter"?"Mieter":"Bewerber")+" senden?")) return;
     setSending(true);
-    const exclude = testEmail ? [] : list.filter(r=>excluded[r.email.toLowerCase()]).map(r=>r.email);
-    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined, exclude, include_future: includeFuture, recipients: testEmail?undefined:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})) }});
+    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined, recipients: testEmail?undefined:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})) }});
     setSending(false);
     if(error||(data&&data.error)){ toast("Fehler: "+((data&&data.error)||(error&&error.message)||"unbekannt"),"error"); return; }
     toast(testEmail?"Testmail an dich gesendet":("Gesendet an "+data.sent+" von "+data.total));
@@ -13597,34 +13611,42 @@ function WerbungTab(){
       <button onClick={()=>setGroup("bewerber")} style={seg(group==="bewerber")}>Bewerber</button>
     </div>
 
-    <div style={{marginBottom:14}}>
-      {group==="mieter" && <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:apts.length?9:0}}>
-        {apts.map(a=>{const on=!!wgSel[a.id];return <button key={a.id} onClick={()=>setWgSel(p=>({...p,[a.id]:!p[a.id]}))} style={{...chip,background:on?"var(--ink)":"#fff",color:on?"#fff":"var(--ink)"}}>{a.adresse}</button>;})}
-        {wgKeys.length>0 && <button onClick={()=>setWgSel({})} style={{...chip,borderStyle:"dashed",color:"var(--muted)"}}>alle WGs</button>}
-      </div>}
-      <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
-        {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>künftige Mieter</label>}
-        {group==="bewerber" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={nurOhneZuteilung} onChange={e=>setNurOhneZuteilung(e.target.checked)}/>Nur ohne Zimmerzusage</label>}
-      </div>
+    <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"center",marginBottom:12}}>
+      {group==="mieter" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={includeFuture} onChange={e=>setIncludeFuture(e.target.checked)}/>künftige Mieter einbeziehen</label>}
+      {group==="bewerber" && <label style={{fontSize:13,display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}><input type="checkbox" checked={nurOhneZuteilung} onChange={e=>setNurOhneZuteilung(e.target.checked)}/>Nur ohne Zimmerzusage</label>}
     </div>
 
-    <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",marginBottom:18}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 15px",cursor:"pointer",background:"#faf8f3"}} onClick={()=>setShowList(!showList)}>
-        <span style={{fontSize:13.5,fontWeight:600}}>{aktiveEmpf.length} von {filteredList.length} ausgewählt</span>
-        <span style={{fontSize:16,color:"var(--muted)",transform:showList?"rotate(180deg)":"none",transition:"transform .15s"}}>⌄</span>
-      </div>
-      {showList && <div style={{maxHeight:240,overflowY:"auto",borderTop:"1px solid var(--line)"}}>
-        {filteredList.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"14px 15px"}}>Keine Empfänger.</div>}
-        {filteredList.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 15px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
-          <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} style={{width:17,height:17,flexShrink:0}}/>
-          <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}{group==="mieter"&&aptMap[r.aptId]?"  ·  "+aptMap[r.aptId]:""}</span></span>
-        </label>))}
-      </div>}
+    <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:7}}>{aktiveEmpf.length} von {visible.length} Empfängern ausgewählt {group==="mieter"?"· tippe eine WG an, um nur sie zu wählen":""}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:18}}>
+      {groups.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"12px 0"}}>Keine Empfänger.</div>}
+      {groups.map(g=>{
+        const aktiv=g.rows.filter(r=>!excluded[r.email.toLowerCase()]).length;
+        const alle=aktiv===g.rows.length; const offen=!!openWg[g.key];
+        const nurDiese=()=>{ setExcluded(p=>{const n={...p}; visible.forEach(r=>{ n[r.email.toLowerCase()]=true; }); g.rows.forEach(r=>{ n[r.email.toLowerCase()]=false; }); return n;}); };
+        return (<div key={g.key} style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#faf8f3"}}>
+            <input type="checkbox" checked={alle} onChange={e=>setWgExcluded(g.rows,!e.target.checked)} style={{width:17,height:17,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpenWg(p=>({...p,[g.key]:!p[g.key]}))}>
+              <div style={{fontSize:13.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.label}</div>
+              <div style={{fontSize:11.5,color:"var(--muted)"}}>{aktiv} von {g.rows.length} ausgewählt</div>
+            </div>
+            {group==="mieter" && groups.length>1 && <button onClick={nurDiese} style={{...chip,padding:"5px 11px",fontSize:11.5}}>nur diese</button>}
+            <span onClick={()=>setOpenWg(p=>({...p,[g.key]:!p[g.key]}))} style={{fontSize:15,color:"var(--muted)",cursor:"pointer",transform:offen?"rotate(180deg)":"none"}}>⌄</span>
+          </div>
+          {offen && <div style={{borderTop:"1px solid var(--line)"}}>
+            {g.rows.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 14px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
+              <input type="checkbox" checked={!excluded[r.email.toLowerCase()]} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} style={{width:16,height:16,flexShrink:0}}/>
+              <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
+            </label>))}
+          </div>}
+        </div>);
+      })}
     </div>
 
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
       <button style={chip} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Empfehlung</button>
       <button style={chip} onClick={()=>{setSubject(vorlagen.freieZimmer.subject);setText(vorlagen.freieZimmer.text);}}>Freie Zimmer</button>
+      <button style={chip} onClick={()=>{setSubject(vorlagen.zugang.subject);setText(vorlagen.zugang.text);}}>Zugang/Arbeiten</button>
       {saved.map(v=>(<span key={v.id} style={{display:"inline-flex",alignItems:"center"}}><button style={{...chip,borderRadius:"20px 0 0 20px"}} onClick={()=>{setSubject(v.betreff||"");setText(v.text||"");}}>{v.name}</button><button onClick={()=>loeschenVorlage(v.id)} style={{border:"1px solid var(--line)",borderLeft:"none",borderRadius:"0 20px 20px 0",background:"#fff",color:"#b06a5a",cursor:"pointer",padding:"7px 10px",fontSize:12}}>×</button></span>))}
       <button style={{...chip,borderStyle:"dashed",color:"var(--muted)"}} onClick={speichernVorlage}>+ speichern</button>
     </div>
