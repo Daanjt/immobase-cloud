@@ -66,9 +66,15 @@ serve(async (req) => {
       recipients = (data || []).filter((t: any) => (t.status || "aktiv") === "aktiv" && t.email && t.email.includes("@"))
         .map((t: any) => ({ email: t.email.trim(), vorname: (t.vorname || "").trim() }));
     } else if (group === "bewerber") {
-      const { data } = await sb.from("applicants").select("vorname,email,status").not("email", "is", null);
+      const { data } = await sb.from("applicants").select("vorname,email,status,created_at").not("email", "is", null);
       const aktiv = ["Neu", "In Pr\u00fcfung", "Zugeteilt", "Kontaktiert"];
-      recipients = (data || []).filter((b: any) => b.email && b.email.includes("@") && (!b.status || aktiv.includes(b.status)))
+      const cutoff = Date.now() - 31 * 86400000; // nur Bewerbungen der letzten ~31 Tage
+      const { data: ten } = await sb.from("tenants").select("email"); // schon Mieter ausschliessen
+      const tenantMails = new Set((ten || []).filter((t: any) => t.email).map((t: any) => t.email.trim().toLowerCase()));
+      recipients = (data || []).filter((b: any) => b.email && b.email.includes("@")
+        && (!b.status || aktiv.includes(b.status))
+        && b.created_at && new Date(b.created_at).getTime() >= cutoff
+        && !tenantMails.has(b.email.trim().toLowerCase()))
         .map((b: any) => ({ email: b.email.trim(), vorname: (b.vorname || "").trim() }));
     } else {
       return j({ error: "Unbekannte Empfaengergruppe" }, 400);

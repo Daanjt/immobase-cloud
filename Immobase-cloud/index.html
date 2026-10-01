@@ -13531,11 +13531,13 @@ function WerbungTab(){
     try{
       const [m,b]=await Promise.all([
         supabase.from("tenants").select("id,email,status").not("email","is",null),
-        supabase.from("applicants").select("id,email,status").not("email","is",null),
+        supabase.from("applicants").select("id,email,status,created_at").not("email","is",null),
       ]);
+      const tenantMails=new Set((m.data||[]).filter(t=>t.email).map(t=>t.email.trim().toLowerCase()));
       const mc=(m.data||[]).filter(t=>(t.status||"aktiv")==="aktiv"&&t.email&&t.email.includes("@")).length;
       const aktiv=["Neu","In Prüfung","Zugeteilt","Kontaktiert"];
-      const bc=(b.data||[]).filter(x=>x.email&&x.email.includes("@")&&(!x.status||aktiv.includes(x.status))).length;
+      const cutoff=Date.now()-31*86400000; const seenB=new Set();
+      const bc=(b.data||[]).filter(x=>{ if(!(x.email&&x.email.includes("@")))return false; if(!(!x.status||aktiv.includes(x.status)))return false; if(!(x.created_at&&new Date(x.created_at).getTime()>=cutoff))return false; const k=x.email.trim().toLowerCase(); if(tenantMails.has(k))return false; if(seenB.has(k))return false; seenB.add(k); return true; }).length;
       setCounts({mieter:mc,bewerber:bc});
     }catch(_e){}
   })();},[]);
