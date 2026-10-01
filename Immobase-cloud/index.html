@@ -9947,6 +9947,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               };
               return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
             })()}
+            {tab==="uebergabe" && <KautionsAbrechnung tenant={tenant}/>}
             {tab==="uebergabe"&&(()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
@@ -13731,6 +13732,55 @@ function WerbungTab(){
         <div style={{minWidth:0}}><div style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{k.betreff}</div><div style={{color:"var(--muted)"}}>{fmtD(k.created_at)} · {k.gruppe==="mieter"?"Mieter":"Bewerber"}</div></div>
         <div style={{color:"var(--muted)",whiteSpace:"nowrap"}}>{k.gesendet}/{k.empfaenger_anzahl}</div>
       </div>))}
+    </div>
+  </div>);
+}
+
+function KautionsAbrechnung({tenant}){
+  const [betrag,setBetrag]=React.useState("");
+  const [abzuege,setAbzuege]=React.useState([]);
+  const [sent,setSent]=React.useState(null);
+  const [busy,setBusy]=React.useState(false);
+  React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung").eq("id",tenant.id).single(); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):""); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); } }catch(_e){} })();},[tenant.id]);
+  const summe=abzuege.reduce((s,a)=>s+(+a.betrag||0),0);
+  const rueck=Math.max(0,(+betrag||0)-summe);
+  const addZeile=(grund)=>setAbzuege(p=>[...p,{grund:grund||"",betrag:""}]);
+  const setZeile=(i,k,v)=>setAbzuege(p=>p.map((a,j)=>j===i?{...a,[k]:v}:a));
+  const delZeile=(i)=>setAbzuege(p=>p.filter((_,j)=>j!==i));
+  const clean=()=>abzuege.filter(a=>(+a.betrag||0)>0).map(a=>({grund:(a.grund||"Abzug").trim(),betrag:+a.betrag||0}));
+  const speichern=async()=>{ const {error}=await supabase.from("tenants").update({kaution_abrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck}}).eq("id",tenant.id); toast(error?"Fehler beim Speichern":"Gespeichert",error?"error":"ok"); };
+  const senden=async()=>{ if(!(+betrag>0)){ toast("Kautionsbetrag eintragen","error"); return; } if(!confirm("Kautionsabrechnung per Mail an den Mieter senden?")) return; setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean()}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } setSent(new Date().toISOString()); toast("Abrechnung gesendet"); };
+  const inp={padding:"9px 11px",border:"1px solid var(--line)",borderRadius:8,fontSize:13.5,fontFamily:"inherit",boxSizing:"border-box"};
+  const chipb={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
+  const fmt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("de-CH");}catch(_e){return "";}};
+  return (<div style={{border:"1px solid var(--line)",borderRadius:14,padding:"20px 22px",marginTop:18,background:"#fff"}}>
+    <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Kautionsabrechnung</div>
+    <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:16}}>Abzüge beim Auszug erfassen, Rückzahlung berechnen und dem Mieter die Abrechnung senden. Rückzahlung erfolgt über Evorest.</div>
+    <div style={{maxWidth:420}}>
+      <div style={{marginBottom:14}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Kaution (CHF)</label><input type="number" step="0.01" value={betrag} onChange={e=>setBetrag(e.target.value)} style={{...inp,width:160}} placeholder="z.B. 2400"/></div>
+      <div style={{fontSize:12.5,fontWeight:600,marginBottom:8}}>Abzüge</div>
+      {abzuege.length===0 && <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:8}}>Keine Abzüge. Volle Kaution wird zurückerstattet.</div>}
+      {abzuege.map((a,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+        <input value={a.grund} onChange={e=>setZeile(i,"grund",e.target.value)} placeholder="Grund, z.B. Schaden Wand" style={{...inp,flex:1}}/>
+        <input type="number" step="0.01" value={a.betrag} onChange={e=>setZeile(i,"betrag",e.target.value)} placeholder="CHF" style={{...inp,width:100}}/>
+        <button onClick={()=>delZeile(i)} style={{border:"none",background:"none",color:"#b06a5a",cursor:"pointer",fontSize:18,padding:"0 4px"}}>×</button>
+      </div>))}
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:4,marginBottom:16}}>
+        <button style={chipb} onClick={()=>addZeile("Schaden")}>+ Schaden</button>
+        <button style={chipb} onClick={()=>addZeile("Mahnungsgebühr")}>+ Mahnungsgebühr</button>
+        <button style={chipb} onClick={()=>addZeile("Fehlender Schlüssel")}>+ Fehlender Schlüssel</button>
+        <button style={chipb} onClick={()=>addZeile("Reinigung")}>+ Reinigung</button>
+        <button style={{...chipb,borderStyle:"dashed"}} onClick={()=>addZeile("")}>+ eigener Abzug</button>
+      </div>
+      <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"var(--muted)",marginBottom:4}}><span>Abzüge gesamt</span><span>- CHF {summe.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:700}}><span>Rückzahlung</span><span>CHF {rueck.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        <button onClick={speichern} style={{...chipb,borderRadius:9,padding:"10px 16px"}}>Speichern</button>
+        <button onClick={senden} disabled={busy} style={{background:"var(--ink)",color:"#fff",border:"none",borderRadius:9,padding:"10px 18px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:busy?0.6:1}}>{busy?"Sende …":"Abrechnung per Mail senden"}</button>
+      </div>
+      {sent && <div style={{fontSize:11.5,color:"var(--muted)",marginTop:8}}>Zuletzt gesendet am {fmt(sent)}</div>}
     </div>
   </div>);
 }
