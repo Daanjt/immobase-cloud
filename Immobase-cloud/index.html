@@ -8664,6 +8664,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
+        <div className="fg"><label className="fl">Etage / Bezeichnung</label><input className="fi" value={form.etage||""} onChange={F("etage")} placeholder="z.B. 2. OG oder Wohnung rechts"/></div>
         <div className="frow">
           <div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div>
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div>
@@ -13535,12 +13536,13 @@ function WerbungTab(){
   const [apts,setApts]=React.useState([]);
   const [openN,setOpenN]=React.useState({});
   const [showPicker,setShowPicker]=React.useState(false);
+  const [q,setQ]=React.useState("");
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
   const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
-  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
+  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,etage,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
     setExcluded({}); setOpenN({});
     try{
@@ -13569,11 +13571,13 @@ function WerbungTab(){
   })();},[group,includeFuture]);
 
   const aptMap={}; apts.forEach(a=>{aptMap[a.id]=a.adresse;});
+  const etageMap={}; apts.forEach(a=>{etageMap[a.id]=a.etage;});
   const visible = group==="bewerber" && nurOhneZuteilung ? list.filter(r=>r.status!=="Zugeteilt") : list;
   const isOn=(r)=>!excluded[r.email.toLowerCase()];
   const aktiveEmpf = visible.filter(isOn);
   // Baum Adresse -> Wohnung -> Bewohner
-  const byApt={}; visible.forEach(r=>{ const k=r.aptId||"_ohne"; (byApt[k]=byApt[k]||[]).push(r); });
+  const qv=q.trim().toLowerCase(); const searched = qv ? visible.filter(r=>(r.name+" "+r.email).toLowerCase().includes(qv)) : visible;
+  const byApt={}; searched.forEach(r=>{ const k=r.aptId||"_ohne"; (byApt[k]=byApt[k]||[]).push(r); });
   const byAddr={};
   Object.keys(byApt).forEach(aid=>{ const addr=aid==="_ohne"?"Ohne Zuordnung":(aptMap[aid]||aid); (byAddr[addr]=byAddr[addr]||[]).push({aid,rows:byApt[aid]}); });
   const addrList=Object.keys(byAddr).sort();
@@ -13622,11 +13626,12 @@ function WerbungTab(){
       <div style={{fontSize:13.5,fontWeight:600}}>{aktiveEmpf.length===visible.length?("Alle "+visible.length+" "+(group==="mieter"?"Mieter":"Bewerber")+" ausgewählt"):(aktiveEmpf.length+" von "+visible.length+" ausgewählt")}</div>
       <button onClick={()=>setShowPicker(!showPicker)} style={{...chip,whiteSpace:"nowrap"}}>{showPicker?"Fertig":"Eingrenzen"}</button>
     </div>
+    {showPicker && <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suchen nach Name oder E-Mail" style={{...inp,marginBottom:12}}/>}
 
     {showPicker && (group==="bewerber"
       ? <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",marginBottom:18,maxHeight:300,overflowY:"auto"}}>
-          {visible.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"12px 14px"}}>Keine Empfänger.</div>}
-          {visible.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 14px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
+          {searched.length===0 && <div style={{fontSize:13,color:"var(--muted)",padding:"12px 14px"}}>Keine Empfänger.</div>}
+          {searched.map((r,i)=>(<label key={r.email} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 14px",cursor:"pointer",borderTop:i?"1px solid #f3eee4":"none"}}>
             <Cb checked={isOn(r)} onChange={e=>setExcluded(p=>({...p,[r.email.toLowerCase()]:!e.target.checked}))} sz={16}/>
             <span style={{display:"flex",flexDirection:"column",minWidth:0}}><span style={{fontSize:13.5,fontWeight:500}}>{r.name}</span><span style={{fontSize:11.5,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</span></span>
           </label>))}
@@ -13636,7 +13641,7 @@ function WerbungTab(){
           {addrList.map(addr=>{
             const whs=byAddr[addr]; const addrRows=whs.reduce((a,w)=>a.concat(w.rows),[]);
             const addrAktiv=addrRows.filter(isOn).length; const addrAlle=addrAktiv===addrRows.length;
-            const ak="addr:"+addr; const aOpen=!!openN[ak];
+            const ak="addr:"+addr; const aOpen=qv?true:!!openN[ak];
             return (<div key={addr} style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
               <div style={{display:"flex",alignItems:"center",gap:11,padding:"12px 14px",background:"#f5f1e8"}}>
                 <Cb checked={addrAlle} onChange={e=>setRowsExcluded(addrRows,!e.target.checked)}/>
@@ -13649,12 +13654,12 @@ function WerbungTab(){
               {aOpen && <div style={{borderTop:"1px solid var(--line)",padding:"6px 0 6px 0"}}>
                 {whs.map((w,wi)=>{
                   const wAktiv=w.rows.filter(isOn).length; const wAlle=wAktiv===w.rows.length;
-                  const wk="apt:"+w.aid; const wOpen=!!openN[wk];
+                  const wk="apt:"+w.aid; const wOpen=qv?true:!!openN[wk];
                   return (<div key={w.aid} style={{margin:"0 10px 6px 10px",border:"1px solid #eee5d6",borderRadius:9,overflow:"hidden"}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px"}}>
                       <Cb checked={wAlle} onChange={e=>setRowsExcluded(w.rows,!e.target.checked)} sz={15}/>
                       <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpenN(p=>({...p,[wk]:!p[wk]}))}>
-                        <div style={{fontSize:13,fontWeight:600}}>Wohnung {w.aid}</div>
+                        <div style={{fontSize:13,fontWeight:600}}>{etageMap[w.aid]?etageMap[w.aid]:("Wohnung "+w.aid)}</div>
                         <div style={{fontSize:11,color:"var(--muted)"}}>{wAktiv}/{w.rows.length} ausgewählt</div>
                       </div>
                       <button onClick={()=>nurDiese(w.rows)} style={{...chip,padding:"4px 10px",fontSize:11}}>nur diese</button>
