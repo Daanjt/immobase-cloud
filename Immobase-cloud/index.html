@@ -13418,6 +13418,7 @@ const PAGES=[
   {id:"bauradar",icon:"🏗️",label:"Bauradar"},
   {id:"pipeline",icon:"📇",label:"Pipeline"},
   {id:"kontakte",icon:"👥",label:"Kontakte"},
+  {id:"werbung",icon:"",label:"Werbung"},
   {id:"dokumente",icon:"📁",label:"Dokumente"},
 ];
 
@@ -13520,6 +13521,62 @@ function Toast(){
   );
 }
 
+function WerbungTab(){
+  const [group,setGroup]=React.useState("mieter");
+  const [subject,setSubject]=React.useState("");
+  const [text,setText]=React.useState("");
+  const [counts,setCounts]=React.useState({mieter:null,bewerber:null});
+  const [sending,setSending]=React.useState(false);
+  React.useEffect(()=>{(async()=>{
+    try{
+      const [m,b]=await Promise.all([
+        supabase.from("tenants").select("id,email,status").not("email","is",null),
+        supabase.from("applicants").select("id,email,status").not("email","is",null),
+      ]);
+      const mc=(m.data||[]).filter(t=>(t.status||"aktiv")==="aktiv"&&t.email&&t.email.includes("@")).length;
+      const aktiv=["Neu","In Prüfung","Zugeteilt","Kontaktiert"];
+      const bc=(b.data||[]).filter(x=>x.email&&x.email.includes("@")&&(!x.status||aktiv.includes(x.status))).length;
+      setCounts({mieter:mc,bewerber:bc});
+    }catch(_e){}
+  })();},[]);
+  const vorlagen={
+    empfehlung:{subject:"Empfiehl uns weiter und spare 100 Franken",text:"wir vergrössern unsere WG-Gemeinschaft und du kannst mithelfen. Kennst du jemanden, der ein Zimmer sucht, zum Beispiel Studienkolleginnen, Arbeitskollegen oder Freunde?\n\nEmpfiehl uns eine Person. Sobald sie sich über new.dthomes.ch/zimmer bewirbt, dabei deinen Namen im Feld \"Empfohlen von\" angibt und den Mietvertrag unterschreibt, erhältst du 100 Franken Reduktion auf deine nächste Miete.\n\nFür jede Person, die über dich einzieht, gibt es die Reduktion. Danke fürs Weitersagen!"},
+    freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige schöne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
+  };
+  const senden=async(testEmail)=>{
+    if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausfüllen","error"); return; }
+    const n = group==="mieter"?counts.mieter:counts.bewerber;
+    if(!testEmail && !confirm("E-Mail an "+(n!=null?n:"alle")+" "+(group==="mieter"?"Mieter":"Bewerber")+" senden?")) return;
+    setSending(true);
+    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined }});
+    setSending(false);
+    if(error||(data&&data.error)){ toast("Fehler: "+((data&&data.error)||(error&&error.message)||"unbekannt"),"error"); return; }
+    toast(testEmail?"Testmail an dich gesendet":("Gesendet an "+data.sent+" von "+data.total));
+  };
+  const btn=(active)=>({background:active?"var(--ink)":"#fff",color:active?"#fff":"var(--ink)",border:"1px solid var(--line)",borderRadius:8,padding:"8px 14px",fontSize:13,cursor:"pointer",fontFamily:"inherit"});
+  return (<div>
+    <div className="pt">Werbung</div>
+    <div style={{fontSize:13,color:"var(--muted)",marginTop:4,marginBottom:16}}>Gebündelte E-Mails an alle Mieter oder Bewerber, im D&T-Design mit persönlicher Anrede.</div>
+    <div style={{maxWidth:640,display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>setGroup("mieter")} style={btn(group==="mieter")}>Mieter{counts.mieter!=null?" ("+counts.mieter+")":""}</button>
+        <button onClick={()=>setGroup("bewerber")} style={btn(group==="bewerber")}>Bewerber{counts.bewerber!=null?" ("+counts.bewerber+")":""}</button>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <button style={btn(false)} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Vorlage: Empfehlung</button>
+        <button style={btn(false)} onClick={()=>{setSubject(vorlagen.freieZimmer.subject);setText(vorlagen.freieZimmer.text);}}>Vorlage: Freie Zimmer</button>
+      </div>
+      <div><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Betreff</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+      <div><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Nachricht</label><textarea rows={11} value={text} onChange={e=>setText(e.target.value)} placeholder="Text der Nachricht. Die Anrede (Hallo Vorname,) und die Signatur werden automatisch ergänzt." style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:14,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}/></div>
+      <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.5}}>Jede Mail erhält automatisch die persönliche Anrede mit Vornamen, das D&T-Logo und die Signatur. Eine Kopie geht per BCC an dich.</div>
+      <div style={{display:"flex",gap:10,marginTop:4}}>
+        <button style={btn(false)} disabled={sending} onClick={()=>senden("daan.theijse@dthomes.ch")}>Test an mich</button>
+        <button style={{...btn(true),opacity:sending?0.6:1}} disabled={sending} onClick={()=>senden()}>{sending?"Sende \u2026":"An alle senden"}</button>
+      </div>
+    </div>
+  </div>);
+}
+
 function MainApp({rolle}) {
   const sichtbareSeiten = seitenFuerRolle(rolle);
   const [page, setPage] = useState(() => { try { const s = localStorage.getItem("immobase_page"); if (s && sichtbareSeiten.some(x=>x.id===s)) return s; } catch(e){} return sichtbareSeiten[0]?.id || "dashboard"; });
@@ -13579,7 +13636,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
