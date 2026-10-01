@@ -13531,9 +13531,13 @@ function WerbungTab(){
   const [showList,setShowList]=React.useState(false);
   const [sending,setSending]=React.useState(false);
   const [log,setLog]=React.useState([]);
+  const [saved,setSaved]=React.useState([]);
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
-  React.useEffect(()=>{ ladeLog(); },[]);
+  const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
+  const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
+  const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage l\u00f6schen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
+  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); },[]);
   React.useEffect(()=>{(async()=>{
     setExcluded({});
     try{
@@ -13601,6 +13605,8 @@ function WerbungTab(){
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <button style={btn(false)} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Vorlage: Empfehlung</button>
         <button style={btn(false)} onClick={()=>{setSubject(vorlagen.freieZimmer.subject);setText(vorlagen.freieZimmer.text);}}>Vorlage: Freie Zimmer</button>
+        {saved.map(v=>(<span key={v.id} style={{display:"inline-flex",alignItems:"center"}}><button style={btn(false)} onClick={()=>{setSubject(v.betreff||"");setText(v.text||"");}}>{v.name}</button><button onClick={()=>loeschenVorlage(v.id)} style={{border:"1px solid var(--line)",borderLeft:"none",borderRadius:"0 8px 8px 0",background:"#fff",color:"#b06a5a",cursor:"pointer",padding:"8px 9px",fontSize:12}}>x</button></span>))}
+        <button style={{...btn(false),borderStyle:"dashed"}} onClick={speichernVorlage}>+ Als Vorlage speichern</button>
       </div>
       <div><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Betreff</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}/></div>
       <div><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Nachricht</label><textarea rows={11} value={text} onChange={e=>setText(e.target.value)} placeholder="Text der Nachricht. Die Anrede (Hallo Vorname,) und die Signatur werden automatisch erg\u00e4nzt." style={{width:"100%",padding:"10px 12px",border:"1px solid var(--line)",borderRadius:8,fontSize:14,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}/></div>
