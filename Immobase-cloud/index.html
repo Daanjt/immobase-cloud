@@ -2297,7 +2297,7 @@ function useSupabaseData() {
       if (error) { console.warn("Partners-Tabelle noch nicht eingerichtet:", error.message); return; }
       setPartners((data||[]).map(p => ({
         id:p.id, name:p.name, typ:p.typ, strasse:p.strasse, hausnummer:p.hausnummer,
-        plz:p.plz, ort:p.ort, email:p.email, telefon:p.telefon,
+        plz:p.plz, ort:p.ort, land:p.land, email:p.email, telefon:p.telefon,
         kontaktperson:p.kontaktperson, notizen:p.notizen, kontakte:p.kontakte||[], createdAt:p.created_at,
       })));
     } catch (e) { console.warn("loadPartners failed:", e); }
@@ -2307,7 +2307,7 @@ function useSupabaseData() {
       id: p.id || `P${Date.now()}`,
       name: p.name || "", typ: p.typ || "Eigentümer",
       strasse: p.strasse || "", hausnummer: p.hausnummer || "",
-      plz: p.plz || "", ort: p.ort || "", email: p.email || "",
+      plz: p.plz || "", ort: p.ort || "", land: p.land || "", email: p.email || "",
       telefon: p.telefon || "", kontaktperson: p.kontaktperson || "", notizen: p.notizen || "", kontakte: p.kontakte || [],
     };
     const {data, error} = await supabase.from("partners").insert([row]).select().single();
@@ -7436,6 +7436,7 @@ www.dthomes.ch`;
                 ["Geschlecht",b.gender||"-"],
                 ["Nationalität",b.nat||"-"],
                 ["Adresse",b.adresse?[b.adresse,[b.plz,b.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"-"],
+                ["Land",b.land?({ch:"Schweiz",de:"Deutschland",at:"Österreich",li:"Liechtenstein",fr:"Frankreich",it:"Italien",es:"Spanien",pt:"Portugal",gb:"Vereinigtes Königreich",nl:"Niederlande",be:"Belgien",pl:"Polen",us:"USA"}[b.land]||b.land):"-"],
                 ["Beschäftigung",b.type||"-"],
                 ["Beruf",b.job||"-"],
                 ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"-"],
