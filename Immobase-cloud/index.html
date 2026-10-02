@@ -2297,7 +2297,7 @@ function useSupabaseData() {
       if (error) { console.warn("Partners-Tabelle noch nicht eingerichtet:", error.message); return; }
       setPartners((data||[]).map(p => ({
         id:p.id, name:p.name, typ:p.typ, strasse:p.strasse, hausnummer:p.hausnummer,
-        plz:p.plz, ort:p.ort, land:p.land, email:p.email, telefon:p.telefon,
+        plz:p.plz, ort:p.ort, land:p.land, quelle:p.quelle, email:p.email, telefon:p.telefon,
         kontaktperson:p.kontaktperson, notizen:p.notizen, kontakte:p.kontakte||[], createdAt:p.created_at,
       })));
     } catch (e) { console.warn("loadPartners failed:", e); }
@@ -2307,7 +2307,7 @@ function useSupabaseData() {
       id: p.id || `P${Date.now()}`,
       name: p.name || "", typ: p.typ || "Eigentümer",
       strasse: p.strasse || "", hausnummer: p.hausnummer || "",
-      plz: p.plz || "", ort: p.ort || "", land: p.land || "", email: p.email || "",
+      plz: p.plz || "", ort: p.ort || "", land: p.land || "", quelle: p.quelle || "", email: p.email || "",
       telefon: p.telefon || "", kontaktperson: p.kontaktperson || "", notizen: p.notizen || "", kontakte: p.kontakte || [],
     };
     const {data, error} = await supabase.from("partners").insert([row]).select().single();
@@ -6559,6 +6559,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [selZimmer,setSelZimmer]=useState(null);
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("Neu");
+  const [listMode,setListMode]=useState("bewerber");
   const [bewSort,setBewSort]=useState("neu");
   const [bewSearch,setBewSearch]=useState("");
   const [ansicht,setAnsicht]=useState("liste");
@@ -6635,7 +6636,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     return true;                          // Mieter zieht vor Wohnungsende aus
   });
   // Filter: Status + ggf. Wohnungs-Match wenn Nachmieter gesucht wird
-  let shown=bewerber.filter(x=>x.status===filterStatus);
+  const wgLeadCount=bewerber.filter(x=>x.quelle==="wgzimmer").length;
+  let shown = listMode==="leads" ? bewerber.filter(x=>x.quelle==="wgzimmer") : bewerber.filter(x=>(x.quelle!=="wgzimmer") && x.status===filterStatus);
   if (nachmieterFor) {
     // Bewerber die das Ziel-Zimmer als Wunsch haben oder keine Präferenz
     const targetRoom = rooms.find(r => r.id === nachmieterFor);
@@ -7322,9 +7324,13 @@ www.dthomes.ch`;
               style={{width:"100%"}}
             />
           </div>
-          <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
-            {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
+          <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",borderBottom:"1px solid var(--line)",paddingBottom:10}}>
+            <button className={`btn btn-sm ${listMode!=="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("bewerber")}>Bewerber</button>
+            <button className={`btn btn-sm ${listMode==="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("leads")}>wgzimmer-Leads{wgLeadCount>0?(" ("+wgLeadCount+")"):""}</button>
           </div>
+          {listMode!=="leads" && <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+            {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
+          </div>}
           {filterStatus==="Neu" && (
             <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:10,flexWrap:"wrap"}}>
               <span style={{fontSize:9.5,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".15em",fontWeight:600,marginRight:2}}>Sortieren</span>
