@@ -24,7 +24,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     if (!RESEND_API_KEY) return j({ error: "Missing RESEND_API_KEY" }, 500);
-    const { tenant_id, betrag, abzuege } = await req.json();
+    const { tenant_id, betrag, abzuege, nachricht } = await req.json();
     if (!tenant_id) return j({ error: "tenant_id erforderlich" }, 400);
     const sb = createClient(SUPABASE_URL!, SERVICE_KEY!);
     const { data: t } = await sb.from("tenants").select("vorname, nachname, email").eq("id", tenant_id).single();
@@ -44,7 +44,8 @@ ${zeilen || ''}
 </table>`;
 
     const dankSchluss = `<p style="font-size:14px;margin:0 0 18px;">Schön, dass du Teil von D&amp;T Homes warst. Wir wünschen dir viel Erfolg und alles Gute für die Zukunft.</p>`;
-    const inhalt = summe > 0
+    const nt = (nachricht || "").trim();
+    const inhalt = nt ? (nt.split(/\n{2,}/).map((p: string) => `<p style="font-size:14px;margin:0 0 14px;">${esc(p).replace(/\n/g, "<br>")}</p>`).join("") + tabelle) : (summe > 0
       ? `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
 <p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei D&amp;T Homes, wir hoffen, du hattest eine schöne Zeit bei uns. Hier die Abrechnung deiner Kaution:</p>
 ${tabelle}
@@ -52,7 +53,7 @@ ${tabelle}
 ${dankSchluss}`
       : `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
 <p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei D&amp;T Homes. Es freut uns, dir mitzuteilen, dass du deine volle Kaution von <strong>${chf(rueck)}</strong> zurückerhältst. Die Rückzahlung läuft direkt über Evorest.</p>
-${dankSchluss}`;
+${dankSchluss}`);
 
     const wa = `https://wa.me/${WA_DIGITS}`;
     const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
