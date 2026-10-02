@@ -7436,7 +7436,7 @@ www.dthomes.ch`;
                 ["Geschlecht",b.gender||"-"],
                 ["Nationalität",b.nat||"-"],
                 ["Adresse",b.adresse?[b.adresse,[b.plz,b.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"-"],
-                ["Land",b.land?({ch:"Schweiz",de:"Deutschland",at:"Österreich",li:"Liechtenstein",fr:"Frankreich",it:"Italien",es:"Spanien",pt:"Portugal",gb:"Vereinigtes Königreich",nl:"Niederlande",be:"Belgien",pl:"Polen",us:"USA"}[b.land]||b.land):"-"],
+                ["Land",b.land?({ch:"Schweiz",de:"Deutschland",at:"Österreich",li:"Liechtenstein",fr:"Frankreich",it:"Italien",es:"Spanien",pt:"Portugal",gb:"Vereinigtes Königreich",nl:"Niederlande",be:"Belgien",pl:"Polen",us:"USA",intl:"Anderes Land"}[b.land]||b.land):"-"],
                 ["Beschäftigung",b.type||"-"],
                 ["Beruf",b.job||"-"],
                 ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"-"],
