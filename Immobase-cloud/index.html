@@ -13763,6 +13763,7 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const [busy,setBusy]=React.useState(false);
   const [preview,setPreview]=React.useState(false);
   const [mailText,setMailText]=React.useState("");
+  const [neu,setNeu]=React.useState(false);
   React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung,kaution_betrag,kaution_monate,mietzins").eq("id",tenant.id).single(); const _kb=(data&&data.kaution_betrag!=null&&data.kaution_betrag!=="")?+data.kaution_betrag:((data&&+data.kaution_monate>0&&data.mietzins)?(+data.kaution_monate*(+data.mietzins+25)):null); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):(_kb!=null?String(_kb):"")); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); setErledigt(k.erledigt_am||null); } else if(_kb!=null){ setBetrag(String(_kb)); } }catch(_e){} })();},[tenant.id]);
   const summe=abzuege.reduce((s,a)=>s+(+a.betrag||0),0);
   const rueck=Math.max(0,(+betrag||0)-summe);
@@ -13772,10 +13773,10 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const clean=()=>abzuege.filter(a=>(+a.betrag||0)>0).map(a=>({grund:(a.grund||"Abzug").trim(),betrag:+a.betrag||0}));
   const chf=(n)=>"CHF "+(+n||0).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
   const defaultText=()=>{ const v=tenant.vorname||""; const r=chf(rueck); return summe>0 ? ("Hallo "+v+",\n\nvielen Dank für deine Zeit bei D&T Homes, wir hoffen, du hattest eine schöne Zeit bei uns. Unten findest du die Abrechnung deiner Kaution.\n\nNach Abzug der aufgeführten Positionen erhältst du "+r+" zurück. Die Verrechnung und Rückzahlung werden direkt über Evorest abgewickelt.\n\nSchön, dass du Teil von D&T Homes warst. Alles Gute für die Zukunft.") : ("Hallo "+v+",\n\nvielen Dank für deine Zeit bei D&T Homes. Es freut uns, dir deine volle Kaution von "+r+" zurückzuzahlen, die Rückzahlung läuft direkt über Evorest.\n\nSchön, dass du Teil von D&T Homes warst. Wir wünschen dir viel Erfolg und alles Gute für die Zukunft."); };
-  const abschliessen=async()=>{ if(!confirm("Auszug ohne Mail als erledigt markieren?")) return; await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,erledigt_am:new Date().toISOString()}}); setErledigt(new Date().toISOString()); onDone && onDone(); };
+  const abschliessen=async()=>{ if(!confirm("Auszug ohne Mail als erledigt markieren?")) return; await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,erledigt_am:new Date().toISOString()}}); setErledigt(new Date().toISOString()); setNeu(false); onDone && onDone(); };
   const speichern=async()=>{ await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck}}); };
   const senden=async()=>{ if(!(+betrag>0)){ toast("Kautionsbetrag eintragen","error"); return; } setMailText(defaultText()); setPreview(true); };
-  const wirklichSenden=async()=>{ setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean(),nachricht:mailText}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,gesendet_am:new Date().toISOString()}}); setSent(new Date().toISOString()); setPreview(false); toast("Abrechnung gesendet"); onDone && onDone(); };
+  const wirklichSenden=async()=>{ setBusy(true); const {data,error}=await supabase.functions.invoke("send-kautionsabrechnung",{body:{tenant_id:tenant.id,betrag:+betrag||0,abzuege:clean(),nachricht:mailText}}); setBusy(false); if(error||(data&&data.error)){ toast("Fehler beim Senden","error"); return; } await updateTenant(tenant.id, {kautionAbrechnung:{betrag:+betrag||0,abzuege:clean(),rueckzahlung:rueck,gesendet_am:new Date().toISOString()}}); setSent(new Date().toISOString()); setPreview(false); setNeu(false); toast("Abrechnung gesendet"); onDone && onDone(); };
   const inp={padding:"9px 11px",border:"1px solid var(--line)",borderRadius:8,fontSize:13.5,fontFamily:"inherit",boxSizing:"border-box"};
   const chipb={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
   const fmt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("de-CH");}catch(_e){return "";}};
@@ -13784,6 +13785,8 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
       <div style={{fontSize:13,fontWeight:700,color:"#2e7d4f"}}>Erledigt{sent?(" · Abrechnung per Mail gesendet am "+fmt(sent)):(" · ohne Mail abgeschlossen am "+fmt(erledigt))}</div>
       <div style={{fontSize:12.5,color:"#356b4b",marginTop:6,lineHeight:1.5}}>Kaution {chf(betrag)}{clean().length>0?(". Abzüge: "+clean().map(a=>a.grund+" -"+chf(a.betrag)).join("; ")):". Keine Abzüge"}. Rückzahlung {chf(rueck)}.</div>
     </div>}
+    {(sent||erledigt) && !neu && <button onClick={()=>setNeu(true)} style={{...chipb,borderRadius:9,padding:"9px 15px",marginTop:2}}>Neue Abrechnung starten</button>}
+    {(!(sent||erledigt) || neu) && <React.Fragment>
     <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Kautionsabrechnung</div>
     <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:16}}>Abzüge beim Auszug erfassen, Rückzahlung berechnen und dem Mieter die Abrechnung senden. Rückzahlung erfolgt über Evorest.</div>
     <div style={{maxWidth:420}}>
@@ -13823,6 +13826,7 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
         </div>
       </div>}
     </div>
+    </React.Fragment>}
   </div>);
 }
 
