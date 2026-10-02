@@ -13780,6 +13780,10 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const chipb={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
   const fmt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("de-CH");}catch(_e){return "";}};
   return (<div style={{border:"1px solid var(--line)",borderRadius:14,padding:"20px 22px",marginTop:18,background:"#fff"}}>
+    {(sent||erledigt) && <div style={{border:"1px solid #cdebd4",background:"#f0f9f2",borderRadius:10,padding:"12px 15px",marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#2e7d4f"}}>Erledigt{sent?(" · Abrechnung per Mail gesendet am "+fmt(sent)):(" · ohne Mail abgeschlossen am "+fmt(erledigt))}</div>
+      <div style={{fontSize:12.5,color:"#356b4b",marginTop:6,lineHeight:1.5}}>Kaution {chf(betrag)}{clean().length>0?(". Abzüge: "+clean().map(a=>a.grund+" -"+chf(a.betrag)).join("; ")):". Keine Abzüge"}. Rückzahlung {chf(rueck)}.</div>
+    </div>}
     <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Kautionsabrechnung</div>
     <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:16}}>Abzüge beim Auszug erfassen, Rückzahlung berechnen und dem Mieter die Abrechnung senden. Rückzahlung erfolgt über Evorest.</div>
     <div style={{maxWidth:420}}>
