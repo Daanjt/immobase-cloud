@@ -4631,7 +4631,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
 
   const incomplete=tenants.filter(t=>(t.status||"aktiv")==="aktiv" && (!t.email||!t.phone||!t.geburt));
   const neueBewerber=bewerber.filter(b=>b.status==="Neu"||b.status==="In Prüfung");
-  const baldEnde=apts.filter(a=>!a.pipeline && (()=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<120;})());
+  const baldEnde=apts.filter(a=>!a.pipeline && (()=>{const d=parseDMY(a.mietende);return d&&(d-heute)/86400000<60;})());
 
   return(
     <div>
@@ -4694,7 +4694,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       {wgFree.length>0&&<div className="warn">⚠ <strong>{wgFree.length} WG-Zimmer frei:</strong> {wgFree.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}
 
       {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
-      {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;120 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
+      {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;60 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
 
       {/* PER-APARTMENT FINANCE BREAKDOWN - separated WG / Airbnb */}
       <div className="card finance-card-compact" style={{marginBottom:24}}>
