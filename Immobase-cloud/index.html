@@ -5786,7 +5786,7 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
 </div>
 
 <!-- §3 MIETZINS -->
-<div class="section">
+<div class="section allow-break">
 <h2>3. Mietzins</h2>
 <p>Der monatliche Mietzins für das Zimmer ${v.zimmerId} beträgt:</p>
 <div class="miet-wrap avoid-break">
@@ -5797,17 +5797,6 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
 </div>
-${(()=>{ const _mz=(+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0); const _moeb=(v.moebliert&&v.moeblierungModus==="monatlich")?(+v.moeblierungPauschale||150):0; const _sg=(+v.aufschlag>0)?(+v.aufschlag):0; const _einm=(v.moebliert&&v.moeblierungModus!=="monatlich")?(+v.moeblierungPauschale||990):0;
-  if(!_moeb && !_sg && !_einm) return "";
-  return `<p>Zusammen mit den vereinbarten Zusatzleistungen ergibt sich folgender monatlicher Gesamtbetrag:</p>
-<div class="miet-wrap avoid-break">
-  <table class="miet-table">
-    <tr><td>Totaler Mietzins in CHF</td><td class="amt">${chf2(_mz)}</td></tr>
-    ${_moeb?`<tr><td>Möblierung (monatlich, siehe Ziffer 7) in CHF</td><td class="amt">${chf2(_moeb)}</td></tr>`:""}
-    ${_sg?`<tr><td>Servicegebühr für Kautionsreduktion (siehe Ziffer 4) in CHF</td><td class="amt">${chf2(_sg)}</td></tr>`:""}
-    <tr class="total"><td>Monatlich total zu bezahlen in CHF</td><td class="amt">${chf2(_mz+_moeb+_sg)}</td></tr>
-  </table>
-</div>${_einm?`<p>Zusätzlich einmalig: Möblierung <strong>CHF ${chf2(_einm)}</strong> (siehe Ziffer 7).</p>`:""}`; })()}
 ${v.aufschlag>0?`<p>Der Mietzins ist unabhängig von der gewählten Kaution. Bei der vereinbarten reduzierten Kaution wird zusätzlich eine <strong>Servicegebühr für Kautionsreduktion</strong> von <strong>CHF ${chf2(v.aufschlag)} pro Monat</strong> erhoben (siehe Ziffer 4). Diese ist eine separate Dienstleistung und nicht Teil des Mietzinses.</p>`:""}
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser bereits inbegriffen.</p>
 <p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
@@ -5940,7 +5929,7 @@ ${v.kautionMonate<3
 </div>
 
 <!-- §15 -->
-<div class="section">
+<div class="section allow-break">
 <h2>15. Zusätzliche Bestimmungen</h2>
 <p class="clause"><span class="clause-num">15.1</span>Haustiere sind in der Wohnung nicht gestattet.</p>
 <p class="clause"><span class="clause-num">15.2</span>Rauchen ist in der Wohnung nicht gestattet.</p>
@@ -5951,6 +5940,25 @@ ${v.kautionMonate<3
 <p class="clause"><span class="clause-num">15.7</span>Sofern zur Wohnung ein Garten gehört, darf der Untermieter diesen nutzen. Er verpflichtet sich, den Garten selbständig und ordentlich zu pflegen und in gepflegtem Zustand zu halten (insbesondere Rasen- und Grünpflege) sowie im Winter den Schnee auf den zum Mietobjekt gehörenden Wegen und Flächen zu räumen.</p>
 ${(v.sonderklausel && String(v.sonderklausel).trim()) ? ('<p class="clause"><span class="clause-num">15.8</span>'+String(v.sonderklausel).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(String.fromCharCode(10)).join('<br>')+'</p>') : ''}
 </div>
+
+<!-- KOSTENUEBERSICHT -->
+${(()=>{ const _mz=(+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0); const _moeb=(v.moebliert&&v.moeblierungModus==="monatlich")?(+v.moeblierungPauschale||150):0; const _sg=(+v.aufschlag>0)?(+v.aufschlag):0; const _einm=(v.moebliert&&v.moeblierungModus!=="monatlich")?(+v.moeblierungPauschale||990):0; const _km=+v.kautionMonate||0; const _kb=_km>0?(+v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*_km):0;
+  return `<div class="section avoid-break">
+<h2>Kostenübersicht</h2>
+<p>Zusammenfassung aller Kosten gemäss Ziffern 3, 4 und 7:</p>
+<div class="miet-wrap">
+  <table class="miet-table">
+    <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
+    <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
+    ${_moeb?`<tr><td>Möblierung (monatlich) in CHF</td><td class="amt">${chf2(_moeb)}</td></tr>`:""}
+    ${_sg?`<tr><td>Servicegebühr für Kautionsreduktion in CHF</td><td class="amt">${chf2(_sg)}</td></tr>`:""}
+    <tr class="total"><td>Monatlich total zu bezahlen in CHF</td><td class="amt">${chf2(_mz+_moeb+_sg)}</td></tr>
+    ${_kb?`<tr><td>Kaution vor Einzug (${_km} Monatsmiete${_km>1?"n":""}) in CHF</td><td class="amt">${chf2(_kb)}</td></tr>`:""}
+    ${_einm?`<tr><td>Möblierung (einmalig) in CHF</td><td class="amt">${chf2(_einm)}</td></tr>`:""}
+  </table>
+</div>
+</div>`; })()}
 
 <!-- CLOSING + SIGNATURES (zusammenhalten) -->
 <div class="closing-wrap">
