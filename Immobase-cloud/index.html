@@ -5797,11 +5797,22 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
 </div>
+${(()=>{ const _mz=(+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0); const _moeb=(v.moebliert&&v.moeblierungModus==="monatlich")?(+v.moeblierungPauschale||150):0; const _sg=(+v.aufschlag>0)?(+v.aufschlag):0; const _einm=(v.moebliert&&v.moeblierungModus!=="monatlich")?(+v.moeblierungPauschale||990):0;
+  if(!_moeb && !_sg && !_einm) return "";
+  return `<p>Zusammen mit den vereinbarten Zusatzleistungen ergibt sich folgender monatlicher Gesamtbetrag:</p>
+<div class="miet-wrap avoid-break">
+  <table class="miet-table">
+    <tr><td>Totaler Mietzins in CHF</td><td class="amt">${chf2(_mz)}</td></tr>
+    ${_moeb?`<tr><td>Möblierung (monatlich, siehe Ziffer 7) in CHF</td><td class="amt">${chf2(_moeb)}</td></tr>`:""}
+    ${_sg?`<tr><td>Servicegebühr für Kautionsreduktion (siehe Ziffer 4) in CHF</td><td class="amt">${chf2(_sg)}</td></tr>`:""}
+    <tr class="total"><td>Monatlich total zu bezahlen in CHF</td><td class="amt">${chf2(_mz+_moeb+_sg)}</td></tr>
+  </table>
+</div>${_einm?`<p>Zusätzlich einmalig: Möblierung <strong>CHF ${chf2(_einm)}</strong> (siehe Ziffer 7).</p>`:""}`; })()}
 ${v.aufschlag>0?`<p>Der Mietzins ist unabhängig von der gewählten Kaution. Bei der vereinbarten reduzierten Kaution wird zusätzlich eine <strong>Servicegebühr für Kautionsreduktion</strong> von <strong>CHF ${chf2(v.aufschlag)} pro Monat</strong> erhoben (siehe Ziffer 4). Diese ist eine separate Dienstleistung und nicht Teil des Mietzinses.</p>`:""}
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser bereits inbegriffen.</p>
 <p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
 <p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
-<p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Vermieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Vermieters gestattet.</p>
+<p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Hauptmieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet.</p>
 <p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>
 <p>Nicht enthalten sind allfällige Serafe-Gebühren, diese sind von den Bewohnern selbst zu tragen.</p>
 <p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
@@ -5869,7 +5880,7 @@ ${v.kautionMonate<3
 <ul>
   <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
 </ul>
-<p>Die Möbel werden für die Dauer der Untermiete zur Nutzung überlassen. Der Bewohner verpflichtet sich zu einem sorgfältigen Gebrauch. Die Möbel bleiben im Eigentum der D&amp;T Partners GmbH. Das Nutzungsrecht endet mit Beendigung des Untermietvertrages.</p>
+<p>Die Möbel werden für die Dauer der Untermiete zur Nutzung überlassen. Der Untermieter verpflichtet sich zu einem sorgfältigen Gebrauch. Die Möbel bleiben im Eigentum der D&amp;T Partners GmbH. Das Nutzungsrecht endet mit Beendigung des Untermietvertrages.</p>
 <div class="highlight-box">Die Möblierung des Zimmers wird dazu gemietet: ${v.moebliert?"Ja":"Nein"}</div>
 <p class="clause"><span class="clause-num">7.2</span>Zum Zeitpunkt der Zimmerübergabe kann die Wohnung je nach Datum noch nicht vollständig möbliert sein. Die Möblierung erfolgt in der Regel innerhalb der ersten Tage nach Schlüsselübergabe oder nach vorgängiger Absprache.</p>
 </div>
@@ -5901,7 +5912,7 @@ ${v.kautionMonate<3
 <h2>11. Kündigung</h2>
 <p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs"};return w[n]||String(n);})(v.kuendigungsfrist||3)} ${(v.kuendigungsfrist===1?"Monat":"Monate")} auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
 <p class="clause"><span class="clause-num">11.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter das Zimmer vorzeitig verlässt.</p>
-<p class="clause"><span class="clause-num">11.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Mieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
+<p class="clause"><span class="clause-num">11.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr ist eine Kündigung durch den Untermieter in den letzten sechs Monaten der Vertragslaufzeit ausgeschlossen. Dies stellt sicher, dass das Zimmer oder die Wohnung nicht ungenutzt bleibt und der Untermieter die gesamte vereinbarte Mietdauer nutzt. Demzufolge ist die Kündigung nur bis spätestens sechs Monate vor dem festgelegten Enddatum des Vertrages möglich. Beispielsweise, wenn der Mietvertrag am 31. März endet, muss eine etwaige Kündigung spätestens bis zum 30. September des Vorjahres eingereicht werden, so dass der letztmögliche Zeitpunkt das Zimmer oder die Wohnung vor regulärem Ende des Untermietvertrages zu verlassen, der 31. Dezember des Vorjahres ist.</p>
 <p class="clause"><span class="clause-num">11.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.</p>
 <p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
 <p class="clause"><span class="clause-num">11.4</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
@@ -5919,7 +5930,7 @@ ${v.kautionMonate<3
 <!-- §13 -->
 <div class="section">
 <h2>13. Rücktrittsrecht</h2>
-<p>Der Mieter erhält ein ausserordentliches Rücktrittsrecht vom unterzeichneten Mietvertrag bis und mit der persönlichen Besichtigung vor Ort. Dieses gilt, wenn die Wohnung wesentlich vom vorgängig zur Verfügung gestellten Bildmaterial (Fotos, Grundrisse und virtuelle Tour) abweicht. Im Falle eines solchen Rücktritts entstehen dem Mieter keinerlei Kosten oder Verpflichtungen; bereits geleistete Zahlungen werden vollständig zurückerstattet.</p>
+<p>Der Untermieter erhält ein ausserordentliches Rücktrittsrecht vom unterzeichneten Mietvertrag bis und mit der persönlichen Besichtigung vor Ort. Dieses gilt, wenn die Wohnung wesentlich vom vorgängig zur Verfügung gestellten Bildmaterial (Fotos, Grundrisse und virtuelle Tour) abweicht. Im Falle eines solchen Rücktritts entstehen dem Untermieter keinerlei Kosten oder Verpflichtungen; bereits geleistete Zahlungen werden vollständig zurückerstattet.</p>
 </div>
 
 <!-- §14 -->
