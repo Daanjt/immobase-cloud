@@ -5797,7 +5797,6 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
 </div>
-${v.aufschlag>0?`<p>Der Mietzins ist unabhängig von der gewählten Kaution. Bei der vereinbarten reduzierten Kaution wird zusätzlich eine <strong>Servicegebühr für Kautionsreduktion</strong> von <strong>CHF ${chf2(v.aufschlag)} pro Monat</strong> erhoben (siehe Ziffer 4). Diese ist eine separate Dienstleistung und nicht Teil des Mietzinses.</p>`:""}
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice, persönliche Betreuung sowie Wasser bereits inbegriffen.</p>
 <p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
 <p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
