@@ -12370,7 +12370,7 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
             <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
               <div style={{flex:1,minWidth:180,cursor:"pointer"}} onClick={()=>setOffen(auf?null:e.id)}>
                 <div style={{fontSize:15,color:"var(--ink)",fontWeight:500}}>{`${e.vorname||""} ${e.nachname||""}`.trim()||"Ohne Name"}</div>
-                <div style={{fontSize:11.5,color:"var(--muted)"}}>{e.funktion||"—"}{e.stundenlohn?` · ${e.stundenlohn} CHF/h`:""}</div>
+                <div style={{fontSize:11.5,color:"var(--muted)"}}>{e.funktion||"-"}{e.stundenlohn?` · ${e.stundenlohn} CHF/h`:""}</div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:16,color:"var(--ink)",fontWeight:600}}>{fmtStd(total)}</div>
@@ -12462,13 +12462,13 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
               <div><label className="fl">Aufgabe</label>
                 <select className="fi" value={entryModal.kategorie||""} onChange={e=>setEntryModal(p=>({...p,kategorie:e.target.value}))}>
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {KATEGORIEN.map(k=><option key={k} value={k}>{k}</option>)}
                 </select>
               </div>
               <div><label className="fl">Wohnung (optional)</label>
                 <select className="fi" value={entryModal.aptId||""} onChange={e=>setEntryModal(p=>({...p,aptId:e.target.value}))}>
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {(apts||[]).map(a=><option key={a.id} value={a.id}>{a.adresse||a.id}</option>)}
                 </select>
               </div>
@@ -12507,7 +12507,7 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
     return (
       <div>
         <div style={{fontFamily:"Georgia,serif",fontSize:24,color:"var(--ink)",marginBottom:12}}>Zeiterfassung</div>
-        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:20,color:"var(--muted)",fontSize:13.5,lineHeight:1.6}}>Dein Konto ist noch nicht mit einem Mitarbeiter-Profil verknüpft. Bitte melde dich bei Daan, damit er deine E-Mail-Adresse ({benutzerMail||"—"}) beim Mitarbeiter hinterlegt.</div>
+        <div style={{border:"1px solid var(--line)",borderRadius:12,padding:20,color:"var(--muted)",fontSize:13.5,lineHeight:1.6}}>Dein Konto ist noch nicht mit einem Mitarbeiter-Profil verknüpft. Bitte melde dich bei Daan, damit er deine E-Mail-Adresse ({benutzerMail||"-"}) beim Mitarbeiter hinterlegt.</div>
       </div>
     );
   }
@@ -12575,7 +12575,7 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
             <div style={{fontSize:12,color:"var(--muted)",margin:"8px 0 12px"}}>Dauer: <strong style={{color:"var(--ink)"}}>{fmtDauer(berechneDauer(manModal.startZeit,manModal.endZeit,manModal.pauseMin))}</strong></div>
             <label className="fl">Aufgabe</label>
             <select className="fi" style={{width:"100%",marginBottom:10}} value={manModal.kategorie||""} onChange={e=>setManModal(p=>({...p,kategorie:e.target.value}))}>
-              <option value="">—</option>
+              <option value="">-</option>
               {KATEGORIEN.map(k=><option key={k} value={k}>{k}</option>)}
             </select>
             <label className="fl" style={{display:"block"}}>Notiz</label>
@@ -12672,9 +12672,9 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
                 <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
                 <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
                 <td data-label="Status"><span style={{display:"inline-block",padding:"3px 10px",borderRadius:12,fontSize:10.5,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span>{i.t && i.statusKey!=="bleibt" && !i.nachmieter && <button onClick={async()=>{ if(!confirm(`${i.t.vorname} ${i.t.nachname} bleibt bis zum Wohnungsende?\n\nDas Auszugsdatum wird auf ${a.mietende?fmt(pd(a.mietende)):"das Wohnungsende"} gesetzt und das Zimmer nicht mehr ausgeschrieben.`)) return; await updateTenant(i.t.id,{auszug: a.mietende||""}); }} style={{marginLeft:8,fontSize:11,padding:"5px 13px",background:"transparent",color:"#5a7c5e",border:"1px solid #bcc9ac",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>✓ Bleibt</button>}</td>
-                <td data-label="Nachmieter">{i.nachmieter?<span style={{display:"inline-flex",alignItems:"center",gap:6}}><button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit",fontWeight:600}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button><button onClick={()=>nachmieterZuruecknehmen(r, i.nachmieter, i.nachmieterTyp)} title="Nachmieter zurücknehmen" style={{background:"none",border:"none",color:"#b8846e",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}}>✕</button></span>:((i.statusKey==="zieht_aus"||i.statusKey==="frei")?<button onClick={()=>navigateTo&&navigateTo("bewerber",{nachmieterFor:r.id})} style={{fontSize:11,padding:"5px 13px",background:"transparent",color:"#3a352d",border:"1px solid #cbbfa8",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>Nachmieter wählen</button>:<span style={{color:"#c8c0b0"}}>—</span>)}</td>
+                <td data-label="Nachmieter">{i.nachmieter?<span style={{display:"inline-flex",alignItems:"center",gap:6}}><button onClick={()=>navigateTo&&navigateTo(i.nachmieterTyp,i.nachmieter.id)} style={{background:"none",border:"none",color:"#3a5230",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit",fontWeight:600}}>{i.nachmieter.vorname} {i.nachmieter.nachname}</button><button onClick={()=>nachmieterZuruecknehmen(r, i.nachmieter, i.nachmieterTyp)} title="Nachmieter zurücknehmen" style={{background:"none",border:"none",color:"#b8846e",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}}>✕</button></span>:((i.statusKey==="zieht_aus"||i.statusKey==="frei")?<button onClick={()=>navigateTo&&navigateTo("bewerber",{nachmieterFor:r.id})} style={{fontSize:11,padding:"5px 13px",background:"transparent",color:"#3a352d",border:"1px solid #cbbfa8",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>Nachmieter wählen</button>:<span style={{color:"#c8c0b0"}}>-</span>)}</td>
                 <td data-label="Ausschreiben">
-                  {i.statusKey==="bleibt" ? <span style={{fontSize:11,color:"#8a8174"}}>—</span>
+                  {i.statusKey==="bleibt" ? <span style={{fontSize:11,color:"#8a8174"}}>-</span>
                    : i.nachmieter ? (i.wechselFaellig
                        ? <button onClick={()=>mieterwechsel(r, i.t, i.nachmieter)} style={{fontSize:10.5,padding:"5px 11px",background:"#eef3e6",color:"#3a5230",border:"1px solid #94b878",borderRadius:6,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>→ Wechsel vollziehen</button>
                        : <span style={{fontSize:11,color:"#3a5230",fontWeight:600,whiteSpace:"nowrap"}}>✓ Nachmieter gefunden</span>)
@@ -13640,7 +13640,7 @@ function WerbungTab(){
   const nurDiese=(rows)=>{ setExcluded(p=>{const n={...p}; visible.forEach(r=>{ n[r.email.toLowerCase()]=true; }); rows.forEach(r=>{ n[r.email.toLowerCase()]=false; }); return n;}); };
 
   const vorlagen={
-    empfehlung:{subject:"Verdiene 100 Franken – empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
+    empfehlung:{subject:"Verdiene 100 Franken: empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
     freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige schöne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
     zugang:{subject:"Ankündigung: Arbeiten in deiner Wohnung",text:"wir möchten dich kurz informieren, dass bei dir Arbeiten anstehen.\n\nDatum und Uhrzeit: [bitte eintragen]\nWas: [kurz beschreiben]\n\nBitte ermögliche an diesem Termin den Zugang zur Wohnung. Falls es dir nicht passt, melde dich kurz, dann finden wir einen anderen Termin.\n\nDanke dir!"},
   };
