@@ -5190,9 +5190,56 @@ function objektLabel(roomId){
 }
 function istWohnungsVertrag(v){ return !!(v && (v.vertragsart === "wohnung" || (v.apt && v.apt.vermietungsart === "wohnung"))); }
 
-function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
+// Optionale*r Mitmieter*in (nur ganze Wohnungen). Standard: nur ein Hauptmieter.
+function mitmieterFehlt(mm){
+  if (!mm) return "";
+  const f = [];
+  if (!String(mm.vorname||"").trim()) f.push("Vorname");
+  if (!String(mm.nachname||"").trim()) f.push("Nachname");
+  if (!/^\S+@\S+\.\S+$/.test(String(mm.email||"").trim())) f.push("E-Mail");
+  if (!String(mm.geburt||"").trim()) f.push("Geburtsdatum");
+  return f.join(", ");
+}
+function mitmieterZeile(mm){
+  if (!mm || !mm.vorname) return null;
+  const name = `${mm.vorname||""} ${mm.nachname||""}`.trim();
+  const det = [mm.email, mm.phone, mm.geburt ? fmtDateDE(mm.geburt) : "", mm.nat, mm.job, mm.einkommen ? `CHF ${mm.einkommen}` : ""].filter(Boolean).join(" · ");
+  return <span>{name}{mm.aktiv===false?<span style={{color:"#8a8174"}}> (nicht im Vertrag)</span>:<span style={{color:"#5a6e4a",fontWeight:600}}> · solidarisch</span>}{det?<span style={{display:"block",fontSize:11.5,color:"#8a8174"}}>{det}</span>:null}</span>;
+}
+function MitmieterEditor({ value, draft, onChange }){
+  const aktiv = !!value;
+  const d = value || draft || {};
+  const [loc, setLoc] = React.useState(d);
+  React.useEffect(() => { setLoc(value || draft || {}); }, [aktiv]);
+  const set = (k, val) => setLoc(p => ({ ...p, [k]: val }));
+  const commit = () => { if (aktiv) onChange({ ...loc, aktiv: true }, loc); };
+  const toggle = (on) => { if (on) onChange({ ...loc, aktiv: true }, loc); else onChange(null, loc); };
+  const fehlt = aktiv ? mitmieterFehlt(loc) : "";
+  const inp = (k, label, type) => (
+    <div className="fg" style={{marginBottom:6}}><label className="fl">{label}</label>
+      <input className="fi" type={type||"text"} value={loc[k]||""} onChange={e=>set(k,e.target.value)} onBlur={commit}/></div>
+  );
+  return (
+    <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #ece4d3"}}>
+      <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,cursor:"pointer"}}>
+        <input type="checkbox" checked={aktiv} onChange={e=>toggle(e.target.checked)}/>
+        <span><strong>Mitmieter*in</strong> in den Vertrag aufnehmen (haftet solidarisch, unterschreibt mit)</span>
+      </label>
+      {!aktiv && <div style={{fontSize:11,color:"#8a8174",marginTop:4}}>Standard: nur ein*e Hauptmieter*in{(draft&&draft.vorname)?` · Angaben zu ${draft.vorname} ${draft.nachname||""} sind gespeichert`:""}</div>}
+      {aktiv && <div style={{marginTop:8}}>
+        <div className="frow">{inp("vorname","Vorname *")}{inp("nachname","Nachname *")}</div>
+        <div className="frow">{inp("email","E-Mail *","email")}{inp("phone","Telefon")}</div>
+        <div className="frow">{inp("geburt","Geburtsdatum *","date")}{inp("nat","Nationalität")}</div>
+        {fehlt && <div style={{fontSize:11,color:"#9b4a3e",marginTop:2}}>Fehlt noch: {fehlt}</div>}
+      </div>}
+    </div>
+  );
+}
+function buildAnfangsmietzinsHTML(b, v, fullNameIn, fmtDate){
   const chf2 = n => Number(n||0).toLocaleString("de-CH");
   const _W = istWohnungsVertrag(v);
+  const _MM = (_W && v.mitmieter && String(v.mitmieter.vorname||"").trim()) ? `${v.mitmieter.vorname||""} ${v.mitmieter.nachname||""}`.trim() : "";
+  const fullName = _MM ? `${fullNameIn} und ${_MM}` : fullNameIn;
   const adresseLiegenschaft = _W ? `${v.adresse}, ${v.plz} ${v.ort}, ganze Wohnung${v.apt&&v.apt.zimmer?` (${v.apt.zimmer} Zimmer)`:""}` : `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
   const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
   const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
@@ -5497,6 +5544,8 @@ function buildContractHTML(b, v, fullName, fmtDate){
   const pers = Math.max(1, +v.personen || 1);
   const persTxt = pers === 1 ? "eine Person" : `${pers} Personen`;
   const stromPP = pers ? (+v.strom||0)/pers : 25;
+  const MM = (W && v.mitmieter && String(v.mitmieter.vorname||"").trim()) ? v.mitmieter : null;
+  const mmName = MM ? `${MM.vorname||""} ${MM.nachname||""}`.trim() : "";
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
 <style>
@@ -5800,10 +5849,22 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
   ${W?`<span class="pl">Anzahl Personen:</span><span class="pv">${pers}</span>`:""}
 </div>
 </div>
+${MM?`
+<div class="person-card">
+<div class="ph">Mitmieter*in (solidarisch haftend)</div>
+<div class="person-grid">
+  <span class="pl">Vorname:</span><span class="pv">${MM.vorname||"-"}</span>
+  <span class="pl">Nachname:</span><span class="pv">${MM.nachname||"-"}</span>
+  <span class="pl">E-Mail:</span><span class="pv">${MM.email||"-"}</span>
+  <span class="pl">Telefon:</span><span class="pv">${MM.phone||"-"}</span>
+  <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(MM.geburt)||"-"}</span>
+  <span class="pl">Nationalität:</span><span class="pv">${MM.nat||"-"}</span>
+</div>
+</div>`:""}
 
 <!-- GREETING -->
 <div class="greeting">
-<p class="welcome">Guten Tag ${fullName},</p>
+<p class="welcome">Guten Tag ${fullName}${MM?`<span class="mm-und"> und </span>${mmName}`:""},</p>
 <p class="welcome">Herzlich willkommen bei D&amp;T Homes!</p>
 <p>Nachfolgend findest du alle Details und Regelungen zur Miete. Der vorliegende Untermietvertrag wird zwischen der <strong>D&amp;T Partners GmbH</strong> als Hauptmieterin und dir als Untermieter*in abgeschlossen. Bitte nimm dir einen Moment Zeit, den Vertrag sorgfältig zu lesen, und unterzeichne ihn, wenn du mit den Bedingungen einverstanden bist.</p>
 </div>
@@ -5814,7 +5875,8 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
 <p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
 ${W
   ? `<p>Untervermietet wird die <strong>ganze Wohnung</strong>${(A.zimmer||A.flaeche)?` (${[A.zimmer?`${A.zimmer} Zimmer`:"",A.flaeche?`ca. ${A.flaeche} m²`:""].filter(Boolean).join(", ")})`:""}, <strong>unmöbliert</strong>, im Rahmen einer befristeten Zwischennutzung.</p>
-<p>Die Wohnung dient ausschliesslich Wohnzwecken und wird vom Untermieter mit insgesamt <strong>${persTxt}</strong> bewohnt.</p>`
+<p>Die Wohnung dient ausschliesslich Wohnzwecken und wird vom Untermieter mit insgesamt <strong>${persTxt}</strong> bewohnt.</p>${MM?`
+<p><strong>Mitmieter*in:</strong> ${mmName} ist neben ${fullName} ebenfalls Vertragspartei. Beide haften solidarisch für sämtliche Verpflichtungen aus diesem Vertrag, insbesondere für den Mietzins, die Nebenkosten und allfällige Schäden. Eine Kündigung durch die Untermieterseite ist nur gültig, wenn sie von beiden unterzeichnet ist. Mitteilungen der Hauptmieterin an eine der beiden Personen gelten für beide.</p>`:""}`
   : `<p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>`}
 </div>
 
@@ -6108,6 +6170,21 @@ ${(()=>{ const _mz=(+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0); const _
     </div>
   </div>
 </div>
+${MM?`<div class="signatures" style="margin-top:22pt">
+  <div class="sig-block">
+    <div class="role">Mitmieter*in</div>
+    <div class="name">${mmName}</div>
+    <div class="sig-row">
+      <span class="lbl">Ort, Datum:</span>
+      <span class="line"></span>
+    </div>
+    <div class="sig-row">
+      <span class="lbl">Unterschrift:</span>
+      <span class="line"></span>
+    </div>
+  </div>
+  <div class="sig-block" style="border-top:none"></div>
+</div>`:""}
 </div>
 
 </body></html>`;
@@ -6197,6 +6274,7 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   const selectedTypes = Array.isArray(types) && types.length > 0 ? types : ["umv", "amz"];
   const wantUmv = selectedTypes.includes("umv");
   const wantAmz = selectedTypes.includes("amz");
+  if (istWohnungsVertrag(vertragData) && vertragData.mitmieter && mitmieterFehlt(vertragData.mitmieter)) throw new Error("Mitmieter*in unvollständig: " + mitmieterFehlt(vertragData.mitmieter));
   if (!wantUmv && !wantAmz) throw new Error("Keine Vertragsart ausgewählt");
   if (!b || !vertragData) throw new Error("Person oder Vertragsdaten fehlen");
   // Sonderklausel einmalig ins Englische uebersetzen und speichern (fuer die EN-Vertragsversion); keine wiederholten API-Aufrufe beim Anzeigen
@@ -6876,6 +6954,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       roomId: istNachmieter ? selZimmer : undefined,
       owner: b.owner || "",
       personen: b.personen != null && b.personen !== "" ? +b.personen : null,
+      mitmieter: (b.mitmieter && b.mitmieter.aktiv !== false && b.mitmieter.vorname) ? { ...b.mitmieter, aktiv: true } : null,
     };
     await insertTenant(newTenant);
     if (!istNachmieter) { await updateRoom(selZimmer,{occupied:true,tenantId:newId}); }
@@ -7149,7 +7228,10 @@ www.dthomes.ch`;
       kuendigungsfrist: 3,
     });
     if (apt && apt.vermietungsart === "wohnung") {
-      setVertragData(p => wohnungVertragswerte({ ...p, kautionMonate: 3, aufschlag: 0, fruehererMietzins: "" }, apt, room, b.personen || 1));
+      const _mm = (b.mitmieter && typeof b.mitmieter === "object") ? b.mitmieter : null;
+      setVertragData(p => ({ ...wohnungVertragswerte({ ...p, kautionMonate: 3, aufschlag: 0, fruehererMietzins: "" }, apt, room, b.personen || 1),
+        mitmieter: (_mm && _mm.aktiv !== false && _mm.vorname) ? { ..._mm, aktiv: true } : null,
+        _mmDraft: _mm || {} }));
     }
     setVertragModal(true);
   }
@@ -7162,6 +7244,7 @@ www.dthomes.ch`;
       const es = toDateInputValue(v.mietende), as = toDateInputValue(v.apt.mietende);
       if (es && as && es > as) { alert(`Das Enddatum (${v.mietende}) darf nicht nach dem Mietende der Wohnung (${v.apt.mietende}) liegen.`); return; }
     }
+    if (istWohnungsVertrag(v) && v.mitmieter && mitmieterFehlt(v.mitmieter)) { alert("Mitmieter*in unvollständig: " + mitmieterFehlt(v.mitmieter)); return; }
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     setDlBusy("umv");
     try {
@@ -7283,6 +7366,7 @@ www.dthomes.ch`;
     const selectedTypes = Array.isArray(types) && types.length > 0 ? types : ["umv", "amz"];
     const wantUmv = selectedTypes.includes("umv");
     const wantAmz = selectedTypes.includes("amz");
+    if (istWohnungsVertrag(vertragData) && vertragData.mitmieter && mitmieterFehlt(vertragData.mitmieter)) throw new Error("Mitmieter*in unvollständig: " + mitmieterFehlt(vertragData.mitmieter));
     if (!wantUmv && !wantAmz) throw new Error("Keine Vertragsart ausgewählt");
     if (!b || !vertragData) throw new Error("Bewerber oder Vertragsdaten fehlen");
     if (!b.email) throw new Error("Bewerber hat keine Email-Adresse");
@@ -7587,6 +7671,7 @@ www.dthomes.ch`;
                 ["Nettoeinkommen",b.einkommen?chf(b.einkommen):"-"],
                 ["Arbeitgeber",b.arbeitgeber||"-"],
                 ["Gewünschter Einzug",b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):"-"],
+                ...(b.mitmieter && b.mitmieter.vorname ? [["Mitmieter*in", mitmieterZeile(b.mitmieter)]] : []),
                 ["Keine offenen Betreibungen",b.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}
             </div>
@@ -7931,6 +8016,8 @@ www.dthomes.ch`;
                   <input className="fi" type="number" min="1" max="10" value={vertragData.personen||1} style={{width:80,margin:0}} onChange={e=>{ const n=Math.max(1,+e.target.value||1); setVertragData(p=>wohnungVertragswerte(p, p.apt, null, n)); updateBewerber(b.id,{personen:n}); }}/>
                   <span style={{fontSize:11.5,color:"#8a8174"}}>Nebenkosten CHF 100 pauschal pro Monat, Strom CHF 25 pro Person und Monat</span>
                 </div>
+                <MitmieterEditor value={vertragData.mitmieter} draft={vertragData._mmDraft}
+                  onChange={(mm, draft) => { setVertragData(p => ({ ...p, mitmieter: mm, _mmDraft: draft })); updateBewerber(b.id, { mitmieter: mm ? { ...mm, aktiv: true } : (draft && Object.keys(draft).length ? { ...draft, aktiv: false } : null) }); }}/>
               </div>
             )}
 
@@ -9455,7 +9542,8 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
     };
     if (apt && apt.vermietungsart === "wohnung") {
       const vw = wohnungVertragswerte({ ...v, aufschlag: 0, kautionMonate: 3 }, apt, room, t.personen || 1);
-      return { b: { ...b, personen: vw.personen, moebliert: "nein" }, v: vw };
+      const _tm = (t.mitmieter && t.mitmieter.aktiv !== false && t.mitmieter.vorname) ? { ...t.mitmieter, aktiv: true } : null;
+      return { b: { ...b, personen: vw.personen, moebliert: "nein" }, v: { ...vw, mitmieter: _tm, _mmDraft: t.mitmieter || {} } };
     }
     
     return { b, v };
@@ -10075,6 +10163,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 ["Geburt", fmtDateDE(tenant.geburt) || "-"],
                 ["Nationalität",tenant.nat||"-"],
                 ["Vorherige Adresse",tenant.adresse?[tenant.adresse,[tenant.plz,tenant.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"-"],
+                ...(tenant.mitmieter && tenant.mitmieter.vorname ? [["Mitmieter*in", mitmieterZeile(tenant.mitmieter)]] : []),
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Beruf & Einkommen</div>
@@ -10653,6 +10742,13 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               <div className="fg"><label className="fl">PLZ</label><input className="fi" value={tvData.plz} onChange={e=>setTvData(p=>({...p,plz:e.target.value}))}/></div>
               <div className="fg"><label className="fl">Ort</label><input className="fi" value={tvData.ort} onChange={e=>setTvData(p=>({...p,ort:e.target.value}))}/></div>
             </div>
+            {istWohnungsVertrag(tvData) && (
+              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 16px",marginBottom:18}}>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#1a1814",marginBottom:2}}>Ganze Wohnung (unmöbliert) · {tvData.personen||1} Person(en)</div>
+                <MitmieterEditor value={tvData.mitmieter} draft={tvData._mmDraft}
+                  onChange={(mm, draft) => { setTvData(p => ({ ...p, mitmieter: mm, _mmDraft: draft })); if (tvData._tenant) updateTenant(tvData._tenant.id, { mitmieter: mm ? { ...mm, aktiv: true } : (draft && Object.keys(draft).length ? { ...draft, aktiv: false } : null) }); }}/>
+              </div>
+            )}
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietdauer</div>
             <div className="fg" style={{marginBottom:8}}>

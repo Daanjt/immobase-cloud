@@ -494,6 +494,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             from: "D&T Homes <noreply@dthomes.ch>",
             to: [contract.mieter_email],
+            ...((() => { const mm = contract?.contract_data?.vertrag?.mitmieter; const e = mm && mm.vorname && String(mm.email || "").trim(); return (e && e.toLowerCase() !== String(contract.mieter_email || "").toLowerCase()) ? { cc: [e] } : {}; })()),
             subject: contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag"
               ? "Deine Verl\u00e4ngerung ist best\u00e4tigt"
               : "Willkommen bei D&T Homes: Vertrag unterzeichnet",

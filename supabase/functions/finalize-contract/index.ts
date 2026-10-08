@@ -249,7 +249,14 @@ async function detectAnchors(pdfBytes, isUmv) {
       };
       const datum = findLabel(isUmv ? ["Ort, Datum:", "Datum:"] : ["Datum:"]);
       const sig = findLabel(["Unterschrift:"]);
-      if (datum && sig) return { datumX: datum.x, datumW: datum.w, datumY: datum.y, sigX: sig.x, sigW: sig.w, sigY: sig.y, page: p };
+      if (datum && sig) {
+        // Zweiter (tieferer) Block links: Mitmieter*in (nur bei Wohnungen mit Mitmieter)
+        const second = (L) => items.filter((i) => i.str === L && inSide(i) && i.y < datum.y - 20).sort((a, b) => b.y - a.y)[0] || null;
+        const d2 = isUmv ? (second("Ort, Datum:") || second("Datum:")) : null;
+        const s2 = isUmv ? second("Unterschrift:") : null;
+        return { datumX: datum.x, datumW: datum.w, datumY: datum.y, sigX: sig.x, sigW: sig.w, sigY: sig.y, page: p,
+          datum2: d2 ? { x: d2.x, y: d2.y } : null, sig2: s2 ? { x: s2.x, y: s2.y } : null };
+      }
     }
     return null;
   } catch (e) {
@@ -265,7 +272,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { token, signature_png, user_agent } = body;
+    const { token, signature_png, user_agent, mitmieter_signature_png } = body;
     if (!token || typeof token !== "string" || token.length < 16) return jsonResponse({ error: "Invalid token" }, 400);
     if (!signature_png || !signature_png.startsWith("data:image/png;base64,")) return jsonResponse({ error: "Invalid signature" }, 400);
 
@@ -284,6 +291,19 @@ Deno.serve(async (req) => {
     if (contract.expires_at && new Date(contract.expires_at) < new Date()) {
       await supabase.from("contracts").update({ status: "abgelaufen" }).eq("token", token);
       return jsonResponse({ error: "Contract expired" }, 400);
+    }
+
+    const mitmieterData = contract?.contract_data?.vertrag?.mitmieter;
+    const _pdfList = (Array.isArray(contract.unsigned_pdfs) && contract.unsigned_pdfs.length) ? contract.unsigned_pdfs : [{ type: "umv" }];
+    const hatMitmieter = !!(mitmieterData && mitmieterData.vorname) && _pdfList.some((u) => u.type === "umv" || u.type === "untermietvertrag");
+    if (hatMitmieter && (!mitmieter_signature_png || !String(mitmieter_signature_png).startsWith("data:image/png;base64,"))) {
+      return jsonResponse({ error: "Signature of co-tenant missing" }, 400);
+    }
+    let sig2Bytes = null;
+    if (hatMitmieter) {
+      const b2 = atob(String(mitmieter_signature_png).replace(/^data:image\/png;base64,/, ""));
+      sig2Bytes = new Uint8Array(b2.length);
+      for (let i = 0; i < b2.length; i++) sig2Bytes[i] = b2.charCodeAt(i);
     }
 
     const pdfsToSign = [];
@@ -344,6 +364,14 @@ Deno.serve(async (req) => {
         const dims = sigImage.scaleToFit(sigMaxW, sigMaxH);
         targetPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
         targetPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
+        if (isUmv && sig2Bytes && anchors && anchors.datum2 && anchors.sig2) {
+          const sig2Image = await pdfDoc.embedPng(sig2Bytes);
+          const d2 = sig2Image.scaleToFit(sigMaxW, sigMaxH);
+          targetPage.drawText(ortDatumStr, { x: anchors.datum2.x + 74, y: anchors.datum2.y, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
+          targetPage.drawImage(sig2Image, { x: anchors.sig2.x + 74, y: anchors.sig2.y - 13, width: d2.width, height: d2.height });
+        } else if (isUmv && sig2Bytes) {
+          console.error("Mitmieter-Anker nicht gefunden, Unterschrift nicht platziert");
+        }
         sigPlaced = true;
       } else if (isAmz) {
         // AMZ: Mieter*in block RECHTS auf der letzten Seite
@@ -393,6 +421,7 @@ Deno.serve(async (req) => {
       signed_ip: ip,
       signed_user_agent: ua,
       mieter_signature_png: signature_png,
+      ...(hatMitmieter ? { mitmieter_signature_png } : {}),
       signed_pdf_path: signedPdfs[0].path,
     };
     if (contract.unsigned_pdfs && Array.isArray(contract.unsigned_pdfs) && contract.unsigned_pdfs.length > 0) {
