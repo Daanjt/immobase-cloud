@@ -8361,6 +8361,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
+      ...(form.merkmaleText!=null ? { merkmale: String(form.merkmaleText).split(",").map(x=>x.trim()).filter(Boolean) } : {}),
       immer_befristet: !!form.immer_befristet,
       type: form.type || "WG",
       vermietungsart: (form.type||"WG")==="WG" && form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
@@ -8854,6 +8855,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
+        <div className="fg"><label className="fl">Merkmale fürs Inserat (mit Komma trennen)</label><input className="fi" value={form.merkmaleText ?? (Array.isArray(form.merkmale)?form.merkmale.join(", "):"")} onChange={F("merkmaleText")} placeholder="z.B. WLAN inkl., Aussicht, Nähe See"/><div style={{fontSize:10.5,color:"#8a8174",marginTop:4,fontStyle:"italic"}}>Erscheinen als Kärtchen auf der Webseite. Leer = WLAN inkl., Zentral. Balkon wird automatisch ergänzt, wenn ein Zimmer einen Balkon hat.</div></div>
         <div className="fg"><label className="fl">Etage / Bezeichnung</label><input className="fi" value={form.etage||""} onChange={F("etage")} placeholder="z.B. 2. OG oder Wohnung rechts"/></div>
         <div className="frow">
           <div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div>
