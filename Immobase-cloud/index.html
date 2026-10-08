@@ -5142,7 +5142,9 @@ function wohnungVertragswerte(p, apt, room, personen){
   const brutto = netto + nk;
   const km = p.kautionMonate == null ? 3 : p.kautionMonate;
   const auf = p.aufschlag || 0;
-  return { ...p, vertragsart: "wohnung", personen: pers, nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: (brutto + strom) * km, moebliert: false };
+  const fNetto = +(apt && apt.frueherer_mietzins) || 0;
+  const fNk = +(apt && apt.frueherer_nk) || 0;
+  return { ...p, vertragsart: "wohnung", personen: pers, fruehererNetto: fNetto || "", fruehererNk: fNetto ? fNk : "", fruehererMietzins: fNetto ? fNetto + fNk : "", nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: (brutto + strom) * km, moebliert: false };
 }
 function istWohnungsVertrag(v){ return !!(v && (v.vertragsart === "wohnung" || (v.apt && v.apt.vermietungsart === "wohnung"))); }
 
@@ -5157,10 +5159,14 @@ function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
   const stromFix = _W ? (+v.strom || 0) : 25;
   const nettomiete = +v.nettomiete || 0;
   // Frueherer Mietzins: ein Bruttowert (inkl. NK + Strom), netto = brutto - NK - Strom
-  const _fb = +v.fruehererMietzins || 0;
-  const _fnk = +v.nebenkosten || 0;
-  const _fstr = +v.strom || 0;
-  const _fnetto = _fb > 0 ? (_fb - _fnk - _fstr) : 0;
+  let _fb = +v.fruehererMietzins || 0;
+  let _fnk = +v.nebenkosten || 0;
+  let _fstr = +v.strom || 0;
+  let _fnetto = _fb > 0 ? (_fb - _fnk - _fstr) : 0;
+  if (_W && +v.fruehererNetto > 0 && (+v.fruehererMietzins||0) === (+v.fruehererNetto) + (+v.fruehererNk||0)) {
+    // Ganze Wohnung: frueherer Mietzins aus den Wohnungsdaten (Vormieter), Strom war nicht inbegriffen
+    _fnetto = +v.fruehererNetto; _fnk = +v.fruehererNk || 0; _fstr = 0; _fb = _fnetto + _fnk;
+  }
   const nebenkosten = _W ? (+v.nebenkosten || 0) : (+v.nebenkosten || 100);
   const totalCalc = nettomiete + nebenkosten + stromFix;
   // Override v so the template below uses the corrected values
@@ -5302,7 +5308,7 @@ Gestützt auf Art. 270 Abs. 2 des Obligationenrechts (OR) und § 229 b des Einf�
   <tbody>
     <tr><td>Nettomietzins (ohne Nebenkosten)</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fnetto)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nettomiete)}</td></tr>
     <tr><td>Nebenkosten</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fnk)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.nebenkosten)}</td></tr>
-    <tr><td>Stromkosten (pauschal)</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fstr)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
+    <tr><td>Stromkosten (pauschal)</td><td class="amt">${(_fb>0&&_fstr>0)?`Fr. ${chf2(_fstr)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.strom)}</td></tr>
     <tr class="total"><td>Total Mietzins inkl. Nebenkosten</td><td class="amt">${(_fb>0)?`Fr. ${chf2(_fb)}`:"Fr. -"}</td><td class="amt">Fr. ${chf2(v.total)}</td></tr>
   </tbody>
 </table>
@@ -8315,8 +8321,11 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
-      vermietungsart: form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
+      type: form.type || "WG",
+      vermietungsart: (form.type||"WG")==="WG" && form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
       nk_pro_person: 100,
+      frueherer_mietzins: form.frueherer_mietzins===""||form.frueherer_mietzins==null ? null : +form.frueherer_mietzins,
+      frueherer_nk: form.frueherer_nk===""||form.frueherer_nk==null ? null : +form.frueherer_nk,
       strom_pro_person: form.strom_pro_person===""||form.strom_pro_person==null ? null : +form.strom_pro_person,
       flaeche: form.flaeche===""||form.flaeche==null ? null : +form.flaeche,
     });
@@ -8386,6 +8395,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       units: newForm.type === "WG" ? (newForm.vermietungsart==="wohnung" ? 1 : (+newForm.units||0)) : null,
       vermietungsart: newForm.type === "WG" && newForm.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
       nk_pro_person: 100,
+      frueherer_mietzins: newForm.frueherer_mietzins ? +newForm.frueherer_mietzins : null,
+      frueherer_nk: newForm.frueherer_nk ? +newForm.frueherer_nk : null,
       strom_pro_person: newForm.strom_pro_person ? +newForm.strom_pro_person : null,
       flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
@@ -8540,6 +8551,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <div className="igrid">{[
                   ["Typ",<TypeBadge type={apt.vermietungsart==="wohnung"?"Wohnung":apt.type}/>],
                   isWG && ["Vermietung", apt.vermietungsart==="wohnung" ? "Ganze Wohnung (unmöbliert)" : "Einzelne Zimmer"],
+                  isWG && apt.vermietungsart==="wohnung" && ["Früherer Mietzins", apt.frueherer_mietzins ? `CHF ${apt.frueherer_mietzins} netto${apt.frueherer_nk?` + CHF ${apt.frueherer_nk} NK`:""}` : "-"],
                   ["Zimmer",apt.zimmer+" Zi."],
                   ["Stockwerk",apt.stockwerk||"-"],
                   istAdmin && ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
@@ -8688,6 +8700,10 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
               <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
               <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={newForm.strom_pro_person||""} onChange={NF("strom_pro_person")} placeholder="z.B. 25"/></div>
             </div>
+            <div className="frow">
+              <div className="fg"><label className="fl">Früherer Mietzins netto (CHF/Mt.)</label><input className="fi" type="number" value={newForm.frueherer_mietzins||""} onChange={NF("frueherer_mietzins")} placeholder="Vormieter, z.B. 1450"/></div>
+              <div className="fg"><label className="fl">Frühere Nebenkosten (CHF/Mt.)</label><input className="fi" type="number" value={newForm.frueherer_nk||""} onChange={NF("frueherer_nk")} placeholder="z.B. 180"/></div>
+            </div>
           </>)}
         </>)}
         {newForm.type==="WG"&&newForm.vermietungsart!=="wohnung"&&(
@@ -8804,14 +8820,19 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={form.zimmer||""} onChange={F("zimmer")}/></div>
         </div>
 
-        {(form.type||"WG")==="WG"&&(<>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermietung</div>
-        <div className="fg"><label className="fl">Typ</label><select className="fi" value={form.vermietungsart||"zimmer"} onChange={F("vermietungsart")}><option value="zimmer">WG (einzelne Zimmer, möbliert)</option><option value="wohnung">Ganze Wohnung (unmöbliert, Zwischennutzung)</option></select></div>
+        <div className="fg"><label className="fl">Typ</label><select className="fi" value={(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"?"Wohnung":(form.type||"WG")} onChange={e=>{const v=e.target.value; setForm(p=>v==="Wohnung"?{...p,type:"WG",vermietungsart:"wohnung"}:{...p,type:v,vermietungsart:"zimmer"});}}><option value="WG">WG (einzelne Zimmer, möbliert)</option><option value="Wohnung">Ganze Wohnung (unmöbliert, Zwischennutzung)</option><option value="Airbnb">Airbnb</option></select></div>
+        {(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"&&(rooms||[]).filter(r=>r.aptId===form.id).length>1&&<div style={{fontSize:11,color:"#9b4a3e",marginTop:-4,marginBottom:8}}>Diese Wohnung hat {(rooms||[]).filter(r=>r.aptId===form.id).length} Zimmer-Einheiten. Für eine ganze Wohnung sollte im Tab Zimmer genau eine Einheit bestehen (Nettomiete der ganzen Wohnung).</div>}
+        {(form.type||"WG")==="WG"&&(<>
         {form.vermietungsart==="wohnung"&&(<>
           <div className="frow">
             <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={form.flaeche??""} onChange={F("flaeche")} placeholder="z.B. 68"/></div>
             <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
             <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.strom_pro_person??""} onChange={F("strom_pro_person")} placeholder="z.B. 25"/></div>
+          </div>
+          <div className="frow">
+            <div className="fg"><label className="fl">Früherer Mietzins netto (CHF/Mt.)</label><input className="fi" type="number" value={form.frueherer_mietzins??""} onChange={F("frueherer_mietzins")} placeholder="Vormieter, z.B. 1450"/></div>
+            <div className="fg"><label className="fl">Frühere Nebenkosten (CHF/Mt.)</label><input className="fi" type="number" value={form.frueherer_nk??""} onChange={F("frueherer_nk")} placeholder="z.B. 180"/></div>
           </div>
           <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Die Nettomiete der Wohnung steht im Tab Zimmer (eine Einheit für die ganze Wohnung). Nebenkosten und Strom werden pauschal pro Person verrechnet.</div>
         </>)}
@@ -9339,7 +9360,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
     };
     if (apt && apt.vermietungsart === "wohnung") {
       const vw = wohnungVertragswerte({ ...v, aufschlag: 0, kautionMonate: 3 }, apt, room, t.personen || 1);
-      return { b: { ...b, personen: vw.personen, moebliert: "nein" }, v: { ...vw, fruehererMietzins: "" } };
+      return { b: { ...b, personen: vw.personen, moebliert: "nein" }, v: vw };
     }
     
     return { b, v };
