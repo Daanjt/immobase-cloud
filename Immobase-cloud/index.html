@@ -2025,7 +2025,12 @@ function useSupabaseData() {
     // Fixen Mietzins setzen, falls nicht vorhanden: aktueller Zimmerpreis des zugeteilten Zimmers
     if ((t.mietzins == null || t.mietzins === "") && t.roomId) {
       const rm = rooms.find(r => r.id === t.roomId);
-      if (rm && rm.miete != null) t = { ...t, mietzins: +rm.miete };
+      const ap = rm ? apts.find(a => a.id === rm.aptId) : null;
+      if (rm && rm.miete != null && ap && ap.vermietungsart === "wohnung") {
+        // Ganze Wohnung: Mietzins = Nettomiete + Nebenkosten pro Person; Strom pro Person separat
+        const pers = +t.personen || 1;
+        t = { ...t, mietzins: +rm.miete + (+ap.nk_pro_person || 0) * pers, strom: (t.strom != null && t.strom !== "") ? t.strom : (+ap.strom_pro_person || 0) * pers };
+      } else if (rm && rm.miete != null) t = { ...t, mietzins: +rm.miete };
     }
     const dbT = toDbTenant(t);
     const {error} = await supabase.from("tenants").insert([dbT]);
@@ -5128,21 +5133,35 @@ function formatDateLong(dateStr){
   return `${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// Ganze Wohnung (unmoebliert): Vertragswerte aus Wohnung + Personenzahl ableiten
+function wohnungVertragswerte(p, apt, room, personen){
+  const pers = Math.max(1, +personen || 1);
+  const netto = room ? (+room.miete || 0) : (+p.nettomiete || 0);
+  const nk = (+(apt && apt.nk_pro_person) || 0) * pers;
+  const strom = (+(apt && apt.strom_pro_person) || 0) * pers;
+  const brutto = netto + nk;
+  const km = p.kautionMonate == null ? 3 : p.kautionMonate;
+  const auf = p.aufschlag || 0;
+  return { ...p, vertragsart: "wohnung", personen: pers, nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: (brutto + strom) * km, moebliert: false };
+}
+function istWohnungsVertrag(v){ return !!(v && (v.vertragsart === "wohnung" || (v.apt && v.apt.vermietungsart === "wohnung"))); }
+
 function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
   const chf2 = n => Number(n||0).toLocaleString("de-CH");
-  const adresseLiegenschaft = `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
+  const _W = istWohnungsVertrag(v);
+  const adresseLiegenschaft = _W ? `${v.adresse}, ${v.plz} ${v.ort}, ganze Wohnung${v.apt&&v.apt.zimmer?` (${v.apt.zimmer} Zimmer)`:""}` : `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
   const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
   const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
   // Defensive recalculation - Strom fix 25 für dieses Formular
   // Kautions-Servicegebühr wird im Anfangsmietzins NICHT aufgelistet (gehört nicht zum amtlichen Mietzins)
-  const stromFix = 25;
+  const stromFix = _W ? (+v.strom || 0) : 25;
   const nettomiete = +v.nettomiete || 0;
   // Frueherer Mietzins: ein Bruttowert (inkl. NK + Strom), netto = brutto - NK - Strom
   const _fb = +v.fruehererMietzins || 0;
   const _fnk = +v.nebenkosten || 0;
   const _fstr = +v.strom || 0;
   const _fnetto = _fb > 0 ? (_fb - _fnk - _fstr) : 0;
-  const nebenkosten = +v.nebenkosten || 100;
+  const nebenkosten = _W ? (+v.nebenkosten || 0) : (+v.nebenkosten || 100);
   const totalCalc = nettomiete + nebenkosten + stromFix;
   // Override v so the template below uses the corrected values
   v = {...v, strom: stromFix, total: totalCalc};
@@ -5425,6 +5444,12 @@ function buildContractHTML(b, v, fullName, fmtDate){
   const chf2 = n => Number(n||0).toLocaleString("de-CH");
   const adresseFull = `${v.adresse}, CH-${v.plz} in ${v.ort}`;
   const refStr = `${v.adresse} & ${fullName}`;
+  const W = istWohnungsVertrag(v);
+  const A = v.apt || {};
+  const pers = Math.max(1, +v.personen || 1);
+  const persTxt = pers === 1 ? "eine Person" : `${pers} Personen`;
+  const nkPP = +A.nk_pro_person || (pers ? (+v.nebenkosten||0)/pers : 0);
+  const stromPP = +A.strom_pro_person || (pers ? (+v.strom||0)/pers : 0);
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
 <style>
@@ -5725,6 +5750,7 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
   <span class="pl">Telefon:</span><span class="pv">${b.phone||"-"}</span>
   <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"-"}</span>
   <span class="pl">Nationalität:</span><span class="pv">${b.nat||"-"}</span>
+  ${W?`<span class="pl">Anzahl Personen:</span><span class="pv">${pers}</span>`:""}
 </div>
 </div>
 
@@ -5739,7 +5765,10 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
 <div class="section">
 <h2>1. Mietobjekt</h2>
 <p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
-<p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>
+${W
+  ? `<p>Untervermietet wird die <strong>ganze Wohnung</strong>${(A.zimmer||A.flaeche)?` (${[A.zimmer?`${A.zimmer} Zimmer`:"",A.flaeche?`ca. ${A.flaeche} m²`:""].filter(Boolean).join(", ")})`:""}, <strong>unmöbliert</strong>, im Rahmen einer befristeten Zwischennutzung.</p>
+<p>Die Wohnung dient ausschliesslich Wohnzwecken und wird vom Untermieter mit insgesamt <strong>${persTxt}</strong> bewohnt.</p>`
+  : `<p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>`}
 </div>
 
 <!-- §2 MIETDAUER -->
@@ -5765,7 +5794,7 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
     const istManuell = !!userEnde;
     // Schwelle: Unter 12 Monaten befristet, ab 12 Monaten unbefristet, unabhaengig davon
     // ob das Enddatum manuell gesetzt oder aus der Wohnung abgeleitet wurde.
-    if (months > 0 && months < 12) {
+    if (months > 0 && (months < 12 || W)) {
       let grundSatz = "";
       let erstreckungSatz = "";
       if (v.befristungsgrund) {
@@ -5775,10 +5804,11 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
         grundSatz = ` Die Befristung erfolgt im Hinblick auf einen geplanten Umbau bzw. eine geplante Sanierung der Liegenschaft (Art. 272a Abs. 1 lit. d OR).`;
         erstreckungSatz = ` Der Untermieter nimmt zur Kenntnis, dass eine Erstreckung des Mietverhältnisses ausgeschlossen ist.`;
       }
+      const zwischenSatz = W ? ` Dem Untermieter ist bekannt, dass es sich um eine Zwischennutzung handelt und die Wohnung nach Ablauf der Mietdauer dem Eigentümer bzw. der Verwaltung zurückzugeben ist.` : "";
       const kuendigungSatz = months < 12
         ? ` Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).`
-        : ` Eine ordentliche Kündigung durch den Untermieter richtet sich nach Ziffer 11.1; in den letzten sechs Monaten der Vertragslaufzeit ist eine Kündigung ausgeschlossen.`;
-      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${endeStr}</strong>.${grundSatz}${erstreckungSatz} Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.${kuendigungSatz}`;
+        : ` Eine ordentliche Kündigung durch den Untermieter richtet sich nach Ziffern 11 und 11.2; in den letzten sechs Monaten der Vertragslaufzeit ist eine Kündigung ausgeschlossen.`;
+      return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>befristet bis ${endeStr}</strong>.${grundSatz}${erstreckungSatz} Der Mietvertrag endet automatisch zum vereinbarten Enddatum, sofern keine schriftliche Verlängerung vereinbart wird.${zwischenSatz}${kuendigungSatz}`;
     }
   }
   return `Das Mietverhältnis beginnt am <strong>${fmtDate(v.einzug)}</strong> und ist <strong>unbefristet</strong>, beträgt jedoch mindestens ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs",7:"sieben",8:"acht",9:"neun",10:"zehn",11:"elf",12:"zwölf"};return w[n]||String(n);})(v.minMietdauer||6)} Monate.`;
@@ -5788,20 +5818,23 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
 <!-- §3 MIETZINS -->
 <div class="section allow-break">
 <h2>3. Mietzins</h2>
-<p>Der monatliche Mietzins für das Zimmer ${v.zimmerId} beträgt:</p>
+<p>${W?"Der monatliche Mietzins für die Wohnung beträgt:":`Der monatliche Mietzins für das Zimmer ${v.zimmerId} beträgt:`}</p>
 <div class="miet-wrap avoid-break">
   <table class="miet-table">
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
-    <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
-    <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
+    <tr><td>${W?`Nebenkosten pauschal (${pers} × CHF ${chf2(nkPP)}) in CHF`:"Nebenkosten in CHF"}</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>${W?`Stromkosten pauschal (${pers} × CHF ${chf2(stromPP)}) in CHF`:"Stromkosten in CHF"}</td><td class="amt">${chf2(v.strom)}</td></tr>
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
 </div>
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice und persönliche Betreuung bereits inbegriffen.</p>
-<p>Die Nebenkosten umfassen Heizung, Internet, Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
-<p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>
+<p>Die Nebenkosten umfassen Heizung, ${W?"":"Internet, "}Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
+${W
+  ? `<p>Die Nebenkosten und die Stromkosten werden pauschal pro Person erhoben (Nebenkosten CHF ${chf2(nkPP)}, Strom CHF ${chf2(stromPP)} pro Person und Monat) und gelten mit der Pauschale als abgegolten. Eine Nachforderung oder Rückerstattung erfolgt vorbehältlich des nachfolgenden Absatzes nicht.</p>
+<p>Massgebend ist die vereinbarte Anzahl von ${persTxt}. Eine Änderung der Personenzahl ist dem Hauptmieter vorgängig schriftlich mitzuteilen; die Pauschalen werden ab dem Folgemonat entsprechend angepasst.</p>`
+  : `<p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>`}
 <p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Hauptmieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet.</p>
-<p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>
+${W?"":`<p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>`}
 <p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
 <div class="bank-block avoid-break">
   <img class="qr-box" src="${DT_QR_DATA_URI}" alt="QR-Rechnung"/>
@@ -5831,33 +5864,44 @@ ${v.kautionMonate<3
   ${v.kautionMonate<3?`<div>Servicegebühr für Kautionsreduktion: <strong>CHF ${v.kautionMonate===2?"50":"100"} / Monat</strong></div>`:``}
 </div>
 
-<p>Die Rückerstattung der Kaution erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung sowie das Inventar ordnungsgemäss und ohne Beanstandung zurückgegeben wurden. Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.</p>
+<p>Die Rückerstattung der Kaution erfolgt gemäss den Vertragsbedingungen, sobald sämtliche Schlussabrechnungen (z. B. für offene Mieten, Nebenkosten, Strom, allfällige Reparaturen oder Reinigungen) vorliegen und die Wohnung${W?"":" sowie das Inventar"} ordnungsgemäss und ohne Beanstandung zurückgegeben wurden. Die Rückzahlung erfolgt auf das bei Evorest hinterlegte Konto des Untermieters.</p>
 </div>
 
 <!-- §5 -->
 <div class="section allow-break">
 <h2>5. Weiteres und Verantwortlichkeiten des Untermieters</h2>
-<p class="clause"><span class="clause-num">5.1</span>Der Untermieter verpflichtet sich, die Wohnung sowie das Inventar sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. Wohnung und Inventar sind in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
+<p class="clause"><span class="clause-num">5.1</span>Der Untermieter verpflichtet sich, die Wohnung${W?"":" sowie das Inventar"} sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. ${W?"Die Wohnung ist":"Wohnung und Inventar sind"} in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
 <p class="clause"><span class="clause-num">5.2</span>Der Untermieter ist für die regelmässige Reinigung der Wohnung sowie für die ordnungsgemässe Entsorgung von Abfällen verantwortlich.</p>
 <p class="clause"><span class="clause-num">5.3</span>Eine Untervermietung oder Weitergabe der Wohnung an Dritte ist ohne ausdrückliche schriftliche Zustimmung des Hauptmieters nicht gestattet.</p>
 <p class="clause"><span class="clause-num">5.4</span>Bauliche Veränderungen an der Wohnung oder das Streichen von Wänden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig.</p>
 <p class="clause"><span class="clause-num">5.5</span>Bei längerer Abwesenheit hat der Untermieter sicherzustellen, dass der Zugang zur Wohnung für Notfälle gewährleistet ist (z. B. durch Hinterlegung eines Schlüssels bei einer Vertrauensperson).</p>
 <p class="clause"><span class="clause-num">5.6</span>Der Untermieter ist verpflichtet, sich innert acht Tagen nach Einzug bei der zuständigen Einwohnerkontrolle anzumelden.</p>
-<p class="clause"><span class="clause-num">5.7</span>Der Untermieter darf die Suche nach Mitbewohnern durch die D&amp;T Partners GmbH nicht behindern. Diese schlägt geeignete Mitbewohner vor und ermöglicht ein vorgängiges Kennenlernen. Im Zweifelsfall behält sich die D&amp;T Partners GmbH das Recht vor, einen Untermietvertrag mit einem Interessenten abzuschliessen, ohne Mitspracherecht der aktuellen Bewohner.</p>
+${W
+  ? `<p class="clause"><span class="clause-num">5.7</span>Für die Serafe-Abgabe (Radio- und Fernsehabgabe) ist der Untermieter als Haushalt selbst verantwortlich.</p>
+<p class="clause"><span class="clause-num">5.8</span>Der Untermieter haftet für das Verhalten sämtlicher Personen, die mit ihm in der Wohnung leben oder sich mit seinem Einverständnis darin aufhalten.</p>
+`
+  : `<p class="clause"><span class="clause-num">5.7</span>Der Untermieter darf die Suche nach Mitbewohnern durch die D&amp;T Partners GmbH nicht behindern. Diese schlägt geeignete Mitbewohner vor und ermöglicht ein vorgängiges Kennenlernen. Im Zweifelsfall behält sich die D&amp;T Partners GmbH das Recht vor, einen Untermietvertrag mit einem Interessenten abzuschliessen, ohne Mitspracherecht der aktuellen Bewohner.</p>
 <p class="clause"><span class="clause-num">5.8</span>Für die Serafe-Abgabe (Radio- und Fernsehabgabe) ist jeder Haushalt selbst verantwortlich. Die Abgabe wird pro Haushalt erhoben und ist von den Untermietern zu tragen. Die D&amp;T Partners GmbH organisiert keine Kostenaufteilung innerhalb der Untermieterschaft.</p>
 <p class="clause"><span class="clause-num">5.9</span>Die Kontaktdaten des Untermieters dürfen - sofern keine ausdrückliche Verweigerung erfolgt - an potenzielle Mitbewohner weitergegeben werden, um ein gegenseitiges Kennenlernen zu ermöglichen.</p>
 <p class="clause"><span class="clause-num">5.10</span>Interne Angelegenheiten zwischen den Mitbewohnern fallen nicht in den Zuständigkeitsbereich des Hauptmieters. Dieser bemüht sich jedoch, bei Bedarf zu unterstützen und ein harmonisches Zusammenleben zu fördern.</p>
+`}
 </div>
 
 <!-- §6 -->
 <div class="section">
 <h2>6. Datenschutz</h2>
-<p>Der Untermieter erklärt sich damit einverstanden, dass seine personenbezogenen Daten zum Zweck der Vertragsabwicklung sowie zur Koordination mit (potenziellen) Mitbewohnern gespeichert, verarbeitet und im erforderlichen Umfang weitergegeben werden dürfen. Eine Weitergabe an Dritte erfolgt ausschliesslich, soweit dies für die Durchführung des Mietverhältnisses notwendig ist.</p>
+<p>Der Untermieter erklärt sich damit einverstanden, dass seine personenbezogenen Daten zum Zweck der Vertragsabwicklung${W?"":" sowie zur Koordination mit (potenziellen) Mitbewohnern"} gespeichert, verarbeitet und im erforderlichen Umfang weitergegeben werden dürfen. Eine Weitergabe an Dritte erfolgt ausschliesslich, soweit dies für die Durchführung des Mietverhältnisses notwendig ist.</p>
 <p>Der Untermieter stimmt zu, dass die im Zusammenhang mit dem Mietverhältnis stehenden Akten und Dokumente digitalisiert und gespeichert werden dürfen und dass die digitalisierten Dokumente als Originaldokumente gelten.</p>
 </div>
 
 <!-- §7 -->
-<div class="section allow-break">
+${W ? `<div class="section allow-break">
+<h2>7. Zustand und Ausstattung</h2>
+<p>Die Wohnung wird <strong>unmöbliert</strong> und in gereinigtem Zustand übergeben. Mitvermietet sind einzig die fest eingebauten Einrichtungen (insbesondere Küche mit Geräten, Sanitäranlagen und Beleuchtung, soweit vorhanden). Ein Inventar oder eine Möblierung durch den Hauptmieter ist nicht Bestandteil dieses Vertrags.</p>
+<p class="clause"><span class="clause-num">7.1</span>Der Untermieter richtet die Wohnung auf eigene Kosten ein. Eigene Möbel und Gegenstände sind bei Vertragsende vollständig zu entfernen. Zurückgelassene Gegenstände kann der Hauptmieter nach erfolgloser Aufforderung auf Kosten des Untermieters entsorgen.</p>
+<p class="clause"><span class="clause-num">7.2</span>Bohren, Dübeln oder sonstige Eingriffe in Wände, Decken und Böden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig. Bei Auszug ist der ursprüngliche Zustand wiederherzustellen.</p>
+</div>
+` : `<div class="section allow-break">
 <h2>7. Inventar &amp; Möblierung</h2>
 <p>In den Gemeinschaftsräumen der Wohnung befindet sich ein vollständiges Inventar mit Gegenständen des täglichen Bedarfs. Das Inventar umfasst insbesondere:</p>
 <ul>
@@ -5872,6 +5916,7 @@ ${v.kautionMonate<3
 <p class="clause"><span class="clause-num">7.2</span>Zum Zeitpunkt der Zimmerübergabe kann die Wohnung je nach Datum noch nicht vollständig möbliert sein. Die Möblierung erfolgt in der Regel innerhalb der ersten Tage nach Schlüsselübergabe oder nach vorgängiger Absprache.</p>
 </div>
 
+`}
 <!-- §8 -->
 <div class="section allow-break">
 <h2>8. Schlüsselübergabe</h2>
@@ -5890,8 +5935,8 @@ ${v.kautionMonate<3
 <!-- §10 -->
 <div class="section">
 <h2>10. Haftung und Versicherung</h2>
-<p>Der Untermieter haftet für Schäden oder Verluste an Wohnung oder Inventar, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung zu erbringen.</p>
-<p>Für Schäden in gemeinsam genutzten Bereichen haften die Bewohner anteilig (Solidarhaftung), sofern kein Verursacher festgestellt werden kann.</p>
+<p>Der Untermieter haftet für Schäden oder Verluste an ${W?"der Wohnung":"Wohnung oder Inventar"}, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung zu erbringen.</p>
+${W?"":`<p>Für Schäden in gemeinsam genutzten Bereichen haften die Bewohner anteilig (Solidarhaftung), sofern kein Verursacher festgestellt werden kann.</p>`}
 </div>
 
 <!-- §11 -->
@@ -5904,7 +5949,7 @@ ${v.kautionMonate<3
 <p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>
 <p class="clause"><span class="clause-num">11.4</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
 <p class="clause"><span class="clause-num">11.5</span>Bei vorzeitigem Auszug kann sich der Untermieter durch Stellung eines geeigneten, zahlungsfähigen und zumutbaren Nachmieters, der zu gleichen Konditionen in den Vertrag eintritt, von seinen Pflichten befreien (Art. 264 OR). Andernfalls bleibt er bis zum ordentlichen Vertragsende zur Zahlung des Mietzinses verpflichtet.</p>
-<p class="clause"><span class="clause-num">11.6</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe des Zimmers, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
+<p class="clause"><span class="clause-num">11.6</span>Bei schwerwiegender Vertragsverletzung (insbesondere Zahlungsverzug, unerlaubte Weitergabe ${W?"der Wohnung":"des Zimmers"}, Störung des Hausfriedens, rechtswidrige Nutzung oder falsche Angaben bei Vertragsabschluss) ist der Hauptmieter berechtigt, den Vertrag fristlos aufzulösen und die unverzügliche Räumung zu verlangen.</p>
 <p class="clause"><span class="clause-num">11.7</span>Der Untermieter ist verpflichtet, das Mietobjekt spätestens am vereinbarten Endtermin vollständig geräumt und ordnungsgemäss zurückzugeben. Ihm ist bekannt, dass die Liegenschaft nach Vertragsende dem Eigentümer bzw. der Verwaltung zur weiteren Nutzung, insbesondere zu Umbau- oder Sanierungszwecken, zu übergeben ist und dass eine verspätete Rückgabe dem Hauptmieter erheblichen Schaden verursachen kann, der über den Wert des einzelnen Mietobjekts hinausgeht. Gibt der Untermieter das Mietobjekt nicht rechtzeitig zurück, schuldet er für jeden angefangenen Tag der verspäteten Rückgabe (a) eine Nutzungsentschädigung in Höhe des anteiligen Mietzinses sowie (b) eine pauschalierte Verzugsentschädigung von CHF 300 pro Tag, zur Abgeltung des typischerweise entstehenden Aufwands und Schadens (Koordination, Ersatzunterbringung, Administration). Dem Untermieter bleibt der Nachweis offen, dass kein oder ein geringerer Schaden entstanden ist; bis zu diesem Nachweis gilt der pauschalierte Schaden als ausgewiesen. Die Geltendmachung eines weitergehenden, tatsächlichen Schadens bleibt ausdrücklich vorbehalten, insbesondere für Ansprüche des Eigentümers oder der Verwaltung sowie für Verzugs- und Projektkosten, soweit der Untermieter die verspätete Rückgabe zu vertreten hat. Der Hauptmieter ist berechtigt, diese Beträge mit der Kaution und weiteren Sicherheiten zu verrechnen, und kann bei nicht rechtzeitiger Rückgabe die Ausweisung im Verfahren des Rechtsschutzes in klaren Fällen (Art. 257 ZPO) verlangen.</p>
 </div>
 
@@ -5932,9 +5977,11 @@ ${v.kautionMonate<3
 <p class="clause"><span class="clause-num">15.1</span>Haustiere sind in der Wohnung nicht gestattet.</p>
 <p class="clause"><span class="clause-num">15.2</span>Rauchen ist in der Wohnung nicht gestattet.</p>
 <p class="clause"><span class="clause-num">15.3</span>Der Untermieter verpflichtet sich, die geltenden Hausordnungen und gesetzlichen Bestimmungen einzuhalten.</p>
-<p class="clause"><span class="clause-num">15.4</span>Die WG-Zimmer sind ausschliesslich für Wohnzwecke der im Vertrag eingetragenen Person bestimmt. Eine Belegung durch mehrere Personen ist unzulässig.</p>
+${W
+  ? `<p class="clause"><span class="clause-num">15.4</span>Die Wohnung ist ausschliesslich für Wohnzwecke des Untermieters und der vereinbarten Anzahl von ${persTxt} bestimmt. Eine Belegung durch weitere Personen ist ohne vorgängige schriftliche Zustimmung des Hauptmieters unzulässig.</p>`
+  : `<p class="clause"><span class="clause-num">15.4</span>Die WG-Zimmer sind ausschliesslich für Wohnzwecke der im Vertrag eingetragenen Person bestimmt. Eine Belegung durch mehrere Personen ist unzulässig.</p>`}
 <p class="clause"><span class="clause-num">15.5</span>Bei Zahlungsverzug kann der Hauptmieter Mahngebühren von <strong>CHF 20 pro Mahnung</strong> sowie Verzugszinsen von <strong>5 % p. a.</strong> erheben.</p>
-<p class="clause"><span class="clause-num">15.6</span>Der Hauptmieter ist berechtigt, das Zimmer nach angemessener Vorankündigung zur Kontrolle, Instandhaltung, Besichtigung mit Interessenten oder bei Vertragsverletzungen zu betreten.</p>
+<p class="clause"><span class="clause-num">15.6</span>Der Hauptmieter ist berechtigt, ${W?"die Wohnung":"das Zimmer"} nach angemessener Vorankündigung zur Kontrolle, Instandhaltung, Besichtigung mit Interessenten oder bei Vertragsverletzungen zu betreten.</p>
 <p class="clause"><span class="clause-num">15.7</span>Sofern zur Wohnung ein Garten gehört, darf der Untermieter diesen nutzen. Er verpflichtet sich, den Garten selbständig und ordentlich zu pflegen und in gepflegtem Zustand zu halten (insbesondere Rasen- und Grünpflege) sowie im Winter den Schnee auf den zum Mietobjekt gehörenden Wegen und Flächen zu räumen.</p>
 ${(v.sonderklausel && String(v.sonderklausel).trim()) ? ('<p class="clause"><span class="clause-num">15.8</span>'+String(v.sonderklausel).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(String.fromCharCode(10)).join('<br>')+'</p>') : ''}
 </div>
@@ -5943,7 +5990,7 @@ ${(v.sonderklausel && String(v.sonderklausel).trim()) ? ('<p class="clause"><spa
 ${(()=>{ const _mz=(+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0); const _moeb=(v.moebliert&&v.moeblierungModus==="monatlich")?(+v.moeblierungPauschale||150):0; const _sg=(+v.aufschlag>0)?(+v.aufschlag):0; const _einm=(v.moebliert&&v.moeblierungModus!=="monatlich")?(+v.moeblierungPauschale||990):0; const _km=+v.kautionMonate||0; const _kb=_km>0?(+v.kautionBetrag || ((+v.bruttomiete||0)+(+v.strom||25))*_km):0;
   return `<div class="section avoid-break">
 <h2>Kostenübersicht</h2>
-<p>Zusammenfassung aller Kosten gemäss Ziffern 3, 4 und 7:</p>
+<p>Zusammenfassung aller Kosten gemäss Ziffern ${W?"3 und 4":"3, 4 und 7"}:</p>
 <div class="miet-wrap">
   <table class="miet-table">
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
@@ -6094,7 +6141,7 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
   if (!fullName) throw new Error("Person hat keinen Namen");
 
-  const stromFix = 25;
+  const stromFix = istWohnungsVertrag(vertragData) ? (+vertragData.strom || 0) : 25;
   const amzData = { ...vertragData, strom: stromFix, total: (vertragData.nettomiete||0) + (vertragData.nebenkosten||0) + stromFix };
 
   progress("Verträge generieren...", 0.1);
@@ -6759,6 +6806,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       auszug:"",schluessel_nr:"",
       roomId: istNachmieter ? selZimmer : undefined,
       owner: b.owner || "",
+      personen: b.personen != null && b.personen !== "" ? +b.personen : null,
     };
     await insertTenant(newTenant);
     if (!istNachmieter) { await updateRoom(selZimmer,{occupied:true,tenantId:newId}); }
@@ -7031,6 +7079,9 @@ www.dthomes.ch`;
       minMietdauer: 6,
       kuendigungsfrist: 3,
     });
+    if (apt && apt.vermietungsart === "wohnung") {
+      setVertragData(p => wohnungVertragswerte({ ...p, kautionMonate: 3, aufschlag: 0, fruehererMietzins: "" }, apt, room, b.personen || 1));
+    }
     setVertragModal(true);
   }
 
@@ -7774,7 +7825,7 @@ www.dthomes.ch`;
                   const nettomiete = bruttomiete - (p.nebenkosten||100);
                   const kautionBetrag = (bruttomiete + (p.strom||25)) * (p.kautionMonate||0);
                   const total = bruttomiete + (p.strom||25) + (p.aufschlag||0);
-                  return {
+                  const neu = {
                     ...p,
                     zimmerId: newId,
                     apt: apt || p.apt,
@@ -7784,6 +7835,9 @@ www.dthomes.ch`;
                     ort: apt?.ort || p.ort,
                     bruttomiete, nettomiete, kautionBetrag, total,
                   };
+                  if (apt && apt.vermietungsart === "wohnung") return wohnungVertragswerte(neu, apt, room, p.personen || 1);
+                  if (p.vertragsart === "wohnung") { const { vertragsart, ...rest } = neu; return { ...rest, nebenkosten: 100, nettomiete: bruttomiete - 100, strom: 25, total: bruttomiete + 25 + (p.aufschlag||0), kautionBetrag: (bruttomiete + 25) * (p.kautionMonate||0) }; }
+                  return neu;
                 });
                 // Sync zurueck an Bewerber
                 updateBewerber(b.id, { zugeteiltes_zimmer: newId });
@@ -7800,6 +7854,16 @@ www.dthomes.ch`;
               <div className="fg"><label className="fl">PLZ</label><input className="fi" value={vertragData.plz} onChange={e=>setVertragData(p=>({...p,plz:e.target.value}))}/></div>
               <div className="fg"><label className="fl">Ort</label><input className="fi" value={vertragData.ort} onChange={e=>setVertragData(p=>({...p,ort:e.target.value}))}/></div>
             </div>
+            {istWohnungsVertrag(vertragData) && (
+              <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 16px",marginBottom:18}}>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#1a1814",marginBottom:6}}>Ganze Wohnung (unmöbliert)</div>
+                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <label className="fl" style={{margin:0}}>Anzahl Personen</label>
+                  <input className="fi" type="number" min="1" max="10" value={vertragData.personen||1} style={{width:80,margin:0}} onChange={e=>{ const n=Math.max(1,+e.target.value||1); setVertragData(p=>wohnungVertragswerte(p, p.apt, null, n)); updateBewerber(b.id,{personen:n}); }}/>
+                  <span style={{fontSize:11.5,color:"#8a8174"}}>Nebenkosten CHF {+(vertragData.apt&&vertragData.apt.nk_pro_person)||0} und Strom CHF {+(vertragData.apt&&vertragData.apt.strom_pro_person)||0} pro Person und Monat</span>
+                </div>
+              </div>
+            )}
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietdauer</div>
             <div className="fg" style={{marginBottom:8}}>
@@ -7877,7 +7941,7 @@ www.dthomes.ch`;
                 return (
                   <label key={opt.monate} style={{padding:"12px 14px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"block"}} onClick={()=>{
                     const brutto = +vertragData.bruttomiete || 0;
-                    const strom = +vertragData.strom || 25;
+                    const strom = (vertragData.strom != null && vertragData.strom !== "") ? +vertragData.strom : 25;
                     const newBetrag = (brutto + strom) * opt.monate;
                     setVertragData(p=>({
                       ...p,
@@ -7948,6 +8012,7 @@ www.dthomes.ch`;
               <textarea className="fi" style={{width:"100%",minHeight:56,resize:"vertical",lineHeight:1.5,marginTop:8}} value={vertragData.sonderklausel_en||""} onChange={e=>setVertragData(p=>({...p,sonderklausel_en:e.target.value}))} placeholder="Optional: übersteuert die automatische Übersetzung. Leer lassen = wird beim Erstellen einmal automatisch übersetzt und gespeichert."/>
             </div>
 
+            {!istWohnungsVertrag(vertragData) && (<>
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Möblierung</div>
             <div style={{display:"flex",gap:10,marginBottom:10}}>
               <label style={{flex:1,padding:"10px 14px",background:vertragData.moebliert?"#f5efe4":"#fefcf7",border:`1px solid ${vertragData.moebliert?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"flex",alignItems:"center",gap:8}}>
@@ -7986,6 +8051,7 @@ www.dthomes.ch`;
               </div>
             )}
             {!vertragData.moebliert && <div style={{marginBottom:18}}/>}
+            </>)}
 
             <div style={{fontSize:11,color:"#6e6a62",marginBottom:8,letterSpacing:".05em",textTransform:"uppercase",fontWeight:600}}>⬇ Einzeln herunterladen (ohne Versand)</div>
             <div className="ma" style={{flexWrap:"wrap"}}>
@@ -8249,6 +8315,10 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
+      vermietungsart: form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
+      nk_pro_person: form.nk_pro_person===""||form.nk_pro_person==null ? null : +form.nk_pro_person,
+      strom_pro_person: form.strom_pro_person===""||form.strom_pro_person==null ? null : +form.strom_pro_person,
+      flaeche: form.flaeche===""||form.flaeche==null ? null : +form.flaeche,
     });
     setEditing(false);
   }
@@ -8313,7 +8383,11 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       ort: newForm.ort || "Zürich",
       type: newForm.type || "WG",
       zimmer: newForm.zimmer || "",
-      units: newForm.type === "WG" ? (+newForm.units||0) : null,
+      units: newForm.type === "WG" ? (newForm.vermietungsart==="wohnung" ? 1 : (+newForm.units||0)) : null,
+      vermietungsart: newForm.type === "WG" && newForm.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
+      nk_pro_person: newForm.nk_pro_person ? +newForm.nk_pro_person : null,
+      strom_pro_person: newForm.strom_pro_person ? +newForm.strom_pro_person : null,
+      flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
       mietende: newForm.mietende || "",
       stockwerk: newForm.stockwerk || "",
@@ -8449,7 +8523,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
               const aptRooms = rooms.filter(r => r.aptId === apt.id);
               const belegt = aptRooms.filter(r => r.occupied);
               const zimmerEinnahmen = belegt.reduce((s,r) => s + (+r.miete || 0), 0);
-              const stromEinnahmen = belegt.length * 25;  // 25 CHF pro belegtem Zimmer
+              const stromEinnahmen = apt.vermietungsart==="wohnung" ? 0 : belegt.length * 25;  // 25 CHF pro belegtem Zimmer (bei ganzer Wohnung durchlaufend pro Person)
               const einnahmen = isWG ? zimmerEinnahmen + stromEinnahmen : 0;
               const kosten = +apt.miete || 0;
               const marge = einnahmen - kosten;
@@ -8458,13 +8532,14 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
               
               // Max marge (if all rooms occupied)
               const maxZimmerEinnahmen = aptRooms.reduce((s,r) => s + (+r.miete || 0), 0);
-              const maxStromEinnahmen = aptRooms.length * 25;
+              const maxStromEinnahmen = apt.vermietungsart==="wohnung" ? 0 : aptRooms.length * 25;
               const maxEinnahmen = maxZimmerEinnahmen + maxStromEinnahmen;
               const maxMarge = maxEinnahmen - kosten;
               
               return (<div>
                 <div className="igrid">{[
                   ["Typ",<TypeBadge type={apt.type}/>],
+                  isWG && ["Vermietung", apt.vermietungsart==="wohnung" ? "Ganze Wohnung (unmöbliert)" : "Einzelne Zimmer"],
                   ["Zimmer",apt.zimmer+" Zi."],
                   ["Stockwerk",apt.stockwerk||"-"],
                   istAdmin && ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
@@ -8601,7 +8676,21 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={newForm.zimmer||""} onChange={NF("zimmer")} placeholder="z.B. 3.5"/></div>
         </div>
-        {newForm.type==="WG"&&(
+
+        {newForm.type==="WG"&&(<>
+          <div className="fg"><label className="fl">Vermietungsart</label><select className="fi" value={newForm.vermietungsart||"zimmer"} onChange={e=>{const v=e.target.value; setNewForm(p=>({...p,vermietungsart:v,...(v==="wohnung"?{units:1}:{})})); if(v==="wohnung") setRoomList(prev=>[prev[0]||{miete:"",groesse:"",balkon:false}]);}}><option value="zimmer">Einzelne Zimmer (WG, möbliert)</option><option value="wohnung">Ganze Wohnung (unmöbliert, an eine Partei)</option></select></div>
+          {newForm.vermietungsart==="wohnung"&&(<>
+            <div className="frow">
+              <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={newForm.flaeche||""} onChange={NF("flaeche")} placeholder="z.B. 68"/></div>
+              <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={(roomList[0]&&roomList[0].miete)||""} onChange={e=>setRoomList(prev=>[{...(prev[0]||{groesse:"",balkon:false}),miete:e.target.value}])} placeholder="z.B. 1650"/></div>
+            </div>
+            <div className="frow">
+              <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><input className="fi" type="number" value={newForm.nk_pro_person||""} onChange={NF("nk_pro_person")} placeholder="z.B. 100"/></div>
+              <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={newForm.strom_pro_person||""} onChange={NF("strom_pro_person")} placeholder="z.B. 25"/></div>
+            </div>
+          </>)}
+        </>)}
+        {newForm.type==="WG"&&newForm.vermietungsart!=="wohnung"&&(
           <div className="fg">
             <label className="fl">Anzahl WG-Units (vermietbare Zimmer) *</label>
             <input className="fi" type="number" min="1" max="20" value={newForm.units||""} onChange={NF("units")} placeholder="z.B. 3"/>
@@ -8609,7 +8698,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           </div>
         )}
 
-        {newForm.type==="WG"&&roomList.length>0&&(
+        {newForm.type==="WG"&&newForm.vermietungsart!=="wohnung"&&roomList.length>0&&(
           <div style={{marginTop:18,padding:"16px 18px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8}}>
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:12,fontWeight:500}}>Zimmer-Details</div>
             <div style={{display:"grid",gridTemplateColumns:"60px 1fr 110px 80px",gap:8,marginBottom:6,fontSize:10,color:"#8a8174",fontWeight:600,letterSpacing:".05em",textTransform:"uppercase"}}>
@@ -8714,6 +8803,19 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={form.stockwerk||""} onChange={F("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={form.zimmer||""} onChange={F("zimmer")}/></div>
         </div>
+
+        {(form.type||"WG")==="WG"&&(<>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermietung</div>
+        <div className="fg"><label className="fl">Vermietungsart</label><select className="fi" value={form.vermietungsart||"zimmer"} onChange={F("vermietungsart")}><option value="zimmer">Einzelne Zimmer (WG, möbliert)</option><option value="wohnung">Ganze Wohnung (unmöbliert, an eine Partei)</option></select></div>
+        {form.vermietungsart==="wohnung"&&(<>
+          <div className="frow">
+            <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={form.flaeche??""} onChange={F("flaeche")} placeholder="z.B. 68"/></div>
+            <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.nk_pro_person??""} onChange={F("nk_pro_person")} placeholder="z.B. 100"/></div>
+            <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.strom_pro_person??""} onChange={F("strom_pro_person")} placeholder="z.B. 25"/></div>
+          </div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Die Nettomiete der Wohnung steht im Tab Zimmer (eine Einheit für die ganze Wohnung). Nebenkosten und Strom werden pauschal pro Person verrechnet.</div>
+        </>)}
+        </>)}
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Mietverhältnis</div>
         <div className="frow">
@@ -9235,6 +9337,10 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       einzug: t.einzug || "",
       fruehererMietzins: (room && room.tenantId && room.tenantId !== t.id) ? (bruttomiete + strom) : "",
     };
+    if (apt && apt.vermietungsart === "wohnung") {
+      const vw = wohnungVertragswerte({ ...v, aufschlag: 0, kautionMonate: 3 }, apt, room, t.personen || 1);
+      return { b: { ...b, personen: vw.personen, moebliert: "nein" }, v: { ...vw, fruehererMietzins: "" } };
+    }
     
     return { b, v };
   }
@@ -10402,7 +10508,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                   const nettomiete = bruttomiete - (p.nebenkosten||100);
                   const kautionBetrag = (bruttomiete + (p.strom||25)) * (p.kautionMonate||0);
                   const total = bruttomiete + (p.strom||25) + (p.aufschlag||0);
-                  return {
+                  const neu = {
                     ...p,
                     zimmerId: newId,
                     apt: apt || p.apt,
@@ -10412,6 +10518,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                     ort: apt?.ort || p.ort,
                     bruttomiete, nettomiete, kautionBetrag, total,
                   };
+                  if (apt && apt.vermietungsart === "wohnung") return wohnungVertragswerte(neu, apt, room, p.personen || 1);
+                  if (p.vertragsart === "wohnung") { const { vertragsart, ...rest } = neu; return { ...rest, nebenkosten: 100, nettomiete: bruttomiete - 100, strom: 25, total: bruttomiete + 25 + (p.aufschlag||0), kautionBetrag: (bruttomiete + 25) * (p.kautionMonate||0) }; }
+                  return neu;
                 });
                 // Sync zurueck an Bewerber
                 /* Zimmer nur lokal fuer den Vertrag, keine Mieter-Zuordnung aendern */
@@ -10798,11 +10907,16 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     if (!room && tenant.roomId) {
       room = rooms.find(r => r.id === tenant.roomId);
     }
+    // Ganze Wohnung (unmoebliert): Nebenkosten und Strom pauschal pro Person
+    const _apt = room ? (apts||[]).find(a => a.id === room.aptId) : null;
+    const _wohn = !!(_apt && _apt.vermietungsart === "wohnung");
+    const _pers = +tenant.personen || 1;
+    const _strom = (tenant.strom!=null && tenant.strom!=="") ? +tenant.strom : (_wohn ? (+_apt.strom_pro_person || 0) * _pers : 25);
     if (tenant.mietzins != null && tenant.mietzins !== "") {
       // Fixer Mietzins des Mieters hat immer Vorrang (Zimmer kann fuer Nachmieter neu bepreist sein)
-      bruttomiete = (+tenant.mietzins || 0) + 25;
+      bruttomiete = (+tenant.mietzins || 0) + _strom;
     } else if (room) {
-      bruttomiete = (+room.miete || 0) + 25;
+      bruttomiete = (+room.miete || 0) + (_wohn ? (+_apt.nk_pro_person || 0) * _pers : 0) + _strom;
     } else if (tenant.kautionBetrag && tenant.kautionMonate) {
       // Letzter Fallback für archivierte: aus Kautions-Betrag rückrechnen
       bruttomiete = Math.round((+tenant.kautionBetrag || 0) / (+tenant.kautionMonate || 3));
