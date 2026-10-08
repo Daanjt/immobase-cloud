@@ -3298,7 +3298,10 @@ function MediaManager({apt, editApt, rooms}){
     if (!confirm("Foto wirklich löschen?")) return;
     const p = photos[idx];
     try {
-      await supabase.storage.from("assets").remove([p.path]);
+      // Datei nur loeschen, wenn keine andere Wohnung dasselbe Bild verwendet (z.B. kopierte Fotos)
+      const { data: andere } = await supabase.from("apartments").select("id,photos").neq("id", apt.id);
+      const geteilt = (andere||[]).some(a => (Array.isArray(a.photos)?a.photos:[]).some(x => x && x.path === p.path));
+      if (!geteilt) await supabase.storage.from("assets").remove([p.path]);
     } catch(e){ console.warn("Storage delete failed:", e); }
     const nextPhotos = photos.filter((_,i) => i !== idx).map((p,i) => ({...p, sort_order: i}));
     await editApt(apt.id, { photos: nextPhotos });
