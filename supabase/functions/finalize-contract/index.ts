@@ -273,8 +273,9 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { token, signature_png, user_agent, mitmieter_signature_png } = body;
+    const mode = body.mode === "upload" || body.mode === "prepare_upload" ? body.mode : "digital";
     if (!token || typeof token !== "string" || token.length < 16) return jsonResponse({ error: "Invalid token" }, 400);
-    if (!signature_png || !signature_png.startsWith("data:image/png;base64,")) return jsonResponse({ error: "Invalid signature" }, 400);
+    if (mode === "digital" && (!signature_png || !signature_png.startsWith("data:image/png;base64,"))) return jsonResponse({ error: "Invalid signature" }, 400);
 
     const forwarded = req.headers.get("x-forwarded-for") || "";
     const ip = forwarded.split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
@@ -295,7 +296,7 @@ Deno.serve(async (req) => {
 
     const mitmieterData = contract?.contract_data?.vertrag?.mitmieter;
     const _pdfList = (Array.isArray(contract.unsigned_pdfs) && contract.unsigned_pdfs.length) ? contract.unsigned_pdfs : [{ type: "umv" }];
-    const hatMitmieter = !!(mitmieterData && mitmieterData.vorname) && _pdfList.some((u) => u.type === "umv" || u.type === "untermietvertrag");
+    const hatMitmieter = mode === "digital" && !!(mitmieterData && mitmieterData.vorname) && _pdfList.some((u) => u.type === "umv" || u.type === "untermietvertrag");
     if (hatMitmieter && (!mitmieter_signature_png || !String(mitmieter_signature_png).startsWith("data:image/png;base64,"))) {
       return jsonResponse({ error: "Signature of co-tenant missing" }, 400);
     }
@@ -313,6 +314,78 @@ Deno.serve(async (req) => {
       pdfsToSign.push({ path: contract.unsigned_pdf_path, type: "umv", name: "Untermietvertrag" });
     } else {
       return jsonResponse({ error: "PDF not found" }, 404);
+    }
+
+    // ─── EXTERN UNTERSCHRIEBEN (Upload) ────────────────────────────────
+    // Der Mieter laedt die von Hand unterschriebenen, eingescannten PDFs hoch.
+    // Schritt 1 (prepare_upload): signierte Upload-URLs je Dokument ausgeben
+    // (Anon darf nicht direkt in den contracts-Bucket schreiben).
+    // Schritt 2 (upload): Dateien pruefen, Vertrag auf mieter_signiert setzen.
+    const uploadPathFor = (u) => String(u.path || "").replace(/(-signed)?\.pdf$/, "") + "-uploaded-signed.pdf";
+    if (mode === "prepare_upload") {
+      const targets = [];
+      for (const u of pdfsToSign) {
+        const path = uploadPathFor(u);
+        const { data: su, error: suErr } = await supabase.storage.from("contracts").createSignedUploadUrl(path, { upsert: true });
+        if (suErr || !su) return jsonResponse({ error: "Upload URL failed: " + (suErr?.message || "unknown") }, 500);
+        targets.push({ src: u.path, path, token: su.token, signedUrl: su.signedUrl, name: u.name || "", type: u.type || "" });
+      }
+      return jsonResponse({ success: true, targets });
+    }
+    if (mode === "upload") {
+      const nowU = new Date();
+      const uploaded = [];
+      const uploadedBytes = [];
+      for (const u of pdfsToSign) {
+        const path = uploadPathFor(u);
+        const { data: f, error: fErr } = await supabase.storage.from("contracts").download(path);
+        if (fErr || !f) return jsonResponse({ error: `Missing upload: ${u.name || u.path}` }, 400);
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        if (bytes.length < 100 || bytes.length > 20 * 1024 * 1024) return jsonResponse({ error: `Invalid file size: ${u.name || u.path}` }, 400);
+        const head = new TextDecoder().decode(bytes.slice(0, 1024));
+        if (!head.includes("%PDF")) return jsonResponse({ error: `Not a PDF: ${u.name || u.path}` }, 400);
+        try { await PDFDocument.load(bytes, { ignoreEncryption: true }); }
+        catch (_e) { return jsonResponse({ error: `PDF could not be read: ${u.name || u.path}` }, 400); }
+        uploaded.push({ ...u, path, uploaded: true });
+        uploadedBytes.push(bytes);
+      }
+      const upd = {
+        status: "mieter_signiert",
+        signed_at: nowU.toISOString(),
+        signed_ip: ip,
+        signed_user_agent: ua,
+        signed_pdf_path: uploaded[0].path,
+        signed_pdfs: uploaded,
+      };
+      const { error: uErr } = await supabase.from("contracts").update(upd).eq("token", token);
+      if (uErr) return jsonResponse({ error: "Update failed: " + uErr.message }, 500);
+      const RESEND_API_KEY_U = Deno.env.get("RESEND_API_KEY");
+      if (RESEND_API_KEY_U) {
+        const links = [];
+        for (const sp of uploaded) {
+          const { data } = await supabase.storage.from("contracts").createSignedUrl(sp.path, 30 * 24 * 3600);
+          if (data?.signedUrl) links.push({ url: data.signedUrl, label: (sp.name || "Vertrag") + " (hochgeladen)" });
+        }
+        const total = uploadedBytes.reduce((a, b) => a + b.length, 0);
+        const attachments = total < 30 * 1024 * 1024 ? uploaded.map((sp, idx) => ({ filename: attachmentFilenameFor(sp, idx), content: bytesToBase64(uploadedBytes[idx]), content_type: "application/pdf" })) : [];
+        const mm = contract?.contract_data?.vertrag?.mitmieter;
+        const hinweis = `<div style="background:#fdf3e1;border:1px solid #e8cf9c;border-radius:8px;padding:12px 14px;margin:0 0 18px;font-size:13px;line-height:1.5;color:#5a4520;"><strong>Extern unterschrieben (Upload).</strong> Bitte vor der Gegenzeichnung pr\u00fcfen, ob alle Seiten und Unterschriften vorhanden sind${mm && mm.vorname ? ` (inkl. Mitmieter*in ${mm.vorname} ${mm.nachname || ""})` : ""}.</div>`;
+        const html = notificationEmailToDaan({ ...contract, signed_at: nowU.toISOString() }, links, ip).replace("<div style=\"margin-bottom:20px;\">", hinweis + "<div style=\"margin-bottom:20px;\">");
+        try {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${RESEND_API_KEY_U}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "D&T Homes <noreply@dthomes.ch>",
+              to: ["daan.theijse@dthomes.ch"],
+              subject: `\u270d Wartet auf Gegenzeichnung (Upload): ${contract.mieter_vorname} ${contract.mieter_nachname}`,
+              html,
+              attachments,
+            }),
+          });
+        } catch (e) { console.error("Daan email (upload) failed:", e); }
+      }
+      return jsonResponse({ success: true, message: "Vertrag erfolgreich hochgeladen", contract_id: contract.id, signed_at: nowU.toISOString() });
     }
 
     const now = new Date();

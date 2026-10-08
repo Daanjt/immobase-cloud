@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Could not load signed PDF: ${u.name || u.path}` }, 500);
       }
       const pdfBytes = new Uint8Array(await pdfData.arrayBuffer());
-      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const pdfDoc = await PDFDocument.load(pdfBytes, u.uploaded ? { ignoreEncryption: true } : undefined);
       const faksImage = await pdfDoc.embedPng(faksBytes);
 
       const pages = pdfDoc.getPages();
@@ -375,6 +375,37 @@ Deno.serve(async (req) => {
         ? { datumX: 372, datumY: 158, sigX: 372, sigY: 128 }
         : { datumX: 132, datumY: 158, sigX: 132, sigY: 128 };
 
+      // Extern unterschriebene Scans haben meist keinen Textlayer, dann ist die
+      // Position des D&T-Blocks unbekannt. Statt blind zu stempeln, wird eine
+      // eigene Gegenzeichnungsseite angehaengt.
+      if (u.uploaded && !anchors) {
+        const ref = pages[0];
+        const W = ref ? ref.getWidth() : 595, H = ref ? ref.getHeight() : 842;
+        const pg = pdfDoc.addPage([Math.max(400, W), Math.max(560, H)]);
+        const PW = pg.getWidth(), PH = pg.getHeight();
+        const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        const docName = u.name || (isAmz ? "Anfangsmietzinsformular" : isNachtrag ? "Nachtrag" : "Untermietvertrag");
+        let y = PH - 90;
+        pg.drawText("Gegenzeichnung der Hauptmieterin", { x: 60, y, size: 16, font: bold, color: rgb(0.1, 0.1, 0.1) }); y -= 34;
+        const lines = [
+          `Dokument: ${docName}`,
+          `Mietpartei: ${contract.mieter_vorname || ""} ${contract.mieter_nachname || ""}`.trim(),
+          `Vertragsnummer: ${String(contract.id || "").substring(0, 8)}`,
+          "",
+          "Die D&T Partners GmbH zeichnet das vorstehende, von der Mietpartei",
+          "unterschriebene Dokument hiermit gegen.",
+        ];
+        for (const l of lines) { pg.drawText(l, { x: 60, y, size: 10.5, font: helvetica, color: rgb(0.15, 0.15, 0.15) }); y -= 17; }
+        y -= 30;
+        pg.drawText(isAmz ? "VERMIETER*IN" : "HAUPTMIETER", { x: 60, y, size: 8, font: bold, color: rgb(0.5, 0.5, 0.5) }); y -= 16;
+        pg.drawText("D&T Partners GmbH", { x: 60, y, size: 11, font: bold, color: rgb(0.1, 0.1, 0.1) }); y -= 30;
+        pg.drawText("Ort, Datum:", { x: 60, y, size: 9, font: bold, color: rgb(0.27, 0.27, 0.27) });
+        pg.drawText(ortDatumStr, { x: 140, y, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) }); y -= 34;
+        pg.drawText("Unterschrift:", { x: 60, y, size: 9, font: bold, color: rgb(0.27, 0.27, 0.27) });
+        const d2 = faksImage.scaleToFit(150, 26);
+        pg.drawImage(faksImage, { x: 140, y: y - 10, width: d2.width, height: d2.height });
+        pg.drawLine({ start: { x: 140, y: y - 3 }, end: { x: 300, y: y - 3 }, thickness: 0.5, color: rgb(0.55, 0.55, 0.55) });
+      } else {
       const datumX = anchors ? anchors.datumX + 74 : fb.datumX;
       const datumY = anchors ? anchors.datumY : fb.datumY;
       const sigLineX = anchors ? anchors.sigX + 74 : fb.sigX;
@@ -389,6 +420,7 @@ Deno.serve(async (req) => {
       // D&T-Faksimile pro Formular: AMZ-Zeile sitzt enger, daher hoeher setzen.
       const faksOffset = (isUmv || isNachtrag) ? 15 : 12;
       targetPage.drawImage(faksImage, { x: sigLineX, y: sigLineY - faksOffset, width: dims.width, height: dims.height });
+      }
 
       const countersignedBytes = await pdfDoc.save();
 
