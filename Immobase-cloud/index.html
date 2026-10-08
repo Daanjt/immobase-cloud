@@ -2062,6 +2062,12 @@ function useSupabaseData() {
     setRooms(p => [...p, nr]);
     return nr;
   }
+  async function deleteRoom(id) {
+    const { error } = await supabase.from("rooms").delete().eq("id", id);
+    if (error) { console.error("deleteRoom error:", error); alert("Zimmer konnte nicht gelöscht werden: " + error.message); return false; }
+    setRooms(p => p.filter(r => r.id !== id));
+    return true;
+  }
   async function insertRooms(aptId, roomList) {
     const list = (roomList||[]).filter(Boolean);
     if (!list.length) return [];
@@ -2836,7 +2842,7 @@ function useSupabaseData() {
     setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
   }
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
+  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, deleteRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -8259,7 +8265,7 @@ function SchluesselManager({apt, rooms, tenants}) {
   );
 }
 
-function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
+function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -8308,7 +8314,22 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
     setRoomList(prev => prev.map((r,idx) => idx===i ? {...r, [key]: val} : r));
   }
   async function save(){
+    const istWohn = (form.type||"WG")==="WG" && form.vermietungsart==="wohnung";
+    if (istWohn) {
+      const ar = (rooms||[]).filter(r=>r.aptId===form.id).sort((x,y)=>String(x.id).localeCompare(String(y.id),undefined,{numeric:true}));
+      let unit = ar.find(r=>r.occupied||r.tenantId) || ar[0] || null;
+      const weg = ar.filter(r=>r!==unit);
+      if (weg.length) {
+        const belegt = weg.filter(r=>r.occupied||r.tenantId);
+        if (belegt.length) { alert(`Eine ganze Wohnung hat genau 1 Zimmer. Die Zimmer ${belegt.map(r=>r.id).join(", ")} sind noch belegt. Bitte diese Mieter zuerst umziehen oder austragen.`); return; }
+        if (!confirm(`Eine ganze Wohnung hat genau 1 Zimmer (${unit.id}), an das der Mieter gekoppelt ist.\n\nDie Zimmer ${weg.map(r=>r.id).join(", ")} werden dafür gelöscht. Fortfahren?`)) return;
+        for (const r of weg) { if (deleteRoom) await deleteRoom(r.id); }
+      }
+      if (!unit && insertRoom) unit = await insertRoom(form.id);
+      if (unit && updateRoom && form.nettomiete_wohnung != null && form.nettomiete_wohnung !== "") await updateRoom(unit.id, { miete: +form.nettomiete_wohnung });
+    }
     await updateApt(form.id,{
+      ...(istWohn ? { units: 1 } : {}),
       adresse:form.adresse,plz:form.plz,ort:form.ort,
       stockwerk:form.stockwerk,zimmer:form.zimmer,
       miete:+form.miete||0,kaution:+form.kaution||0,
@@ -8612,7 +8633,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
               </div>);
             })()}
-            {tab==="zimmer"&&(<div>{apt.type==="WG"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
+            {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Ganze Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Nettomiete der ganzen Wohnung.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
             {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
@@ -8822,15 +8843,17 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermietung</div>
         <div className="fg"><label className="fl">Typ</label><select className="fi" value={(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"?"Wohnung":(form.type||"WG")} onChange={e=>{const v=e.target.value; setForm(p=>v==="Wohnung"?{...p,type:"WG",vermietungsart:"wohnung"}:{...p,type:v,vermietungsart:"zimmer"});}}><option value="WG">WG (einzelne Zimmer, möbliert)</option><option value="Wohnung">Ganze Wohnung (unmöbliert, Zwischennutzung)</option><option value="Airbnb">Airbnb</option></select></div>
-        {(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"&&(rooms||[]).filter(r=>r.aptId===form.id).length>1&&<div style={{fontSize:11,color:"#9b4a3e",marginTop:-4,marginBottom:8}}>Diese Wohnung hat {(rooms||[]).filter(r=>r.aptId===form.id).length} Zimmer-Einheiten. Für eine ganze Wohnung sollte im Tab Zimmer genau eine Einheit bestehen (Nettomiete der ganzen Wohnung).</div>}
         {(form.type||"WG")==="WG"&&(<>
         {form.vermietungsart==="wohnung"&&(<>
           <div className="frow">
             <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={form.flaeche??""} onChange={F("flaeche")} placeholder="z.B. 68"/></div>
+            <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={form.nettomiete_wohnung ?? ((()=>{const r=(rooms||[]).filter(x=>x.aptId===form.id).sort((x,y)=>String(x.id).localeCompare(String(y.id),undefined,{numeric:true}));const u=r.find(x=>x.occupied||x.tenantId)||r[0];return u?(u.miete??""):"";})())} onChange={F("nettomiete_wohnung")} placeholder="z.B. 1650"/></div>
+          </div>
+          <div className="frow">
             <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
             <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.strom_pro_person??""} onChange={F("strom_pro_person")} placeholder="z.B. 25"/></div>
           </div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Die Nettomiete der Wohnung steht im Tab Zimmer (eine Einheit für die ganze Wohnung). Nebenkosten und Strom werden pauschal pro Person verrechnet.</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Eine ganze Wohnung hat genau 1 Zimmer, an das der Mieter gekoppelt ist. Beim Speichern wird es bei Bedarf angelegt, überzählige freie Zimmer werden nach Rückfrage entfernt. Nebenkosten und Strom werden pauschal pro Person verrechnet.</div>
         </>)}
         </>)}
 
