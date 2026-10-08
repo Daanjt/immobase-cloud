@@ -5160,6 +5160,11 @@ function wohnungVertragswerte(p, apt, room, personen){
   const fNk = +(apt && apt.frueherer_nk) || 0;
   return { ...p, vertragsart: "wohnung", personen: pers, fruehererNetto: fNetto || "", fruehererNk: fNetto ? fNk : "", fruehererMietzins: fNetto ? fNetto + fNk : "", nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: (brutto + strom) * km, moebliert: false };
 }
+function objektLabel(roomId){
+  const d = (typeof window!=="undefined" && window.__IB_DATA) || {};
+  const r = (d.rooms||[]).find(x=>x.id===roomId); const a = r ? (d.apts||[]).find(x=>x.id===r.aptId) : null;
+  return (a && a.vermietungsart==="wohnung") ? `${a.id} · ganze Wohnung` : (roomId||"");
+}
 function istWohnungsVertrag(v){ return !!(v && (v.vertragsart === "wohnung" || (v.apt && v.apt.vermietungsart === "wohnung"))); }
 
 function buildAnfangsmietzinsHTML(b, v, fullName, fmtDate){
@@ -7511,7 +7516,7 @@ www.dthomes.ch`;
                   <div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",letterSpacing:".4px",marginBottom:8,fontWeight:700}}>💭 Wunschzimmer</div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:stillFree?"#a08864":"#c89653"}}>{b.zimmerWunsch}</div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:stillFree?"#a08864":"#c89653"}}>{objektLabel(b.zimmerWunsch)}</div>
                       <div style={{fontSize:11.5,color:"#8a8478",marginTop:2}}>{wApt?.adresse||"-"}{wRoom?.balkon?" · 🌿":""}</div>
                     </div>
                     <div style={{textAlign:"right"}}>
@@ -7739,7 +7744,7 @@ www.dthomes.ch`;
             <div className="frow"><div className="fg"><label className="fl">Wunsch-Zimmer</label><select className="fi" value={editForm.zimmerWunsch||""} onChange={EF("zimmerWunsch")}><option value="">-</option>{(() => {
               const pdW = (s)=>{ if(!s) return null; const t=String(s).trim(); const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m) return new Date(+m[3],+m[2]-1,+m[1]); const d=new Date(t); return isNaN(d.getTime())?null:d; };
               const verf = (r)=>{ if(!r.occupied) return true; const aus=pdW(r.mieter_auszug); const apt=apts.find(a=>a.id===r.aptId); const ende=pdW(apt&&apt.mietende); return !!(aus && ende && aus < ende); };
-              return [...rooms].sort((x,y)=>{ const vx=verf(x)?0:1, vy=verf(y)?0:1; if(vx!==vy) return vx-vy; return natSort(x.id,y.id); }).map(r=>{ const a=apts.find(x=>x.id===r.aptId); const frei=verf(r); return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)}){frei?"":" · belegt"}</option>; });
+              return [...rooms].sort((x,y)=>{ const vx=verf(x)?0:1, vy=verf(y)?0:1; if(vx!==vy) return vx-vy; return natSort(x.id,y.id); }).map(r=>{ const a=apts.find(x=>x.id===r.aptId); const frei=verf(r); return <option key={r.id} value={r.id}>{objektLabel(r.id)} - {a?.adresse||""} ({chf(r.miete)}){frei?"":" · belegt"}</option>; });
             })()}</select></div><div className="fg"><label className="fl">Gewünschter Einzug</label><input className="fi" type="date" value={editForm.einzug?editForm.einzug.split("T")[0]:""} onChange={EF("einzug")}/></div></div>
             <div className="frow"><div className="fg"><label className="fl">Möblierung</label><select className="fi" value={editForm.moebliert||""} onChange={EF("moebliert")}><option value="">-</option><option value="ja">Möbliert</option><option value="nein">Unmöbliert</option></select></div></div>
 
@@ -7865,7 +7870,7 @@ www.dthomes.ch`;
                 {!rooms.find(r=>r.id===vertragData.zimmerId) && vertragData.zimmerId && <option value={vertragData.zimmerId}>{vertragData.zimmerId} (aktuell)</option>}
                 {[...rooms].sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(r=>{
                   const a = apts.find(x=>x.id===r.aptId);
-                  return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)})</option>;
+                  return <option key={r.id} value={r.id}>{objektLabel(r.id)} - {a?.adresse||""} ({chf(r.miete)})</option>;
                 })}
               </select></div>
               <div className="fg"><label className="fl">Adresse</label><input className="fi" value={vertragData.adresse} onChange={e=>setVertragData(p=>({...p,adresse:e.target.value}))}/></div>
@@ -8566,7 +8571,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
-            <div className="tabs">{[["info","Übersicht"],["zimmer","Zimmer"],["medien","Medien"],["schluessel","🔑 Schlüssel"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Übersicht"],["zimmer",apt.vermietungsart==="wohnung"?"Mietobjekt":"Zimmer"],["medien","Medien"],["schluessel","🔑 Schlüssel"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&(() => {
               const isWG = apt.type === "WG";
               const aptRooms = rooms.filter(r => r.aptId === apt.id);
@@ -8650,7 +8655,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
               </div>);
             })()}
-            {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Ganze Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Nettomiete der ganzen Wohnung.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
+            {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Ganze Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Nettomiete der ganzen Wohnung.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{objektLabel(r.id)}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
             {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
@@ -9104,7 +9109,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                 const isHighlight = highlightId === r.id;
                 return(
                   <tr key={r.id} id={`zimmer-${r.id}`} style={isHighlight?{background:"#f5efe4",boxShadow:"0 0 0 2px #a08864",transition:"all .3s"}:{}}>
-                    <td style={{fontWeight:600}}>{r.id}</td>
+                    <td style={{fontWeight:600}}>{objektLabel(r.id)}</td>
                     <td data-label="Größe" style={{color:"#8a8174",fontSize:12}}>{r.groesse||"-"}</td>
                     <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"-"}</td>
                     <td data-label="Balkon">{r.balkon?"🌿":"-"}</td>
@@ -9182,7 +9187,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                       <Av name={b.vorname} size={32}/>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:600}}>{b.vorname} {b.nachname}</div>
-                        <div style={{fontSize:11,color:"#8a8174"}}>{b.email||"-"} · {b.zimmerWunsch?`Wunsch: ${b.zimmerWunsch}`:"kein Wunsch"}</div>
+                        <div style={{fontSize:11,color:"#8a8174"}}>{b.email||"-"} · {b.zimmerWunsch?`Wunsch: ${objektLabel(b.zimmerWunsch)}`:"kein Wunsch"}</div>
                       </div>
                       <StatusBdg status={b.status}/>
                     </label>
@@ -9936,7 +9941,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               </div>
             )}
             {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-              <div>🏠 <strong>{apt?.adresse}</strong> · Zimmer <strong>{room.id}</strong> · {chf(room.miete)}/Mt.</div>
+              <div>🏠 <strong>{apt?.adresse}</strong> · {apt?.vermietungsart==="wohnung"?<>Ganze Wohnung <strong>{apt.id}</strong></>:<>Zimmer <strong>{room.id}</strong></>} · {chf(room.miete)}/Mt.</div>
               <div style={{display:"flex",gap:4}}>
                 {apt&&<button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>}
                 <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",room.id)} style={{fontSize:9}}>→ Zimmer</button>
@@ -10375,7 +10380,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
           <label className="fl">Zimmer zuteilen (optional)</label>
           <select className="fi" value={newForm.roomId||""} onChange={NF("roomId")}>
             <option value="">- Kein Zimmer (später zuweisen) -</option>
-            {freeRooms.length===0?<option disabled>Keine freien Zimmer verfügbar</option>:freeRooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{r.id} - {a?.adresse} ({chf(r.miete)}/Mt.)</option>;})}
+            {freeRooms.length===0?<option disabled>Keine freien Zimmer verfügbar</option>:freeRooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{objektLabel(r.id)} - {a?.adresse} ({chf(r.miete)}/Mt.)</option>;})}
           </select>
         </div>
         <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={newForm.schluesselAnzahl||""} onChange={NF("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div></div>
@@ -10591,7 +10596,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 {!rooms.find(r=>r.id===tvData.zimmerId) && tvData.zimmerId && <option value={tvData.zimmerId}>{tvData.zimmerId} (aktuell)</option>}
                 {[...rooms].sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(r=>{
                   const a = apts.find(x=>x.id===r.aptId);
-                  return <option key={r.id} value={r.id}>{r.id} - {a?.adresse||""} ({chf(r.miete)})</option>;
+                  return <option key={r.id} value={r.id}>{objektLabel(r.id)} - {a?.adresse||""} ({chf(r.miete)})</option>;
                 })}
               </select></div>
               <div className="fg"><label className="fl">Adresse</label><input className="fi" value={tvData.adresse} onChange={e=>setTvData(p=>({...p,adresse:e.target.value}))}/></div>
@@ -12846,7 +12851,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
             const i = roomInfo(r,a);
             return (
               <tr key={r.id}>
-                <td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{r.id}</button></td>
+                <td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{objektLabel(r.id)}</button></td>
                 <td data-label="Mieter">{i.t?<button onClick={()=>navigateTo&&navigateTo("mieter",i.t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{i.t.vorname} {i.t.nachname}</button>:<span style={{color:"#8a8174"}}>frei</span>}</td>
                 <td data-label="Auszug">{i.statusKey==="zieht_aus"?<>{fmt(i.aus)}{i.tage!==null?<span style={{color:"#8a8174",fontSize:10.5}}> · in {i.tage} T</span>:null}</>:(i.statusKey==="bleibt"?"bleibt":(i.statusKey==="offen"?"offen":"-"))}</td>
                 <td data-label="Status"><span style={{display:"inline-block",padding:"3px 10px",borderRadius:12,fontSize:10.5,fontWeight:600,color:"#fff",background:i.statusColor}}>{i.statusLabel}</span>{i.t && i.statusKey!=="bleibt" && !i.nachmieter && <button onClick={async()=>{ if(!confirm(`${i.t.vorname} ${i.t.nachname} bleibt bis zum Wohnungsende?\n\nDas Auszugsdatum wird auf ${a.mietende?fmt(pd(a.mietende)):"das Wohnungsende"} gesetzt und das Zimmer nicht mehr ausgeschrieben.`)) return; await updateTenant(i.t.id,{auszug: a.mietende||""}); }} style={{marginLeft:8,fontSize:11,padding:"5px 13px",background:"transparent",color:"#5a7c5e",border:"1px solid #bcc9ac",borderRadius:6,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>✓ Bleibt</button>}</td>
@@ -14239,7 +14244,7 @@ function MainApp({rolle}) {
           </button>
         </div>
       </div>
-      <div className="main"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
+      <div className="main">{(window.__IB_DATA=data, null)}<Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
       {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail} insertEmployee={data.insertEmployee} employees={data.employees}/>}
     </div>
