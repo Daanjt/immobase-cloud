@@ -155,7 +155,9 @@ ${facts}`;
       wadd("Wohnflaeche", p.flaeche ? `ca. ${p.flaeche} m\u00b2` : "");
       wadd("Frei ab", wFrei);
       wadd("Befristet bis", p.mietende);
-      if (Array.isArray(p.merkmale) && p.merkmale.length) wadd("Merkmale", p.merkmale.join(", "));
+      const wMk = (Array.isArray(p.merkmale) ? p.merkmale : []).filter((x: string) => !/wlan|internet|wifi/i.test(String(x)));
+      if (wMk.length) wadd("Merkmale", wMk.join(", "));
+      wadd("Internet / WLAN", "NICHT inklusive, der Mieter schliesst selbst ein Abo ab");
       wadd("Moeblierung", "unmoebliert, der Mieter richtet die Wohnung mit eigenen Moebeln ein; fest eingebaute Kueche und Bad sind vorhanden");
       wadd("Nebenkosten und Strom", "pauschal, ohne Nachzahlungen (keine Betraege im Text nennen)");
       const wTitel = `${p.wgGroesse ? p.wgGroesse + "-Zimmer-Wohnung" : "Wohnung"}${p.mietende ? `, befristet von ${fmtShort(wFrei)} bis ${fmtShort(p.mietende)}` : ""}`;
@@ -167,6 +169,7 @@ Regeln:
 - Nutze AUSSCHLIESSLICH die gelieferten Fakten, erfinde keine Ausstattung, Flaeche oder Daten. Fehlt eine Angabe, lass sie weg. Erwaehne Merkmale nur, wenn sie in den Fakten stehen.
 - Nenne Verfuegbarkeit (Frei ab) und die Befristung (Befristet bis) klar im Einstiegsabsatz. Die Befristung ist Teil des Angebots (Zwischennutzung bis zum Umbau bzw. zur Sanierung), formuliere sie sachlich.
 - Die Wohnung ist unmoebliert: der Mieter zieht mit eigenen Moebeln ein. Behaupte nie, sie sei moebliert.
+- WLAN bzw. Internet ist bei ganzen Wohnungen NICHT inklusive. Schreibe nie, WLAN sei inklusive. Du kannst kurz erwaehnen, dass der Internetanschluss selbst organisiert wird.
 - Lage: ein individueller Fliesstext-Absatz passend zur tatsaechlichen Adresse und zum Quartier (Charakter, bekannte OeV-Verbindungen, Gruenflaechen, Orientierungspunkte), ohne erfundene Geschaefte oder Distanzen. Die Wohnung eignet sich fuer Einzelpersonen, Paare oder kleine Haushalte.
 - Schweizer Rechtschreibung (ss), Du-Form, warm aber sachlich, keine Emojis, kein Fettdruck, keine Gedankenstriche. Erwaehne die Kaution nicht.
 - Titel: uebernimm im Wesentlichen das Faktum "Titel-Vorgabe", hoechstens rund 70 Zeichen.

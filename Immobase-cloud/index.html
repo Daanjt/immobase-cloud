@@ -1168,13 +1168,13 @@ function Av({name,size=30}){const i=(name||"?").trim().split(" ").filter(Boolean
 const chf=n=>`CHF ${Number(n||0).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
 function Bdg({label,color="x"}){if(!label&&label!==0)return null;return <span className={`bx b-${color}`}>{label}</span>;}
 const MERKMAL_VORSCHLAEGE = ["WLAN inkl.","Zentral","Aussicht","Seesicht","Nähe See","Balkon","Garten","Terrasse","Dachterrasse","Lift","Waschmaschine","Ruhige Lage","Gute ÖV-Anbindung","Nähe Bahnhof","Nähe Hochschulen","Neu renoviert","Altbau","Hell","Parkplatz"];
-function MerkmalePicker({value, onChange}){
-  const sel = Array.isArray(value) ? value : [];
+function MerkmalePicker({value, onChange, wohnung}){
+  const sel = (Array.isArray(value) ? value : []).filter(x => !(wohnung && x === "WLAN inkl."));
   const [eigen, setEigen] = useState("");
   const MAX = 4;
   const toggle = m => { if (sel.includes(m)) onChange(sel.filter(x=>x!==m)); else if (sel.length < MAX) onChange([...sel, m]); else alert(`Maximal ${MAX} Merkmale. Bitte zuerst eines abwählen.`); };
   const add = () => { const v = eigen.trim(); if (!v || sel.includes(v)) { setEigen(""); return; } if (sel.length >= MAX) { alert(`Maximal ${MAX} Merkmale. Bitte zuerst eines abwählen.`); return; } onChange([...sel, v]); setEigen(""); };
-  const alle = [...MERKMAL_VORSCHLAEGE, ...sel.filter(x=>!MERKMAL_VORSCHLAEGE.includes(x))];
+  const alle = [...MERKMAL_VORSCHLAEGE.filter(x => !(wohnung && x === "WLAN inkl.")), ...sel.filter(x=>!MERKMAL_VORSCHLAEGE.includes(x))];
   return (<div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
       {alle.map(m=>{ const on=sel.includes(m); return <button type="button" key={m} onClick={()=>toggle(m)} style={{fontSize:11.5,padding:"5px 10px",borderRadius:999,border:`1px solid ${on?"#a08864":"#d8c9a4"}`,background:on?"#a08864":"#fff",color:on?"#fff":"#5a5448",cursor:"pointer",fontFamily:"inherit"}}>{on?"✓ ":""}{m}</button>; })}
@@ -1183,7 +1183,7 @@ function MerkmalePicker({value, onChange}){
       <input className="fi" value={eigen} onChange={e=>setEigen(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); add(); } }} placeholder="Eigenes Merkmal hinzufügen" style={{margin:0}}/>
       <button type="button" className="btn btn-sm" onClick={add}>+ Hinzufügen</button>
     </div>
-    <div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Maximal 4 Merkmale ({sel.length}/4). Erscheinen als Kärtchen auf der Webseite, zusammen mit der Zimmerzahl. Nichts gewählt = WLAN inkl., Zentral, und Balkon automatisch, wenn ein Zimmer einen Balkon hat.</div>
+    <div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Maximal 4 Merkmale ({sel.length}/4). Erscheinen als Kärtchen auf der Webseite, zusammen mit der Zimmerzahl. {wohnung ? "Bei ganzen Wohnungen ist WLAN nicht inklusive." : "Nichts gewählt = WLAN inkl., Zentral, und Balkon automatisch, wenn ein Zimmer einen Balkon hat."}</div>
   </div>);
 }
 function TypeBadge({type}){
@@ -8382,7 +8382,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
-      merkmale: Array.isArray(form.merkmale) ? form.merkmale : [],
+      merkmale: (Array.isArray(form.merkmale) ? form.merkmale : []).filter(x => !(istWohn && x === "WLAN inkl.")),
       immer_befristet: !!form.immer_befristet,
       type: form.type || "WG",
       vermietungsart: (form.type||"WG")==="WG" && form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
@@ -8465,7 +8465,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
       mietende: newForm.mietende || "",
-      merkmale: Array.isArray(newForm.merkmale) ? newForm.merkmale : [],
+      merkmale: (Array.isArray(newForm.merkmale) ? newForm.merkmale : []).filter(x => !(newForm.vermietungsart === "wohnung" && x === "WLAN inkl.")),
       immer_befristet: !!newForm.immer_befristet || /josefstrasse/i.test(newForm.adresse || ""),
       stockwerk: newForm.stockwerk || "",
       miete: +newForm.miete || 0,
@@ -8754,7 +8754,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={newForm.zimmer||""} onChange={NF("zimmer")} placeholder="z.B. 3.5"/></div>
         </div>
-        <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker value={newForm.merkmale} onChange={v=>setNewForm(p=>({...p,merkmale:v}))}/></div>
+        <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker wohnung={(newForm.type||"WG")==="WG"&&newForm.vermietungsart==="wohnung"} value={newForm.merkmale} onChange={v=>setNewForm(p=>({...p,merkmale:v}))}/></div>
 
         {newForm.type==="WG"&&(<>
           {newForm.vermietungsart==="wohnung"&&(<>
@@ -8878,7 +8878,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
-        <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker value={form.merkmale} onChange={v=>setForm(p=>({...p,merkmale:v}))}/></div>
+        <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker wohnung={(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"} value={form.merkmale} onChange={v=>setForm(p=>({...p,merkmale:v}))}/></div>
         <div className="fg"><label className="fl">Etage / Bezeichnung</label><input className="fi" value={form.etage||""} onChange={F("etage")} placeholder="z.B. 2. OG oder Wohnung rechts"/></div>
         <div className="frow">
           <div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div>
