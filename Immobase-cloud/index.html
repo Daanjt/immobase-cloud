@@ -5806,7 +5806,7 @@ ${W
     const istManuell = !!userEnde;
     // Schwelle: Unter 12 Monaten befristet, ab 12 Monaten unbefristet, unabhaengig davon
     // ob das Enddatum manuell gesetzt oder aus der Wohnung abgeleitet wurde.
-    if (months > 0 && (months < 12 || W)) {
+    if (months > 0 && (months < 12 || W || !!(v.apt && v.apt.immer_befristet))) {
       let grundSatz = "";
       let erstreckungSatz = "";
       if (v.befristungsgrund) {
@@ -7908,7 +7908,8 @@ www.dthomes.ch`;
                 const m = (ende - einzug) / (1000*60*60*24*30.44);
                 if (ende <= einzug) return "⚠ Enddatum liegt vor dem Einzug";
                 const istManuell = !!userEnde;
-                if (istManuell || (m > 0 && m < 12)) return `→ Vertrag ist BEFRISTET bis ${ende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate${istManuell?", manuell gesetzt":", aus Wohnung"})`;
+                const _immer = !!(vertragData.apt && (vertragData.apt.immer_befristet || vertragData.apt.vermietungsart === "wohnung"));
+                if (m > 0 && (m < 12 || _immer)) return `→ Vertrag ist BEFRISTET bis ${ende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate${istManuell?", manuell gesetzt":", aus Wohnung"}${_immer && m >= 12 ? ", Wohnung immer befristet" : ""})`;
                 return `→ Vertrag ist UNBEFRISTET (Wohnung endet in ${Math.round(m)} Monaten, mindestens 12)`;
               })()}
             </div>
@@ -8342,6 +8343,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
+      immer_befristet: !!form.immer_befristet,
       type: form.type || "WG",
       vermietungsart: (form.type||"WG")==="WG" && form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
       nk_pro_person: 100,
@@ -8422,6 +8424,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
       mietende: newForm.mietende || "",
+      immer_befristet: !!newForm.immer_befristet || /josefstrasse/i.test(newForm.adresse || ""),
       stockwerk: newForm.stockwerk || "",
       miete: +newForm.miete || 0,
       kaution: +newForm.kaution || 0,
@@ -8759,6 +8762,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Mietbeginn</label><input className="fi" value={newForm.mietbeginn||""} onChange={NF("mietbeginn")} placeholder="DD.MM.YYYY"/></div>
           <div className="fg"><label className="fl">Mietende</label><input className="fi" value={newForm.mietende||""} onChange={NF("mietende")} placeholder="DD.MM.YYYY oder leer"/></div>
         </div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#5a5448",margin:"2px 0 12px",cursor:"pointer"}}><input type="checkbox" checked={!!newForm.immer_befristet} onChange={e=>setNewForm(p=>({...p,immer_befristet:e.target.checked}))} style={{width:16,height:16}}/>Immer befristet (alle Verträge bis Mietende befristet, auch ab 12 Monaten)</label>
         <div className="frow">
           <div className="fg"><label className="fl">Früherer Mietzins netto (CHF/Mt.)</label><input className="fi" type="number" value={newForm.frueherer_mietzins||""} onChange={NF("frueherer_mietzins")} placeholder="Vormieter, z.B. 1450"/></div>
           <div className="fg"><label className="fl">Frühere Nebenkosten (CHF/Mt.)</label><input className="fi" type="number" value={newForm.frueherer_nk||""} onChange={NF("frueherer_nk")} placeholder="z.B. 180"/></div>
@@ -8862,6 +8866,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Mietbeginn</label><input className="fi" value={form.mietbeginn||""} onChange={F("mietbeginn")}/></div>
           <div className="fg"><label className="fl">Mietende</label><input className="fi" value={form.mietende||""} onChange={F("mietende")}/></div>
         </div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#5a5448",margin:"2px 0 12px",cursor:"pointer"}}><input type="checkbox" checked={!!form.immer_befristet} onChange={e=>setForm(p=>({...p,immer_befristet:e.target.checked}))} style={{width:16,height:16}}/>Immer befristet (alle Verträge bis Mietende befristet, auch ab 12 Monaten)</label>
         <div className="frow">
           <div className="fg"><label className="fl">Früherer Mietzins netto (CHF/Mt.)</label><input className="fi" type="number" value={form.frueherer_mietzins??""} onChange={F("frueherer_mietzins")} placeholder="Vormieter, z.B. 1450"/></div>
           <div className="fg"><label className="fl">Frühere Nebenkosten (CHF/Mt.)</label><input className="fi" type="number" value={form.frueherer_nk??""} onChange={F("frueherer_nk")} placeholder="z.B. 180"/></div>
@@ -10613,7 +10618,8 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 const m = (ende - einzug) / (1000*60*60*24*30.44);
                 if (ende <= einzug) return "⚠ Enddatum liegt vor dem Einzug";
                 const istManuell = !!userEnde;
-                if (istManuell || (m > 0 && m < 12)) return `→ Vertrag ist BEFRISTET bis ${ende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate${istManuell?", manuell gesetzt":", aus Wohnung"})`;
+                const _immer = !!(tvData.apt && (tvData.apt.immer_befristet || tvData.apt.vermietungsart === "wohnung"));
+                if (m > 0 && (m < 12 || _immer)) return `→ Vertrag ist BEFRISTET bis ${ende.toLocaleDateString("de-CH")} (${Math.round(m)} Monate${istManuell?", manuell gesetzt":", aus Wohnung"}${_immer && m >= 12 ? ", Wohnung immer befristet" : ""})`;
                 return `→ Vertrag ist UNBEFRISTET (Wohnung endet in ${Math.round(m)} Monaten, mindestens 12)`;
               })()}
             </div>
