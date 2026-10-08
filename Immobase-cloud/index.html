@@ -2029,7 +2029,7 @@ function useSupabaseData() {
       if (rm && rm.miete != null && ap && ap.vermietungsart === "wohnung") {
         // Ganze Wohnung: Mietzins = Nettomiete + Nebenkosten pro Person; Strom pro Person separat
         const pers = +t.personen || 1;
-        t = { ...t, mietzins: +rm.miete + (+ap.nk_pro_person || 0) * pers, strom: (t.strom != null && t.strom !== "") ? t.strom : (+ap.strom_pro_person || 0) * pers };
+        t = { ...t, mietzins: +rm.miete + 100 * pers, strom: (t.strom != null && t.strom !== "") ? t.strom : (+ap.strom_pro_person || 0) * pers };
       } else if (rm && rm.miete != null) t = { ...t, mietzins: +rm.miete };
     }
     const dbT = toDbTenant(t);
@@ -5137,7 +5137,7 @@ function formatDateLong(dateStr){
 function wohnungVertragswerte(p, apt, room, personen){
   const pers = Math.max(1, +personen || 1);
   const netto = room ? (+room.miete || 0) : (+p.nettomiete || 0);
-  const nk = (+(apt && apt.nk_pro_person) || 0) * pers;
+  const nk = 100 * pers; // Nebenkosten bei ganzen Wohnungen immer pauschal CHF 100 pro Person
   const strom = (+(apt && apt.strom_pro_person) || 0) * pers;
   const brutto = netto + nk;
   const km = p.kautionMonate == null ? 3 : p.kautionMonate;
@@ -5448,7 +5448,7 @@ function buildContractHTML(b, v, fullName, fmtDate){
   const A = v.apt || {};
   const pers = Math.max(1, +v.personen || 1);
   const persTxt = pers === 1 ? "eine Person" : `${pers} Personen`;
-  const nkPP = +A.nk_pro_person || (pers ? (+v.nebenkosten||0)/pers : 0);
+  const nkPP = pers ? (+v.nebenkosten||0)/pers : 100;
   const stromPP = +A.strom_pro_person || (pers ? (+v.strom||0)/pers : 0);
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
@@ -7860,7 +7860,7 @@ www.dthomes.ch`;
                 <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   <label className="fl" style={{margin:0}}>Anzahl Personen</label>
                   <input className="fi" type="number" min="1" max="10" value={vertragData.personen||1} style={{width:80,margin:0}} onChange={e=>{ const n=Math.max(1,+e.target.value||1); setVertragData(p=>wohnungVertragswerte(p, p.apt, null, n)); updateBewerber(b.id,{personen:n}); }}/>
-                  <span style={{fontSize:11.5,color:"#8a8174"}}>Nebenkosten CHF {+(vertragData.apt&&vertragData.apt.nk_pro_person)||0} und Strom CHF {+(vertragData.apt&&vertragData.apt.strom_pro_person)||0} pro Person und Monat</span>
+                  <span style={{fontSize:11.5,color:"#8a8174"}}>Nebenkosten CHF 100 und Strom CHF {+(vertragData.apt&&vertragData.apt.strom_pro_person)||0} pro Person und Monat</span>
                 </div>
               </div>
             )}
@@ -8316,7 +8316,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
       vermietungsart: form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
-      nk_pro_person: form.nk_pro_person===""||form.nk_pro_person==null ? null : +form.nk_pro_person,
+      nk_pro_person: 100,
       strom_pro_person: form.strom_pro_person===""||form.strom_pro_person==null ? null : +form.strom_pro_person,
       flaeche: form.flaeche===""||form.flaeche==null ? null : +form.flaeche,
     });
@@ -8385,7 +8385,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       zimmer: newForm.zimmer || "",
       units: newForm.type === "WG" ? (newForm.vermietungsart==="wohnung" ? 1 : (+newForm.units||0)) : null,
       vermietungsart: newForm.type === "WG" && newForm.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
-      nk_pro_person: newForm.nk_pro_person ? +newForm.nk_pro_person : null,
+      nk_pro_person: 100,
       strom_pro_person: newForm.strom_pro_person ? +newForm.strom_pro_person : null,
       flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
@@ -8685,7 +8685,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
               <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={(roomList[0]&&roomList[0].miete)||""} onChange={e=>setRoomList(prev=>[{...(prev[0]||{groesse:"",balkon:false}),miete:e.target.value}])} placeholder="z.B. 1650"/></div>
             </div>
             <div className="frow">
-              <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><input className="fi" type="number" value={newForm.nk_pro_person||""} onChange={NF("nk_pro_person")} placeholder="z.B. 100"/></div>
+              <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
               <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={newForm.strom_pro_person||""} onChange={NF("strom_pro_person")} placeholder="z.B. 25"/></div>
             </div>
           </>)}
@@ -8810,7 +8810,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
         {form.vermietungsart==="wohnung"&&(<>
           <div className="frow">
             <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={form.flaeche??""} onChange={F("flaeche")} placeholder="z.B. 68"/></div>
-            <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.nk_pro_person??""} onChange={F("nk_pro_person")} placeholder="z.B. 100"/></div>
+            <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
             <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.strom_pro_person??""} onChange={F("strom_pro_person")} placeholder="z.B. 25"/></div>
           </div>
           <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Die Nettomiete der Wohnung steht im Tab Zimmer (eine Einheit für die ganze Wohnung). Nebenkosten und Strom werden pauschal pro Person verrechnet.</div>
@@ -10916,7 +10916,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       // Fixer Mietzins des Mieters hat immer Vorrang (Zimmer kann fuer Nachmieter neu bepreist sein)
       bruttomiete = (+tenant.mietzins || 0) + _strom;
     } else if (room) {
-      bruttomiete = (+room.miete || 0) + (_wohn ? (+_apt.nk_pro_person || 0) * _pers : 0) + _strom;
+      bruttomiete = (+room.miete || 0) + (_wohn ? 100 * _pers : 0) + _strom;
     } else if (tenant.kautionBetrag && tenant.kautionMonate) {
       // Letzter Fallback für archivierte: aus Kautions-Betrag rückrechnen
       bruttomiete = Math.round((+tenant.kautionBetrag || 0) / (+tenant.kautionMonate || 3));
