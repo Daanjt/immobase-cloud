@@ -1168,7 +1168,7 @@ function Av({name,size=30}){const i=(name||"?").trim().split(" ").filter(Boolean
 const chf=n=>`CHF ${Number(n||0).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
 function Bdg({label,color="x"}){if(!label&&label!==0)return null;return <span className={`bx b-${color}`}>{label}</span>;}
 function TypeBadge({type}){
-  const m={WG:["b","WG"],Airbnb:["p","Airbnb"],Evorest:["x","Evorest"],GoCaution:["x","GoCaution"],Firstcaution:["x","Firstcaution"],"Kautionsreduktion auf 0":["y","0-Kaution"],Versicherung:["b","Versicherung"],AOZ:["p","AOZ"],Student:["g","Student"],Arbeitnehmer:["g","Arbeitnehmer"],Selbstständig:["b","Selbst."]};
+  const m={WG:["b","WG"],Wohnung:["g","Ganze Wohnung"],Airbnb:["p","Airbnb"],Evorest:["x","Evorest"],GoCaution:["x","GoCaution"],Firstcaution:["x","Firstcaution"],"Kautionsreduktion auf 0":["y","0-Kaution"],Versicherung:["b","Versicherung"],AOZ:["p","AOZ"],Student:["g","Student"],Arbeitnehmer:["g","Arbeitnehmer"],Selbstständig:["b","Selbst."]};
   if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
 }
 function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
@@ -8465,7 +8465,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
     const meta=[a.zimmer?`${a.zimmer} Zi.`:null,a.stockwerk||null].filter(Boolean).join(" · ");
     return(
       <div key={a.id} onClick={()=>{setSel(a.id);setTab("info");}} style={{background:on?"#f5efe4":"#ffffff",border:`1px solid ${on?"#a08864":"#e8e3d8"}`,borderRadius:9,padding:"11px 13px",marginBottom:6,cursor:"pointer"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#8a8174",background:"#f5f2ea",border:"1px solid #e1d8c5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}{a.ausschreiben&&<span style={{marginLeft:6,fontSize:8.5,color:"var(--green)",background:"var(--green-soft)",border:"1px solid var(--green-soft)",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>AUSGESCHRIEBEN</span>}{a.nichtAusschreiben&&<span style={{marginLeft:6,fontSize:8.5,color:"#9b4a3e",background:"#f7e9e5",border:"1px solid #edd4cd",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>AUSGEBLENDET</span>}</span><TypeBadge type={a.type}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:12.5,color:on?"#a08864":"#1f1d18"}}>{a.id}{a.pipeline&&<span style={{marginLeft:6,fontSize:8.5,color:"#8a8174",background:"#f5f2ea",border:"1px solid #e1d8c5",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>PIPELINE</span>}{a.ausschreiben&&<span style={{marginLeft:6,fontSize:8.5,color:"var(--green)",background:"var(--green-soft)",border:"1px solid var(--green-soft)",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>AUSGESCHRIEBEN</span>}{a.nichtAusschreiben&&<span style={{marginLeft:6,fontSize:8.5,color:"#9b4a3e",background:"#f7e9e5",border:"1px solid #edd4cd",borderRadius:3,padding:"1px 5px",letterSpacing:".15em",fontWeight:600}}>AUSGEBLENDET</span>}</span><TypeBadge type={a.vermietungsart==="wohnung"?"Wohnung":a.type}/></div>
         <div style={{fontSize:11,color:"#8a8478"}}>{a.adresse}</div>
         {meta&&<div style={{fontSize:10.5,color:"#a89e8b",marginTop:2,letterSpacing:".05em"}}>{meta}</div>}
         {rs.length>0&&<div style={{marginTop:6}}><Prog val={o} max={rs.length}/></div>}
@@ -8538,7 +8538,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
               
               return (<div>
                 <div className="igrid">{[
-                  ["Typ",<TypeBadge type={apt.type}/>],
+                  ["Typ",<TypeBadge type={apt.vermietungsart==="wohnung"?"Wohnung":apt.type}/>],
                   isWG && ["Vermietung", apt.vermietungsart==="wohnung" ? "Ganze Wohnung (unmöbliert)" : "Einzelne Zimmer"],
                   ["Zimmer",apt.zimmer+" Zi."],
                   ["Stockwerk",apt.stockwerk||"-"],
@@ -8665,7 +8665,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="frow">
           <div className="fg"><label className="fl">ID *</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. A9"/></div>
-          <div className="fg"><label className="fl">Typ *</label><select className="fi" value={newForm.type||"WG"} onChange={NF("type")}><option value="WG">WG</option><option value="Airbnb">Airbnb</option></select></div>
+          <div className="fg"><label className="fl">Typ *</label><select className="fi" value={(newForm.type||"WG")==="WG"&&newForm.vermietungsart==="wohnung"?"Wohnung":(newForm.type||"WG")} onChange={e=>{const v=e.target.value; if(v==="Wohnung"){ setNewForm(p=>({...p,type:"WG",vermietungsart:"wohnung",units:1})); setRoomList(prev=>[prev[0]||{miete:"",groesse:"",balkon:false}]); } else { setNewForm(p=>({...p,type:v,vermietungsart:"zimmer"})); }}}><option value="WG">WG (einzelne Zimmer, möbliert)</option><option value="Wohnung">Ganze Wohnung (unmöbliert, Zwischennutzung)</option><option value="Airbnb">Airbnb</option></select></div>
         </div>
         <div className="fg"><label className="fl">Adresse *</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")} placeholder="Strasse 12"/></div>
         <div className="frow">
@@ -8678,8 +8678,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
         </div>
 
         {newForm.type==="WG"&&(<>
-          <div className="fg"><label className="fl">Vermietungsart</label><select className="fi" value={newForm.vermietungsart||"zimmer"} onChange={e=>{const v=e.target.value; setNewForm(p=>({...p,vermietungsart:v,...(v==="wohnung"?{units:1}:{})})); if(v==="wohnung") setRoomList(prev=>[prev[0]||{miete:"",groesse:"",balkon:false}]);}}><option value="zimmer">Einzelne Zimmer (WG, möbliert)</option><option value="wohnung">Ganze Wohnung (unmöbliert, an eine Partei)</option></select></div>
           {newForm.vermietungsart==="wohnung"&&(<>
+            <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:8,marginBottom:10,fontWeight:500}}>Ganze Wohnung</div>
             <div className="frow">
               <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={newForm.flaeche||""} onChange={NF("flaeche")} placeholder="z.B. 68"/></div>
               <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={(roomList[0]&&roomList[0].miete)||""} onChange={e=>setRoomList(prev=>[{...(prev[0]||{groesse:"",balkon:false}),miete:e.target.value}])} placeholder="z.B. 1650"/></div>
@@ -8806,7 +8806,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 
         {(form.type||"WG")==="WG"&&(<>
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermietung</div>
-        <div className="fg"><label className="fl">Vermietungsart</label><select className="fi" value={form.vermietungsart||"zimmer"} onChange={F("vermietungsart")}><option value="zimmer">Einzelne Zimmer (WG, möbliert)</option><option value="wohnung">Ganze Wohnung (unmöbliert, an eine Partei)</option></select></div>
+        <div className="fg"><label className="fl">Typ</label><select className="fi" value={form.vermietungsart||"zimmer"} onChange={F("vermietungsart")}><option value="zimmer">WG (einzelne Zimmer, möbliert)</option><option value="wohnung">Ganze Wohnung (unmöbliert, Zwischennutzung)</option></select></div>
         {form.vermietungsart==="wohnung"&&(<>
           <div className="frow">
             <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={form.flaeche??""} onChange={F("flaeche")} placeholder="z.B. 68"/></div>
