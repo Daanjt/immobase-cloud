@@ -32,12 +32,14 @@ function jsonResponse(body, status = 200) {
 }
 
 function formatDateTimeDE(d) {
-  return d.toLocaleString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("de-CH", { timeZone: "Europe/Zurich", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDateLongDE(d) {
   const monate = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-  return `${d.getDate()}. ${monate[d.getMonth()]} ${d.getFullYear()}`;
+  // Schweizer Zeit (Server laeuft in UTC, sonst falsches Datum kurz nach Mitternacht)
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "numeric", day: "numeric" }).formatToParts(d).map((x) => [x.type, x.value]));
+  return `${+parts.day}. ${monate[+parts.month - 1]} ${parts.year}`;
 }
 
 function bytesToBase64(bytes) {
