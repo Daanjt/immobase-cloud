@@ -3140,7 +3140,7 @@ function MediaManager({apt, editApt, rooms}){
   async function downloadAll(onlyVisible){
     if(!window.JSZip){ alert("Zip-Bibliothek noch nicht geladen, bitte kurz warten und erneut versuchen."); return; }
     let list = onlyVisible ? photos.filter(p=>!p.hidden) : photos.slice();
-    list = list.map((p,i)=>({p,i})).sort((a,b)=>{const d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;const ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){const rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(x=>x.p);
+    list = list.map((p,i)=>({p,i})).sort((a,b)=>{const fv=(b.p.favorite?1:0)-(a.p.favorite?1:0);if(fv)return fv;const d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;const ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){const rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(x=>x.p);
     if(!list.length){ alert(onlyVisible ? "Keine publizierten Bilder vorhanden." : "Keine Bilder vorhanden."); return; }
     setZipping(true);
     try {
@@ -3300,6 +3300,12 @@ function MediaManager({apt, editApt, rooms}){
     await editApt(apt.id, { photos: nextPhotos });
   }
   
+  async function toggleFavorite(idx){
+    const istFav = !!(photos[idx] && photos[idx].favorite);
+    const nextPhotos = photos.map((p,i) => ({...p, favorite: i === idx ? !istFav : false}));
+    await editApt(apt.id, { photos: nextPhotos });
+  }
+  
   async function toggleHidden(idx){
     const nextPhotos = photos.map((p,i) => i === idx ? {...p, hidden: !p.hidden} : p);
     await editApt(apt.id, { photos: nextPhotos });
@@ -3376,7 +3382,7 @@ function MediaManager({apt, editApt, rooms}){
       )}
       {photos.length > 0 ? (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(200px, 100%), 1fr))",gap:10,marginBottom:24}}>
-          {photos.map((p,i)=>({p,i})).sort((a,b)=>{var d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;var ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){var rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(({p,i}) => (
+          {photos.map((p,i)=>({p,i})).sort((a,b)=>{var fv=(b.p.favorite?1:0)-(a.p.favorite?1:0);if(fv)return fv;var d=catRank(a.p.category)-catRank(b.p.category);if(d)return d;var ar=String(a.p.category||"").indexOf("room:")===0,br=String(b.p.category||"").indexOf("room:")===0;if(ar&&br){var rd=roomKey(a.p.category)-roomKey(b.p.category);if(rd)return rd;}return (a.p.sort_order||0)-(b.p.sort_order||0);}).map(({p,i}) => (
             <div key={p.path} style={{border:`1px solid ${p.category ? "#e1d8c5" : "#e8d2a8"}`,borderRadius:8,overflow:"hidden",background:"#fff",position:"relative",boxShadow: p.category ? "none" : "0 0 0 1px #fdf7e8 inset"}}>
               {p.path.toLowerCase().endsWith(".pdf") ? (
                 <a href={publicUrl(p.path)} target="_blank" rel="noopener" title="PDF in neuem Tab öffnen" style={{display:"block",height:140,background:"#fafafa",borderBottom:"1px solid #e8e0cd"}}>
@@ -3385,6 +3391,7 @@ function MediaManager({apt, editApt, rooms}){
               ) : (
                 <img onClick={()=>setLightbox(publicUrl(p.path))} src={publicUrl(p.path)} alt={`Foto ${i+1}`} style={{width:"100%",height:140,objectFit:"cover",display:"block",opacity:p.hidden?.35:1,cursor:"zoom-in"}}/>
               )}
+              {p.favorite && <div style={{position:"absolute",top:6,right:6,background:"#a08864",color:"#fff",fontSize:9,fontWeight:700,padding:"3px 7px",borderRadius:5,letterSpacing:".03em"}}>★ Titelbild</div>}
               {p.hidden && <div style={{position:"absolute",top:6,left:6,background:"rgba(26,24,20,.85)",color:"#fff",fontSize:9,fontWeight:600,padding:"3px 7px",borderRadius:5,letterSpacing:".03em"}}>Nicht im Inserat</div>}
               <div style={{padding:"6px 8px",borderTop:"1px solid #e8e0cd",background:"#fafafa"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
@@ -3394,6 +3401,7 @@ function MediaManager({apt, editApt, rooms}){
                     <button onClick={()=>movePhoto(i,1)} disabled={i===photos.length-1} title="Nach unten" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:i===photos.length-1?"default":"pointer",opacity:i===photos.length-1?.3:1,fontSize:11}}>↓</button>
                     <button onClick={()=>downloadPhoto(p,i)} title="Herunterladen" style={{background:"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>⬇</button>
                     {!String(p.path).toLowerCase().endsWith(".pdf") && <button onClick={()=>editPhotoAI(i,"leeren")} disabled={aiIdx!==null} title="Möbel entfernen und aufräumen (KI)" style={{background:aiIdx===i?"#efe4cd":"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:aiIdx!==null?"default":"pointer",fontSize:11,opacity:(aiIdx!==null&&aiIdx!==i)?.4:1}}>{aiIdx===i?"⏳":"✨"}</button>}
+                    {!String(p.path).toLowerCase().endsWith(".pdf") && <button onClick={()=>toggleFavorite(i)} title={p.favorite?"Titelbild entfernen":"Als Titelbild festlegen (wird überall zuerst gezeigt)"} style={{background:p.favorite?"#efe4cd":"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11,color:p.favorite?"#a08864":"inherit"}}>{p.favorite?"★":"☆"}</button>}
                     <button onClick={()=>toggleHidden(i)} title={p.hidden?"Wieder im Inserat zeigen":"Im Inserat verbergen"} style={{background:p.hidden?"#efe4cd":"none",border:"1px solid #d8c9a4",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>{p.hidden?"🚫":"👁"}</button>
                     <button onClick={()=>deletePhoto(i)} title="Löschen" style={{background:"none",border:"1px solid #c08070",color:"#9b4a3e",borderRadius:4,padding:"2px 6px",cursor:"pointer",fontSize:11}}>×</button>
                   </div>
