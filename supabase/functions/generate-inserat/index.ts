@@ -108,7 +108,7 @@ serve(async (req) => {
 
     const facts = lines.join("\n");
 
-    const prompt = `Du schreibst ein Wohnungsinserat fuer die Schweizer Plattform Flatfox fuer D&T Homes, einen Anbieter von hochwertigem moebliertem Wohnraum (${istWG ? "hier ein WG-Zimmer" : "hier eine moeblierte Wohnung auf Zeit"}).
+    let prompt = `Du schreibst ein Wohnungsinserat fuer die Schweizer Plattform Flatfox fuer D&T Homes, einen Anbieter von hochwertigem moebliertem Wohnraum (${istWG ? "hier ein WG-Zimmer" : "hier eine moeblierte Wohnung auf Zeit"}).
 
 Regeln:
 - WICHTIG: Nenne NIEMALS eine Miete, die D&T bezahlt, keine Einstandsmiete, keine Kosten, keine Marge und keine Gewinnspanne, ueberhaupt keine internen Finanzzahlen. Im Beschreibungstext kommt gar kein Mietbetrag vor. Die Miete gibt D&T separat als Flatfox-Feld an, nicht im Text.
@@ -141,6 +141,53 @@ In "beschreibung" werden Absaetze mit \\n\\n getrennt.
 
 FAKTEN:
 ${facts}`;
+
+    // ---- Ganze Wohnung (unmoebliert, befristete Zwischennutzung): eigene Fakten und Vorlage ----
+    if (String(p.vermietungsart || "") === "wohnung") {
+      const wl: string[] = [];
+      const wadd = (label: string, val: any) => { if (val === null || val === undefined) return; const s2 = String(val).trim(); if (s2) wl.push(`- ${label}: ${s2}`); };
+      const wFrei = (roomsArr.length && roomsArr[0].verfuegbarAb) ? roomsArr[0].verfuegbarAb : p.mietbeginn;
+      wadd("Objektart", "ganze Wohnung, unmoebliert, an eine Partei, im Rahmen einer befristeten Zwischennutzung");
+      wadd("Adresse", p.adresse);
+      wadd("PLZ / Ort", [p.plz, p.ort].filter(Boolean).join(" "));
+      wadd("Stockwerk", p.stockwerk);
+      wadd("Anzahl Zimmer", p.wgGroesse);
+      wadd("Wohnflaeche", p.flaeche ? `ca. ${p.flaeche} m\u00b2` : "");
+      wadd("Frei ab", wFrei);
+      wadd("Befristet bis", p.mietende);
+      if (Array.isArray(p.merkmale) && p.merkmale.length) wadd("Merkmale", p.merkmale.join(", "));
+      wadd("Moeblierung", "unmoebliert, der Mieter richtet die Wohnung mit eigenen Moebeln ein; fest eingebaute Kueche und Bad sind vorhanden");
+      wadd("Nebenkosten und Strom", "pauschal, ohne Nachzahlungen (keine Betraege im Text nennen)");
+      const wTitel = `${p.wgGroesse ? p.wgGroesse + "-Zimmer-Wohnung" : "Wohnung"}${p.mietende ? `, befristet von ${fmtShort(wFrei)} bis ${fmtShort(p.mietende)}` : ""}`;
+      wadd("Titel-Vorgabe", wTitel);
+      prompt = `Du schreibst ein Wohnungsinserat fuer die Schweizer Plattform Flatfox fuer D&T Homes. Es geht um eine GANZE WOHNUNG, die unmoebliert und befristet als Zwischennutzung an eine Partei vermietet wird. Es ist KEIN WG-Zimmer: erwaehne nie eine WG, Mitbewohner, Gemeinschaftsraeume oder einzelne Zimmer zur Miete.
+
+Regeln:
+- Nenne im Text keinen Mietbetrag, keine Nebenkosten- oder Strombetraege und keine internen Finanzzahlen.
+- Nutze AUSSCHLIESSLICH die gelieferten Fakten, erfinde keine Ausstattung, Flaeche oder Daten. Fehlt eine Angabe, lass sie weg. Erwaehne Merkmale nur, wenn sie in den Fakten stehen.
+- Nenne Verfuegbarkeit (Frei ab) und die Befristung (Befristet bis) klar im Einstiegsabsatz. Die Befristung ist Teil des Angebots (Zwischennutzung bis zum Umbau bzw. zur Sanierung), formuliere sie sachlich.
+- Die Wohnung ist unmoebliert: der Mieter zieht mit eigenen Moebeln ein. Behaupte nie, sie sei moebliert.
+- Lage: ein individueller Fliesstext-Absatz passend zur tatsaechlichen Adresse und zum Quartier (Charakter, bekannte OeV-Verbindungen, Gruenflaechen, Orientierungspunkte), ohne erfundene Geschaefte oder Distanzen. Die Wohnung eignet sich fuer Einzelpersonen, Paare oder kleine Haushalte.
+- Schweizer Rechtschreibung (ss), Du-Form, warm aber sachlich, keine Emojis, kein Fettdruck, keine Gedankenstriche. Erwaehne die Kaution nicht.
+- Titel: uebernimm im Wesentlichen das Faktum "Titel-Vorgabe", hoechstens rund 70 Zeichen.
+
+Vorlage fuer Aufbau und Reihenfolge (formuliere kreativ und abwechslungsreich, Fakten bleiben gleich, Leerzeile zwischen den Absaetzen):
+
+Du suchst eine eigene Wohnung in [Ort]? An der [Strasse und Hausnummer] vermieten wir eine [Zahl]-Zimmer-Wohnung[ mit ca. [Flaeche] m²][ im [Stockwerk]]. Verfügbar ab [Datum], befristet bis [Datum].
+
+Die Wohnung wird als Ganzes und unmöbliert vermietet, du richtest sie mit deinen eigenen Möbeln ein. [Merkmale aus den Fakten, falls vorhanden.] Nebenkosten und Strom werden pauschal abgerechnet, ohne Nachzahlungen.
+
+[Lage-Absatz]
+
+Interesse? Die Bewerbung erfolgt unkompliziert online und dauert nur wenige Minuten.
+
+Antworte NUR mit gueltigem JSON, ohne Markdown und ohne weiteren Text, genau in dieser Form:
+{"titel": "...", "beschreibung": "..."}
+In "beschreibung" werden Absaetze mit \\n\\n getrennt.
+
+FAKTEN:
+${wl.join("\n")}`;
+    }
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

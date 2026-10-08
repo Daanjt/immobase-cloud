@@ -10,7 +10,7 @@ const cors = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { adresse, plz, ort, zimmer } = await req.json();
+    const { adresse, plz, ort, zimmer, vermietungsart } = await req.json();
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     let key = Deno.env.get("ANTHROPIC_API_KEY") || "";
     if (!key) {
@@ -22,7 +22,7 @@ serve(async (req) => {
         { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
     }
     const loc = `${adresse || ""}, ${plz || ""} ${ort || ""}`.trim();
-    const prompt = `Schreibe einen kurzen, sachlichen Lagebeschrieb fuer ein WG-Zimmer-Inserat an dieser Adresse: ${loc}. Zwei bis drei Saetze, Deutsch, Schweizer Rechtschreibung (ss statt ss-Ligatur). Beschreibe Quartier-Charakter, OeV-Anbindung und Einkaufsmoeglichkeiten in der Naehe, nur was fuer diese konkrete Lage plausibel ist. Keine erfundenen Details, kein Werbe-Ueberschwang, keine Einleitung. Gib nur den Text zurueck.`;
+    const prompt = `Schreibe einen kurzen, sachlichen Lagebeschrieb fuer ${vermietungsart === "wohnung" ? "ein Inserat einer ganzen, unmoeblierten Wohnung (keine WG)" : "ein WG-Zimmer-Inserat"} an dieser Adresse: ${loc}. Zwei bis drei Saetze, Deutsch, Schweizer Rechtschreibung (ss statt ss-Ligatur). Beschreibe Quartier-Charakter, OeV-Anbindung und Einkaufsmoeglichkeiten in der Naehe, nur was fuer diese konkrete Lage plausibel ist. Keine erfundenen Details, kein Werbe-Ueberschwang, keine Einleitung. Gib nur den Text zurueck.`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },

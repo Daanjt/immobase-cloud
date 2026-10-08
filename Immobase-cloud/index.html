@@ -1171,8 +1171,9 @@ const MERKMAL_VORSCHLAEGE = ["WLAN inkl.","Zentral","Aussicht","Seesicht","Nähe
 function MerkmalePicker({value, onChange}){
   const sel = Array.isArray(value) ? value : [];
   const [eigen, setEigen] = useState("");
-  const toggle = m => onChange(sel.includes(m) ? sel.filter(x=>x!==m) : [...sel, m]);
-  const add = () => { const v = eigen.trim(); if (v && !sel.includes(v)) onChange([...sel, v]); setEigen(""); };
+  const MAX = 4;
+  const toggle = m => { if (sel.includes(m)) onChange(sel.filter(x=>x!==m)); else if (sel.length < MAX) onChange([...sel, m]); else alert(`Maximal ${MAX} Merkmale. Bitte zuerst eines abwählen.`); };
+  const add = () => { const v = eigen.trim(); if (!v || sel.includes(v)) { setEigen(""); return; } if (sel.length >= MAX) { alert(`Maximal ${MAX} Merkmale. Bitte zuerst eines abwählen.`); return; } onChange([...sel, v]); setEigen(""); };
   const alle = [...MERKMAL_VORSCHLAEGE, ...sel.filter(x=>!MERKMAL_VORSCHLAEGE.includes(x))];
   return (<div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -1182,7 +1183,7 @@ function MerkmalePicker({value, onChange}){
       <input className="fi" value={eigen} onChange={e=>setEigen(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); add(); } }} placeholder="Eigenes Merkmal hinzufügen" style={{margin:0}}/>
       <button type="button" className="btn btn-sm" onClick={add}>+ Hinzufügen</button>
     </div>
-    <div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Erscheinen als Kärtchen auf der Webseite. Nichts gewählt = WLAN inkl., Zentral. Balkon wird automatisch ergänzt, wenn ein Zimmer einen Balkon hat.</div>
+    <div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Maximal 4 Merkmale ({sel.length}/4). Erscheinen als Kärtchen auf der Webseite, zusammen mit der Zimmerzahl. Nichts gewählt = WLAN inkl., Zentral, und Balkon automatisch, wenn ein Zimmer einen Balkon hat.</div>
   </div>);
 }
 function TypeBadge({type}){
@@ -2047,7 +2048,7 @@ function useSupabaseData() {
       if (rm && rm.miete != null && ap && ap.vermietungsart === "wohnung") {
         // Ganze Wohnung: Mietzins = Nettomiete + Nebenkosten pro Person; Strom pro Person separat
         const pers = +t.personen || 1;
-        t = { ...t, mietzins: +rm.miete + 100 * pers, strom: (t.strom != null && t.strom !== "") ? t.strom : (+ap.strom_pro_person || 0) * pers };
+        t = { ...t, mietzins: +rm.miete + 100, strom: (t.strom != null && t.strom !== "") ? t.strom : 25 * pers };
       } else if (rm && rm.miete != null) t = { ...t, mietzins: +rm.miete };
     }
     const dbT = toDbTenant(t);
@@ -3016,11 +3017,11 @@ function MediaManager({apt, editApt, rooms}){
     return ()=>clearTimeout(t);
   }, [insTitel, insText]);
   async function saveBesch(){ setBeschSaving(true); try{ await editApt(apt.id,{beschreibung: besch}); }catch(err){ toast("Speichern fehlgeschlagen", "error"); } setBeschSaving(false); }
-  async function generateBesch(){ setGenBusy(true); try{ const {data,error}=await supabase.functions.invoke("generate-beschreibung",{body:{adresse:apt.adresse,plz:apt.plz,ort:apt.ort,zimmer:apt.zimmer}}); if(error) throw error; if(data&&data.text){ setBesch(data.text); } else { alert("Kein Text erhalten. Ist der Anthropic-Schlüssel hinterlegt?"); } }catch(err){ alert("Automatische Generierung nicht möglich: "+(err.message||err)+"\n\n(Benötigt den Anthropic-API-Schlüssel in app_config.)"); } setGenBusy(false); }
+  async function generateBesch(){ setGenBusy(true); try{ const {data,error}=await supabase.functions.invoke("generate-beschreibung",{body:{adresse:apt.adresse,plz:apt.plz,ort:apt.ort,zimmer:apt.zimmer,vermietungsart:apt.vermietungsart||"zimmer"}}); if(error) throw error; if(data&&data.text){ setBesch(data.text); } else { alert("Kein Text erhalten. Ist der Anthropic-Schlüssel hinterlegt?"); } }catch(err){ alert("Automatische Generierung nicht möglich: "+(err.message||err)+"\n\n(Benötigt den Anthropic-API-Schlüssel in app_config.)"); } setGenBusy(false); }
   async function generateInserat(){ setInsBusy(true); try{
     const aptRooms = (rooms||[]).filter(r=> r.aptId===apt.id && r.ausschreibOverride!=="nicht" && (r.ausschreibOverride==="ausschreiben" || !r.occupied));
     const payloadRooms = aptRooms.map(r=>({ groesse:r.groesse||"", qm:r.qm||null, miete:r.miete||null, balkon:!!r.balkon, moebliert:!!r.moebliert, verfuegbarAb:r.mieter_auszug||apt.mietbeginn||"" }));
-    const body={ typ:apt.type||"", adresse:apt.adresse||"", plz:apt.plz||"", ort:apt.ort||"", stockwerk:apt.stockwerk||"", wgGroesse:apt.zimmer||"", mietbeginn:apt.mietbeginn||"", mietende:apt.mietende||"", kaution:apt.kaution||null, kautionType:apt.kautionType||apt.kaution_type||"", miete:apt.miete||null, wgZimmer:(rooms||[]).filter(r=>r.aptId===apt.id).length, rooms:payloadRooms };
+    const body={ typ:apt.type||"", adresse:apt.adresse||"", plz:apt.plz||"", ort:apt.ort||"", stockwerk:apt.stockwerk||"", wgGroesse:apt.zimmer||"", mietbeginn:apt.mietbeginn||"", mietende:apt.mietende||"", kaution:apt.kaution||null, kautionType:apt.kautionType||apt.kaution_type||"", miete:apt.miete||null, wgZimmer:(rooms||[]).filter(r=>r.aptId===apt.id).length, rooms:payloadRooms, vermietungsart:apt.vermietungsart||"zimmer", flaeche:apt.flaeche||null, merkmale:Array.isArray(apt.merkmale)?apt.merkmale:[] };
     const {data,error}=await supabase.functions.invoke("generate-inserat",{body}); if(error) throw error;
     if(data&&(data.titel||data.beschreibung)){ setInsTitel(data.titel||""); setInsText(data.beschreibung||""); }
     else { alert(data&&data.error ? data.error : "Kein Text erhalten."); }
@@ -5172,8 +5173,8 @@ function formatDateLong(dateStr){
 function wohnungVertragswerte(p, apt, room, personen){
   const pers = Math.max(1, +personen || 1);
   const netto = room ? (+room.miete || 0) : (+p.nettomiete || 0);
-  const nk = 100 * pers; // Nebenkosten bei ganzen Wohnungen immer pauschal CHF 100 pro Person
-  const strom = (+(apt && apt.strom_pro_person) || 0) * pers;
+  const nk = 100; // Nebenkosten bei ganzen Wohnungen: CHF 100 pauschal fuer die ganze Wohnung
+  const strom = 25 * pers; // Strom: CHF 25 pro Person
   const brutto = netto + nk;
   const km = p.kautionMonate == null ? 3 : p.kautionMonate;
   const auf = p.aufschlag || 0;
@@ -5494,8 +5495,7 @@ function buildContractHTML(b, v, fullName, fmtDate){
   const A = v.apt || {};
   const pers = Math.max(1, +v.personen || 1);
   const persTxt = pers === 1 ? "eine Person" : `${pers} Personen`;
-  const nkPP = pers ? (+v.nebenkosten||0)/pers : 100;
-  const stromPP = +A.strom_pro_person || (pers ? (+v.strom||0)/pers : 0);
+  const stromPP = pers ? (+v.strom||0)/pers : 25;
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
 <style>
@@ -5868,7 +5868,7 @@ ${W
 <div class="miet-wrap avoid-break">
   <table class="miet-table">
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
-    <tr><td>${W?`Nebenkosten pauschal (${pers} × CHF ${chf2(nkPP)}) in CHF`:"Nebenkosten in CHF"}</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>${W?"Nebenkosten pauschal in CHF":"Nebenkosten in CHF"}</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
     <tr><td>${W?`Stromkosten pauschal (${pers} × CHF ${chf2(stromPP)}) in CHF`:"Stromkosten in CHF"}</td><td class="amt">${chf2(v.strom)}</td></tr>
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
@@ -5876,8 +5876,8 @@ ${W
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice und persönliche Betreuung bereits inbegriffen.</p>
 <p>Die Nebenkosten umfassen Heizung, ${W?"":"Internet, "}Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
 ${W
-  ? `<p>Die Nebenkosten und die Stromkosten werden pauschal pro Person erhoben (Nebenkosten CHF ${chf2(nkPP)}, Strom CHF ${chf2(stromPP)} pro Person und Monat) und gelten mit der Pauschale als abgegolten. Eine Nachforderung oder Rückerstattung erfolgt vorbehältlich des nachfolgenden Absatzes nicht.</p>
-<p>Massgebend ist die vereinbarte Anzahl von ${persTxt}. Eine Änderung der Personenzahl ist dem Hauptmieter vorgängig schriftlich mitzuteilen; die Pauschalen werden ab dem Folgemonat entsprechend angepasst.</p>`
+  ? `<p>Die Nebenkosten werden pauschal mit CHF ${chf2(v.nebenkosten)} pro Monat für die ganze Wohnung erhoben, die Stromkosten pauschal mit CHF ${chf2(stromPP)} pro Person und Monat. Beide gelten mit der Pauschale als abgegolten. Eine Nachforderung oder Rückerstattung erfolgt vorbehältlich des nachfolgenden Absatzes nicht.</p>
+<p>Massgebend ist die vereinbarte Anzahl von ${persTxt}. Eine Änderung der Personenzahl ist dem Hauptmieter vorgängig schriftlich mitzuteilen; die Strompauschale wird ab dem Folgemonat entsprechend angepasst.</p>`
   : `<p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>`}
 <p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Hauptmieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet.</p>
 ${W?"":`<p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>`}
@@ -7906,7 +7906,7 @@ www.dthomes.ch`;
                 <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   <label className="fl" style={{margin:0}}>Anzahl Personen</label>
                   <input className="fi" type="number" min="1" max="10" value={vertragData.personen||1} style={{width:80,margin:0}} onChange={e=>{ const n=Math.max(1,+e.target.value||1); setVertragData(p=>wohnungVertragswerte(p, p.apt, null, n)); updateBewerber(b.id,{personen:n}); }}/>
-                  <span style={{fontSize:11.5,color:"#8a8174"}}>Nebenkosten CHF 100 und Strom CHF {+(vertragData.apt&&vertragData.apt.strom_pro_person)||0} pro Person und Monat</span>
+                  <span style={{fontSize:11.5,color:"#8a8174"}}>Nebenkosten CHF 100 pauschal pro Monat, Strom CHF 25 pro Person und Monat</span>
                 </div>
               </div>
             )}
@@ -8300,7 +8300,7 @@ function SchluesselManager({apt, rooms, tenants}) {
   );
 }
 
-function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
+function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom:updateRoomDb,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -8366,7 +8366,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
         for (const r of weg) { if (deleteRoom) await deleteRoom(r.id); }
       }
       if (!unit && insertRoom) unit = await insertRoom(form.id);
-      if (unit && updateRoom && form.nettomiete_wohnung != null && form.nettomiete_wohnung !== "") await updateRoom(unit.id, { miete: +form.nettomiete_wohnung });
+      if (unit && updateRoomDb && form.nettomiete_wohnung != null && form.nettomiete_wohnung !== "") await updateRoomDb(unit.id, { miete: +form.nettomiete_wohnung });
     }
     await updateApt(form.id,{
       ...(istWohn ? { units: 1 } : {}),
@@ -8389,7 +8389,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       nk_pro_person: 100,
       frueherer_mietzins: form.frueherer_mietzins===""||form.frueherer_mietzins==null ? null : +form.frueherer_mietzins,
       frueherer_nk: form.frueherer_nk===""||form.frueherer_nk==null ? null : +form.frueherer_nk,
-      strom_pro_person: form.strom_pro_person===""||form.strom_pro_person==null ? null : +form.strom_pro_person,
+      strom_pro_person: 25,
       flaeche: form.flaeche===""||form.flaeche==null ? null : +form.flaeche,
     });
     setEditing(false);
@@ -8461,7 +8461,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       nk_pro_person: 100,
       frueherer_mietzins: newForm.frueherer_mietzins ? +newForm.frueherer_mietzins : null,
       frueherer_nk: newForm.frueherer_nk ? +newForm.frueherer_nk : null,
-      strom_pro_person: newForm.strom_pro_person ? +newForm.strom_pro_person : null,
+      strom_pro_person: 25,
       flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
       mietende: newForm.mietende || "",
@@ -8764,8 +8764,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
               <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={(roomList[0]&&roomList[0].miete)||""} onChange={e=>setRoomList(prev=>[{...(prev[0]||{groesse:"",balkon:false}),miete:e.target.value}])} placeholder="z.B. 1650"/></div>
             </div>
             <div className="frow">
-              <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
-              <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={newForm.strom_pro_person||""} onChange={NF("strom_pro_person")} placeholder="z.B. 25"/></div>
+              <div className="fg"><label className="fl">Nebenkosten (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal, ganze Wohnung (fix)</div></div>
+              <div className="fg"><label className="fl">Strom (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 25 pro Person (fix)</div></div>
             </div>
           </>)}
         </>)}
@@ -8898,10 +8898,10 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={form.nettomiete_wohnung ?? ((()=>{const r=(rooms||[]).filter(x=>x.aptId===form.id).sort((x,y)=>String(x.id).localeCompare(String(y.id),undefined,{numeric:true}));const u=r.find(x=>x.occupied||x.tenantId)||r[0];return u?(u.miete??""):"";})())} onChange={F("nettomiete_wohnung")} placeholder="z.B. 1650"/></div>
           </div>
           <div className="frow">
-            <div className="fg"><label className="fl">Nebenkosten pro Person (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal (fix)</div></div>
-            <div className="fg"><label className="fl">Strom pro Person (CHF/Mt.)</label><input className="fi" type="number" value={form.strom_pro_person??""} onChange={F("strom_pro_person")} placeholder="z.B. 25"/></div>
+            <div className="fg"><label className="fl">Nebenkosten (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal, ganze Wohnung (fix)</div></div>
+            <div className="fg"><label className="fl">Strom (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 25 pro Person (fix)</div></div>
           </div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Eine ganze Wohnung hat genau 1 Zimmer, an das der Mieter gekoppelt ist. Beim Speichern wird es bei Bedarf angelegt, überzählige freie Zimmer werden nach Rückfrage entfernt. Nebenkosten und Strom werden pauschal pro Person verrechnet.</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Eine ganze Wohnung hat genau 1 Zimmer, an das der Mieter gekoppelt ist. Beim Speichern wird es bei Bedarf angelegt, überzählige freie Zimmer werden nach Rückfrage entfernt. Nebenkosten: CHF 100 pauschal pro Monat. Strom: CHF 25 pro Person und Monat.</div>
         </>)}
         </>)}
 
@@ -11005,12 +11005,12 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     const _apt = room ? (apts||[]).find(a => a.id === room.aptId) : null;
     const _wohn = !!(_apt && _apt.vermietungsart === "wohnung");
     const _pers = +tenant.personen || 1;
-    const _strom = (tenant.strom!=null && tenant.strom!=="") ? +tenant.strom : (_wohn ? (+_apt.strom_pro_person || 0) * _pers : 25);
+    const _strom = (tenant.strom!=null && tenant.strom!=="") ? +tenant.strom : (_wohn ? 25 * _pers : 25);
     if (tenant.mietzins != null && tenant.mietzins !== "") {
       // Fixer Mietzins des Mieters hat immer Vorrang (Zimmer kann fuer Nachmieter neu bepreist sein)
       bruttomiete = (+tenant.mietzins || 0) + _strom;
     } else if (room) {
-      bruttomiete = (+room.miete || 0) + (_wohn ? 100 * _pers : 0) + _strom;
+      bruttomiete = (+room.miete || 0) + (_wohn ? 100 : 0) + _strom;
     } else if (tenant.kautionBetrag && tenant.kautionMonate) {
       // Letzter Fallback für archivierte: aus Kautions-Betrag rückrechnen
       bruttomiete = Math.round((+tenant.kautionBetrag || 0) / (+tenant.kautionMonate || 3));
