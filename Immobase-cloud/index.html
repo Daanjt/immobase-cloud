@@ -1167,6 +1167,24 @@ const DAAN_FAKSIMILE_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA
 function Av({name,size=30}){const i=(name||"?").trim().split(" ").filter(Boolean).map(n=>n[0]).join("").slice(0,2).toUpperCase();return <div className="av" style={{width:size,height:size,fontSize:size*0.36}}>{i}</div>;}
 const chf=n=>`CHF ${Number(n||0).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
 function Bdg({label,color="x"}){if(!label&&label!==0)return null;return <span className={`bx b-${color}`}>{label}</span>;}
+const MERKMAL_VORSCHLAEGE = ["WLAN inkl.","Zentral","Aussicht","Seesicht","Nähe See","Balkon","Garten","Terrasse","Dachterrasse","Lift","Waschmaschine","Ruhige Lage","Gute ÖV-Anbindung","Nähe Bahnhof","Nähe Hochschulen","Neu renoviert","Altbau","Hell","Parkplatz"];
+function MerkmalePicker({value, onChange}){
+  const sel = Array.isArray(value) ? value : [];
+  const [eigen, setEigen] = useState("");
+  const toggle = m => onChange(sel.includes(m) ? sel.filter(x=>x!==m) : [...sel, m]);
+  const add = () => { const v = eigen.trim(); if (v && !sel.includes(v)) onChange([...sel, v]); setEigen(""); };
+  const alle = [...MERKMAL_VORSCHLAEGE, ...sel.filter(x=>!MERKMAL_VORSCHLAEGE.includes(x))];
+  return (<div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {alle.map(m=>{ const on=sel.includes(m); return <button type="button" key={m} onClick={()=>toggle(m)} style={{fontSize:11.5,padding:"5px 10px",borderRadius:999,border:`1px solid ${on?"#a08864":"#d8c9a4"}`,background:on?"#a08864":"#fff",color:on?"#fff":"#5a5448",cursor:"pointer",fontFamily:"inherit"}}>{on?"✓ ":""}{m}</button>; })}
+    </div>
+    <div style={{display:"flex",gap:6,marginTop:8}}>
+      <input className="fi" value={eigen} onChange={e=>setEigen(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); add(); } }} placeholder="Eigenes Merkmal hinzufügen" style={{margin:0}}/>
+      <button type="button" className="btn btn-sm" onClick={add}>+ Hinzufügen</button>
+    </div>
+    <div style={{fontSize:10.5,color:"#8a8174",marginTop:5,fontStyle:"italic"}}>Erscheinen als Kärtchen auf der Webseite. Nichts gewählt = WLAN inkl., Zentral. Balkon wird automatisch ergänzt, wenn ein Zimmer einen Balkon hat.</div>
+  </div>);
+}
 function TypeBadge({type}){
   const m={WG:["b","WG"],Wohnung:["g","Ganze Wohnung"],Airbnb:["p","Airbnb"],Evorest:["x","Evorest"],GoCaution:["x","GoCaution"],Firstcaution:["x","Firstcaution"],"Kautionsreduktion auf 0":["y","0-Kaution"],Versicherung:["b","Versicherung"],AOZ:["p","AOZ"],Student:["g","Student"],Arbeitnehmer:["g","Arbeitnehmer"],Selbstständig:["b","Selbst."]};
   if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
@@ -8361,7 +8379,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
-      ...(form.merkmaleText!=null ? { merkmale: String(form.merkmaleText).split(",").map(x=>x.trim()).filter(Boolean) } : {}),
+      merkmale: Array.isArray(form.merkmale) ? form.merkmale : [],
       immer_befristet: !!form.immer_befristet,
       type: form.type || "WG",
       vermietungsart: (form.type||"WG")==="WG" && form.vermietungsart==="wohnung" ? "wohnung" : "zimmer",
@@ -8444,6 +8462,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       flaeche: newForm.flaeche ? +newForm.flaeche : null,
       mietbeginn: newForm.mietbeginn || "",
       mietende: newForm.mietende || "",
+      merkmale: Array.isArray(newForm.merkmale) ? newForm.merkmale : [],
       immer_befristet: !!newForm.immer_befristet || /josefstrasse/i.test(newForm.adresse || ""),
       stockwerk: newForm.stockwerk || "",
       miete: +newForm.miete || 0,
@@ -8732,6 +8751,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={newForm.stockwerk||""} onChange={NF("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={newForm.zimmer||""} onChange={NF("zimmer")} placeholder="z.B. 3.5"/></div>
         </div>
+        <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker value={newForm.merkmale} onChange={v=>setNewForm(p=>({...p,merkmale:v}))}/></div>
 
         {newForm.type==="WG"&&(<>
           {newForm.vermietungsart==="wohnung"&&(<>
@@ -8855,7 +8875,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
-        <div className="fg"><label className="fl">Merkmale fürs Inserat (mit Komma trennen)</label><input className="fi" value={form.merkmaleText ?? (Array.isArray(form.merkmale)?form.merkmale.join(", "):"")} onChange={F("merkmaleText")} placeholder="z.B. WLAN inkl., Aussicht, Nähe See"/><div style={{fontSize:10.5,color:"#8a8174",marginTop:4,fontStyle:"italic"}}>Erscheinen als Kärtchen auf der Webseite. Leer = WLAN inkl., Zentral. Balkon wird automatisch ergänzt, wenn ein Zimmer einen Balkon hat.</div></div>
+        <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker value={form.merkmale} onChange={v=>setForm(p=>({...p,merkmale:v}))}/></div>
         <div className="fg"><label className="fl">Etage / Bezeichnung</label><input className="fi" value={form.etage||""} onChange={F("etage")} placeholder="z.B. 2. OG oder Wohnung rechts"/></div>
         <div className="frow">
           <div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div>
