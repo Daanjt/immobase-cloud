@@ -2048,7 +2048,7 @@ function useSupabaseData() {
       if (rm && rm.miete != null && ap && ap.vermietungsart === "wohnung") {
         // Ganze Wohnung: Mietzins = Nettomiete + Nebenkosten pro Person; Strom pro Person separat
         const pers = +t.personen || 1;
-        t = { ...t, mietzins: +rm.miete + 100, strom: (t.strom != null && t.strom !== "") ? t.strom : 25 * pers };
+        t = { ...t, mietzins: +rm.miete, strom: (t.strom != null && t.strom !== "") ? t.strom : 25 * pers };
       } else if (rm && rm.miete != null) t = { ...t, mietzins: +rm.miete };
     }
     const dbT = toDbTenant(t);
@@ -5172,8 +5172,9 @@ function formatDateLong(dateStr){
 // Ganze Wohnung (unmoebliert): Vertragswerte aus Wohnung + Personenzahl ableiten
 function wohnungVertragswerte(p, apt, room, personen){
   const pers = Math.max(1, +personen || 1);
-  const netto = room ? (+room.miete || 0) : (+p.nettomiete || 0);
   const nk = 100; // Nebenkosten bei ganzen Wohnungen: CHF 100 pauschal fuer die ganze Wohnung
+  // Die Miete im Zimmer ist (wie bei WG-Zimmern) die Bruttomiete inkl. Nebenkosten; nur Strom kommt dazu
+  const netto = room ? Math.max(0, (+room.miete || 0) - nk) : (+p.nettomiete || 0);
   const strom = 25 * pers; // Strom: CHF 25 pro Person
   const brutto = netto + nk;
   const km = p.kautionMonate == null ? 3 : p.kautionMonate;
@@ -8678,7 +8679,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <DocumentChecklist entityType="apartment" entityId={apt.id} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
               </div>);
             })()}
-            {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Ganze Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Nettomiete der ganzen Wohnung.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{objektLabel(r.id)}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
+            {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Ganze Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Bruttomiete der ganzen Wohnung (inkl. CHF 100 Nebenkosten), dazu kommt Strom CHF 25 pro Person.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{objektLabel(r.id)}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
             {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
@@ -8761,7 +8762,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:8,marginBottom:10,fontWeight:500}}>Ganze Wohnung</div>
             <div className="frow">
               <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={newForm.flaeche||""} onChange={NF("flaeche")} placeholder="z.B. 68"/></div>
-              <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={(roomList[0]&&roomList[0].miete)||""} onChange={e=>setRoomList(prev=>[{...(prev[0]||{groesse:"",balkon:false}),miete:e.target.value}])} placeholder="z.B. 1650"/></div>
+              <div className="fg"><label className="fl">Bruttomiete Wohnung inkl. NK (CHF/Mt.)</label><input className="fi" type="number" value={(roomList[0]&&roomList[0].miete)||""} onChange={e=>setRoomList(prev=>[{...(prev[0]||{groesse:"",balkon:false}),miete:e.target.value}])} placeholder="z.B. 1750"/></div>
             </div>
             <div className="frow">
               <div className="fg"><label className="fl">Nebenkosten (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal, ganze Wohnung (fix)</div></div>
@@ -8895,7 +8896,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
         {form.vermietungsart==="wohnung"&&(<>
           <div className="frow">
             <div className="fg"><label className="fl">Wohnfläche (m²)</label><input className="fi" type="number" value={form.flaeche??""} onChange={F("flaeche")} placeholder="z.B. 68"/></div>
-            <div className="fg"><label className="fl">Nettomiete Wohnung (CHF/Mt.)</label><input className="fi" type="number" value={form.nettomiete_wohnung ?? ((()=>{const r=(rooms||[]).filter(x=>x.aptId===form.id).sort((x,y)=>String(x.id).localeCompare(String(y.id),undefined,{numeric:true}));const u=r.find(x=>x.occupied||x.tenantId)||r[0];return u?(u.miete??""):"";})())} onChange={F("nettomiete_wohnung")} placeholder="z.B. 1650"/></div>
+            <div className="fg"><label className="fl">Bruttomiete Wohnung inkl. NK (CHF/Mt.)</label><input className="fi" type="number" value={form.nettomiete_wohnung ?? ((()=>{const r=(rooms||[]).filter(x=>x.aptId===form.id).sort((x,y)=>String(x.id).localeCompare(String(y.id),undefined,{numeric:true}));const u=r.find(x=>x.occupied||x.tenantId)||r[0];return u?(u.miete??""):"";})())} onChange={F("nettomiete_wohnung")} placeholder="z.B. 1750"/></div>
           </div>
           <div className="frow">
             <div className="fg"><label className="fl">Nebenkosten (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 100 pauschal, ganze Wohnung (fix)</div></div>
@@ -11010,7 +11011,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       // Fixer Mietzins des Mieters hat immer Vorrang (Zimmer kann fuer Nachmieter neu bepreist sein)
       bruttomiete = (+tenant.mietzins || 0) + _strom;
     } else if (room) {
-      bruttomiete = (+room.miete || 0) + (_wohn ? 100 : 0) + _strom;
+      bruttomiete = (+room.miete || 0) + _strom;
     } else if (tenant.kautionBetrag && tenant.kautionMonate) {
       // Letzter Fallback für archivierte: aus Kautions-Betrag rückrechnen
       bruttomiete = Math.round((+tenant.kautionBetrag || 0) / (+tenant.kautionMonate || 3));
