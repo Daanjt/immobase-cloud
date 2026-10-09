@@ -13997,6 +13997,192 @@ function AuslagenPage(){
     </div>);
 }
 
+// Passwort-Tresor: Ende-zu-Ende verschluesselt im Browser (AES-GCM).
+// Ein zufaelliger Datenschluessel verschluesselt die Eintraege. Er wird zweimal gesichert abgelegt:
+// mit dem Master-Passwort und mit einem Wiederherstellungsschluessel. Die Datenbank sieht nie Klartext.
+const PWV = (()=>{
+  const enc=new TextEncoder(), dec=new TextDecoder();
+  const b64=(u8)=>btoa(String.fromCharCode(...new Uint8Array(u8)));
+  const ub64=(s)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  const rnd=(n)=>crypto.getRandomValues(new Uint8Array(n));
+  async function kek(secret,saltB64,iter){
+    const base=await crypto.subtle.importKey("raw",enc.encode(secret),"PBKDF2",false,["deriveKey"]);
+    return crypto.subtle.deriveKey({name:"PBKDF2",salt:ub64(saltB64),iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  }
+  async function seal(key,bytes){ const iv=rnd(12); const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,bytes); return b64(iv)+":"+b64(ct); }
+  async function open(key,s){ const [iv,ct]=s.split(":"); return new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM",iv:ub64(iv)},key,ub64(ct))); }
+  async function importDek(raw){ return crypto.subtle.importKey("raw",raw,{name:"AES-GCM"},true,["encrypt","decrypt"]); }
+  function newRecoveryKey(){ const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const r=rnd(24); let s=""; for(let i=0;i<24;i++){ s+=A[r[i]%32]; if(i%4===3&&i<23) s+="-"; } return s; }
+  const normRk=(s)=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  return {
+    ITER:600000, RK_ITER:100000,
+    newRecoveryKey, normRk, rndSalt:()=>b64(rnd(16)),
+    async createVault(master){
+      const dekRaw=rnd(32), rk=newRecoveryKey();
+      const pw_salt=b64(rnd(16)), rk_salt=b64(rnd(16));
+      const pw_wrapped=await seal(await kek(master,pw_salt,this.ITER),dekRaw);
+      const rk_wrapped=await seal(await kek(normRk(rk),rk_salt,this.RK_ITER),dekRaw);
+      return {meta:{id:1,pw_salt,pw_iter:this.ITER,pw_wrapped,rk_salt,rk_wrapped}, dek:await importDek(dekRaw), dekRaw, rk};
+    },
+    async unlockPw(meta,master){ const raw=await open(await kek(master,meta.pw_salt,meta.pw_iter),meta.pw_wrapped); return {dek:await importDek(raw),dekRaw:raw}; },
+    async unlockRk(meta,rk){ const raw=await open(await kek(normRk(rk),meta.rk_salt,this.RK_ITER),meta.rk_wrapped); return {dek:await importDek(raw),dekRaw:raw}; },
+    async rewrapPw(dekRaw,master){ const pw_salt=b64(rnd(16)); return {pw_salt,pw_iter:this.ITER,pw_wrapped:await seal(await kek(master,pw_salt,this.ITER),dekRaw)}; },
+    async rewrapRk(dekRaw){ const rk=newRecoveryKey(), rk_salt=b64(rnd(16)); return {rk, fields:{rk_salt,rk_wrapped:await seal(await kek(normRk(rk),rk_salt,this.RK_ITER),dekRaw)}}; },
+    async encField(dek,txt){ if(txt==null||txt==="") return null; return seal(dek,enc.encode(String(txt))); },
+    async decField(dek,s){ if(!s) return ""; try{ return dec.decode(await open(dek,s)); }catch(e){ return "⚠︎ nicht lesbar"; } },
+  };
+})();
+
+function PasswoerterPage(){
+  const [meta,setMeta]=useState(undefined);
+  const [rows,setRows]=useState([]);
+  const [dek,setDek]=useState(null);
+  const [dekRaw,setDekRaw]=useState(null);
+  const [plain,setPlain]=useState({});
+  const [mpw,setMpw]=useState(""); const [mpw2,setMpw2]=useState("");
+  const [rkIn,setRkIn]=useState("");
+  const [mode,setMode]=useState("unlock"); // unlock | recover | setup | newpw
+  const [busy,setBusy]=useState(false); const [err,setErr]=useState("");
+  const [showRk,setShowRk]=useState(null);
+  const [q,setQ]=useState(""); const [shown,setShown]=useState({}); const [edit,setEdit]=useState(null);
+  const [copied,setCopied]=useState("");
+  const ladeMeta=()=>supabase.from("passwort_tresor").select("*").eq("id",1).maybeSingle().then(({data})=>{ setMeta(data||null); if(!data) setMode("setup"); });
+  const ladeRows=()=>supabase.from("passwoerter").select("*").order("name",{ascending:true}).then(({data})=>setRows(data||[]));
+  useEffect(()=>{ ladeMeta(); ladeRows(); },[]);
+  useEffect(()=>{ if(!dek) return; let alive=true; (async()=>{ const m={}; for(const r of rows){ m[r.id]={benutzer:r.benutzer_enc?await PWV.decField(dek,r.benutzer_enc):(r.benutzer||""), passwort:r.passwort_enc?await PWV.decField(dek,r.passwort_enc):(r.passwort||""), notiz:r.notiz_enc?await PWV.decField(dek,r.notiz_enc):(r.notiz||"")}; } if(alive) setPlain(m); })(); return ()=>{alive=false;}; },[dek,rows]);
+  // Auto-Sperre nach 15 Minuten
+  useEffect(()=>{ if(!dek) return; const t=setTimeout(()=>{ setDek(null); setDekRaw(null); setPlain({}); setMode("unlock"); },15*60*1000); return ()=>clearTimeout(t); },[dek,rows,q,shown]);
+  const pwOk=(p)=>p.length>=10;
+  const migratePlain=async(key)=>{ // vorhandene Klartext-Eintraege verschluesseln und Klartext loeschen
+    const {data}=await supabase.from("passwoerter").select("*");
+    for(const r of (data||[])){ if(r.benutzer==null&&r.passwort==null&&r.notiz==null) continue;
+      const upd={benutzer:null,passwort:null,notiz:null,updated_at:new Date().toISOString()};
+      if(r.benutzer!=null) upd.benutzer_enc=await PWV.encField(key,r.benutzer);
+      if(r.passwort!=null) upd.passwort_enc=await PWV.encField(key,r.passwort);
+      if(r.notiz!=null) upd.notiz_enc=await PWV.encField(key,r.notiz);
+      const {error}=await supabase.from("passwoerter").update(upd).eq("id",r.id); if(error) throw error; }
+  };
+  const doSetup=async()=>{ setErr(""); if(!pwOk(mpw)) return setErr("Mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
+    setBusy(true); try{ const v=await PWV.createVault(mpw); const {error}=await supabase.from("passwort_tresor").insert(v.meta); if(error) throw error;
+      await migratePlain(v.dek); setMeta(v.meta); setDek(v.dek); setDekRaw(v.dekRaw); setShowRk(v.rk); setMpw(""); setMpw2(""); ladeRows(); }
+    catch(e){ setErr("Fehler: "+(e.message||e)); } setBusy(false); };
+  const doUnlock=async()=>{ setErr(""); setBusy(true); try{ const r=await PWV.unlockPw(meta,mpw); setDek(r.dek); setDekRaw(r.dekRaw); setMpw(""); await migratePlain(r.dek); ladeRows(); }catch(e){ setErr("Master-Passwort falsch."); } setBusy(false); };
+  const doRecover=async()=>{ setErr(""); if(!pwOk(mpw)) return setErr("Neues Master-Passwort: mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
+    setBusy(true); try{ const r=await PWV.unlockRk(meta,rkIn); const pwf=await PWV.rewrapPw(r.dekRaw,mpw); const rkf=await PWV.rewrapRk(r.dekRaw);
+      const {error}=await supabase.from("passwort_tresor").update({...pwf,...rkf.fields,updated_at:new Date().toISOString()}).eq("id",1); if(error) throw error;
+      setMeta({...meta,...pwf,...rkf.fields}); setDek(r.dek); setDekRaw(r.dekRaw); setShowRk(rkf.rk); setMpw(""); setMpw2(""); setRkIn(""); }
+    catch(e){ setErr(e&&e.name==="OperationError"?"Wiederherstellungsschlüssel falsch.":"Fehler: "+(e.message||e)); } setBusy(false); };
+  const doNewPw=async()=>{ setErr(""); if(!pwOk(mpw)) return setErr("Mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
+    setBusy(true); try{ const pwf=await PWV.rewrapPw(dekRaw,mpw); const {error}=await supabase.from("passwort_tresor").update({...pwf,updated_at:new Date().toISOString()}).eq("id",1); if(error) throw error; setMeta({...meta,...pwf}); setMpw(""); setMpw2(""); setMode("unlock"); alert("Master-Passwort geändert."); }
+    catch(e){ setErr("Fehler: "+(e.message||e)); } setBusy(false); };
+  const doNewRk=async()=>{ if(!confirm("Neuen Wiederherstellungsschlüssel erstellen? Der alte ist danach ungültig.")) return; const rkf=await PWV.rewrapRk(dekRaw); const {error}=await supabase.from("passwort_tresor").update({...rkf.fields,updated_at:new Date().toISOString()}).eq("id",1); if(error) return alert(error.message); setMeta({...meta,...rkf.fields}); setShowRk(rkf.rk); };
+  const lock=()=>{ setDek(null); setDekRaw(null); setPlain({}); setShown({}); setMode("unlock"); };
+  const copy=async(txt,key)=>{ try{ await navigator.clipboard.writeText(txt); setCopied(key); setTimeout(()=>setCopied(""),1500); }catch(e){ prompt("Kopieren:",txt); } };
+  const save=async()=>{ const e=edit; if(!(e.name||"").trim()) return alert("Bitte einen Namen angeben.");
+    const row={name:e.name.trim(),benutzer:null,passwort:null,notiz:null,benutzer_enc:await PWV.encField(dek,e.benutzer),passwort_enc:await PWV.encField(dek,e.passwort),notiz_enc:await PWV.encField(dek,e.notiz),updated_at:new Date().toISOString()};
+    const res=e.id?await supabase.from("passwoerter").update(row).eq("id",e.id):await supabase.from("passwoerter").insert(row);
+    if(res.error) return alert(res.error.message); setEdit(null); ladeRows(); };
+  const del=async(r)=>{ if(!confirm(`"${r.name}" löschen?`)) return; await supabase.from("passwoerter").delete().eq("id",r.id); setEdit(null); ladeRows(); };
+  const genPw=()=>{ const A="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!#$%&*?"; const r=crypto.getRandomValues(new Uint8Array(18)); return Array.from(r,x=>A[x%A.length]).join(""); };
+
+  const wrap=(children)=>(<div><div className="ph"><div className="pt">Passwörter</div><div style={{fontSize:12.5,color:"var(--muted)"}}>Verschlüsselter Tresor. Die Einträge werden im Browser ver- und entschlüsselt, die Datenbank speichert nur unlesbaren Text.</div></div>{children}</div>);
+  const box={maxWidth:440,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:8,padding:24,marginTop:16};
+  const errEl=err?<div style={{color:"#a4442e",fontSize:12.5,marginTop:10}}>{err}</div>:null;
+
+  if(meta===undefined) return wrap(<div style={{padding:20,color:"var(--muted)"}}>Lädt…</div>);
+
+  if(showRk) return wrap(
+    <div style={{...box,maxWidth:560,borderColor:"#c9a24a"}}>
+      <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Dein Wiederherstellungsschlüssel</div>
+      <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,marginBottom:14}}>Damit könnt ihr ein neues Master-Passwort setzen, falls ihr es vergesst. Er wird <b>nur jetzt</b> angezeigt. Bewahrt ihn ausserhalb von ImmoBase auf, z. B. ausgedruckt im Büro und als Notiz auf beiden Handys.</div>
+      <div style={{fontFamily:"monospace",fontSize:20,letterSpacing:".08em",background:"#faf6ec",border:"1px dashed #c9a24a",borderRadius:8,padding:"14px 16px",textAlign:"center",userSelect:"all"}}>{showRk}</div>
+      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+        <button className="btn btn-g btn-sm" onClick={()=>copy(showRk,"rk")}>{copied==="rk"?"Kopiert":"Kopieren"}</button>
+        <button className="btn btn-g btn-sm" onClick={()=>{ const w=window.open("","_blank"); if(w){ w.document.write(`<html><body style="font-family:sans-serif;padding:40px"><h2>D&T Homes · ImmoBase Passwort-Tresor</h2><p>Wiederherstellungsschlüssel (erstellt ${new Date().toLocaleDateString("de-CH")}):</p><p style="font-family:monospace;font-size:26px;letter-spacing:2px;border:1px dashed #999;padding:16px;display:inline-block">${showRk}</p><p>Sicher aufbewahren. Damit kann ein neues Master-Passwort gesetzt werden.</p></body></html>`); w.document.close(); w.print(); } }}>Drucken</button>
+        <div style={{flex:1}}/>
+        <button className="btn btn-p btn-sm" onClick={()=>{ if(confirm("Hast du den Schlüssel sicher gespeichert?")) setShowRk(null); }}>Gespeichert, weiter</button>
+      </div>
+    </div>);
+
+  if(!dek){
+    if(mode==="setup"||!meta) return wrap(
+      <div style={box}>
+        <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>Tresor einrichten</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Wählt ein gemeinsames Master-Passwort (mindestens 10 Zeichen). Danach erhaltet ihr einen Wiederherstellungsschlüssel. Die {rows.length} importierten Einträge werden dabei verschlüsselt.</div>
+        <label className="fl">Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)} autoFocus/>
+        <label className="fl" style={{marginTop:10}}>Wiederholen</label><input className="fi" type="password" value={mpw2} onChange={e=>setMpw2(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") doSetup(); }}/>
+        {errEl}
+        <button className="btn btn-p" style={{marginTop:14}} disabled={busy} onClick={doSetup}>{busy?"Verschlüsselt…":"Tresor einrichten"}</button>
+      </div>);
+    if(mode==="recover") return wrap(
+      <div style={box}>
+        <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>Master-Passwort zurücksetzen</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Gib den Wiederherstellungsschlüssel ein und wähle ein neues Master-Passwort. Danach erhältst du einen neuen Wiederherstellungsschlüssel.</div>
+        <label className="fl">Wiederherstellungsschlüssel</label><input className="fi" style={{fontFamily:"monospace"}} placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" value={rkIn} onChange={e=>setRkIn(e.target.value)} autoFocus/>
+        <label className="fl" style={{marginTop:10}}>Neues Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)}/>
+        <label className="fl" style={{marginTop:10}}>Wiederholen</label><input className="fi" type="password" value={mpw2} onChange={e=>setMpw2(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") doRecover(); }}/>
+        {errEl}
+        <div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-p" disabled={busy} onClick={doRecover}>{busy?"Prüft…":"Zurücksetzen"}</button><button className="btn btn-g" onClick={()=>{setMode("unlock");setErr("");}}>Abbrechen</button></div>
+      </div>);
+    return wrap(
+      <div style={box}>
+        <div style={{fontWeight:600,fontSize:15,marginBottom:12}}>🔒 Tresor gesperrt</div>
+        <label className="fl">Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)} autoFocus onKeyDown={e=>{ if(e.key==="Enter") doUnlock(); }}/>
+        {errEl}
+        <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}><button className="btn btn-p" disabled={busy} onClick={doUnlock}>{busy?"Entsperrt…":"Entsperren"}</button><div style={{flex:1}}/><a href="#" style={{fontSize:12,color:"var(--muted)"}} onClick={e=>{e.preventDefault();setMode("recover");setErr("");setMpw("");}}>Master-Passwort vergessen?</a></div>
+      </div>);
+  }
+
+  if(mode==="newpw") return wrap(
+    <div style={box}>
+      <div style={{fontWeight:600,fontSize:15,marginBottom:12}}>Master-Passwort ändern</div>
+      <label className="fl">Neues Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)} autoFocus/>
+      <label className="fl" style={{marginTop:10}}>Wiederholen</label><input className="fi" type="password" value={mpw2} onChange={e=>setMpw2(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") doNewPw(); }}/>
+      {errEl}
+      <div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-p" disabled={busy} onClick={doNewPw}>Speichern</button><button className="btn btn-g" onClick={()=>{setMode("unlock");setErr("");setMpw("");setMpw2("");}}>Abbrechen</button></div>
+    </div>);
+
+  const ql=q.trim().toLowerCase();
+  const list=rows.filter(r=>{ if(!ql) return true; const p=plain[r.id]||{}; return (r.name+" "+(p.benutzer||"")+" "+(p.notiz||"")).toLowerCase().includes(ql); });
+  const td={padding:"10px 8px",verticalAlign:"top"};
+  return wrap(<>
+    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",margin:"16px 0 12px"}}>
+      <input className="fi" style={{maxWidth:280}} placeholder="Suchen…" value={q} onChange={e=>setQ(e.target.value)}/>
+      <button className="btn btn-p btn-sm" onClick={()=>setEdit({name:"",benutzer:"",passwort:"",notiz:""})}>+ Neuer Eintrag</button>
+      <div style={{flex:1}}/>
+      <button className="btn btn-g btn-sm" onClick={()=>{setMode("newpw");setErr("");}}>Master-Passwort ändern</button>
+      <button className="btn btn-g btn-sm" onClick={doNewRk}>Neuer Wiederherstellungsschlüssel</button>
+      <button className="btn btn-g btn-sm" onClick={lock}>🔒 Sperren</button>
+    </div>
+    {edit && <div className="card" style={{padding:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}} className="auslagen-form">
+        <div><label className="fl">Name</label><input className="fi" value={edit.name} onChange={e=>setEdit({...edit,name:e.target.value})} autoFocus/></div>
+        <div><label className="fl">Benutzer / E-Mail</label><input className="fi" value={edit.benutzer} onChange={e=>setEdit({...edit,benutzer:e.target.value})}/></div>
+        <div><label className="fl">Passwort</label><div style={{display:"flex",gap:6}}><input className="fi" value={edit.passwort} onChange={e=>setEdit({...edit,passwort:e.target.value})}/><button className="btn btn-g btn-sm" title="Sicheres Passwort erzeugen" onClick={()=>setEdit({...edit,passwort:genPw()})}>🎲</button></div></div>
+      </div>
+      <label className="fl" style={{marginTop:10}}>Notiz / Code</label><input className="fi" value={edit.notiz} onChange={e=>setEdit({...edit,notiz:e.target.value})}/>
+      <div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-p btn-sm" onClick={save}>Speichern</button><button className="btn btn-g btn-sm" onClick={()=>setEdit(null)}>Abbrechen</button>{edit.id&&<><div style={{flex:1}}/><button className="btn btn-g btn-sm" onClick={()=>del(edit)}>Löschen</button></>}</div>
+    </div>}
+    <div className="card" style={{padding:0,overflow:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{textAlign:"left",color:"var(--muted)",fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"12px 16px"}}>Name</th><th style={{padding:"12px 8px"}}>Benutzer</th><th style={{padding:"12px 8px"}}>Passwort</th><th style={{padding:"12px 8px"}}>Notiz / Code</th><th></th></tr></thead>
+        <tbody>{list.map(r=>{ const p=plain[r.id]||{}; const vis=!!shown[r.id]; const urlM=(p.notiz||"").match(/https?:\/\/\S+/);
+          return <tr key={r.id} style={{borderTop:"1px solid var(--line)"}}>
+            <td style={{...td,paddingLeft:16,fontWeight:600}}>{r.name}</td>
+            <td style={td}>{p.benutzer?<span style={{cursor:"pointer"}} title="Kopieren" onClick={()=>copy(p.benutzer,r.id+"u")}>{p.benutzer} <span style={{fontSize:11,color:"var(--muted)"}}>{copied===r.id+"u"?"✓":"⧉"}</span></span>:<span style={{color:"var(--muted)"}}>–</span>}</td>
+            <td style={{...td,whiteSpace:"nowrap"}}>{p.passwort?<>
+              <span style={{fontFamily:"monospace"}}>{vis?p.passwort:"••••••••"}</span>
+              <button className="btn btn-g btn-sm" style={{marginLeft:8,padding:"2px 8px"}} onClick={()=>setShown({...shown,[r.id]:!vis})}>{vis?"Verbergen":"Zeigen"}</button>
+              <button className="btn btn-g btn-sm" style={{marginLeft:4,padding:"2px 8px"}} onClick={()=>copy(p.passwort,r.id+"p")}>{copied===r.id+"p"?"✓":"Kopieren"}</button></>:<span style={{color:"var(--muted)"}}>–</span>}</td>
+            <td style={td}>{p.notiz?(urlM?<a href={urlM[0]} target="_blank" rel="noopener">{p.notiz.replace(urlM[0],"").replace(/:\s*$/,"")||"Link"} ↗</a>:<span style={{fontFamily:/^[\d\s\/:-]+$/.test(p.notiz)?"monospace":"inherit"}}>{p.notiz}</span>):<span style={{color:"var(--muted)"}}>–</span>}</td>
+            <td style={{...td,paddingRight:16,textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>setEdit({id:r.id,name:r.name,benutzer:p.benutzer||"",passwort:p.passwort||"",notiz:p.notiz||""})}>Bearbeiten</button></td>
+          </tr>; })}</tbody>
+      </table>
+    </div>
+    <div style={{fontSize:11,color:"var(--muted)",marginTop:8}}>Der Tresor sperrt sich nach 15 Minuten ohne Aktivität und beim Neuladen der Seite.</div>
+  </>);
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -14010,6 +14196,7 @@ const PAGES=[
   {id:"todos",icon:"✅",label:"To-dos"},
   {id:"finanzen",icon:"📊",label:"Finanzen"},
   {id:"auslagen",icon:"💳",label:"Geschäftskarte"},
+  {id:"passwoerter",icon:"🔐",label:"Passwörter"},
   {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
   {id:"marktradar",icon:"🔭",label:"Marktradar"},
@@ -14473,7 +14660,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
