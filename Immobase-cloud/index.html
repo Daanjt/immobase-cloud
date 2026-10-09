@@ -5172,6 +5172,17 @@ function formatDateLong(dateStr){
 
 // Ganze Wohnung (unmoebliert): Vertragswerte aus Wohnung + Personenzahl ableiten
 // Nebenkosten einer ganzen Wohnung: eigener Wert, sonst die frueheren Nebenkosten, sonst CHF 100
+// Stockwerk ausgeschrieben fuer den Vertrag: "EG" -> "Erdgeschoss", "4. OG" -> "4. Obergeschoss"
+function stockwerkLang(s){
+  const t = String(s||"").trim();
+  if (!t) return "";
+  if (/^EG$/i.test(t)) return "Erdgeschoss";
+  const m = t.match(/^(\d+)\.?\s*OG$/i); if (m) return `${m[1]}. Obergeschoss`;
+  const u = t.match(/^(\d+)\.?\s*UG$/i); if (u) return `${u[1]}. Untergeschoss`;
+  if (/^UG$/i.test(t)) return "Untergeschoss";
+  if (/^DG$/i.test(t)) return "Dachgeschoss";
+  return t;
+}
 function nkWohnung(apt){
   const v = apt && apt.nebenkosten_wohnung;
   if (v !== null && v !== undefined && v !== "" && !isNaN(+v)) return +v;
@@ -5251,7 +5262,8 @@ function buildAnfangsmietzinsHTML(b, v, fullNameIn, fmtDate){
   const _W = istWohnungsVertrag(v);
   const _MM = (_W && v.mitmieter && String(v.mitmieter.vorname||"").trim()) ? `${v.mitmieter.vorname||""} ${v.mitmieter.nachname||""}`.trim() : "";
   const fullName = _MM ? `${fullNameIn} und ${_MM}` : fullNameIn;
-  const adresseLiegenschaft = _W ? `${v.adresse}, ${v.plz} ${v.ort}, ganze Wohnung${v.apt&&v.apt.zimmer?` (${v.apt.zimmer} Zimmer)`:""}` : `${v.adresse}, ${v.plz} ${v.ort}, Zimmer ${v.zimmerId}`;
+  const _stw = v.apt && v.apt.stockwerk ? `, ${String(v.apt.stockwerk).trim()}` : "";
+  const adresseLiegenschaft = _W ? `${v.adresse}, ${v.plz} ${v.ort}${_stw}, ganze Wohnung${v.apt&&v.apt.zimmer?` (${v.apt.zimmer} Zimmer)`:""}` : `${v.adresse}, ${v.plz} ${v.ort}${_stw}, Zimmer ${v.zimmerId}`;
   const adresseMieter = b.adresse ? `${b.adresse}, ${b.plz||""} ${b.ort||""}`.trim() : "";
   const datumLong = new Date().toLocaleDateString("de-CH", {day:"numeric",month:"long",year:"numeric"});
   // Defensive recalculation - Strom fix 25 für dieses Formular
@@ -5893,7 +5905,7 @@ ${MM?`
 <!-- §1 MIETOBJEKT -->
 <div class="section">
 <h2>1. Mietobjekt</h2>
-<p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
+<p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>${stockwerkLang(A.stockwerk)?`, im ${stockwerkLang(A.stockwerk)}`:""}.</p>
 ${W
   ? `<p>Untervermietet wird die ganze Wohnung${(A.zimmer||A.flaeche)?` (${[A.zimmer?`${A.zimmer} Zimmer`:"",A.flaeche?`ca. ${A.flaeche} m²`:""].filter(Boolean).join(", ")})`:""}, unmöbliert, im Rahmen einer befristeten Zwischennutzung.</p>
 <p>Die Wohnung dient ausschliesslich Wohnzwecken und wird vom Untermieter mit insgesamt ${persTxt} bewohnt.</p>${MM?`
