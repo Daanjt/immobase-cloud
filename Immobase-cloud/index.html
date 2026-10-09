@@ -14944,10 +14944,14 @@ function KommunikationTab({empfaenger, zielgruppe}) {
     if (!text.trim()) { setMsg({t:"err", m:"Der Text ist leer."}); return; }
     setSending(true); setMsg(null);
     try {
-      const { error } = await supabase.functions.invoke("send-message", {
-        body: { to: empfaenger.email, betreff: betreff || (sprache==="en" ? "Message from D&T Homes" : "Mitteilung von D&T Homes"), text, empfaengerName: `${empfaenger.vorname||""} ${empfaenger.nachname||""}`.trim() }
+      const esc = (x)=>String(x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const linkify = (x)=>x.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1">$1</a>');
+      const html = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt;color:#000">${linkify(esc(text)).replace(/\n/g,"<br>")}</div>`;
+      const { data, error } = await supabase.functions.invoke("outlook-send", {
+        body: { to: empfaenger.email, subject: betreff || (sprache==="en" ? "Message from D&T Homes" : "Mitteilung von D&T Homes"), html }
       });
       if (error) throw error;
+      if (data && data.error) throw new Error(data.error==="not_configured" ? "Outlook-Versand ist nicht eingerichtet." : (data.detail || data.error));
       setMsg({t:"ok", m:`E-Mail an ${empfaenger.email} verschickt.`});
     } catch(err) {
       setMsg({t:"err", m:"Konnte nicht gesendet werden: " + (err.message||err)});
