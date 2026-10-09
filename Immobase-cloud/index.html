@@ -12337,7 +12337,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
-  const H = 100;
+  const H = 86;
   const kfmt = (v)=>{ const a=Math.abs(v); const sg=v<0?"-":""; if(a>=10000) return sg+Math.round(a/1000)+"k"; if(a>=1000) return sg+(a/1000).toFixed(1)+"k"; return Math.round(v).toString(); };
   return (
     <div>
