@@ -5565,7 +5565,7 @@ function buildContractHTML(b, v, fullName, fmtDate){
   const W = istWohnungsVertrag(v);
   const A = v.apt || {};
   const pers = Math.max(1, +v.personen || 1);
-  const persTxt = pers === 1 ? "eine Person" : `${pers} Personen`;
+  const persTxt = pers === 1 ? "1 Person" : `${pers} Personen`;
   const stromPP = pers ? (+v.strom||0)/pers : 25;
   const MM = (W && v.mitmieter && String(v.mitmieter.vorname||"").trim()) ? v.mitmieter : null;
   // Befristet? (gleiche Regel wie Ziffer 2): dann entfaellt 11.3 (nur fuer unbefristete) und die folgenden Ziffern ruecken nach
