@@ -6641,7 +6641,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   useEffect(()=>{ resolveMeName().then(setMeName); },[]);
   useEffect(()=>{
     supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
-      .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTpl(tpls[0]); })
+      .then(({data})=>{ const tpls=(data||[]).filter(v=>(v.zielgruppe==="bewerber"||v.zielgruppe==="beide")&&!v.nur_wg); if(tpls[0]) setWaTpl(tpls[0]); })
       .catch(()=>{});
   },[]);
   function waShortcut(b, e){
@@ -6656,7 +6656,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
       absender: meName || (b.owner&&String(b.owner).trim()) || "Daan",
     };
-    const tplText = waTpl ? ((b.sprache==="en" ? (waTpl.inhalt_en||waTpl.inhalt) : waTpl.inhalt) || "") : "";
+    const tplText = waTpl ? vorlageTexte(waTpl, b.sprache, aptIstWohnung(aptObj)).inhalt : "";
     const text = tplText ? platzhalterFuellen(tplText, empf) : "";
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
     if(meName && !(b.owner&&String(b.owner).trim()) && updateBewerber){ updateBewerber(b.id,{owner:meName}); }
@@ -6803,7 +6803,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   useEffect(()=>{ resolveMeName().then(setMeNameB); },[]);
   useEffect(()=>{
     supabase.from("message_templates").select("*").eq("aktiv",true).order("sortierung")
-      .then(({data})=>{ const tpls=(data||[]).filter(v=>v.zielgruppe==="bewerber"||v.zielgruppe==="beide"); if(tpls[0]) setWaTplB(tpls[0]); })
+      .then(({data})=>{ const tpls=(data||[]).filter(v=>(v.zielgruppe==="bewerber"||v.zielgruppe==="beide")&&!v.nur_wg); if(tpls[0]) setWaTplB(tpls[0]); })
       .catch(()=>{});
   },[]);
   function waShortcutB(bb, e){
@@ -6818,7 +6818,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
       absender: meNameB || (bb.owner&&String(bb.owner).trim()) || "Daan",
     };
-    const tplText = waTplB ? ((bb.sprache==="en" ? (waTplB.inhalt_en||waTplB.inhalt) : waTplB.inhalt) || "") : "";
+    const tplText = waTplB ? vorlageTexte(waTplB, bb.sprache, aptIstWohnung(aptObj)).inhalt : "";
     const text = tplText ? platzhalterFuellen(tplText, empf) : "";
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
     if(meNameB && !(bb.owner&&String(bb.owner).trim())){ updateBewerber(bb.id,{owner:meNameB}); }
@@ -7676,7 +7676,7 @@ www.dthomes.ch`;
               {[
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
                 ["Empfohlen von", b.empfohlen_von ? <strong style={{color:"#8a6a2e"}}>{b.empfohlen_von}</strong> : "-"],
-                ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> <a href={`https://wa.me/${(b.phone||"").replace(/\D/g,"").replace(/^00/,"").replace(/^0/,"41")}?text=${encodeURIComponent("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Wir haben aktuell mehrere Zimmer frei. Auf https://new.dthomes.ch/zimmer findest du Bilder und kannst dich direkt bewerben, wenn du Interesse hast. Liebe Grüsse, Daan")}`} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>WhatsApp</a></span>:"-"],
+                ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> <a href={`https://wa.me/${(b.phone||"").replace(/\D/g,"").replace(/^00/,"").replace(/^0/,"41")}?text=${encodeURIComponent((()=>{ const _r=(rooms||[]).find(r=>r.id===(b.zugeteiltes_zimmer||b.zimmerWunsch)); const _a=_r?(apts||[]).find(a=>a.id===_r.aptId):null; return aptIstWohnung(_a) ? ("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Auf https://new.dthomes.ch/wohnungen findest du unsere Wohnungen mit mehr Bildern und 3D-Rundgang. Die Besichtigung läuft bei uns über den 3D-Rundgang, und wenn dir eine Wohnung gefällt, kannst du dich dort direkt bewerben. Liebe Grüsse, Daan") : ("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Wir haben aktuell mehrere Zimmer frei. Auf https://new.dthomes.ch/zimmer findest du Bilder und kannst dich direkt bewerben, wenn du Interesse hast. Liebe Grüsse, Daan"); })())}`} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>WhatsApp</a></span>:"-"],
                 ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
                 ["Geschlecht",b.gender||"-"],
                 ["Nationalität",b.nat||"-"],
@@ -7800,8 +7800,9 @@ www.dthomes.ch`;
                 vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
                 absender: meNameB || (b.owner&&String(b.owner).trim()) || "Daan",
                 sprache: b.sprache || "de",
+                istWohnung: aptIstWohnung(aptObj),
               };
-              return <KommunikationTab empfaenger={empf} zielgruppe="bewerber"/>;
+              return <KommunikationTab key={"b"+b.id} empfaenger={empf} zielgruppe="bewerber"/>;
             })()}
           </div>
           </>
@@ -10314,8 +10315,10 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 vormieter_telefon: vormieter ? (vormieter.phone||"") : "",
                 nachmieter_name: nachmieter ? `${nachmieter.vorname||""} ${nachmieter.nachname||""}`.trim() : "",
                 nachmieter_telefon: nachmieter ? (nachmieter.phone||"") : "",
+                sprache: tenant.sprache || "de",
+                istWohnung: aptIstWohnung(apt),
               };
-              return <KommunikationTab empfaenger={empf} zielgruppe="mieter"/>;
+              return <KommunikationTab key={"t"+tenant.id} empfaenger={empf} zielgruppe="mieter"/>;
             })()}
             {tab==="uebergabe" && <div style={{display:"flex",background:"#f1ece2",borderRadius:9,padding:3,marginBottom:16,maxWidth:300}}>
               <button onClick={()=>setUebTab("einzug")} style={{flex:1,textAlign:"center",background:uebTab==="einzug"?"var(--ink)":"transparent",color:uebTab==="einzug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Einzug</button>
@@ -14450,6 +14453,15 @@ function moeblVon(t){
   return m ? (+t.moeblierungPauschale || 0) : 0;   // nur monatliche Moeblierung zaehlt, wie im Soll
 }
 
+// Vorlagentext waehlen: bei ganzen Wohnungen die Wohnungs-Variante (falls vorhanden)
+function vorlageTexte(v, spr, istW) {
+  const en = spr === "en";
+  const W = !!istW;
+  const betreff = en ? ((W && v.betreff_wohnung_en) || v.betreff_en || (W && v.betreff_wohnung) || v.betreff) : ((W && v.betreff_wohnung) || v.betreff);
+  const inhalt = en ? ((W && v.inhalt_wohnung_en) || v.inhalt_en || v.inhalt) : ((W && v.inhalt_wohnung) || v.inhalt);
+  return { betreff: betreff || "", inhalt: inhalt || "" };
+}
+function aptIstWohnung(apt){ return !!(apt && apt.vermietungsart === "wohnung"); }
 function platzhalterFuellen(text, empfaenger) {
   if (!text) return "";
   const map = {
@@ -14487,7 +14499,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
     supabase.from("message_templates").select("*").eq("aktiv", true).order("sortierung")
       .then(({data, error}) => {
         if (error) { setMsg({t:"err", m:"Vorlagen konnten nicht geladen werden: " + error.message}); setTemplates([]); }
-        else setTemplates((data||[]).filter(v => v.zielgruppe === zielgruppe || v.zielgruppe === "beide"));
+        else setTemplates((data||[]).filter(v => (v.zielgruppe === zielgruppe || v.zielgruppe === "beide") && !(empfaenger && empfaenger.istWohnung && v.nur_wg)));
       });
   }, [zielgruppe]);
 
@@ -14496,8 +14508,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
     const spr = lang || sprache;
     const v = (templates||[]).find(x => x.id === id);
     if (v) {
-      const bet = spr === "en" ? (v.betreff_en || v.betreff) : v.betreff;
-      const inh = spr === "en" ? (v.inhalt_en || v.inhalt) : v.inhalt;
+      const { betreff: bet, inhalt: inh } = vorlageTexte(v, spr, empfaenger && empfaenger.istWohnung);
       setBetreff(platzhalterFuellen(bet||"", empfaenger));
       setText(platzhalterFuellen(inh||"", empfaenger));
       if ((inh||"").includes("{uebergabe_link}") && !empfaenger.uebergabe_link) {
