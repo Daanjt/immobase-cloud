@@ -219,6 +219,7 @@ tr:hover td{background:var(--beige-soft)}
 .mt{font-family:'Manrope', sans-serif;font-size:24px;font-weight:400;color:var(--ink);margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);letter-spacing:.01em}
 
 .fg{margin-bottom:14px}
+@media(max-width:760px){.auslagen-form{grid-template-columns:1fr 1fr !important}}
 .fl{font-size:9.5px;color:var(--muted);margin-bottom:6px;display:block;letter-spacing:.25em;text-transform:uppercase;font-weight:500}
 .fi{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 13px;color:var(--ink);font-family:'Manrope', sans-serif;font-size:12.5px;outline:none;transition:.2s;letter-spacing:.01em}
 .fi.bewerber-search{font-size:11px !important;padding:7px 10px !important}
@@ -13905,6 +13906,90 @@ function Bauradar(){
 }
 
 
+// Auslagen Daan / Martijn: persoenlich mit Karte bezahlte Geschaeftsausgaben
+function AuslagenPage(){
+  const PERS=["Daan","Martijn"];
+  const fmt=(n)=>"CHF "+(+n||0).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const heute=()=>{ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+  const dDE=(s)=>{ if(!s) return ""; const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${m[3]}.${m[2]}.${m[1]}`:s; };
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [f,setF]=useState({datum:heute(),person:"Daan",betrag:"",beschreibung:""});
+  const [filter,setFilter]=useState("offen");
+  const [saving,setSaving]=useState(false);
+  const lade=()=>supabase.from("partner_auslagen").select("*").order("datum",{ascending:false}).order("created_at",{ascending:false}).then(({data,error})=>{ if(error) console.error(error); setRows(data||[]); setLoading(false); });
+  useEffect(()=>{ lade(); const ch=supabase.channel("partner_auslagen_page").on("postgres_changes",{event:"*",schema:"public",table:"partner_auslagen"},lade).subscribe(); return ()=>{ supabase.removeChannel(ch); }; },[]);
+  const offen=rows.filter(r=>!r.abgerechnet);
+  const summe=(list,p)=>list.filter(r=>r.person===p).reduce((s,r)=>s+(+r.betrag||0),0);
+  const sD=summe(offen,"Daan"), sM=summe(offen,"Martijn");
+  const tot=sD+sM, diff=Math.abs(sD-sM)/2;
+  const ausgleich = diff<0.005 ? "Ausgeglichen, niemand schuldet etwas." : (sD>sM ? `Martijn schuldet Daan ${fmt(diff)}` : `Daan schuldet Martijn ${fmt(diff)}`);
+  const add=async()=>{
+    const b=parseFloat(String(f.betrag).replace(/'/g,"").replace(",","."));
+    if(!(b>0)){ alert("Bitte einen gültigen Betrag eingeben."); return; }
+    setSaving(true);
+    const {error}=await supabase.from("partner_auslagen").insert({datum:f.datum||heute(),person:f.person,betrag:Math.round(b*100)/100,beschreibung:(f.beschreibung||"").trim()||null});
+    setSaving(false);
+    if(error){ alert("Speichern fehlgeschlagen: "+error.message); return; }
+    setF(p=>({...p,betrag:"",beschreibung:""})); lade();
+  };
+  const del=async(r)=>{ if(!confirm(`Eintrag ${fmt(r.betrag)} (${r.person}) löschen?`)) return; await supabase.from("partner_auslagen").delete().eq("id",r.id); lade(); };
+  const toggle=async(r)=>{ await supabase.from("partner_auslagen").update({abgerechnet:!r.abgerechnet,updated_at:new Date().toISOString()}).eq("id",r.id); lade(); };
+  const allesAbrechnen=async()=>{ if(!offen.length) return; if(!confirm(`Alle ${offen.length} offenen Einträge als abgerechnet markieren? (${ausgleich})`)) return; await supabase.from("partner_auslagen").update({abgerechnet:true,updated_at:new Date().toISOString()}).in("id",offen.map(r=>r.id)); lade(); };
+  const shown = filter==="offen"?offen : filter==="abgerechnet"?rows.filter(r=>r.abgerechnet) : rows;
+  const box=(p,s)=>(
+    <div style={{flex:"1 1 180px",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:8,padding:"18px 20px"}}>
+      <div className="fl">{p} hat bezahlt</div>
+      <div style={{fontSize:24,fontWeight:600,color:"var(--ink)"}}>{fmt(s)}</div>
+      <div style={{fontSize:11,color:"var(--muted)",marginTop:4}}>{(n=>n===1?"1 offener Eintrag":n+" offene Einträge")(offen.filter(r=>r.person===p).length)}</div>
+    </div>);
+  return (
+    <div>
+      <div className="ph"><div className="pt">Auslagen</div>
+        <div style={{fontSize:12.5,color:"var(--muted)"}}>Was Daan und Martijn persönlich mit der Karte für das Geschäft bezahlt haben. Die Summen zählen nur offene Einträge.</div></div>
+      <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:18,marginTop:16}}>
+        {box("Daan",sD)}{box("Martijn",sM)}
+        <div style={{flex:"1 1 220px",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:8,padding:"18px 20px"}}>
+          <div className="fl">Total offen</div>
+          <div style={{fontSize:24,fontWeight:600,color:"var(--ink)"}}>{fmt(tot)}</div>
+          <div style={{fontSize:12,color:diff<0.005?"var(--muted)":"#7c6a4e",marginTop:4,fontWeight:600}}>Bei 50/50: {ausgleich}</div>
+        </div>
+      </div>
+      <div className="card" style={{padding:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"140px 150px 140px 1fr auto",gap:10,alignItems:"end"}} className="auslagen-form">
+          <div><label className="fl">Datum</label><input className="fi" type="date" value={f.datum} onChange={e=>setF({...f,datum:e.target.value})}/></div>
+          <div><label className="fl">Bezahlt von</label>
+            <div style={{display:"flex",gap:6}}>{PERS.map(p=><button key={p} type="button" className={`btn btn-sm ${f.person===p?"btn-p":"btn-g"}`} onClick={()=>setF({...f,person:p})}>{p}</button>)}</div></div>
+          <div><label className="fl">Betrag (CHF)</label><input className="fi" inputMode="decimal" placeholder="0.00" value={f.betrag} onChange={e=>setF({...f,betrag:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") add(); }}/></div>
+          <div><label className="fl">Wofür</label><input className="fi" placeholder="z. B. IKEA Möbel A13, Reinigung, Werkzeug" value={f.beschreibung} onChange={e=>setF({...f,beschreibung:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") add(); }}/></div>
+          <div><button className="btn btn-p" disabled={saving} onClick={add}>{saving?"Speichern…":"Hinzufügen"}</button></div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
+        {[["offen","Offen"],["abgerechnet","Abgerechnet"],["alle","Alle"]].map(([k,l])=><button key={k} className={`btn btn-sm ${filter===k?"btn-p":"btn-g"}`} onClick={()=>setFilter(k)}>{l}</button>)}
+        <div style={{flex:1}}/>
+        {offen.length>0 && <button className="btn btn-g btn-sm" onClick={allesAbrechnen}>Alles abrechnen</button>}
+      </div>
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        {loading ? <div style={{padding:20,color:"var(--muted)"}}>Lädt…</div> :
+         shown.length===0 ? <div style={{padding:20,color:"var(--muted)",fontSize:13}}>Keine Einträge.</div> :
+         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{textAlign:"left",color:"var(--muted)",fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>
+            <th style={{padding:"12px 16px"}}>Datum</th><th style={{padding:"12px 8px"}}>Von</th><th style={{padding:"12px 8px"}}>Wofür</th><th style={{padding:"12px 8px",textAlign:"right"}}>Betrag</th><th style={{padding:"12px 8px"}}>Status</th><th></th></tr></thead>
+          <tbody>{shown.map(r=>(
+            <tr key={r.id} style={{borderTop:"1px solid var(--line)",opacity:r.abgerechnet?.55:1}}>
+              <td style={{padding:"10px 16px",whiteSpace:"nowrap"}}>{dDE(r.datum)}</td>
+              <td style={{padding:"10px 8px"}}><span style={{background:r.person==="Daan"?"#e8efde":"#f2ecdb",color:r.person==="Daan"?"#3a5230":"#7c6a4e",fontSize:11,padding:"2px 9px",borderRadius:8,fontWeight:600}}>{r.person}</span></td>
+              <td style={{padding:"10px 8px"}}>{r.beschreibung||<span style={{color:"var(--muted)"}}>–</span>}</td>
+              <td style={{padding:"10px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:600}}>{fmt(r.betrag)}</td>
+              <td style={{padding:"10px 8px"}}><button className="btn btn-g btn-sm" onClick={()=>toggle(r)} title="Status umschalten">{r.abgerechnet?"Abgerechnet":"Offen"}</button></td>
+              <td style={{padding:"10px 16px",textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>del(r)} title="Löschen">✕</button></td>
+            </tr>))}</tbody>
+         </table>}
+      </div>
+    </div>);
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
@@ -13917,6 +14002,7 @@ const PAGES=[
   {id:"partner",icon:"🏢",label:"Partner"},
   {id:"todos",icon:"✅",label:"To-dos"},
   {id:"finanzen",icon:"📊",label:"Finanzen"},
+  {id:"auslagen",icon:"💳",label:"Auslagen"},
   {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
   {id:"marktradar",icon:"🔭",label:"Marktradar"},
@@ -14380,7 +14466,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
