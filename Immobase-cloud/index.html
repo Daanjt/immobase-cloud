@@ -6280,6 +6280,62 @@ function generateContractToken() {
   crypto.getRandomValues(arr);
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
+// Vorschau vor dem digitalen Versand: dieselben PDFs, die danach verschickt werden
+async function vertragPdfsErstellen(b, vertragData, types, onProgress) {
+  const progress = onProgress || (() => {});
+  const sel = Array.isArray(types) && types.length ? types : ["umv", "amz"];
+  const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
+  const stromFix = istWohnungsVertrag(vertragData) ? (+vertragData.strom || 0) : 25;
+  const amzData = { ...vertragData, strom: stromFix, total: (vertragData.nettomiete||0) + (vertragData.nebenkosten||0) + stromFix };
+  const out = { fullName };
+  if (sel.includes("umv")) { progress("Vorschau Untermietvertrag…", 0.2); out.umvBlob = await htmlToPdf(buildContractHTML(b, vertragData, fullName, formatDateLong), `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`); }
+  if (sel.includes("amz")) { progress("Vorschau Anfangsmietzinsformular…", 0.6); out.amzBlob = await htmlToPdf(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong), `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`); }
+  return out;
+}
+function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConfirm }) {
+  const [idx, setIdx] = useState(0);
+  const docs = React.useMemo(() => {
+    if (!vorschau) return [];
+    const n = vorschau.fullName ? vorschau.fullName.replace(/\s+/g, "_") : "Vertrag";
+    const d = [];
+    if (vorschau.umvBlob) d.push({ name: "Untermietvertrag", url: URL.createObjectURL(vorschau.umvBlob), fn: `Untermietvertrag_${n}.pdf` });
+    if (vorschau.amzBlob) d.push({ name: "Anfangsmietzinsformular", url: URL.createObjectURL(vorschau.amzBlob), fn: `Anfangsmietzinsformular_${n}.pdf` });
+    return d;
+  }, [vorschau]);
+  useEffect(() => () => { docs.forEach(x => { try { URL.revokeObjectURL(x.url); } catch (e) {} }); }, [docs]);
+  if (!vorschau) return null;
+  const cur = docs[Math.min(idx, docs.length - 1)];
+  const inhalt = (
+    <div style={{position:"fixed",inset:0,background:"rgba(20,18,15,.55)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"#fefcf7",borderRadius:10,width:"min(980px,100%)",height:"min(92vh,1100px)",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+        <div style={{padding:"14px 20px",borderBottom:"1px solid #e8e3d8",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:600,color:"#1a1814"}}>Vorschau vor dem Versand</div>
+            <div style={{fontSize:11.5,color:"#8a8174"}}>So erhält {email || "der Mieter"} die Dokumente zum Unterschreiben.</div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {docs.map((d,i)=>(
+              <button key={i} onClick={()=>setIdx(i)} style={{fontSize:11.5,padding:"7px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,border:"1px solid",borderColor:idx===i?"#2c4a6e":"#d8d0c0",background:idx===i?"#2c4a6e":"#fefcf7",color:idx===i?"#fefcf7":"#4a4439"}}>{d.name}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{flex:1,minHeight:0,padding:12,display:"flex",flexDirection:"column",gap:8}}>
+          {cur && <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexShrink:0}}>
+            <a href={cur.url} download={cur.fn} style={{fontSize:11.5,padding:"5px 12px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,textDecoration:"none"}}>⬇ {cur.name} herunterladen</a>
+            <button onClick={()=>window.open(cur.url,"_blank")} style={{fontSize:11.5,padding:"5px 12px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:"pointer"}}>↗ In neuem Tab</button>
+          </div>}
+          {cur && <iframe key={cur.url} src={cur.url} title={cur.name} style={{flex:1,width:"100%",minHeight:300,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>}
+        </div>
+        {busy && progress && <div style={{padding:"0 20px 8px",fontSize:11.5,color:"#6e6a62"}}>⏳ {progress}</div>}
+        <div style={{padding:"12px 20px",borderTop:"1px solid #e8e3d8",display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap"}}>
+          <button onClick={()=>!busy&&onClose()} disabled={busy} style={{fontSize:12.5,padding:"9px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:busy?"wait":"pointer"}}>Zurück zum Bearbeiten</button>
+          <button onClick={onConfirm} disabled={busy} style={{fontSize:12.5,padding:"9px 18px",background:"#3a5230",color:"#fefcf7",border:"1px solid #2f4527",borderRadius:5,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"Wird gesendet…":"✓ Bestätigen und Vertrag digital senden"}</button>
+        </div>
+      </div>
+    </div>
+  );
+  return (window.ReactDOM && ReactDOM.createPortal) ? ReactDOM.createPortal(inhalt, document.body) : inhalt;
+}
 async function sendContractForSigningShared(b, vertragData, onProgress, types, opts) {
   opts = opts || {};
   const progress = onProgress || (() => {});
@@ -6311,8 +6367,8 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
 
   const totalSteps = (wantUmv ? 1 : 0) + (wantAmz ? 1 : 0);
   let step = 0, umvBlob = null, amzBlob = null;
-  if (wantUmv) { step++; progress(`PDF erstellen (${step}/${totalSteps}: Untermietvertrag)...`, 0.2); umvBlob = await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`); }
-  if (wantAmz) { step++; progress(`PDF erstellen (${step}/${totalSteps}: Anfangsmietzinsformular)...`, 0.45); amzBlob = await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`); }
+  if (wantUmv) { step++; progress(`PDF erstellen (${step}/${totalSteps}: Untermietvertrag)...`, 0.2); umvBlob = (opts.pre && opts.pre.umvBlob) || await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`); }
+  if (wantAmz) { step++; progress(`PDF erstellen (${step}/${totalSteps}: Anfangsmietzinsformular)...`, 0.45); amzBlob = (opts.pre && opts.pre.amzBlob) || await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`); }
 
   progress("PDFs hochladen...", 0.6);
   const token = generateContractToken();
@@ -6809,6 +6865,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [nachmieterFor,setNachmieterFor]=useState(null); // wenn aus Dashboard "Nachmieter zuteilen" geklickt
   const [copied,setCopied]=useState(false);
   const [vertragModal,setVertragModal]=useState(false);
+  const [vorschauB,setVorschauB]=useState(null);
   const [editModal,setEditModal]=useState(false);
   const [waTplB, setWaTplB] = useState(null);
   const [meNameB, setMeNameB] = useState("");
@@ -7388,7 +7445,7 @@ www.dthomes.ch`;
   }
 
   // Hauptworkflow: generiert beide PDFs, lädt sie hoch, erstellt contracts row, sendet Email
-  async function sendContractForSigning(b, vertragData, onProgress, types) {
+  async function sendContractForSigning(b, vertragData, onProgress, types, pre) {
     const progress = onProgress || (() => {});
     // types: optional array ["umv","amz"] - default both
     const selectedTypes = Array.isArray(types) && types.length > 0 ? types : ["umv", "amz"];
@@ -7406,8 +7463,8 @@ www.dthomes.ch`;
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     if (!fullName) throw new Error("Bewerber hat keinen Namen");
 
-    // AMZ braucht angepasste Daten (Strom=25, kein Servicegebühr)
-    const stromFix = 25;
+    // AMZ braucht angepasste Daten (Strom=25 bzw. bei Wohnungen Strom pro Person, keine Servicegebühr)
+    const stromFix = istWohnungsVertrag(vertragData) ? (+vertragData.strom || 0) : 25;
     const amzData = {
       ...vertragData,
       strom: stromFix,
@@ -7424,12 +7481,12 @@ www.dthomes.ch`;
     if (wantUmv) {
       step++;
       progress(`PDF erstellen (${step}/${totalSteps}: Untermietvertrag)...`, 0.2);
-      umvBlob = await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`);
+      umvBlob = (pre && pre.umvBlob) || await htmlToPdf(umvHtml, `Untermietvertrag_${fullName.replace(/\s+/g,"_")}.pdf`);
     }
     if (wantAmz) {
       step++;
       progress(`PDF erstellen (${step}/${totalSteps}: Anfangsmietzinsformular)...`, 0.45);
-      amzBlob = await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`);
+      amzBlob = (pre && pre.amzBlob) || await htmlToPdf(amzHtml, `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`);
     }
 
     progress("PDFs hochladen...", 0.6);
@@ -8252,20 +8309,24 @@ www.dthomes.ch`;
             <button className="btn btn-p" style={{width:"100%",justifyContent:"center",padding:"12px 18px",fontSize:13.5}} onClick={async()=>{
                 if (!b || !vertragData) return;
                 if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
-                if (!confirm(`Untermietvertrag und Anfangsmietzinsformular digital an ${b.email} senden?\n\nDer Mieter erhält einen Link zur Online-Unterzeichnung.`)) return;
-                setSending(true);
-                setSendResult(null);
-                setSendProgress({message:"Starte...",pct:0});
+                if (istWohnungsVertrag(vertragData) && vertragData.mitmieter && mitmieterFehlt(vertragData.mitmieter)) { alert("Mitmieter*in unvollständig: " + mitmieterFehlt(vertragData.mitmieter)); return; }
+                setSending(true); setSendResult(null); setSendProgress({message:"Vorschau wird erstellt…",pct:0.1});
                 try {
-                  const result = await sendContractForSigning(b, vertragData, (msg,pct)=>setSendProgress({message:msg,pct}));
-                  setSendResult({success:true, ...result});
+                  const pre = await vertragPdfsErstellen(b, vertragData, ["umv","amz"], (msg,pct)=>setSendProgress({message:msg,pct}));
+                  setVorschauB(pre);
+                } catch(err) { setSendResult({success:false, error: "Vorschau fehlgeschlagen: " + err.message}); }
+                finally { setSending(false); }
+              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "👁 Vorschau und digital senden"}</button>
+            <VertragVorschauModal vorschau={vorschauB} email={b.email} busy={sending} progress={sendProgress && sendProgress.message} onClose={()=>setVorschauB(null)} onConfirm={async()=>{
+                setSending(true); setSendResult(null); setSendProgress({message:"Starte...",pct:0});
+                try {
+                  const result = await sendContractForSigning(b, vertragData, (msg,pct)=>setSendProgress({message:msg,pct}), undefined, vorschauB);
+                  setSendResult({success:true, ...result}); setVorschauB(null);
                 } catch(err) {
                   console.error("sendContractForSigning failed:", err);
-                  setSendResult({success:false, error: err.message});
-                } finally {
-                  setSending(false);
-                }
-              }} disabled={sending}>{sending ? `⏳ ${sendProgress.message}` : "📤 Vertrag digital senden"}</button>
+                  setSendResult({success:false, error: err.message}); setVorschauB(null);
+                } finally { setSending(false); }
+              }}/>
             
             {sending && (
               <div style={{marginTop:14,padding:"10px 12px",background:"#f5efe4",border:"1px solid #e1d8c5",borderRadius:8}}>
@@ -9586,6 +9647,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
   const [tvModal, setTvModal] = useState(false);
   const [tvData, setTvData] = useState(null);
   const [tvSending, setTvSending] = useState(false);
+  const [vorschauT, setVorschauT] = useState(null);
   const [tvProgress, setTvProgress] = useState(null);
   const [tvResult, setTvResult] = useState(null);
   const [tvTypes, setTvTypes] = useState(["umv","amz"]);
@@ -10988,20 +11050,24 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
             <button className="btn btn-p" style={{width:"100%",justifyContent:"center",padding:"12px 18px",fontSize:13.5}} onClick={async()=>{
                 if (!t || !tvData) return;
                 if (!t.email) { alert("Bewerber hat keine Email-Adresse."); return; }
-                if (!confirm(`Untermietvertrag und Anfangsmietzinsformular digital an ${t.email} senden?\n\nDer Mieter erhält einen Link zur Online-Unterzeichnung.`)) return;
-                setTvSending(true);
-                setTvResult(null);
-                setTvProgress({message:"Starte...",pct:0});
+                if (istWohnungsVertrag(tvData) && tvData.mitmieter && mitmieterFehlt(tvData.mitmieter)) { alert("Mitmieter*in unvollständig: " + mitmieterFehlt(tvData.mitmieter)); return; }
+                setTvSending(true); setTvResult(null); setTvProgress({message:"Vorschau wird erstellt…",pct:0.1});
                 try {
-                  const result = await sendContractForSigningShared(t, tvData, (msg,pct)=>setTvProgress({message:msg,pct}), ["umv","amz"], {tenantId: t.id});
-                  setTvResult({success:true, ...result});
+                  const pre = await vertragPdfsErstellen(t, tvData, ["umv","amz"], (msg,pct)=>setTvProgress({message:msg,pct}));
+                  setVorschauT(pre);
+                } catch(err) { setTvResult({success:false, error: "Vorschau fehlgeschlagen: " + err.message}); }
+                finally { setTvSending(false); }
+              }} disabled={tvSending}>{tvSending ? `⏳ ${tvProgress.message}` : "👁 Vorschau und digital senden"}</button>
+            <VertragVorschauModal vorschau={vorschauT} email={t.email} busy={tvSending} progress={tvProgress && tvProgress.message} onClose={()=>setVorschauT(null)} onConfirm={async()=>{
+                setTvSending(true); setTvResult(null); setTvProgress({message:"Starte...",pct:0});
+                try {
+                  const result = await sendContractForSigningShared(t, tvData, (msg,pct)=>setTvProgress({message:msg,pct}), ["umv","amz"], {tenantId: t.id, pre: vorschauT});
+                  setTvResult({success:true, ...result}); setVorschauT(null);
                 } catch(err) {
                   console.error("sendContractForSigning failed:", err);
-                  setTvResult({success:false, error: err.message});
-                } finally {
-                  setTvSending(false);
-                }
-              }} disabled={tvSending}>{tvSending ? `⏳ ${tvProgress.message}` : "📤 Vertrag digital senden"}</button>
+                  setTvResult({success:false, error: err.message}); setVorschauT(null);
+                } finally { setTvSending(false); }
+              }}/>
             
             {tvSending && (
               <div style={{marginTop:14,padding:"10px 12px",background:"#f5efe4",border:"1px solid #e1d8c5",borderRadius:8}}>
