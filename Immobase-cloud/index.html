@@ -6445,7 +6445,9 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
 function buildNachtragHTML(person, nd, fullName, fmtDate){
   const _ndW = istWohnungsVertrag(nd) || !!(nd.apt && nd.apt.vermietungsart === "wohnung");
   const _ndMM = (_ndW && nd.mitmieter && String(nd.mitmieter.vorname||"").trim()) ? `${nd.mitmieter.vorname||""} ${nd.mitmieter.nachname||""}`.trim() : "";
-  const objekt = _ndW ? `ganze Wohnung an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : (nd.zimmerId ? `Zimmer ${(nd.zimmerId||"").split("-")[1]||nd.zimmerId} an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : `${nd.adresse}, ${nd.plz} ${nd.ort}`);
+  const _ndSW = stockwerkLang(nd.stockwerk || (nd.apt && nd.apt.stockwerk) || "");
+  const _ndIm = _ndSW ? ` im ${_ndSW}` : "";
+  const objekt = _ndW ? `ganze Wohnung${_ndIm} an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : (nd.zimmerId ? `Zimmer ${(nd.zimmerId||"").split("-")[1]||nd.zimmerId}${_ndIm} an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : `${nd.adresse}, ${nd.plz} ${nd.ort}${_ndSW?`, ${_ndSW}`:""}`);
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Nachtrag Untermietvertrag - ${fullName}</title>
 <style>
@@ -9732,6 +9734,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       _tenant: t,
       adresse: (data&&data.v.adresse)||"", plz:(data&&data.v.plz)||"", ort:(data&&data.v.ort)||"",
       zimmerId: (data&&data.v.zimmerId)||"",
+      stockwerk: (apt&&apt.stockwerk)||"",
       aptId: apt?apt.id:null, roomId: room?room.id:null,
       vertragsart: (apt && apt.vermietungsart === "wohnung") ? "wohnung" : undefined,
       mitmieter: (apt && apt.vermietungsart === "wohnung" && t.mitmieter && t.mitmieter.aktiv !== false && t.mitmieter.vorname) ? t.mitmieter : null,
