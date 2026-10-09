@@ -5581,7 +5581,7 @@ function buildContractHTML(b, v, fullName, fmtDate){
   const AUSWEG = " Auch in diesem Fall kann der Untermieter vorzeitig ausziehen, indem er einen geeigneten Nachmieter stellt (Ziffer " + ZN(5) + "); eine Untervermietung ist mit vorgängiger schriftlicher Zustimmung des Hauptmieters möglich (Ziffer 5.3).";
   const mmName = MM ? `${MM.vorname||""} ${MM.nachname||""}`.trim() : "";
   return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Untermietvertrag - ${fullName}</title>
+<html lang="de"><head><meta charset="UTF-8"><title>${W?"Untermietvertrag Zwischennutzung":"Untermietvertrag"} - ${fullName}</title>
 <style>
 @page{size:A4;margin:18mm 18mm 22mm 18mm}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -5863,7 +5863,7 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
 <div class="doc-header">
 <div class="left">
   <div class="label">Vertrag</div>
-  <div class="doc-title">Untermietvertrag</div>
+  <div class="doc-title">${W?"Untermietvertrag Zwischennutzung":"Untermietvertrag"}</div>
 </div>
 <div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div>
 </div>
@@ -6399,7 +6399,7 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   if (wantUmv) {
     const { error: e1 } = await supabase.storage.from("contracts").upload(umvPath, umvBlob, { contentType: "application/pdf", upsert: false });
     if (e1) throw new Error(`Upload UMV: ${e1.message}`);
-    unsignedPdfs.push({ name: "Untermietvertrag", path: umvPath, type: "umv" });
+    unsignedPdfs.push({ name: istWohnungsVertrag(vertragData) ? "Untermietvertrag Zwischennutzung" : "Untermietvertrag", path: umvPath, type: "umv" });
   }
   if (wantAmz) {
     const { error: e2 } = await supabase.storage.from("contracts").upload(amzPath, amzBlob, { contentType: "application/pdf", upsert: false });
@@ -7521,7 +7521,7 @@ www.dthomes.ch`;
         contentType: "application/pdf", upsert: false
       });
       if (upErr1) throw new Error(`Upload UMV: ${upErr1.message}`);
-      unsignedPdfs.push({ name: "Untermietvertrag", path: umvPath, type: "umv" });
+      unsignedPdfs.push({ name: istWohnungsVertrag(vertragData) ? "Untermietvertrag Zwischennutzung" : "Untermietvertrag", path: umvPath, type: "umv" });
     }
     if (wantAmz) {
       const { error: upErr2 } = await supabase.storage.from("contracts").upload(amzPath, amzBlob, {
