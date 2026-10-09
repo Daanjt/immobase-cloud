@@ -182,7 +182,7 @@ function buildProtocolHtml(pRaw: Record<string, unknown>): string {
 
   const mietobjektRows = [
     aptZeile ? `<span class="lbl">Wohnung:</span><span>${esc(aptZeile)}</span>` : "",
-    p.room_label ? `<span class="lbl">Zimmer:</span><span>${esc(p.room_label)}</span>` : "",
+    p.objekt_typ === "wohnung" ? `<span class="lbl">Mietobjekt:</span><span>Ganze Wohnung</span>` : (p.room_label ? `<span class="lbl">Zimmer:</span><span>${esc(p.room_label)}</span>` : ""),
     p.einzug_datum ? `<span class="lbl">Einzug am:</span><span>${esc(formatDateDE(p.einzug_datum))}</span>` : "",
     `<span class="lbl">Frist abgelaufen am:</span><span>${esc(deadlineStr)}</span>`,
   ].join("");

@@ -2542,6 +2542,7 @@ function useSupabaseData() {
       apt_plz: aptPlz || null,
       apt_ort: aptOrt || null,
       room_label: roomLabel || null,
+      objekt_typ: ((apts||[]).find(x => x.id === aptId)?.vermietungsart === "wohnung") ? "wohnung" : "wg",
       einzug_datum: einzugDatum || null,
       status: "sent",
       started_at: now.toISOString(),

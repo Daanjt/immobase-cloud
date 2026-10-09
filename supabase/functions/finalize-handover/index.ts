@@ -43,7 +43,7 @@ function base64ToBytes(b64: string): Uint8Array {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
 }
-const RAUM_LABEL: Record<string,string> = { zimmer:"Zimmer", kueche:"Küche", bad:"Bad", wc:"WC", wohnzimmer:"Wohnzimmer", flur:"Flur/Eingang", balkon:"Balkon", keller:"Keller", allgemein:"Allgemein", sonstiges:"Sonstiges" };
+const RAUM_LABEL: Record<string,string> = { zimmer:"Zimmer", schlafzimmer:"Schlafzimmer", balkonkeller:"Balkon/Keller", wohnbereich:"Wohnbereich/Flur", kueche:"Küche", bad:"Bad", wc:"WC", wohnzimmer:"Wohnzimmer", flur:"Flur/Eingang", balkon:"Balkon", keller:"Keller", allgemein:"Allgemein", sonstiges:"Sonstiges" };
 
 function buildSubmittedHtml(p: Record<string, any>): string {
   const CSS = `
@@ -124,7 +124,7 @@ function buildSubmittedHtml(p: Record<string, any>): string {
     </div></div>
     <div class="info-section"><div class="card-eyebrow">Mietobjekt</div><div class="info-grid">
       ${aptZeile?`<span class="lbl">Wohnung:</span><span>${esc(aptZeile)}</span>`:""}
-      ${p.room_label?`<span class="lbl">Zimmer:</span><span>${esc(p.room_label)}</span>`:""}
+      ${p.objekt_typ==="wohnung"?`<span class="lbl">Mietobjekt:</span><span>Ganze Wohnung</span>`:(p.room_label?`<span class="lbl">Zimmer:</span><span>${esc(p.room_label)}</span>`:"")}
       ${p.einzug_datum?`<span class="lbl">Einzug am:</span><span>${esc(formatDateDE(p.einzug_datum))}</span>`:""}
       <span class="lbl">Eingereicht am:</span><span>${esc(submitStr)}</span>
     </div></div>
