@@ -12337,7 +12337,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
-  const H = 72;
+  const H = 100;
   const kfmt = (v)=>{ const a=Math.abs(v); const sg=v<0?"-":""; if(a>=10000) return sg+Math.round(a/1000)+"k"; if(a>=1000) return sg+(a/1000).toFixed(1)+"k"; return Math.round(v).toString(); };
   return (
     <div>
@@ -12345,7 +12345,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
       <SectionHead title="Gesamt" sub="WGs und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Umsatz pro Monat</div>
-      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+64,boxSizing:"border-box",paddingTop:8,marginBottom:14,overflowX:"auto",overflowY:"hidden",paddingBottom:2}}>
+      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>m.umsatz)); return combinedMonths.map((m,i)=>{
           const h=Math.max(2,Math.round(m.umsatz/mx*H));
           return (
@@ -12358,7 +12358,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         }); })()}
       </div>
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
-      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+64,boxSizing:"border-box",paddingTop:8,marginBottom:14,overflowX:"auto",overflowY:"hidden",paddingBottom:2}}>
+      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
           const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
           return (
@@ -12416,7 +12416,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         ))}
       </div>
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
-      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+64,boxSizing:"border-box",paddingTop:8,marginBottom:22,overflowX:"auto",overflowY:"hidden",paddingBottom:2}}>
+      <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
         {months.map((m,i)=>{
           const h = Math.max(2, Math.round(Math.abs(m.marge)/maxAbs*H));
           const neg = m.marge<0;
@@ -12478,7 +12478,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             </div>
           </div>
           <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
-          <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+64,boxSizing:"border-box",paddingTop:8,marginBottom:22,overflowX:"auto",overflowY:"hidden",paddingBottom:2}}>
+          <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
             {abMonths.map((m,i)=>{
               const pct=Math.round(m.auslastung*100);
               const h=Math.max(2, Math.round(m.auslastung*H));
@@ -12492,7 +12492,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             })}
           </div>
           <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Umsatz pro Monat</div>
-          <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+64,boxSizing:"border-box",paddingTop:8,marginBottom:22,overflowX:"auto",overflowY:"hidden",paddingBottom:2}}>
+          <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
             {(()=>{ const mx=Math.max(1,...abMonths.map(m=>m.umsatz)); return abMonths.map((m,i)=>{
               const h=Math.max(2,Math.round(m.umsatz/mx*H));
               return (
@@ -12505,7 +12505,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             }); })()}
           </div>
           <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Marge pro Monat</div>
-          <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+64,boxSizing:"border-box",paddingTop:8,marginBottom:22,overflowX:"auto",overflowY:"hidden",paddingBottom:2}}>
+          <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
             {(()=>{ const mx=Math.max(1,...abMonths.map(m=>Math.abs(m.marge))); return abMonths.map((m,i)=>{
               const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
               return (
