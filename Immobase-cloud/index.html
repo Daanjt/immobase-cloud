@@ -5859,7 +5859,6 @@ Vertragsentwurf bereit · Wähle <strong>"Als PDF speichern"</strong> im Druck-D
   <span class="pl">Telefon:</span><span class="pv">${b.phone||"-"}</span>
   <span class="pl">Geburtsdatum:</span><span class="pv">${fmtDate(b.geburt)||"-"}</span>
   <span class="pl">Nationalität:</span><span class="pv">${b.nat||"-"}</span>
-  ${W?`<span class="pl">Anzahl Personen:</span><span class="pv">${pers}</span>`:""}
 </div>
 </div>
 ${MM?`
@@ -5879,7 +5878,7 @@ ${MM?`
 <div class="greeting">
 <p class="welcome">Guten Tag ${fullName}${MM?`<span class="mm-und"> und </span>${mmName}`:""},</p>
 <p class="welcome">Herzlich willkommen bei D&amp;T Homes!</p>
-<p>Nachfolgend findest du alle Details und Regelungen zur Miete. Der vorliegende Untermietvertrag wird zwischen der <strong>D&amp;T Partners GmbH</strong> als Hauptmieterin und dir als Untermieter*in abgeschlossen. Bitte nimm dir einen Moment Zeit, den Vertrag sorgfältig zu lesen, und unterzeichne ihn, wenn du mit den Bedingungen einverstanden bist.</p>
+<p>Nachfolgend findest du alle Details und Regelungen zur Miete. Der vorliegende Untermietvertrag wird zwischen der ${W?"D&amp;T Partners GmbH":"<strong>D&amp;T Partners GmbH</strong>"} als Hauptmieterin und dir als Untermieter*in abgeschlossen. Bitte nimm dir einen Moment Zeit, den Vertrag sorgfältig zu lesen, und unterzeichne ihn, wenn du mit den Bedingungen einverstanden bist.</p>
 </div>
 
 <!-- §1 MIETOBJEKT -->
@@ -5887,8 +5886,8 @@ ${MM?`
 <h2>1. Mietobjekt</h2>
 <p>Das Objekt befindet sich an der <strong>${adresseFull}</strong>.</p>
 ${W
-  ? `<p>Untervermietet wird die <strong>ganze Wohnung</strong>${(A.zimmer||A.flaeche)?` (${[A.zimmer?`${A.zimmer} Zimmer`:"",A.flaeche?`ca. ${A.flaeche} m²`:""].filter(Boolean).join(", ")})`:""}, <strong>unmöbliert</strong>, im Rahmen einer befristeten Zwischennutzung.</p>
-<p>Die Wohnung dient ausschliesslich Wohnzwecken und wird vom Untermieter mit insgesamt <strong>${persTxt}</strong> bewohnt.</p>${MM?`
+  ? `<p>Untervermietet wird die ganze Wohnung${(A.zimmer||A.flaeche)?` (${[A.zimmer?`${A.zimmer} Zimmer`:"",A.flaeche?`ca. ${A.flaeche} m²`:""].filter(Boolean).join(", ")})`:""}, unmöbliert, im Rahmen einer befristeten Zwischennutzung.</p>
+<p>Die Wohnung dient ausschliesslich Wohnzwecken und wird vom Untermieter mit insgesamt ${persTxt} bewohnt.</p>${MM?`
 <p><strong>Mitmieter*in:</strong> ${mmName} ist neben ${fullName} ebenfalls Vertragspartei. Beide haften solidarisch für sämtliche Verpflichtungen aus diesem Vertrag, insbesondere für den Mietzins, die Nebenkosten und allfällige Schäden. Eine Kündigung durch die Untermieterseite ist nur gültig, wenn sie von beiden unterzeichnet ist. Mitteilungen der Hauptmieterin an eine der beiden Personen gelten für beide.</p>`:""}`
   : `<p>Untervermietet wird <strong>Zimmer Nr. ${v.zimmerId}</strong>, inklusive Mitbenutzung der gemeinschaftlichen Räumlichkeiten.</p>`}
 </div>
