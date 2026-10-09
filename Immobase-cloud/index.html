@@ -5203,8 +5203,8 @@ function mitmieterFehlt(mm){
 function mitmieterZeile(mm){
   if (!mm || !mm.vorname) return null;
   const name = `${mm.vorname||""} ${mm.nachname||""}`.trim();
-  const det = [mm.email, mm.phone, mm.geburt ? fmtDateDE(mm.geburt) : "", mm.nat, mm.job, mm.einkommen ? `CHF ${mm.einkommen}` : ""].filter(Boolean).join(" · ");
-  return <span>{name}{mm.aktiv===false?<span style={{color:"#8a8174"}}> (nicht im Vertrag)</span>:<span style={{color:"#5a6e4a",fontWeight:600}}> · solidarisch</span>}{det?<span style={{display:"block",fontSize:11.5,color:"#8a8174"}}>{det}</span>:null}</span>;
+  const det = [mm.email, mm.phone, mm.geburt ? fmtDateDE(mm.geburt) : "", mm.nat, mm.job, mm.arbeitgeber, mm.einkommen ? `CHF ${mm.einkommen}` : ""].filter(Boolean).join(" · ");
+  return <span>{name}{mm.aktiv===false?<span style={{color:"#8a8174"}}> (zieht mit ein, nicht im Vertrag)</span>:<span style={{color:"#5a6e4a",fontWeight:600}}> · solidarisch</span>}{det?<span style={{display:"block",fontSize:11.5,color:"#8a8174"}}>{det}</span>:null}</span>;
 }
 function MitmieterEditor({ value, draft, onChange }){
   const aktiv = !!value;
