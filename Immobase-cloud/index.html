@@ -6353,7 +6353,9 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
 
 // ── Verlängerung / Nachtrag ──────────────────────────────────────────────────
 function buildNachtragHTML(person, nd, fullName, fmtDate){
-  const objekt = nd.zimmerId ? `Zimmer ${(nd.zimmerId||"").split("-")[1]||nd.zimmerId} an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : `${nd.adresse}, ${nd.plz} ${nd.ort}`;
+  const _ndW = istWohnungsVertrag(nd) || !!(nd.apt && nd.apt.vermietungsart === "wohnung");
+  const _ndMM = (_ndW && nd.mitmieter && String(nd.mitmieter.vorname||"").trim()) ? `${nd.mitmieter.vorname||""} ${nd.mitmieter.nachname||""}`.trim() : "";
+  const objekt = _ndW ? `ganze Wohnung an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : (nd.zimmerId ? `Zimmer ${(nd.zimmerId||"").split("-")[1]||nd.zimmerId} an der ${nd.adresse}, ${nd.plz} ${nd.ort}` : `${nd.adresse}, ${nd.plz} ${nd.ort}`);
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Nachtrag Untermietvertrag - ${fullName}</title>
 <style>
@@ -6386,7 +6388,7 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line
 <div class="print-banner">Vertragsentwurf bereit &middot; W&auml;hle <strong>"Als PDF speichern"</strong> im Druck-Dialog<button onclick="window.print()">&#128196; Drucken / PDF speichern</button><button onclick="window.close()" style="background:transparent;color:#fff;border:1px solid #fff">Schliessen</button></div>
 <div class="doc-header"><div class="left"><div class="label">Verl&auml;ngerung &middot; D&amp;T Homes</div><div class="doc-title">Nachtrag zum Untermietvertrag</div></div><div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div></div>
 <div class="section">
-<p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in) betreffend das Mietobjekt ${objekt}.</p>
+<p>Zwischen der <strong>D&amp;T Partners GmbH</strong> (Hauptmieterin) und <strong>${fullName}</strong> (Untermieter*in)${_ndMM?` sowie <strong>${_ndMM}</strong> (Mitmieter*in, solidarisch haftend)`:""} betreffend das Mietobjekt ${objekt}.</p>
 <p>Zwischen den Parteien besteht ein befristetes Untermietverh&auml;ltnis betreffend das genannte Mietobjekt. Mit diesem Nachtrag vereinbaren die Parteien Folgendes:</p>
 </div>
 <div class="section">
@@ -6421,6 +6423,15 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line
     <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
   </div>
 </div>
+${_ndMM?`<div class="signatures" style="margin-top:22pt">
+  <div class="sig-block">
+    <div class="role">Mitmieter*in</div>
+    <div class="name">${_ndMM}</div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+  </div>
+  <div class="sig-block" style="border-top:none"></div>
+</div>`:""}
 </body></html>`;
 }
 async function sendSingleDocForSigning(person, html, opts) {
@@ -7048,16 +7059,21 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     const apt = room ? apts.find(a=>a.id===room.aptId) : null;
     const adresse = apt ? `${apt.adresse}, ${apt.plz||""} ${apt.ort||""}`.trim() : "";
     const zimmerId = targetRoomId || "";
+    const istW = !!(apt && apt.vermietungsart === "wohnung");
+    // Ganze Wohnung: kein Zimmer nennen, sondern die Wohnung
+    const objektKurz = istW ? `Wohnung ${apt.id}` : zimmerId;
+    const objektSatz = istW ? "die ganze Wohnung" : `Zimmer ${zimmerId}`;
+    const objektDativ = istW ? "die ganze Wohnung" : `das Zimmer ${zimmerId}`;
     
     let subject, body;
     
     if (type === "vertrag") {
-      subject = `Untermietvertrag - ${adresse} (${zimmerId}) | D&T Homes`;
+      subject = `Untermietvertrag - ${adresse} (${objektKurz}) | D&T Homes`;
       body = `Liebe/r ${b.vorname || fullName}
 
 Vielen Dank für dein Interesse an unserer Wohnung an der ${adresse}.
 
-Im Anhang findest du den Untermietvertrag für Zimmer ${zimmerId}. Bitte gehe wie folgt vor:
+Im Anhang findest du den Untermietvertrag für ${objektSatz}. Bitte gehe wie folgt vor:
 
 1. Überprüfe alle Angaben im Vertrag sorgfältig
 2. Unterzeichne beide Exemplare
@@ -7077,10 +7093,10 @@ D&T Homes
 info@dthomes.ch
 www.dthomes.ch`;
     } else if (type === "anfangsmietzins") {
-      subject = `Anfangsmietzinsformular - ${adresse} (${zimmerId}) | D&T Homes`;
+      subject = `Anfangsmietzinsformular - ${adresse} (${objektKurz}) | D&T Homes`;
       body = `Liebe/r ${b.vorname || fullName}
 
-Im Anhang findest du das amtliche Anfangsmietzinsformular für das Zimmer ${zimmerId} an der ${adresse}.
+Im Anhang findest du das amtliche Anfangsmietzinsformular für ${objektDativ} an der ${adresse}.
 
 Dieses Formular ist gesetzlich vorgeschrieben (Art. 270 OR) und informiert dich über:
 - Den vorherigen Mietzins
@@ -7098,12 +7114,12 @@ D&T Homes
 info@dthomes.ch
 www.dthomes.ch`;
     } else if (type === "beides") {
-      subject = `Vertragsunterlagen - ${adresse} (${zimmerId}) | D&T Homes`;
+      subject = `Vertragsunterlagen - ${adresse} (${objektKurz}) | D&T Homes`;
       body = `Liebe/r ${b.vorname || fullName}
 
 Vielen Dank für dein Interesse an unserer Wohnung an der ${adresse}.
 
-Im Anhang findest du zwei wichtige Dokumente für das Zimmer ${zimmerId}:
+Im Anhang findest du zwei wichtige Dokumente für ${objektDativ}:
 
 1) UNTERMIETVERTRAG
    - Bitte überprüfen, unterzeichnen und ein Exemplar zurücksenden
@@ -9616,6 +9632,8 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       adresse: (data&&data.v.adresse)||"", plz:(data&&data.v.plz)||"", ort:(data&&data.v.ort)||"",
       zimmerId: (data&&data.v.zimmerId)||"",
       aptId: apt?apt.id:null, roomId: room?room.id:null,
+      vertragsart: (apt && apt.vermietungsart === "wohnung") ? "wohnung" : undefined,
+      mitmieter: (apt && apt.vermietungsart === "wohnung" && t.mitmieter && t.mitmieter.aktiv !== false && t.mitmieter.vorname) ? t.mitmieter : null,
       mietbeginn: t.einzug || "",
       einzug: "",
       mietende: (apt && apt.mietende) || "",

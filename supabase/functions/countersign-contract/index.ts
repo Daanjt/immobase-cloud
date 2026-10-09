@@ -108,10 +108,15 @@ function confirmationEmailToTenant(contract, downloadLinks) {
   const vornameNice = vorname ? (vorname.charAt(0).toUpperCase() + vorname.slice(1).toLowerCase()) : "";
   const nachname = contract.mieter_nachname || "";
   const fullName = `${vorname} ${nachname}`.trim();
-  const zimmerNr = (room.id || "").split("-")[1] || "";
+  const istWohnung = vertrag.vertragsart === "wohnung" || apt.vermietungsart === "wohnung";
+  const mmV = istWohnung && vertrag.mitmieter && String(vertrag.mitmieter.vorname || "").trim() ? vertrag.mitmieter : null;
+  const mmName = mmV ? `${mmV.vorname || ""} ${mmV.nachname || ""}`.trim() : "";
+  const persW = Math.max(1, +vertrag.personen || 1);
+  const zimmerNr = istWohnung ? "" : ((room.id || vertrag.zimmerId || "").split("-")[1] || "");
   const wohnungParts = [];
   if (apt.adresse) wohnungParts.push(apt.adresse);
   if (zimmerNr) wohnungParts.push(`Zimmer ${zimmerNr}`);
+  if (istWohnung) wohnungParts.push("ganze Wohnung");
   if (apt.plz || apt.ort) wohnungParts.push(`${apt.plz || ""} ${apt.ort || ""}`.trim());
   const wohnung = wohnungParts.join(", ");
   const monate = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -138,6 +143,18 @@ function confirmationEmailToTenant(contract, downloadLinks) {
   const ersteBelastungStr = computeErsteBelastung(vertrag.einzug);
   const total = vertrag.total || vertrag.bruttomiete || 0;
   const mietzinsStr = `CHF ${Number(total).toLocaleString("de-CH", {minimumFractionDigits: 2, maximumFractionDigits: 2})} / Monat (inkl. Strom + NK)`;
+  const chfW = (n) => `CHF ${Number(n || 0).toLocaleString("de-CH")}.-`;
+  const objektW = istWohnung ? ["Ganze Wohnung", apt.zimmer ? `${apt.zimmer} Zimmer` : "", apt.flaeche ? `${apt.flaeche} m\u00b2` : "", "unm\u00f6bliert"].filter(Boolean).join(" \u00b7 ") : "";
+  const endeW = istWohnung ? formatLongDate(vertrag.mietende || apt.mietende || "") : "";
+  const rowW = (l, v) => `<div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">${l}</div><div style="color:#1a1814;font-weight:600;">${v}</div></div>`;
+  const extraKonditionen = istWohnung ? [
+    rowW("Mietobjekt", objektW),
+    (vertrag.mietende || apt.mietende) ? rowW("Befristet bis", endeW) : "",
+    rowW("Personen", String(persW)),
+    mmV ? rowW("Mitmieter*in", `${mmName} (solidarisch)`) : "",
+  ].join("") : "";
+  const mietzinsDetailW = istWohnung ? rowW("Zusammensetzung", `Bruttomiete inkl. Nebenkosten ${chfW(vertrag.bruttomiete)} + Strom ${chfW(vertrag.strom)} (${persW} ${persW === 1 ? "Person" : "Personen"})`) : "";
+  const hallo = mmV ? `${vornameNice} und ${(mmV.vorname || "").charAt(0).toUpperCase() + (mmV.vorname || "").slice(1)}` : vornameNice;
   const referenz = `Miete ${apt.adresse || ""} & ${fullName}`;
   const vertragId = (contract.id || "").substring(0, 8);
   const linksHtml = downloadLinks.map(l => 
@@ -183,9 +200,9 @@ function confirmationEmailToTenant(contract, downloadLinks) {
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fefcf7;margin:0;padding:24px;color:#1a1814;">
 <div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e1d8c5;border-radius:10px;padding:36px 32px;">
   <div style="text-align:left;margin-bottom:24px;"><img src="https://mieter.dthomes.ch/dt-logo.png" alt="D&amp;T Homes" width="70" style="width:70px;height:auto;display:block;border:0;outline:none;"></div>
-  <p style="font-size:15px;font-weight:400;color:#4a4439;margin:0 0 16px;line-height:1.6;">Hallo ${vornameNice}!</p>
+  <p style="font-size:15px;font-weight:400;color:#4a4439;margin:0 0 16px;line-height:1.6;">Hallo ${hallo}!</p>
   <p style="font-size:15px;color:#4a4439;line-height:1.6;margin:0 0 20px;">
-    Dein Untermietvertrag ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!
+    ${istWohnung ? (mmV ? "Euer Untermietvertrag f&uuml;r die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!" : "Dein Untermietvertrag f&uuml;r die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!") : "Dein Untermietvertrag ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!"}
   </p>
   <div style="background:#e8eadb;border-radius:8px;padding:18px 20px;margin:24px 0;">
     <div style="font-size:10px;color:#5a6e4a;text-transform:uppercase;letter-spacing:.25em;margin-bottom:8px;font-weight:600;">&#10003; Vertrag erfolgreich unterzeichnet</div>
@@ -195,8 +212,10 @@ function confirmationEmailToTenant(contract, downloadLinks) {
   <div style="background:#f9f5ec;border-left:3px solid #b8843e;padding:16px 20px;margin:28px 0;border-radius:0 8px 8px 0;">
     <div style="font-size:10px;color:#b8843e;text-transform:uppercase;letter-spacing:.25em;font-weight:700;margin-bottom:12px;">&#128203; Deine Konditionen</div>
     <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">Wohnung</div><div style="color:#1a1814;font-weight:600;">${wohnung}</div></div>
+    ${extraKonditionen}
     <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">Einzug</div><div style="color:#1a1814;font-weight:600;">${einzugStr}</div></div>
     <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">Mietzins</div><div style="color:#1a1814;font-weight:600;">${mietzinsStr}</div></div>
+    ${mietzinsDetailW}
   </div>
   <div style="margin:32px 0;padding-top:24px;border-top:1px solid #e8e0cd;">
     <span style="display:inline-block;background:#1a1814;color:#fefcf7;width:28px;height:28px;line-height:28px;text-align:center;border-radius:50%;font-size:13px;font-weight:700;margin-right:10px;vertical-align:middle;">1</span>

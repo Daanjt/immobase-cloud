@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
 
     const mitmieterData = contract?.contract_data?.vertrag?.mitmieter;
     const _pdfList = (Array.isArray(contract.unsigned_pdfs) && contract.unsigned_pdfs.length) ? contract.unsigned_pdfs : [{ type: "umv" }];
-    const hatMitmieter = mode === "digital" && !!(mitmieterData && mitmieterData.vorname) && _pdfList.some((u) => u.type === "umv" || u.type === "untermietvertrag");
+    const hatMitmieter = mode === "digital" && !!(mitmieterData && mitmieterData.vorname) && _pdfList.some((u) => ["umv", "untermietvertrag", "verlaengerung", "nachtrag"].includes(u.type));
     if (hatMitmieter && (!mitmieter_signature_png || !String(mitmieter_signature_png).startsWith("data:image/png;base64,"))) {
       return jsonResponse({ error: "Signature of co-tenant missing" }, 400);
     }
@@ -439,12 +439,12 @@ Deno.serve(async (req) => {
         const dims = sigImage.scaleToFit(sigMaxW, sigMaxH);
         targetPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
         targetPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
-        if (isUmv && sig2Bytes && anchors && anchors.datum2 && anchors.sig2) {
+        if ((isUmv || isNachtrag) && sig2Bytes && anchors && anchors.datum2 && anchors.sig2) {
           const sig2Image = await pdfDoc.embedPng(sig2Bytes);
           const d2 = sig2Image.scaleToFit(sigMaxW, sigMaxH);
           targetPage.drawText(ortDatumStr, { x: anchors.datum2.x + 74, y: anchors.datum2.y, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
           targetPage.drawImage(sig2Image, { x: anchors.sig2.x + 74, y: anchors.sig2.y - 13, width: d2.width, height: d2.height });
-        } else if (isUmv && sig2Bytes) {
+        } else if ((isUmv || isNachtrag) && sig2Bytes) {
           console.error("Mitmieter-Anker nicht gefunden, Unterschrift nicht platziert");
         }
         sigPlaced = true;
