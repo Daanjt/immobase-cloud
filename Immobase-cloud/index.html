@@ -5966,7 +5966,7 @@ ${W
 <div class="miet-wrap avoid-break">
   <table class="miet-table">
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
-    <tr><td>${W?"Nebenkosten pauschal in CHF":"Nebenkosten in CHF"}</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
     <tr><td>${W?`Stromkosten pauschal (${pers} × CHF ${chf2(stromPP)}) in CHF`:"Stromkosten in CHF"}</td><td class="amt">${chf2(v.strom)}</td></tr>
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
@@ -5974,7 +5974,8 @@ ${W
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice und persönliche Betreuung bereits inbegriffen.</p>
 <p>Die Nebenkosten umfassen Heizung, ${W?"":"Internet, "}Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
 ${W
-  ? `<p>Die Nebenkosten werden pauschal mit CHF ${chf2(v.nebenkosten)} pro Monat für die ganze Wohnung erhoben, die Stromkosten pauschal mit CHF ${chf2(stromPP)} pro Person und Monat. Beide gelten mit der Pauschale als abgegolten. Eine Nachforderung oder Rückerstattung erfolgt vorbehältlich des nachfolgenden Absatzes nicht.</p>
+  ? `<p>Die Nebenkosten betragen CHF ${chf2(v.nebenkosten)} pro Monat für die ganze Wohnung. Sie entsprechen den Nebenkosten gemäss dem bisherigen Mietvertrag der Wohnung und werden in dieser Höhe übernommen.</p>
+<p>Die Stromkosten werden pauschal mit CHF ${chf2(stromPP)} pro Person und Monat erhoben und gelten mit der Pauschale als abgegolten. Eine Nachforderung oder Rückerstattung der Stromkosten erfolgt vorbehältlich der nachfolgenden Absätze nicht.</p>
 <p>Massgebend ist die vereinbarte Anzahl von ${persTxt}. Eine Änderung der Personenzahl ist dem Hauptmieter vorgängig schriftlich mitzuteilen; die Strompauschale wird ab dem Folgemonat entsprechend angepasst.</p>`
   : `<p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>`}
 <p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Hauptmieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet.</p>
@@ -9126,7 +9127,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             <div className="fg"><label className="fl">Nebenkosten (CHF/Mt.) · werden von der Bruttomiete abgezogen</label><input className="fi" type="number" min="0" value={form.nebenkosten_wohnung??""} onChange={F("nebenkosten_wohnung")} placeholder={`leer = frühere NK (CHF ${nkWohnung({frueherer_nk:form.frueherer_nk})})`}/></div>
             <div className="fg"><label className="fl">Strom (CHF/Mt.)</label><div className="fi" style={{background:"#f3efe6",color:"#5a5448"}}>CHF 25 pro Person (fix)</div></div>
           </div>
-          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Eine ganze Wohnung hat genau 1 Zimmer, an das der Mieter gekoppelt ist. Beim Speichern wird es bei Bedarf angelegt, überzählige freie Zimmer werden nach Rückfrage entfernt. Nebenkosten: CHF 100 pauschal pro Monat. Strom: CHF 25 pro Person und Monat.</div>
+          <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:6,fontStyle:"italic"}}>Eine ganze Wohnung hat genau 1 Zimmer, an das der Mieter gekoppelt ist. Beim Speichern wird es bei Bedarf angelegt, überzählige freie Zimmer werden nach Rückfrage entfernt. Nebenkosten: gemäss bisherigem Mietvertrag (früherer Mietzins), pro Wohnung anpassbar. Strom: CHF 25 pauschal pro Person und Monat.</div>
         </>)}
         </>)}
 
@@ -11247,7 +11248,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     if (!room && tenant.roomId) {
       room = rooms.find(r => r.id === tenant.roomId);
     }
-    // Ganze Wohnung (unmoebliert): Nebenkosten und Strom pauschal pro Person
+    // Ganze Wohnung (unmoebliert): Nebenkosten gemaess bisherigem Mietvertrag, Strom pauschal pro Person
     const _apt = room ? (apts||[]).find(a => a.id === room.aptId) : null;
     const _wohn = !!(_apt && _apt.vermietungsart === "wohnung");
     const _pers = +tenant.personen || 1;
