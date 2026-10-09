@@ -14028,6 +14028,7 @@ const PWV = (()=>{
     async unlockRk(meta,rk){ const raw=await open(await kek(normRk(rk),meta.rk_salt,this.RK_ITER),meta.rk_wrapped); return {dek:await importDek(raw),dekRaw:raw}; },
     async rewrapPw(dekRaw,master){ const pw_salt=b64(rnd(16)); return {pw_salt,pw_iter:this.ITER,pw_wrapped:await seal(await kek(master,pw_salt,this.ITER),dekRaw)}; },
     async rewrapRk(dekRaw){ const rk=newRecoveryKey(), rk_salt=b64(rnd(16)); return {rk, fields:{rk_salt,rk_wrapped:await seal(await kek(normRk(rk),rk_salt,this.RK_ITER),dekRaw)}}; },
+    b64, ub64,
     async encField(dek,txt){ if(txt==null||txt==="") return null; return seal(dek,enc.encode(String(txt))); },
     async decField(dek,s){ if(!s) return ""; try{ return dec.decode(await open(dek,s)); }catch(e){ return "⚠︎ nicht lesbar"; } },
   };
@@ -14046,6 +14047,9 @@ function PasswoerterPage(){
   const [showRk,setShowRk]=useState(null);
   const [q,setQ]=useState(""); const [shown,setShown]=useState({}); const [edit,setEdit]=useState(null);
   const [copied,setCopied]=useState("");
+  const [codeSent,setCodeSent]=useState(""); const [codeIn,setCodeIn]=useState("");
+  const vaultFn=async(body)=>{ const {data,error}=await supabase.functions.invoke("vault-recover",{body}); if(error){ let m=error.message; try{ const j=await error.context.json(); if(j&&j.error) m=j.error; }catch(_){} throw new Error(m); } if(data&&data.error) throw new Error(data.error); return data; };
+  const escrow=(raw)=>vaultFn({action:"escrow",dek:PWV.b64(raw)}).catch(e=>console.warn("Escrow fehlgeschlagen:",e));
   const ladeMeta=()=>supabase.from("passwort_tresor").select("*").eq("id",1).maybeSingle().then(({data})=>{ setMeta(data||null); if(!data) setMode("setup"); });
   const ladeRows=()=>supabase.from("passwoerter").select("*").order("name",{ascending:true}).then(({data})=>setRows(data||[]));
   useEffect(()=>{ ladeMeta(); ladeRows(); },[]);
@@ -14064,18 +14068,24 @@ function PasswoerterPage(){
   };
   const doSetup=async()=>{ setErr(""); if(!pwOk(mpw)) return setErr("Mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
     setBusy(true); try{ const v=await PWV.createVault(mpw); const {error}=await supabase.from("passwort_tresor").insert(v.meta); if(error) throw error;
-      await migratePlain(v.dek); setMeta(v.meta); setDek(v.dek); setDekRaw(v.dekRaw); setShowRk(v.rk); setMpw(""); setMpw2(""); ladeRows(); }
+      await migratePlain(v.dek); await escrow(v.dekRaw); setMeta(v.meta); setDek(v.dek); setDekRaw(v.dekRaw); setMpw(""); setMpw2(""); ladeRows(); }
     catch(e){ setErr("Fehler: "+(e.message||e)); } setBusy(false); };
-  const doUnlock=async()=>{ setErr(""); setBusy(true); try{ const r=await PWV.unlockPw(meta,mpw); setDek(r.dek); setDekRaw(r.dekRaw); setMpw(""); await migratePlain(r.dek); ladeRows(); }catch(e){ setErr("Master-Passwort falsch."); } setBusy(false); };
+  const doUnlock=async()=>{ setErr(""); setBusy(true); try{ const r=await PWV.unlockPw(meta,mpw); setDek(r.dek); setDekRaw(r.dekRaw); setMpw(""); await migratePlain(r.dek); escrow(r.dekRaw); ladeRows(); }catch(e){ setErr("Master-Passwort falsch."); } setBusy(false); };
   const doRecover=async()=>{ setErr(""); if(!pwOk(mpw)) return setErr("Neues Master-Passwort: mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
     setBusy(true); try{ const r=await PWV.unlockRk(meta,rkIn); const pwf=await PWV.rewrapPw(r.dekRaw,mpw); const rkf=await PWV.rewrapRk(r.dekRaw);
       const {error}=await supabase.from("passwort_tresor").update({...pwf,...rkf.fields,updated_at:new Date().toISOString()}).eq("id",1); if(error) throw error;
-      setMeta({...meta,...pwf,...rkf.fields}); setDek(r.dek); setDekRaw(r.dekRaw); setShowRk(rkf.rk); setMpw(""); setMpw2(""); setRkIn(""); }
+      setMeta({...meta,...pwf,...rkf.fields}); setDek(r.dek); setDekRaw(r.dekRaw); escrow(r.dekRaw); setShowRk(rkf.rk); setMpw(""); setMpw2(""); setRkIn(""); }
     catch(e){ setErr(e&&e.name==="OperationError"?"Wiederherstellungsschlüssel falsch.":"Fehler: "+(e.message||e)); } setBusy(false); };
+  const sendCode=async()=>{ setErr(""); setBusy(true); try{ const d=await vaultFn({action:"request"}); setCodeSent(d.email||"deine E-Mail"); }catch(e){ setErr(e.message); } setBusy(false); };
+  const doRecoverMail=async()=>{ setErr(""); if(!/^\d{6}$/.test(codeIn.trim())) return setErr("Bitte den 6-stelligen Code eingeben."); if(!pwOk(mpw)) return setErr("Neues Master-Passwort: mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
+    setBusy(true); try{ const d=await vaultFn({action:"verify",code:codeIn.trim()}); const raw=PWV.ub64(d.dek); const key=await crypto.subtle.importKey("raw",raw,{name:"AES-GCM"},true,["encrypt","decrypt"]);
+      const pwf=await PWV.rewrapPw(raw,mpw); const {error}=await supabase.from("passwort_tresor").update({...pwf,updated_at:new Date().toISOString()}).eq("id",1); if(error) throw error;
+      setMeta({...meta,...pwf}); setDek(key); setDekRaw(raw); setMpw(""); setMpw2(""); setCodeIn(""); setCodeSent(""); alert("Neues Master-Passwort gesetzt."); }
+    catch(e){ setErr(e.message||String(e)); } setBusy(false); };
   const doNewPw=async()=>{ setErr(""); if(!pwOk(mpw)) return setErr("Mindestens 10 Zeichen."); if(mpw!==mpw2) return setErr("Die Passwörter stimmen nicht überein.");
     setBusy(true); try{ const pwf=await PWV.rewrapPw(dekRaw,mpw); const {error}=await supabase.from("passwort_tresor").update({...pwf,updated_at:new Date().toISOString()}).eq("id",1); if(error) throw error; setMeta({...meta,...pwf}); setMpw(""); setMpw2(""); setMode("unlock"); alert("Master-Passwort geändert."); }
     catch(e){ setErr("Fehler: "+(e.message||e)); } setBusy(false); };
-  const doNewRk=async()=>{ if(!confirm("Neuen Wiederherstellungsschlüssel erstellen? Der alte ist danach ungültig.")) return; const rkf=await PWV.rewrapRk(dekRaw); const {error}=await supabase.from("passwort_tresor").update({...rkf.fields,updated_at:new Date().toISOString()}).eq("id",1); if(error) return alert(error.message); setMeta({...meta,...rkf.fields}); setShowRk(rkf.rk); };
+  const doNewRk=async()=>{ if(!confirm("Einen Wiederherstellungsschlüssel als zusätzliche Absicherung erstellen? Ein früher erstellter wird ungültig.")) return; const rkf=await PWV.rewrapRk(dekRaw); const {error}=await supabase.from("passwort_tresor").update({...rkf.fields,updated_at:new Date().toISOString()}).eq("id",1); if(error) return alert(error.message); setMeta({...meta,...rkf.fields}); setShowRk(rkf.rk); };
   const lock=()=>{ setDek(null); setDekRaw(null); setPlain({}); setShown({}); setMode("unlock"); };
   const copy=async(txt,key)=>{ try{ await navigator.clipboard.writeText(txt); setCopied(key); setTimeout(()=>setCopied(""),1500); }catch(e){ prompt("Kopieren:",txt); } };
   const save=async()=>{ const e=edit; if(!(e.name||"").trim()) return alert("Bitte einen Namen angeben.");
@@ -14094,7 +14104,7 @@ function PasswoerterPage(){
   if(showRk) return wrap(
     <div style={{...box,maxWidth:560,borderColor:"#c9a24a"}}>
       <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Dein Wiederherstellungsschlüssel</div>
-      <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,marginBottom:14}}>Damit könnt ihr ein neues Master-Passwort setzen, falls ihr es vergesst. Er wird <b>nur jetzt</b> angezeigt. Bewahrt ihn ausserhalb von ImmoBase auf, z. B. ausgedruckt im Büro und als Notiz auf beiden Handys.</div>
+      <div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,marginBottom:14}}>Zusätzliche Absicherung neben der E-Mail-Wiederherstellung, z. B. falls ihr keinen Zugriff auf eure E-Mail habt. Er wird <b>nur jetzt</b> angezeigt. Bewahrt ihn ausserhalb von ImmoBase auf, z. B. ausgedruckt im Büro und als Notiz auf beiden Handys.</div>
       <div style={{fontFamily:"monospace",fontSize:20,letterSpacing:".08em",background:"#faf6ec",border:"1px dashed #c9a24a",borderRadius:8,padding:"14px 16px",textAlign:"center",userSelect:"all"}}>{showRk}</div>
       <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
         <button className="btn btn-g btn-sm" onClick={()=>copy(showRk,"rk")}>{copied==="rk"?"Kopiert":"Kopieren"}</button>
@@ -14108,13 +14118,30 @@ function PasswoerterPage(){
     if(mode==="setup"||!meta) return wrap(
       <div style={box}>
         <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>Tresor einrichten</div>
-        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Wählt ein gemeinsames Master-Passwort (mindestens 10 Zeichen). Danach erhaltet ihr einen Wiederherstellungsschlüssel. Die {rows.length} importierten Einträge werden dabei verschlüsselt.</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Wählt ein gemeinsames Master-Passwort (mindestens 10 Zeichen). Falls ihr es vergesst, könnt ihr es per E-Mail-Code zurücksetzen. Die {rows.length} importierten Einträge werden dabei verschlüsselt.</div>
         <label className="fl">Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)} autoFocus/>
         <label className="fl" style={{marginTop:10}}>Wiederholen</label><input className="fi" type="password" value={mpw2} onChange={e=>setMpw2(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") doSetup(); }}/>
         {errEl}
         <button className="btn btn-p" style={{marginTop:14}} disabled={busy} onClick={doSetup}>{busy?"Verschlüsselt…":"Tresor einrichten"}</button>
       </div>);
     if(mode==="recover") return wrap(
+      <div style={box}>
+        <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>Master-Passwort zurücksetzen</div>
+        {!codeSent ? <>
+          <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Wir senden dir einen 6-stelligen Code an die E-Mail-Adresse, mit der du in ImmoBase angemeldet bist. Damit kannst du ein neues Master-Passwort setzen.</div>
+          {errEl}
+          <div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-p" disabled={busy} onClick={sendCode}>{busy?"Sendet…":"Code per E-Mail senden"}</button><button className="btn btn-g" onClick={()=>{setMode("unlock");setErr("");}}>Abbrechen</button></div>
+        </> : <>
+          <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Code gesendet an <b>{codeSent}</b>. Er ist 15 Minuten gültig.</div>
+          <label className="fl">Code aus der E-Mail</label><input className="fi" inputMode="numeric" style={{fontFamily:"monospace",letterSpacing:".3em",fontSize:16}} maxLength={6} value={codeIn} onChange={e=>setCodeIn(e.target.value.replace(/\D/g,""))} autoFocus/>
+          <label className="fl" style={{marginTop:10}}>Neues Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)}/>
+          <label className="fl" style={{marginTop:10}}>Wiederholen</label><input className="fi" type="password" value={mpw2} onChange={e=>setMpw2(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") doRecoverMail(); }}/>
+          {errEl}
+          <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}><button className="btn btn-p" disabled={busy} onClick={doRecoverMail}>{busy?"Prüft…":"Speichern"}</button><button className="btn btn-g" onClick={()=>{setMode("unlock");setErr("");setCodeSent("");}}>Abbrechen</button><div style={{flex:1}}/><a href="#" style={{fontSize:12,color:"var(--muted)",whiteSpace:"nowrap"}} onClick={e=>{e.preventDefault();sendCode();}}>Neuen Code senden</a></div>
+        </>}
+        <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid var(--line)"}}><a href="#" style={{fontSize:12,color:"var(--muted)"}} onClick={e=>{e.preventDefault();setMode("recoverkey");setErr("");}}>Stattdessen Wiederherstellungsschlüssel verwenden</a></div>
+      </div>);
+    if(mode==="recoverkey") return wrap(
       <div style={box}>
         <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>Master-Passwort zurücksetzen</div>
         <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.6,marginBottom:14}}>Gib den Wiederherstellungsschlüssel ein und wähle ein neues Master-Passwort. Danach erhältst du einen neuen Wiederherstellungsschlüssel.</div>
@@ -14129,7 +14156,7 @@ function PasswoerterPage(){
         <div style={{fontWeight:600,fontSize:15,marginBottom:12}}>🔒 Tresor gesperrt</div>
         <label className="fl">Master-Passwort</label><input className="fi" type="password" value={mpw} onChange={e=>setMpw(e.target.value)} autoFocus onKeyDown={e=>{ if(e.key==="Enter") doUnlock(); }}/>
         {errEl}
-        <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}><button className="btn btn-p" disabled={busy} onClick={doUnlock}>{busy?"Entsperrt…":"Entsperren"}</button><div style={{flex:1}}/><a href="#" style={{fontSize:12,color:"var(--muted)"}} onClick={e=>{e.preventDefault();setMode("recover");setErr("");setMpw("");}}>Master-Passwort vergessen?</a></div>
+        <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}><button className="btn btn-p" disabled={busy} onClick={doUnlock}>{busy?"Entsperrt…":"Entsperren"}</button><div style={{flex:1}}/><a href="#" style={{fontSize:12,color:"var(--muted)"}} onClick={e=>{e.preventDefault();setMode("recover");setErr("");setMpw("");setCodeSent("");}}>Master-Passwort vergessen?</a></div>
       </div>);
   }
 
@@ -14151,7 +14178,7 @@ function PasswoerterPage(){
       <button className="btn btn-p btn-sm" onClick={()=>setEdit({name:"",benutzer:"",passwort:"",notiz:""})}>+ Neuer Eintrag</button>
       <div style={{flex:1}}/>
       <button className="btn btn-g btn-sm" onClick={()=>{setMode("newpw");setErr("");}}>Master-Passwort ändern</button>
-      <button className="btn btn-g btn-sm" onClick={doNewRk}>Neuer Wiederherstellungsschlüssel</button>
+      <button className="btn btn-g btn-sm" onClick={doNewRk}>Wiederherstellungsschlüssel (optional)</button>
       <button className="btn btn-g btn-sm" onClick={lock}>🔒 Sperren</button>
     </div>
     {edit && <div className="card" style={{padding:20}}>
