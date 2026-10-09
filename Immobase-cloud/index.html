@@ -13933,7 +13933,7 @@ function AuslagenPage(){
     const b=parseFloat(String(f.betrag).replace(/'/g,"").replace(",","."));
     if(!(b>0)){ alert("Bitte einen gültigen Betrag eingeben."); return; }
     setSaving(true);
-    const {error}=await supabase.from("partner_auslagen").insert({datum:heute(),person:f.person,betrag:Math.round(b*100)/100,kategorie:f.kategorie||null,beschreibung:(f.beschreibung||"").trim()||null});
+    const {error}=await supabase.from("partner_auslagen").insert({datum:heute(),person:f.person,betrag:Math.round(b*100)/100,kategorie:f.kategorie||null});
     setSaving(false);
     if(error){ alert("Speichern fehlgeschlagen: "+error.message); return; }
     setF(p=>({...p,betrag:"",beschreibung:""})); lade();
@@ -13963,12 +13963,11 @@ function AuslagenPage(){
         </div>
       </div>
       <div className="card" style={{padding:20}}>
-        <div style={{display:"grid",gridTemplateColumns:"150px 130px 160px 1fr auto",gap:10,alignItems:"end"}} className="auslagen-form">
+        <div style={{display:"grid",gridTemplateColumns:"150px 160px 200px auto",gap:10,alignItems:"end",justifyContent:"start"}} className="auslagen-form">
           <div><label className="fl">Wer</label>
             <div style={{display:"flex",gap:6}}>{PERS.map(p=><button key={p} type="button" className={`btn btn-sm ${f.person===p?"btn-p":"btn-g"}`} onClick={()=>setF({...f,person:p})}>{p}</button>)}</div></div>
           <div><label className="fl">Betrag (CHF)</label><input className="fi" inputMode="decimal" placeholder="0.00" value={f.betrag} onChange={e=>setF({...f,betrag:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") add(); }}/></div>
           <div><label className="fl">Kategorie</label><select className="fi" value={f.kategorie} onChange={e=>setF({...f,kategorie:e.target.value})}>{KATS.map(k=><option key={k}>{k}</option>)}</select></div>
-          <div><label className="fl">Wofür</label><input className="fi" placeholder="z. B. Essen mit Bilaya, Zug nach Bern" value={f.beschreibung} onChange={e=>setF({...f,beschreibung:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") add(); }}/></div>
           <div><button className="btn btn-p" disabled={saving} onClick={add}>{saving?"Speichern…":"Hinzufügen"}</button></div>
         </div>
       </div>
@@ -13981,13 +13980,12 @@ function AuslagenPage(){
          shown.length===0 ? <div style={{padding:20,color:"var(--muted)",fontSize:13}}>Keine Ausgaben in diesem Zeitraum.</div> :
          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{textAlign:"left",color:"var(--muted)",fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>
-            <th style={{padding:"12px 16px"}}>Wer</th><th style={{padding:"12px 8px",textAlign:"right"}}>Betrag</th><th style={{padding:"12px 8px 12px 24px"}}>Kategorie</th><th style={{padding:"12px 8px"}}>Wofür</th><th></th></tr></thead>
+            <th style={{padding:"12px 16px"}}>Wer</th><th style={{padding:"12px 8px",textAlign:"right"}}>Betrag</th><th style={{padding:"12px 8px 12px 24px"}}>Kategorie</th><th></th></tr></thead>
           <tbody>{shown.map(r=>(
             <tr key={r.id} style={{borderTop:"1px solid var(--line)"}}>
               <td style={{padding:"10px 16px"}}><span style={{background:r.person==="Daan"?"#e8efde":"#f2ecdb",color:r.person==="Daan"?"#3a5230":"#7c6a4e",fontSize:11,padding:"2px 9px",borderRadius:8,fontWeight:600}}>{r.person}</span></td>
               <td style={{padding:"10px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:600}}>{fmt(r.betrag)}</td>
               <td style={{padding:"10px 8px 10px 24px",whiteSpace:"nowrap"}}>{r.kategorie||"–"}</td>
-              <td style={{padding:"10px 8px",color:"var(--muted)"}}>{r.beschreibung||"–"}</td>
               <td style={{padding:"10px 16px",textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>del(r)} title="Löschen">✕</button></td>
             </tr>))}</tbody>
          </table>}
