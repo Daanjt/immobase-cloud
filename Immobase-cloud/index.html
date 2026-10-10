@@ -7347,7 +7347,7 @@ www.dthomes.ch`;
     });
     if (apt && apt.vermietungsart === "wohnung") {
       const _mm = (b.mitmieter && typeof b.mitmieter === "object") ? b.mitmieter : null;
-      setVertragData(p => ({ ...wohnungVertragswerte({ ...p, kautionMonate: 3, aufschlag: 0, fruehererMietzins: "" }, apt, room, b.personen || 1),
+      setVertragData(p => ({ ...wohnungVertragswerte({ ...p, fruehererMietzins: "" }, apt, room, b.personen || 1),
         mitmieter: (_mm && _mm.aktiv !== false && _mm.vorname) ? { ..._mm, aktiv: true } : null,
         _mmDraft: _mm || {} }));
     }
@@ -9557,7 +9557,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       fruehererMietzins: (room && room.tenantId && room.tenantId !== t.id) ? (bruttomiete + strom) : "",
     };
     if (apt && apt.vermietungsart === "wohnung") {
-      const vw = wohnungVertragswerte({ ...v, aufschlag: 0, kautionMonate: 3 }, apt, room, t.personen || 1);
+      const vw = wohnungVertragswerte({ ...v }, apt, room, t.personen || 1);
       const _tm = (t.mitmieter && t.mitmieter.aktiv !== false && t.mitmieter.vorname) ? { ...t.mitmieter, aktiv: true } : null;
       return { b: { ...b, personen: vw.personen, moebliert: "nein" }, v: { ...vw, mitmieter: _tm, _mmDraft: t.mitmieter || {} } };
     }
