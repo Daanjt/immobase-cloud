@@ -36,6 +36,17 @@ function parse(html: string) {
   return { inseratId, inseratUrl, email: email.toLowerCase(), name, phone, nachricht };
 }
 
+// Schweizer Nummern einheitlich: +41 78 778 16 66
+function telFormat(t: string): string {
+  const d = (t || "").replace(/[^\d+]/g, "");
+  let n = "";
+  if (/^\+41\d{9}$/.test(d)) n = d.slice(3);
+  else if (/^0041\d{9}$/.test(d)) n = d.slice(4);
+  else if (/^0\d{9}$/.test(d)) n = d.slice(1);
+  if (!n) return (t || "").trim();
+  return `+41 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5, 7)} ${n.slice(7, 9)}`;
+}
+
 async function aiAuswertung(p: { name: string; phone: string; nachricht: string }) {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return null;
@@ -152,7 +163,7 @@ Deno.serve(async (req) => {
       id: crypto.randomUUID(),
       vorname, nachname,
       email: p.email,
-      phone: (ai?.telefon || p.phone || "").trim(),
+      phone: telFormat(ai?.telefon || p.phone || ""),
       quelle: "wgzimmer",
       status: "Neu",
       zimmer_wunsch: zimmer,
