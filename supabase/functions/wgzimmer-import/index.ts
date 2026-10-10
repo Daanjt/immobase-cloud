@@ -46,7 +46,7 @@ Nachricht:
 """${p.nachricht.slice(0, 4000)}"""
 
 Antworte NUR mit einem JSON-Objekt:
-{"vorname": "...", "nachname": "... oder leer", "sprache": "de" oder "en" (de nur wenn die Nachricht auf Deutsch ist, sonst en), "telefon": "internationales Format mit Leerzeichen, z.B. +41 77 966 40 73; Schweizer Nummern ohne Vorwahl mit +41; leer wenn keine", "einzug": "YYYY-MM-DD wenn ein konkretes Einzugsdatum genannt ist, sonst leer", "notiz": "1 bis 3 kurze Saetze auf Deutsch: wer die Person ist (Alter, Herkunft, Studium/Beruf), Einzug/Dauer, Wuensche wie Besichtigung. Keine Gedankenstriche, keine Anrede."}`;
+{"interessent": true wenn die Person selbst ein Zimmer sucht, false bei Werbung, Plattform-/Geschaeftsanfragen oder Spam, "vorname": "...", "nachname": "... oder leer", "sprache": "de" oder "en" (de nur wenn die Nachricht auf Deutsch ist, sonst en), "telefon": "internationales Format mit Leerzeichen, z.B. +41 77 966 40 73 (Schweizer Mobilnummern immer +41 7X XXX XX XX); Schweizer Nummern ohne Vorwahl mit +41; leer wenn keine", "einzug": "YYYY-MM-DD wenn ein konkretes Einzugsdatum genannt ist, sonst leer", "notiz": "1 bis 3 kurze Saetze auf Deutsch: wer die Person ist (Alter, Herkunft, Studium/Beruf), Einzug/Dauer, Wuensche wie Besichtigung. Keine Gedankenstriche, keine Anrede."}`;
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -130,7 +130,18 @@ Deno.serve(async (req) => {
       continue;
     }
 
+    // Gleiche Person kurz zuvor mit anderer (z.B. vertippter) Adresse fuer dasselbe Inserat?
+    if (p.name) {
+      const seit = new Date(new Date(m.receivedDateTime).getTime() - 3 * 86400000).toISOString();
+      const bis = new Date(new Date(m.receivedDateTime).getTime() + 3 * 86400000).toISOString();
+      const vn = p.name.split(/\s+/)[0];
+      const { data: gleich } = await sb.from("applicants").select("id").eq("quelle", "wgzimmer").ilike("vorname", vn)
+        .gte("created_at", seit).lte("created_at", bis).eq("zimmer_wunsch", zimmer ?? "").limit(1);
+      if (gleich && gleich.length) { await log("duplikat (gleicher Name)", gleich[0].id); continue; }
+    }
+
     const ai = await aiAuswertung(p);
+    if (ai && ai.interessent === false) { await log("kein Interessent (Werbung/Anfrage)"); continue; }
     const teile = p.name.split(/\s+/).filter(Boolean);
     const vorname = (ai?.vorname || teile[0] || p.name || "").trim();
     const nachname = (ai?.nachname ?? teile.slice(1).join(" ")).trim();
