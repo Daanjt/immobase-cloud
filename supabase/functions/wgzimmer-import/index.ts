@@ -123,7 +123,9 @@ Deno.serve(async (req) => {
       const a = vorh[0];
       const datum = new Date(m.receivedDateTime).toLocaleDateString("de-CH", { timeZone: "Europe/Zurich" });
       const zusatz = `Weitere wgzimmer-Anfrage am ${datum} (${bez}).`;
-      if (!dryRun && !(a.notiz || "").includes(zusatz)) {
+      // Nur vermerken, wenn die Anfrage ein anderes Inserat betrifft als der bestehende Eintrag
+      const anderesInserat = (zimmer || "") !== (a.zimmer_wunsch || "") && !(a.notiz || "").includes(bez);
+      if (!dryRun && anderesInserat) {
         await sb.from("applicants").update({ notiz: [a.notiz, zusatz].filter(Boolean).join("\n") }).eq("id", a.id);
       }
       await log("duplikat", a.id);
@@ -159,6 +161,7 @@ Deno.serve(async (req) => {
       bemerkung: p.nachricht || null,
       created_at: m.receivedDateTime,
       owner: null,
+      gender: "k.A.",
     };
     if (ai?.einzug && /^\d{4}-\d{2}-\d{2}$/.test(ai.einzug)) row.einzug = ai.einzug;
     if (dryRun) { result.push({ dryRun: true, row }); continue; }
