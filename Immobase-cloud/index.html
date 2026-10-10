@@ -3890,8 +3890,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
     if(!showStartModal || !apt || !apt.id){ return; }
     (async()=>{
       const {data:a} = await supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id",apt.id).single();
-      const {data:ks} = await supabase.from("schluessel").select("typ").eq("apt_id",apt.id);
-      const byTyp={}; (ks||[]).forEach(k=>{ byTyp[k.typ]=(byTyp[k.typ]||0)+1; });
+      const byTyp={};
       setRefKeyInfo({ erhNormal:a?a.schluessel_anzahl:null, erhExtra:a?a.extra_schluessel:null, byTyp });
     })();
   },[showStartModal, apt]);
@@ -4184,8 +4183,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
     if(!startFor||!startFor.apt||!startFor.apt.id){ setRefKeyInfo(null); return; }
     (async()=>{
       const {data:a} = await supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id",startFor.apt.id).single();
-      const {data:ks} = await supabase.from("schluessel").select("typ").eq("apt_id",startFor.apt.id);
-      const byTyp={}; (ks||[]).forEach(k=>{ byTyp[k.typ]=(byTyp[k.typ]||0)+1; });
+      const byTyp={};
       setRefKeyInfo({ erhNormal:a?a.schluessel_anzahl:null, erhExtra:a?a.extra_schluessel:null, byTyp });
     })();
   },[startFor]);
@@ -8399,140 +8397,39 @@ www.dthomes.ch`;
 }
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
-function SchluesselRegister({apts, rooms, tenants}) {
-  const [keys, setKeys] = useState([]);
-  const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState("alle");
-  const [loading, setLoading] = useState(true);
-  useEffect(()=>{ (async()=>{ setLoading(true); const {data}=await supabase.from("schluessel").select("*").order("apt_id"); setKeys(data||[]); setLoading(false); })(); },[]);
-  async function patchKey(id, patch){ setKeys(p=>p.map(k=>k.id===id?{...k,...patch}:k)); await supabase.from("schluessel").update({...patch, updated_at:new Date().toISOString()}).eq("id", id); }
-  async function delKey(id){ if(!confirm("Diesen Schlüssel wirklich löschen?")) return; setKeys(p=>p.filter(k=>k.id!==id)); await supabase.from("schluessel").delete().eq("id", id); }
-  const aptById = (id) => (apts||[]).find(a=>a.id===id);
-  const tenantById = (id) => (tenants||[]).find(t=>t.id===id);
-  const aptTenants = (aptId) => (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===aptId) || (rooms||[]).some(r=>r.aptId===aptId && (r.tenantId===t.id || r.id===t.roomId))));
-  const ql = q.trim().toLowerCase();
-  const filtered = keys.filter(k=>{
-    if(statusFilter!=="alle" && (k.status||"im_buero")!==statusFilter) return false;
-    if(!ql) return true;
-    const a=aptById(k.apt_id); const t=tenantById(k.tenant_id);
-    return [k.nummer,k.typ,a&&a.adresse,a&&a.id,t&&t.vorname,t&&t.nachname].filter(Boolean).join(" ").toLowerCase().includes(ql);
-  });
-  return (
-    <div style={{maxWidth:1000,margin:"0 auto"}}>
-      <div className="pt">🔑 Schlüsselregister</div>
-      <div style={{fontSize:12,color:"#8a8174",marginBottom:16}}>{keys.length} Schlüssel über {new Set(keys.map(k=>k.apt_id)).size} Wohnungen · {keys.filter(k=>k.tenant_id).length} ausgegeben · {keys.filter(k=>k.status==="verloren").length} verloren</div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-        <input className="fi" style={{flex:"1 1 220px",margin:0}} placeholder="Suche: Nummer, Wohnung, Mieter, Typ …" value={q} onChange={e=>setQ(e.target.value)}/>
-        <select className="fi" style={{flex:"0 0 160px",margin:0}} value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
-          <option value="alle">Alle Status</option>
-          <option value="im_buero">Im Büro</option>
-          <option value="ausgegeben">Ausgegeben</option>
-          <option value="verloren">Verloren</option>
-        </select>
-      </div>
-      {loading ? <div className="empty">Lädt …</div> : filtered.length===0 ? <div className="empty">Keine Schlüssel gefunden. Schlüssel erfasst du in der jeweiligen Wohnung unter dem Tab Schlüssel.</div> : (
-        <table><thead><tr><th>Wohnung</th><th>Nummer</th><th>Typ</th><th>Zugewiesen an</th><th>Status</th><th></th></tr></thead><tbody>
-        {filtered.map(k=>{ const a=aptById(k.apt_id); return (
-          <tr key={k.id} style={{borderBottom:"1px solid #f0ebe1", background:k.status==="verloren"?"#fbeae6":"transparent"}}>
-            <td style={{fontWeight:600}}>{a?(a.adresse||a.id):"-"}</td>
-            <td data-label="Nummer" style={{fontWeight:600}}>{k.nummer||"-"}</td>
-            <td data-label="Typ">{k.typ}</td>
-            <td data-label="Zugewiesen">
-              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.tenant_id||""} onChange={e=>{const tid=e.target.value||null; patchKey(k.id,{tenant_id:tid,status:tid?"ausgegeben":"im_buero"});}}>
-                <option value="">Büro / nicht ausgegeben</option>
-                {aptTenants(k.apt_id).map(t=><option key={t.id} value={t.id}>{t.vorname} {t.nachname}</option>)}
-              </select>
-            </td>
-            <td data-label="Status">
-              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.status||"im_buero"} onChange={e=>patchKey(k.id,{status:e.target.value})}>
-                <option value="im_buero">Im Büro</option>
-                <option value="ausgegeben">Ausgegeben</option>
-                <option value="verloren">Verloren</option>
-              </select>
-            </td>
-            <td style={{textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>delKey(k.id)}>Löschen</button></td>
-          </tr>); })}
-        </tbody></table>
-      )}
-    </div>
-  );
-}
 
 function SchluesselManager({apt, rooms, tenants, updateApt}) {
-  const [keys, setKeys] = useState([]);
-  const [neu, setNeu] = useState({nummer:"", typ:"Wohnungstür"});
-  const [busy, setBusy] = useState(false);
   const [erhNormal, setErhNormal] = useState("");
   const [erhExtra, setErhExtra] = useState("");
   useEffect(()=>{
-    supabase.from("schluessel").select("*").eq("apt_id", apt.id).order("created_at").then(({data})=>setKeys(data||[]));
-    supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel!=null?String(data.extra_schluessel):""); } });
+    supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel||""); } });
   },[apt.id]);
-  async function saveErhalten(n, e){ let error=null; try{ if(updateApt){ await updateApt(apt.id,{schluesselAnzahl: n===""?null:+n, extraSchluessel: e===""?null:e}); return; } else { ({error}=await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id)); } }catch(x){ error=x; } toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok"); }
-  const aptTenants = (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===apt.id) || (rooms||[]).some(r=>r.aptId===apt.id && (r.tenantId===t.id || r.id===t.roomId))));
-  const TYPEN = ["Wohnungstür","Zimmertür","Hauseingang","Briefkasten","Keller","Waschküche","Extra","Sonstiges"];
-  async function addKey(){
-    if(!neu.nummer.trim()){ alert("Bitte eine Schlüsselnummer eingeben."); return; }
-    setBusy(true);
-    const id = "SCH-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
-    const row = {id, apt_id:apt.id, nummer:neu.nummer.trim(), typ:neu.typ, tenant_id:null, status:"im_buero", bemerkung:""};
-    const {error} = await supabase.from("schluessel").insert(row);
-    if(!error){ setKeys(p=>[...p,row]); setNeu({nummer:"", typ:neu.typ}); }
-    else toast("Speichern fehlgeschlagen", "error");
-    setBusy(false);
-  }
-  async function patchKey(id, patch){
-    setKeys(p=>p.map(k=>k.id===id?{...k,...patch}:k));
-    await supabase.from("schluessel").update({...patch, updated_at:new Date().toISOString()}).eq("id", id);
-  }
-  async function delKey(id){
-    if(!confirm("Diesen Schlüssel wirklich löschen?")) return;
-    setKeys(p=>p.filter(k=>k.id!==id));
-    await supabase.from("schluessel").delete().eq("id", id);
-  }
+  async function saveErhalten(n, e){ let error=null; try{ if(updateApt){ await updateApt(apt.id,{schluesselAnzahl: n===""?null:+n, extraSchluessel: e===""?null:e}); return; } ({error}=await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id)); }catch(x){ error=x; } toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok"); }
+  const aptRoomIds = (rooms||[]).filter(r=>r.aptId===apt.id).map(r=>r.id);
+  const mieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv" && (t.aptId===apt.id || aptRoomIds.includes(t.roomId))).sort((a,b)=>String(a.roomId||"").localeCompare(String(b.roomId||""),undefined,{numeric:true}));
+  const nrVon = (t)=>((t.schluesselNr||"").toString().trim() || (t.schluesselAnzahl||"").toString().trim());
+  const td={padding:"8px 10px",borderTop:"1px solid #efe8da",fontSize:12.5,verticalAlign:"top"};
   return (
     <div>
-      <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end",marginBottom:14,background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:8,padding:"12px 14px"}}>
+      <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end",marginBottom:18,background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:8,padding:"12px 14px"}}>
         <div style={{fontSize:12,fontWeight:600,color:"#3a5230",flexBasis:"100%",marginBottom:2}}>Erhaltene Schlüssel (von Verwaltung/Eigentümer)</div>
-        <div style={{flex:"0 0 130px"}}><label className="fl">Normale</label><input className="fi" type="number" min="0" value={erhNormal} onChange={e=>setErhNormal(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 3"/></div>
-        <div style={{flex:"0 0 130px"}}><label className="fl">Extra</label><input className="fi" type="text" value={erhExtra} onChange={e=>setErhExtra(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 2"/></div>
-        <div style={{fontSize:11,color:"#8a8174",flex:"1 1 200px"}}>Im Register erfasst: {keys.length} · davon ausgegeben: {keys.filter(k=>k.tenant_id).length}</div>
+        <div style={{flex:"0 0 130px"}}><label className="fl">Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={erhNormal} onChange={e=>setErhNormal(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 3"/></div>
+        <div style={{flex:"1 1 220px"}}><label className="fl">Extra-Schlüssel</label><input className="fi" type="text" value={erhExtra} onChange={e=>setErhExtra(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 2× Briefkasten, 1× Keller"/></div>
       </div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",marginBottom:16,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 14px"}}>
-        <div style={{flex:"1 1 150px"}}>
-          <label className="fl">Schlüsselnummer</label>
-          <input className="fi" value={neu.nummer} onChange={e=>setNeu({...neu, nummer:e.target.value})} placeholder="z.B. 12345 oder A-01"/>
-        </div>
-        <div style={{flex:"1 1 150px"}}>
-          <label className="fl">Typ</label>
-          <select className="fi" value={neu.typ} onChange={e=>setNeu({...neu, typ:e.target.value})}>{TYPEN.map(t=><option key={t} value={t}>{t}</option>)}</select>
-        </div>
-        <button className="btn btn-p btn-sm" disabled={busy} onClick={addKey} style={{height:38}}>+ Schlüssel</button>
-      </div>
-      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>{keys.length} Schlüssel erfasst · {keys.filter(k=>k.tenant_id).length} ausgegeben · {keys.filter(k=>!k.tenant_id && k.status!=="verloren").length} im Büro · {keys.filter(k=>k.status==="verloren").length} verloren</div>
-      {keys.length===0 ? <div className="empty">Noch keine Schlüssel erfasst. Füge oben welche hinzu.</div> : (
-        <table><thead><tr><th>Nummer</th><th>Typ</th><th>Zugewiesen an</th><th>Status</th><th></th></tr></thead><tbody>
-        {keys.map(k=>(
-          <tr key={k.id} style={{borderBottom:"1px solid #f0ebe1", background: k.status==="verloren"?"#fbeae6":"transparent"}}>
-            <td style={{fontWeight:600}}>{k.nummer||"-"}</td>
-            <td data-label="Typ">{k.typ}</td>
-            <td data-label="Zugewiesen">
-              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.tenant_id||""} onChange={e=>{const tid=e.target.value||null; patchKey(k.id, {tenant_id:tid, status: tid ? "ausgegeben" : "im_buero"});}}>
-                <option value="">Büro / nicht ausgegeben</option>
-                {aptTenants.map(t=><option key={t.id} value={t.id}>{t.vorname} {t.nachname}</option>)}
-              </select>
-            </td>
-            <td data-label="Status">
-              <select className="fi" style={{margin:0,fontSize:12,padding:"5px 8px"}} value={k.status||"im_buero"} onChange={e=>patchKey(k.id, {status:e.target.value})}>
-                <option value="im_buero">Im Büro</option>
-                <option value="ausgegeben">Ausgegeben</option>
-                <option value="verloren">Verloren</option>
-              </select>
-            </td>
-            <td style={{textAlign:"right"}}><button className="btn btn-g btn-sm" onClick={()=>delKey(k.id)}>Löschen</button></td>
-          </tr>
-        ))}
-        </tbody></table>
+      <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4}}>Schlüssel bei Mietern</div>
+      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → Bearbeiten). {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
+      {mieter.length===0 ? <div className="empty">Keine aktiven Mieter in dieser Wohnung.</div> : (
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th><th style={{padding:"6px 10px"}}>Übergeben</th></tr></thead>
+          <tbody>{mieter.map(t=>(
+            <tr key={t.id}>
+              <td style={{...td,fontWeight:600}}>{t.vorname} {t.nachname}</td>
+              <td style={td}>{t.roomId||"-"}</td>
+              <td style={{...td,fontFamily:"monospace"}}>{nrVon(t)||<span style={{color:"#a4442e",fontFamily:"inherit"}}>fehlt</span>}</td>
+              <td style={td}>{(t.extraSchluessel||"").trim()||"-"}</td>
+              <td style={td}>{t.schluesselUebergeben?"✓":"–"}</td>
+            </tr>))}</tbody>
+        </table></div>
       )}
     </div>
   );
