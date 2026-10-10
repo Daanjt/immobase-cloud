@@ -194,6 +194,16 @@ Deno.serve(async (req: Request) => {
     if (!pdfBase64) throw new Error("PDF generation failed");
     if (preview) return new Response(JSON.stringify({ ok: true, preview: true, pdfBase64 }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
 
+    // Vom Mieter im Protokoll erfasste Schluesselnummern beim Mieter hinterlegen
+    try {
+      const norm = (p.schluessel_data && Array.isArray(p.schluessel_data.normal)) ? p.schluessel_data.normal : [];
+      const nrs = norm.map((k: any) => String((k && k.nr) || "").trim()).filter(Boolean);
+      if (p.tenant_id && nrs.length) {
+        const joined = nrs.join(", ");
+        await fetch(`${SUPABASE_URL}/rest/v1/tenants?id=eq.${encodeURIComponent(p.tenant_id)}`, { method: "PATCH", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ schluessel_nr: joined, schluessel_anzahl: joined, schluessel_uebergeben: true }) });
+      }
+    } catch (e) { console.error("Schluessel-Sync", (e as Error).message); }
+
     if (skipEmail) {
       const doc = await saveDoc(p, pdfBase64);
       const jetzt = new Date().toISOString();

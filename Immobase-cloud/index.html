@@ -4080,7 +4080,6 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   const nCount = Math.max(0, parseInt(startSchluesselNr)||0);
                   const extraTrim = startExtraSchluessel.trim();
                   await updateTenant(tenant.id, {
-                    schluessel_anzahl: nCount,
                     extra_schluessel: extraTrim,
                     schluessel_uebergeben: false,
                   });
@@ -4503,7 +4502,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     const t = startFor.tenant;
                     const extraTrim = (extraText||"").trim();
                     const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
-                    await updateTenant(t.id, { schluessel_anzahl: nCount, extra_schluessel: extraTrim, schluessel_uebergeben: false });
+                    await updateTenant(t.id, { extra_schluessel: extraTrim, schluessel_uebergeben: false });
                     const snapshot = [
                       nCount>0 && `${nCount}x Wohnungsschlüssel`,
                       extraTrim && `Extra: ${extraTrim}`
