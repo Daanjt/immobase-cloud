@@ -8458,7 +8458,7 @@ function SchluesselRegister({apts, rooms, tenants}) {
   );
 }
 
-function SchluesselManager({apt, rooms, tenants}) {
+function SchluesselManager({apt, rooms, tenants, updateApt}) {
   const [keys, setKeys] = useState([]);
   const [neu, setNeu] = useState({nummer:"", typ:"Wohnungstür"});
   const [busy, setBusy] = useState(false);
@@ -8468,7 +8468,7 @@ function SchluesselManager({apt, rooms, tenants}) {
     supabase.from("schluessel").select("*").eq("apt_id", apt.id).order("created_at").then(({data})=>setKeys(data||[]));
     supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel!=null?String(data.extra_schluessel):""); } });
   },[apt.id]);
-  async function saveErhalten(n, e){ const {error}=await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id); toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok"); }
+  async function saveErhalten(n, e){ let error=null; try{ if(updateApt){ await updateApt(apt.id,{schluesselAnzahl: n===""?null:+n, extraSchluessel: e===""?null:e}); return; } else { ({error}=await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id)); } }catch(x){ error=x; } toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok"); }
   const aptTenants = (tenants||[]).filter(t => (t.status||"aktiv")==="aktiv" && ((t.aptId===apt.id) || (rooms||[]).some(r=>r.aptId===apt.id && (r.tenantId===t.id || r.id===t.roomId))));
   const TYPEN = ["Wohnungstür","Zimmertür","Hauseingang","Briefkasten","Keller","Waschküche","Extra","Sonstiges"];
   async function addKey(){
@@ -8615,8 +8615,6 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       mietbeginn:form.mietbeginn,mietende:form.mietende,
       verwaltung:form.verwaltung,eigentuemer:form.eigentuemer,
       refnr:form.refnr,vertrag:form.vertrag,
-      schluesselAnzahl:form.schluesselAnzahl,
-      extraSchluessel:form.extraSchluessel,
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
@@ -8716,8 +8714,6 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       refzins: newForm.refzins || "",
       refnr: newForm.refnr || "",
       vertrag: newForm.vertrag || "",
-      schluesselAnzahl: newForm.schluesselAnzahl || "",
-      extraSchluessel: newForm.extraSchluessel || "",
       pipeline: !!newForm.pipeline,
       ausschreiben: !!newForm.ausschreiben,
       nichtAusschreiben: !!newForm.nichtAusschreiben,
@@ -8920,7 +8916,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
             })()}
             {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Ganze Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Bruttomiete der ganzen Wohnung (inkl. CHF 100 Nebenkosten), dazu kommt Strom CHF 25 pro Person.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{objektLabel(r.id)}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
-            {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants}/>}
+            {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants} updateApt={updateApt}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
@@ -9068,11 +9064,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
         </div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
-        <div className="frow">
-          <div className="fg"><label className="fl">Anzahl Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={newForm.schluesselAnzahl||""} onChange={NF("schluesselAnzahl")} placeholder="z.B. 3"/></div>
-          <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={newForm.extraSchluessel||""} onChange={NF("extraSchluessel")} placeholder="z.B. 2× Briefkasten, 1× Keller, 1× Garage"/></div>
-        </div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:6,fontWeight:500}}>Schlüssel</div>
+        <div style={{fontSize:12,color:"#8a8174",marginBottom:4}}>Schlüssel werden im Tab <b>🔑 Schlüssel</b> der Wohnung erfasst: erhaltene Schlüssel und das Schlüsselregister.</div>
 
         <div className="ma">
           <button className="btn btn-g" onClick={()=>{setAdding(false);setRoomList([]);}}>Abbrechen</button>
@@ -9173,11 +9166,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
         </div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
-        <div className="frow">
-          <div className="fg"><label className="fl">Anzahl Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. 3"/></div>
-          <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 2× Briefkasten, 1× Keller, 1× Garage"/></div>
-        </div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:6,fontWeight:500}}>Schlüssel</div>
+        <div style={{fontSize:12,color:"#8a8174",marginBottom:4}}>Schlüssel werden im Tab <b>🔑 Schlüssel</b> der Wohnung erfasst: erhaltene Schlüssel und das Schlüsselregister.</div>
 
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
       </div></div>}
