@@ -136,8 +136,8 @@ function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logo
   const ersteBelastungStr = (() => { const d = parseD(vertrag.einzug); if (!d) return "-"; d.setMonth(d.getMonth() - 1); d.setDate(25); return lang(d); })();
   const sg = +vertrag.aufschlag || 0;
   const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
-  const chf2 = (n) => `CHF ${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const chfW = (n) => `CHF ${Number(n || 0).toLocaleString("de-CH")}.-`;
+  const chf2 = (n) => `CHF\u00a0${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const chfW = (n) => `CHF\u00a0${Number(n || 0).toLocaleString("de-CH")}.-`;
   const inkl = sg > 0 ? T("inkl. Strom, Nebenkosten und Servicegebühr", "incl. electricity, additional costs and service fee") : T("inkl. Strom und Nebenkosten", "incl. electricity and additional costs");
   const mietzinsStr = `${chf2(total)} / ${T("Monat", "month")}`;
   const vertragId = (contract.id || "").substring(0, 8);
@@ -145,8 +145,11 @@ function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logo
   const km = vertrag.kautionMonate == null ? 3 : +vertrag.kautionMonate;
   const kBetrag = +vertrag.kautionBetrag || 0;
 
-  const row = (l, v, first = false) => `<tr><td style="padding:6px 0;color:#4a4439;width:42%;vertical-align:top;${first ? "" : "border-top:1px solid #f0eadd;"}">${l}</td><td style="padding:6px 0;text-align:right;${first ? "" : "border-top:1px solid #f0eadd;"}">${v}</td></tr>`;
-  const box = (titel, rows) => `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:16px 18px;margin:0 0 22px;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:10px;">${titel}</div><table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:13px;color:#1a1814;border-collapse:collapse;">${rows}</table></div>`;
+  // Feste Spaltenbreiten und Box als Tabelle, damit Outlook nichts verbreitert
+  const bt = (first) => (first ? "" : "border-top:1px solid #efe7d6;");
+  const row = (l, v, first = false) => `<tr><td width="58%" style="width:58%;padding:7px 8px 7px 0;color:#4a4439;vertical-align:top;${bt(first)}">${l}</td><td width="42%" style="width:42%;padding:7px 0;text-align:right;vertical-align:top;${bt(first)}">${v}</td></tr>`;
+  const rowVoll = (l, v, first = false) => `<tr><td colspan="2" style="padding:7px 0;${bt(first)}"><div style="color:#8a8174;font-size:11.5px;margin-bottom:2px;">${l}</div><div style="color:#1a1814;">${v}</div></td></tr>`;
+  const box = (titel, rows) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 22px;"><tr><td bgcolor="#faf8f3" style="background:#faf8f3;border-left:3px solid #1a1814;padding:16px 18px;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${titel}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;font-size:13px;color:#1a1814;border-collapse:collapse;">${rows}</table></td></tr></table>`;
   const linksHtml = downloadLinks.map((l) => `<a href="${l.url}" style="display:inline-block;background:#1a1814;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;margin:4px 6px 4px 0;">📄 ${esc(en ? String(l.label).replace("Vertrag herunterladen", "Download contract").replace("Anfangsmietzins", "Initial rent form").replace("Untermietvertrag", "Sublease agreement").replace("(signiert)", "(signed)") : l.label)}</a>`).join("");
   const schritt = (nr, titel, inhalt) => `<div style="margin:22px 0 0;padding-top:20px;border-top:1px solid #f0eadd;"><span style="display:inline-block;background:#1a1814;color:#fff;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;font-size:12px;font-weight:600;margin-right:8px;">${nr}</span><span style="font-size:15px;font-weight:600;">${titel}</span><div style="font-size:14px;color:#3a352d;line-height:1.6;margin:10px 0 0;">${inhalt}</div></div>`;
   const shell = (eyebrow, inhalt) => `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
@@ -165,7 +168,7 @@ ${inhalt}
     const endeStr = formatLongDate(vertrag.mietende || vertrag.auszug);
     const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(vornameNice)},</p>
 <p style="font-size:14px;margin:0 0 18px;">${T("die Verlängerung deines Mietvertrags bei D&amp;T Homes ist unterzeichnet. Vielen Dank!", "the extension of your tenancy at D&amp;T Homes has been signed. Thank you!")}</p>
-${box(T("Deine Verlängerung", "Your extension"), row(T("Wohnung", "Apartment"), esc(wohnung), true) + row(T("Verlängert bis", "Extended until"), esc(endeStr)))}
+${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartment"), esc(wohnung), true) + row(T("Verlängert bis", "Extended until"), esc(endeStr)))}
 <p style="font-size:14px;margin:0 0 14px;">${T(`Du musst nichts weiter tun. Dein Mietverhältnis läuft zu den bisherigen Bedingungen weiter, neu befristet bis und mit <strong>${esc(endeStr)}</strong>. Miete und Kaution bleiben gleich.`, `There is nothing else you need to do. Your tenancy continues on the existing terms, now fixed until and including <strong>${esc(endeStr)}</strong>. Rent and deposit stay the same.`)}</p>
 <p style="font-size:14px;margin:0 0 6px;">${T("Den unterzeichneten Nachtrag findest du im Anhang oder hier:", "You will find the signed addendum attached or here:")}</p>
 <div style="margin:0 0 6px;">${linksHtml}</div>`;
@@ -173,25 +176,26 @@ ${box(T("Deine Verlängerung", "Your extension"), row(T("Wohnung", "Apartment"),
   }
 
   const hallo = mmV ? `${vornameNice} ${T("und", "and")} ${gross(mmV.vorname || "")}` : vornameNice;
-  const objektW = istWohnung ? [T("Ganze Wohnung", "Entire apartment"), apt.zimmer ? `${apt.zimmer} ${T("Zimmer", "rooms")}` : "", apt.flaeche ? `${apt.flaeche} m²` : "", T("unmöbliert", "unfurnished")].filter(Boolean).join(" · ") : "";
+  const objektW = istWohnung ? [T("Ganze Wohnung", "Entire apartment"), apt.zimmer ? `${apt.zimmer}\u00a0${T("Zimmer", "rooms")}` : "", apt.flaeche ? `${apt.flaeche}\u00a0m²` : "", T("unmöbliert", "unfurnished")].filter(Boolean).join(" · ") : "";
   const konditionen =
-    row(T("Wohnung", "Apartment"), esc(wohnung), true) +
-    (istWohnung ? row(T("Mietobjekt", "Rental object"), esc(objektW)) : "") +
+    rowVoll(T("Wohnung", "Apartment"), esc(wohnung), true) +
+    (istWohnung ? rowVoll(T("Mietobjekt", "Rental object"), esc(objektW)) : "") +
     (istWohnung && (vertrag.mietende || apt.mietende) ? row(T("Befristet bis", "Fixed term until"), esc(formatLongDate(vertrag.mietende || apt.mietende))) : "") +
     (istWohnung ? row(T("Personen", "Persons"), String(persW)) : "") +
-    (mmV ? row(T("Mitmieter*in", "Co-tenant"), `${esc(mmName)} (${T("solidarisch", "jointly liable")})`) : "") +
+    (mmV ? rowVoll(T("Mitmieter*in", "Co-tenant"), `${esc(mmName)} (${T("solidarisch", "jointly liable")})`) : "") +
     row(T("Einzug", "Move-in"), esc(einzugStr)) +
-    (istWohnung ? row(T("Bruttomiete inkl. Nebenkosten", "Gross rent incl. additional costs"), chfW(vertrag.bruttomiete)) + row(en ? `Electricity (${persW} ${persW === 1 ? "person" : "persons"})` : `Strom (${persW} ${persW === 1 ? "Person" : "Personen"})`, chfW(vertrag.strom)) : "") +
-    (sg > 0 ? row(T("Servicegebühr für Kautionsreduktion", "Service fee for deposit reduction"), chfW(sg)) : "") +
-    `<tr><td style="padding:9px 0 0;font-weight:600;border-top:2px solid #1a1814;">${T("Mietzins", "Rent")}</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${mietzinsStr}<div style="font-weight:400;font-size:11.5px;color:#6e6a62;">${inkl}</div></td></tr>`;
+    (istWohnung ? row(T("Bruttomiete inkl. NK", "Gross rent incl. add. costs"), chfW(vertrag.bruttomiete)) + row(en ? `Electricity (${persW} ${persW === 1 ? "person" : "persons"})` : `Strom (${persW} ${persW === 1 ? "Person" : "Personen"})`, chfW(vertrag.strom)) : "") +
+    (sg > 0 ? row(T("Servicegebühr Kautionsreduktion", "Service fee deposit reduction"), chfW(sg)) : "") +
+    `<tr><td width="58%" style="width:58%;padding:10px 8px 2px 0;font-weight:600;border-top:2px solid #1a1814;vertical-align:top;">${T("Mietzins", "Rent")}</td><td width="42%" style="width:42%;padding:10px 0 2px;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${mietzinsStr}</td></tr>` +
+    `<tr><td colspan="2" style="padding:2px 0 0;text-align:right;font-size:11.5px;color:#6e6a62;">${inkl}</td></tr>`;
 
   const kautionText = km > 0
     ? T(`Wir nutzen für Mietkautionen die Schweizer Plattform <strong>Evorest</strong>. Du erhältst eine separate E-Mail von Evorest mit einem Link. Deine Kaution beträgt <strong>${km} ${km === 1 ? "Monatsmiete" : "Monatsmieten"}${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>.`, `We use the Swiss platform <strong>Evorest</strong> for rental deposits. You will receive a separate email from Evorest with a link. Your deposit is <strong>${km} ${km === 1 ? "month's" : "months'"} rent${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>.`)
     : T("Bei deiner Variante ist <strong>keine Kaution</strong> nötig. Dafür ist die monatliche Servicegebühr im Mietzins enthalten.", "With your option <strong>no deposit</strong> is required. Instead, the monthly service fee is included in your rent.");
   const bankZeile = (l, v, mono = false) => `<div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">${l}</span><br><span style="color:#1a1814;font-weight:600;${mono ? "font-family:Menlo,Monaco,monospace;" : ""}">${v}</span></div>`;
-  const zahlung = `<table role="presentation" cellpadding="0" cellspacing="0" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;padding:16px;margin:4px 0 0;width:100%;"><tr>
-<td style="width:120px;vertical-align:middle;padding-right:16px;"><img src="https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png" alt="QR" width="120" style="width:120px;height:120px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td>
-<td style="vertical-align:middle;font-size:12px;line-height:1.6;">
+  const zahlung = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f3" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;margin:10px 0 0;width:100%;table-layout:fixed;">
+<tr><td style="padding:16px 16px 4px;"><img src="https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png" alt="QR" width="120" height="120" style="display:block;width:120px;height:120px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
+<tr><td style="font-size:12.5px;line-height:1.6;padding:8px 16px 14px;">
 ${bankZeile("Bank", "Graub&uuml;ndner Kantonalbank")}${bankZeile("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bankZeile("BIC/SWIFT", "GRKBCH2270A", true)}${bankZeile(T("Betrag", "Amount"), mietzinsStr)}${bankZeile(T("Referenz", "Reference"), esc(referenz))}${bankZeile(T("Erste Zahlung", "First payment"), T(`bis ${ersteBelastungStr}`, `by ${ersteBelastungStr}`))}
 </td></tr></table>`;
 
