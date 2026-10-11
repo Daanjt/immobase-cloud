@@ -435,7 +435,7 @@ Deno.serve(async (req) => {
       if (isUmv || isNachtrag) {
         // UMV / Nachtrag: Untermieter*in sig-block LINKS auf der letzten Seite
         const datumX = anchors ? anchors.datumX + 74 : 125, datumY = anchors ? anchors.datumY : 601;
-        const sigX = anchors ? anchors.sigX + 74 : 125, sigY = (anchors ? anchors.sigY - 13 : 580), sigMaxW = 150, sigMaxH = 24;
+        const sigX = anchors ? anchors.sigX + 74 : 125, sigY = (anchors ? anchors.sigY - 8 : 585), sigMaxW = 150, sigMaxH = 22; // gleiche Lage wie im Anfangsmietzinsformular
         const dims = sigImage.scaleToFit(sigMaxW, sigMaxH);
         targetPage.drawText(ortDatumStr, { x: datumX, y: datumY, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
         targetPage.drawImage(sigImage, { x: sigX, y: sigY, width: dims.width, height: dims.height });
@@ -443,7 +443,7 @@ Deno.serve(async (req) => {
           const sig2Image = await pdfDoc.embedPng(sig2Bytes);
           const d2 = sig2Image.scaleToFit(sigMaxW, sigMaxH);
           targetPage.drawText(ortDatumStr, { x: anchors.datum2.x + 74, y: anchors.datum2.y, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) });
-          targetPage.drawImage(sig2Image, { x: anchors.sig2.x + 74, y: anchors.sig2.y - 13, width: d2.width, height: d2.height });
+          targetPage.drawImage(sig2Image, { x: anchors.sig2.x + 74, y: anchors.sig2.y - 8, width: d2.width, height: d2.height });
         } else if ((isUmv || isNachtrag) && sig2Bytes) {
           console.error("Mitmieter-Anker nicht gefunden, Unterschrift nicht platziert");
         }
