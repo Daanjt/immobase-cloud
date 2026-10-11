@@ -14262,14 +14262,21 @@ function WerbungTab(){
   const [files,setFiles]=React.useState([]);
   const [plan,setPlan]=React.useState("");
   const [geplant,setGeplant]=React.useState([]);
+  const [eyebrow,setEyebrow]=React.useState("");
+  const [btnText,setBtnText]=React.useState("");
+  const [btnUrl,setBtnUrl]=React.useState("");
+  const [vorschau,setVorschau]=React.useState("");
+  const design=()=>({eyebrow:eyebrow.trim(),button_text:btnText.trim(),button_url:btnUrl.trim()});
+  const ladeVorlage=(v)=>{ setSubject(v.subject||v.betreff||""); setText(v.text||""); const d=v.design||{}; setEyebrow(d.eyebrow||""); setBtnText(d.button_text||""); setBtnUrl(d.button_url||""); setVorschau(""); };
+  const zeigeVorschau=async()=>{ if(!text.trim()){ toast("Text ausf\u00fcllen","error"); return; } const {data,error}=await supabase.functions.invoke("send-campaign",{body:{subject:subject||"Vorschau",text,design:design(),preview:"Vorname"}}); if(error||!data||!data.html){ toast("Vorschau nicht m\u00f6glich","error"); return; } setVorschau(data.html); };
   const pd=(x)=>{const m=(x||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null;};
   const ladeLog=async()=>{ try{ const {data}=await supabase.from("kampagnen").select("*").order("created_at",{ascending:false}).limit(20); setLog(data||[]); }catch(_e){} };
   const ladeVorlagen=async()=>{ try{ const {data}=await supabase.from("kampagnen_vorlagen").select("*").order("created_at",{ascending:true}); setSaved(data||[]); }catch(_e){} };
   const ladeErfolg=async()=>{ try{ const [ap,km]=await Promise.all([ supabase.from("applicants").select("empfohlen_von,created_at"), supabase.from("kampagnen").select("created_at").order("created_at",{ascending:false}).limit(1) ]); const ref=(ap.data||[]).filter(a=>a.empfohlen_von&&String(a.empfohlen_von).trim()); const last=km.data&&km.data[0]&&km.data[0].created_at; const seit=last?ref.filter(a=>a.created_at&&new Date(a.created_at)>=new Date(last)).length:null; setErfolg({total:ref.length,seit}); }catch(_e){} };
   const ladeGeplant=async()=>{ try{ const {data}=await supabase.from("kampagnen_geplant").select("*").eq("status","geplant").order("scheduled_for",{ascending:true}); setGeplant(data||[]); }catch(_e){} };
-  const planen=async()=>{ if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausf\u00fcllen","error"); return; } if(!plan){ toast("Zeitpunkt w\u00e4hlen","error"); return; } if(aktiveEmpf.length===0){ toast("Keine Empf\u00e4nger","error"); return; } const when=new Date(plan); if(isNaN(when.getTime())||when<=new Date()){ toast("Zeitpunkt muss in der Zukunft liegen","error"); return; } const {error}=await supabase.from("kampagnen_geplant").insert({scheduled_for:when.toISOString(),gruppe:group,betreff:subject,text,recipients:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})),attachments:files}); if(error){ toast("Fehler beim Planen","error"); return; } toast("Kampagne geplant"); setPlan(""); ladeGeplant(); };
+  const planen=async()=>{ if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausf\u00fcllen","error"); return; } if(!plan){ toast("Zeitpunkt w\u00e4hlen","error"); return; } if(aktiveEmpf.length===0){ toast("Keine Empf\u00e4nger","error"); return; } const when=new Date(plan); if(isNaN(when.getTime())||when<=new Date()){ toast("Zeitpunkt muss in der Zukunft liegen","error"); return; } const {error}=await supabase.from("kampagnen_geplant").insert({scheduled_for:when.toISOString(),gruppe:group,betreff:subject,text,recipients:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})),attachments:files,design:design()}); if(error){ toast("Fehler beim Planen","error"); return; } toast("Kampagne geplant"); setPlan(""); ladeGeplant(); };
   const abbrechenGeplant=async(id)=>{ if(!confirm("Geplante Kampagne abbrechen?")) return; await supabase.from("kampagnen_geplant").delete().eq("id",id); ladeGeplant(); };
-  const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
+  const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text,design:design()}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
   React.useEffect(()=>{ ladeLog(); ladeVorlagen(); ladeErfolg(); ladeGeplant(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,etage,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
@@ -14315,16 +14322,16 @@ function WerbungTab(){
   const nurDiese=(rows)=>{ setExcluded(p=>{const n={...p}; visible.forEach(r=>{ n[r.email.toLowerCase()]=true; }); rows.forEach(r=>{ n[r.email.toLowerCase()]=false; }); return n;}); };
 
   const vorlagen={
-    empfehlung:{subject:"Verdiene 100 Franken: empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
-    freieZimmer:{subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige schöne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
-    zugang:{subject:"Ankündigung: Arbeiten in deiner Wohnung",text:"wir möchten dich kurz informieren, dass bei dir Arbeiten anstehen.\n\nDatum und Uhrzeit: [bitte eintragen]\nWas: [kurz beschreiben]\n\nBitte ermögliche an diesem Termin den Zugang zur Wohnung. Falls es dir nicht passt, melde dich kurz, dann finden wir einen anderen Termin.\n\nDanke dir!"},
+    empfehlung:{design:{eyebrow:"Empfehlungsprogramm",button_text:"Freie Zimmer ansehen",button_url:"https://new.dthomes.ch/zimmer"},subject:"Verdiene 100 Franken: empfiehl uns weiter",text:"kennst du jemanden, der ein cooles Zimmer in Zürich sucht? Dann haben wir ein Angebot für dich.\n\nFür jede Person, die du uns empfiehlst und die bei uns einzieht, bekommst du 100 Franken geschenkt, direkt abgezogen von deiner nächsten Miete. Und das Beste: Es gibt keine Obergrenze. Empfiehl drei Freunde, spar 300 Franken.\n\nSo einfach geht es:\n1. Sag deinen Freunden Bescheid.\n2. Sie bewerben sich auf new.dthomes.ch/zimmer und geben deinen Namen im Feld \"Empfohlen von\" an.\n3. Sobald sie unterschreiben, schreiben wir dir 100 Franken auf der nächsten Miete gut.\n\nOb Studienkolleg:innen, Arbeitskolleg:innen oder Freunde, je mehr desto besser. Danke, dass du D&T Homes weiterempfiehlst!"},
+    freieZimmer:{design:{eyebrow:"Freie Zimmer",button_text:"Zimmer ansehen",button_url:"https://new.dthomes.ch/zimmer"},subject:"Hast du schon ein Zimmer gefunden?",text:"hast du bereits ein passendes Zimmer gefunden? Bei uns sind aktuell noch einige schöne Zimmer frei.\n\nSchau sie dir an und bewirb dich direkt auf new.dthomes.ch/zimmer. Wir freuen uns auf dich!"},
+    zugang:{design:{eyebrow:"Information"},subject:"Ankündigung: Arbeiten in deiner Wohnung",text:"wir möchten dich kurz informieren, dass bei dir Arbeiten anstehen.\n\nDatum und Uhrzeit: [bitte eintragen]\nWas: [kurz beschreiben]\n\nBitte ermögliche an diesem Termin den Zugang zur Wohnung. Falls es dir nicht passt, melde dich kurz, dann finden wir einen anderen Termin.\n\nDanke dir!"},
   };
   const senden=async(testEmail)=>{
     if(!subject.trim()||!text.trim()){ toast("Betreff und Text ausfüllen","error"); return; }
     if(!testEmail && aktiveEmpf.length===0){ toast("Keine Empfänger ausgewählt","error"); return; }
     if(!testEmail && !confirm("E-Mail an "+aktiveEmpf.length+" "+(group==="mieter"?"Mieter":"Bewerber")+" senden?")) return;
     setSending(true);
-    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined, recipients: testEmail?undefined:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})), attachments: files }});
+    const { data, error } = await supabase.functions.invoke("send-campaign",{ body:{ group, subject, text, test_email: testEmail||undefined, recipients: testEmail?undefined:aktiveEmpf.map(r=>({email:r.email,vorname:r.vorname||""})), attachments: files, design: design() }});
     setSending(false);
     if(error||(data&&data.error)){ toast("Fehler: "+((data&&data.error)||(error&&error.message)||"unbekannt"),"error"); return; }
     toast(testEmail?"Testmail an dich gesendet":("Gesendet an "+data.sent+" von "+data.total));
@@ -14409,16 +14416,21 @@ function WerbungTab(){
         </div>)}
 
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-      <button style={chip} onClick={()=>{setSubject(vorlagen.empfehlung.subject);setText(vorlagen.empfehlung.text);}}>Empfehlung</button>
-      <button style={chip} onClick={()=>{setSubject(vorlagen.freieZimmer.subject);setText(vorlagen.freieZimmer.text);}}>Freie Zimmer</button>
-      <button style={chip} onClick={()=>{setSubject(vorlagen.zugang.subject);setText(vorlagen.zugang.text);}}>Zugang/Arbeiten</button>
-      {saved.map(v=>(<span key={v.id} style={{display:"inline-flex",alignItems:"center"}}><button style={{...chip,borderRadius:"20px 0 0 20px"}} onClick={()=>{setSubject(v.betreff||"");setText(v.text||"");}}>{v.name}</button><button onClick={()=>loeschenVorlage(v.id)} style={{border:"1px solid var(--line)",borderLeft:"none",borderRadius:"0 20px 20px 0",background:"#fff",color:"#b06a5a",cursor:"pointer",padding:"7px 10px",fontSize:12}}>×</button></span>))}
+      <button style={chip} onClick={()=>ladeVorlage(vorlagen.empfehlung)}>Empfehlung</button>
+      <button style={chip} onClick={()=>ladeVorlage(vorlagen.freieZimmer)}>Freie Zimmer</button>
+      <button style={chip} onClick={()=>ladeVorlage(vorlagen.zugang)}>Zugang/Arbeiten</button>
+      {saved.map(v=>(<span key={v.id} style={{display:"inline-flex",alignItems:"center"}}><button style={{...chip,borderRadius:"20px 0 0 20px"}} onClick={()=>ladeVorlage(v)}>{v.name}</button><button onClick={()=>loeschenVorlage(v.id)} style={{border:"1px solid var(--line)",borderLeft:"none",borderRadius:"0 20px 20px 0",background:"#fff",color:"#b06a5a",cursor:"pointer",padding:"7px 10px",fontSize:12}}>×</button></span>))}
       <button style={{...chip,borderStyle:"dashed",color:"var(--muted)"}} onClick={speichernVorlage}>+ speichern</button>
     </div>
 
     <div style={{marginBottom:12}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Betreff</label><input value={subject} onChange={e=>setSubject(e.target.value)} style={inp}/></div>
-    <div style={{marginBottom:10}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Nachricht</label><textarea rows={11} value={text} onChange={e=>setText(e.target.value)} placeholder="Text der Nachricht. Anrede (Hallo Vorname,) und Signatur werden automatisch ergänzt." style={{...inp,lineHeight:1.5,resize:"vertical"}}/></div>
-    <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.5,marginBottom:14}}>Jede Mail bekommt die persönliche Anrede mit Vornamen, das Logo und die Signatur. Eine Kopie geht per BCC an dich.</div>
+    <div style={{marginBottom:10}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Nachricht</label><textarea rows={11} value={text} onChange={e=>setText(e.target.value)} placeholder="Text der Nachricht. Anrede (Hi Vorname,) und Gruss werden automatisch ergänzt." style={{...inp,lineHeight:1.5,resize:"vertical"}}/></div>
+    <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.5,marginBottom:14}}>Jede Mail kommt im D&T-Design mit Logo, persönlicher Anrede und Gruss. Gestaltung im Text: Zeilen mit „1.“ werden nummerierte Schritte, Zeilen mit „-“ eine Liste, mehrere Zeilen „Titel: Wert“ eine beige Infobox, **fett** wird fett, Links und E-Mails werden klickbar. Kopie per BCC an dich.</div>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
+      <div style={{flex:"1 1 160px"}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Kleiner Titel</label><input value={eyebrow} onChange={e=>setEyebrow(e.target.value)} placeholder="z.B. Information" style={inp}/></div>
+      <div style={{flex:"1 1 160px"}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Button-Text (optional)</label><input value={btnText} onChange={e=>setBtnText(e.target.value)} placeholder="z.B. Zimmer ansehen" style={inp}/></div>
+      <div style={{flex:"2 1 220px"}}><label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Button-Link (optional)</label><input value={btnUrl} onChange={e=>setBtnUrl(e.target.value)} placeholder="https://new.dthomes.ch/zimmer" style={inp}/></div>
+    </div>
     <div style={{marginBottom:16}}>
       <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6}}>Anhang (optional)</label>
       <input type="file" multiple onChange={onFiles} style={{fontSize:13}}/>
@@ -14426,9 +14438,11 @@ function WerbungTab(){
     </div>
 
     <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      <button style={{...chip,borderRadius:10,padding:"12px 18px",flex:"1 1 110px"}} onClick={()=>vorschau?setVorschau(""):zeigeVorschau()}>{vorschau?"Vorschau schliessen":"Vorschau"}</button>
       <button style={{...chip,borderRadius:10,padding:"12px 18px",flex:"1 1 140px"}} disabled={sending} onClick={()=>senden("daan.theijse@dthomes.ch")}>Test an mich</button>
       <button style={{flex:"2 1 180px",background:"var(--ink)",color:"#fff",border:"none",borderRadius:10,padding:"12px 18px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:sending?0.6:1}} disabled={sending} onClick={()=>senden()}>{sending?"Sende …":("An "+aktiveEmpf.length+" senden")}</button>
     </div>
+    {vorschau && <iframe title="Vorschau" srcDoc={vorschau} style={{width:"100%",height:640,border:"1px solid var(--line)",borderRadius:12,marginTop:12,background:"#f7f3eb"}}/>}
     <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginTop:12}}>
       <input type="datetime-local" value={plan} onChange={e=>setPlan(e.target.value)} style={{...inp,width:"auto",flex:"1 1 190px",padding:"9px 12px",fontSize:13.5}}/>
       <button style={{...chip,padding:"10px 16px"}} onClick={planen}>Für später planen</button>

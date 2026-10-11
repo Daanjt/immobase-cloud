@@ -23,7 +23,7 @@ serve(async (req) => {
         const resp = await fetch(`${SUPABASE_URL}/functions/v1/send-campaign`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ group: g.gruppe, subject: g.betreff, text: g.text, recipients: g.recipients, attachments: g.attachments }),
+          body: JSON.stringify({ group: g.gruppe, subject: g.betreff, text: g.text, recipients: g.recipients, attachments: g.attachments, design: g.design || undefined }),
         });
         const result = await resp.json().catch(() => ({}));
         const ok = resp.ok && !result.error;
