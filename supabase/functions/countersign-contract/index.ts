@@ -99,15 +99,19 @@ function notificationEmailToDaan(contract, downloadLinks, ip) {
 </div></body></html>`;
 }
 
-function confirmationEmailToTenant(contract, downloadLinks) {
+// Willkommens- bzw. Verlaengerungsmail an den Mieter (DE/EN), gleiches Design wie die uebrigen D&T-Mails.
+function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logoSrc = "https://mieter.dthomes.ch/dt-logo.png") {
+  const en = sprache === "en";
+  const T = (de, e) => (en ? e : de);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const data = contract.contract_data || {};
   const vertrag = data.vertrag || data || {};
   const apt = vertrag.apt || {};
   const room = vertrag.room || {};
+  const gross = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const vorname = contract.mieter_vorname || "";
-  const vornameNice = vorname ? (vorname.charAt(0).toUpperCase() + vorname.slice(1).toLowerCase()) : "";
-  const nachname = contract.mieter_nachname || "";
-  const fullName = `${vorname} ${nachname}`.trim();
+  const vornameNice = vorname ? gross(vorname.toLowerCase()) : "";
+  const fullName = `${vorname} ${contract.mieter_nachname || ""}`.trim();
   const istWohnung = vertrag.vertragsart === "wohnung" || apt.vermietungsart === "wohnung";
   const mmV = istWohnung && vertrag.mitmieter && String(vertrag.mitmieter.vorname || "").trim() ? vertrag.mitmieter : null;
   const mmName = mmV ? `${mmV.vorname || ""} ${mmV.nachname || ""}`.trim() : "";
@@ -115,150 +119,95 @@ function confirmationEmailToTenant(contract, downloadLinks) {
   const zimmerNr = istWohnung ? "" : ((room.id || vertrag.zimmerId || "").split("-")[1] || "");
   const wohnungParts = [];
   if (apt.adresse) wohnungParts.push(apt.adresse);
-  if (zimmerNr) wohnungParts.push(`Zimmer ${zimmerNr}`);
-  if (istWohnung) wohnungParts.push("ganze Wohnung");
+  if (zimmerNr) wohnungParts.push(T(`Zimmer ${zimmerNr}`, `Room ${zimmerNr}`));
   if (apt.plz || apt.ort) wohnungParts.push(`${apt.plz || ""} ${apt.ort || ""}`.trim());
   const wohnung = wohnungParts.join(", ");
-  const monate = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-  function formatLongDate(s) {
-    if (!s) return "-";
-    let d;
-    if (s.includes("-")) d = new Date(s);
-    else if (s.includes(".")) { const [day, mon, year] = s.split("."); d = new Date(+year, +mon - 1, +day); }
-    else return s;
-    if (isNaN(d.getTime())) return s;
-    return `${d.getDate()}. ${monate[d.getMonth()]} ${d.getFullYear()}`;
-  }
+  const MDE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  const MEN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const parseD = (s) => {
+    if (!s) return null; let d = null;
+    if (String(s).includes("-")) d = new Date(s);
+    else if (String(s).includes(".")) { const [day, mon, year] = String(s).split("."); d = new Date(+year, +mon - 1, +day); }
+    return d && !isNaN(d.getTime()) ? d : null;
+  };
+  const lang = (d) => d ? (en ? `${d.getDate()} ${MEN[d.getMonth()]} ${d.getFullYear()}` : `${d.getDate()}. ${MDE[d.getMonth()]} ${d.getFullYear()}`) : "-";
+  const formatLongDate = (s) => { const d = parseD(s); return d ? lang(d) : (s || "-"); };
   const einzugStr = formatLongDate(vertrag.einzug);
-  function computeErsteBelastung(einzug) {
-    if (!einzug) return "-";
-    let d;
-    if (einzug.includes("-")) d = new Date(einzug);
-    else if (einzug.includes(".")) { const [day, mon, year] = einzug.split("."); d = new Date(+year, +mon - 1, +day); }
-    else return "-";
-    if (isNaN(d.getTime())) return "-";
-    d.setMonth(d.getMonth() - 1); d.setDate(25);
-    return `25. ${monate[d.getMonth()]} ${d.getFullYear()}`;
-  }
-  const ersteBelastungStr = computeErsteBelastung(vertrag.einzug);
-  const total = vertrag.total || vertrag.bruttomiete || 0;
-  const mietzinsStr = `CHF ${Number(total).toLocaleString("de-CH", {minimumFractionDigits: 2, maximumFractionDigits: 2})} / Monat (inkl. Strom + NK)`;
+  const ersteBelastungStr = (() => { const d = parseD(vertrag.einzug); if (!d) return "-"; d.setMonth(d.getMonth() - 1); d.setDate(25); return lang(d); })();
+  const sg = +vertrag.aufschlag || 0;
+  const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
+  const chf2 = (n) => `CHF ${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const chfW = (n) => `CHF ${Number(n || 0).toLocaleString("de-CH")}.-`;
-  const objektW = istWohnung ? ["Ganze Wohnung", apt.zimmer ? `${apt.zimmer} Zimmer` : "", apt.flaeche ? `${apt.flaeche} m\u00b2` : "", "unm\u00f6bliert"].filter(Boolean).join(" \u00b7 ") : "";
-  const endeW = istWohnung ? formatLongDate(vertrag.mietende || apt.mietende || "") : "";
-  const rowW = (l, v) => `<div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">${l}</div><div style="color:#1a1814;font-weight:600;">${v}</div></div>`;
-  const extraKonditionen = istWohnung ? [
-    rowW("Mietobjekt", objektW),
-    (vertrag.mietende || apt.mietende) ? rowW("Befristet bis", endeW) : "",
-    rowW("Personen", String(persW)),
-    mmV ? rowW("Mitmieter*in", `${mmName} (solidarisch)`) : "",
-  ].join("") : "";
-  const mietzinsDetailW = istWohnung ? rowW("Zusammensetzung", `Bruttomiete inkl. Nebenkosten ${chfW(vertrag.bruttomiete)} + Strom ${chfW(vertrag.strom)} (${persW} ${persW === 1 ? "Person" : "Personen"})`) : "";
-  const hallo = mmV ? `${vornameNice} und ${(mmV.vorname || "").charAt(0).toUpperCase() + (mmV.vorname || "").slice(1)}` : vornameNice;
-  const referenz = `Miete ${apt.adresse || ""} & ${fullName}`;
+  const inkl = sg > 0 ? T("inkl. Strom, Nebenkosten und Servicegebühr", "incl. electricity, additional costs and service fee") : T("inkl. Strom und Nebenkosten", "incl. electricity and additional costs");
+  const mietzinsStr = `${chf2(total)} / ${T("Monat", "month")}`;
   const vertragId = (contract.id || "").substring(0, 8);
-  const linksHtml = downloadLinks.map(l => 
-    `<a href="${l.url}" style="display:inline-block;background:#1a1814;color:#fefcf7;padding:12px 22px;border-radius:8px;text-decoration:none;font-size:13.5px;font-weight:600;letter-spacing:.04em;margin:4px 6px 4px 0;">📄 ${l.label}</a>`
-  ).join("");
+  const referenz = `${T("Miete", "Rent")} ${apt.adresse || ""} & ${fullName}`;
+  const km = vertrag.kautionMonate == null ? 3 : +vertrag.kautionMonate;
+  const kBetrag = +vertrag.kautionBetrag || 0;
+
+  const row = (l, v, first = false) => `<tr><td style="padding:6px 0;color:#4a4439;width:42%;vertical-align:top;${first ? "" : "border-top:1px solid #f0eadd;"}">${l}</td><td style="padding:6px 0;text-align:right;${first ? "" : "border-top:1px solid #f0eadd;"}">${v}</td></tr>`;
+  const box = (titel, rows) => `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:16px 18px;margin:0 0 22px;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:10px;">${titel}</div><table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:13px;color:#1a1814;border-collapse:collapse;">${rows}</table></div>`;
+  const linksHtml = downloadLinks.map((l) => `<a href="${l.url}" style="display:inline-block;background:#1a1814;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;margin:4px 6px 4px 0;">📄 ${esc(en ? String(l.label).replace("Vertrag herunterladen", "Download contract").replace("Anfangsmietzins", "Initial rent form").replace("Untermietvertrag", "Sublease agreement").replace("(signiert)", "(signed)") : l.label)}</a>`).join("");
+  const schritt = (nr, titel, inhalt) => `<div style="margin:22px 0 0;padding-top:20px;border-top:1px solid #f0eadd;"><span style="display:inline-block;background:#1a1814;color:#fff;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;font-size:12px;font-weight:600;margin-right:8px;">${nr}</span><span style="font-size:15px;font-weight:600;">${titel}</span><div style="font-size:14px;color:#3a352d;line-height:1.6;margin:10px 0 0;">${inhalt}</div></div>`;
+  const shell = (eyebrow, inhalt) => `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
+<div style="max-width:560px;margin:0 auto;padding:30px 24px;">
+<div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
+<div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
+<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${eyebrow}</div>
+${inhalt}
+<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${T("Bei Fragen:", "Questions?")} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${T("oder per WhatsApp", "or via WhatsApp")} <a href="https://wa.me/41766887091" style="color:#5a5448;">+41 76 688 70 91</a>.</p>
+</div>
+<div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch &middot; ${T("Vertragsnr.", "Contract no.")} ${esc(vertragId)}</div>
+</div></body></html>`;
+
   const isVerlaengerung = contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag";
   if (isVerlaengerung) {
     const endeStr = formatLongDate(vertrag.mietende || vertrag.auszug);
-    return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Verl&auml;ngerung best&auml;tigt</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fefcf7;margin:0;padding:24px;color:#1a1814;">
-<div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e1d8c5;border-radius:10px;padding:36px 32px;">
-  <div style="text-align:left;margin-bottom:24px;"><img src="https://mieter.dthomes.ch/dt-logo.png" alt="D&amp;T Homes" width="70" style="width:70px;height:auto;display:block;border:0;outline:none;"></div>
-  <p style="font-size:15px;font-weight:400;color:#4a4439;margin:0 0 16px;line-height:1.6;">Hallo ${vornameNice}</p>
-  <p style="font-size:15px;color:#4a4439;line-height:1.6;margin:0 0 20px;">
-    Die Verl&auml;ngerung deines Mietvertrags bei D&amp;T Homes ist unterzeichnet. Vielen Dank!
-  </p>
-  <div style="background:#e8eadb;border-radius:8px;padding:18px 20px;margin:24px 0;">
-    <div style="font-size:10px;color:#5a6e4a;text-transform:uppercase;letter-spacing:.25em;margin-bottom:8px;font-weight:600;">&#10003; Verl&auml;ngerung erfolgreich unterzeichnet</div>
-    <div style="font-size:13px;color:#3d4f2f;line-height:1.6;">Den unterzeichneten Nachtrag findest du im Anhang oder &uuml;ber den Button unten.</div>
-  </div>
-  <div style="margin-bottom:24px;">${linksHtml}</div>
-  <div style="background:#f9f5ec;border-left:3px solid #b8843e;padding:16px 20px;margin:28px 0;border-radius:0 8px 8px 0;">
-    <div style="font-size:10px;color:#b8843e;text-transform:uppercase;letter-spacing:.25em;font-weight:700;margin-bottom:12px;">&#128203; Deine Verl&auml;ngerung</div>
-    <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:130px;">Wohnung</div><div style="color:#1a1814;font-weight:600;">${wohnung}</div></div>
-    <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:130px;">Verl&auml;ngert bis</div><div style="color:#1a1814;font-weight:600;">${endeStr}</div></div>
-  </div>
-  <div style="margin-top:28px;padding:18px 20px;background:#f5efe2;border-radius:8px;font-size:14px;color:#4a4439;line-height:1.7;">
-    Du musst nichts weiter tun. Dein Mietverh&auml;ltnis l&auml;uft zu den bisherigen Bedingungen unver&auml;ndert weiter, neu befristet bis und mit dem <strong>${endeStr}</strong>. Miete und Kaution bleiben wie gehabt.
-  </div>
-  <div style="margin-top:24px;padding:16px 20px;background:#f5efe2;border-radius:8px;font-size:13px;color:#4a4439;line-height:1.6;">
-    <strong style="color:#1a1814;">Fragen?</strong><br>
-    &#128231; <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a>
-  </div>
-  <p style="font-size:14px;color:#4a4439;line-height:1.6;margin:24px 0 0;">
-    Beste Gr&uuml;sse,<br><strong>D&amp;T Homes Team</strong>
-  </p>
-  <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e1d8c5;font-size:11px;color:#8a8174;line-height:1.6;text-align:center;">
-    D&amp;T Partners GmbH, D&amp;T Homes, Z&uuml;rich &middot; Vertragsnr. ${vertragId}
-  </div>
-</div></body></html>`;
+    const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(vornameNice)},</p>
+<p style="font-size:14px;margin:0 0 18px;">${T("die Verlängerung deines Mietvertrags bei D&amp;T Homes ist unterzeichnet. Vielen Dank!", "the extension of your tenancy at D&amp;T Homes has been signed. Thank you!")}</p>
+${box(T("Deine Verlängerung", "Your extension"), row(T("Wohnung", "Apartment"), esc(wohnung), true) + row(T("Verlängert bis", "Extended until"), esc(endeStr)))}
+<p style="font-size:14px;margin:0 0 14px;">${T(`Du musst nichts weiter tun. Dein Mietverhältnis läuft zu den bisherigen Bedingungen weiter, neu befristet bis und mit <strong>${esc(endeStr)}</strong>. Miete und Kaution bleiben gleich.`, `There is nothing else you need to do. Your tenancy continues on the existing terms, now fixed until and including <strong>${esc(endeStr)}</strong>. Rent and deposit stay the same.`)}</p>
+<p style="font-size:14px;margin:0 0 6px;">${T("Den unterzeichneten Nachtrag findest du im Anhang oder hier:", "You will find the signed addendum attached or here:")}</p>
+<div style="margin:0 0 6px;">${linksHtml}</div>`;
+    return shell(T("Verlängerung bestätigt", "Extension confirmed"), inhalt);
   }
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Willkommen bei D&amp;T Homes</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fefcf7;margin:0;padding:24px;color:#1a1814;">
-<div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e1d8c5;border-radius:10px;padding:36px 32px;">
-  <div style="text-align:left;margin-bottom:24px;"><img src="https://mieter.dthomes.ch/dt-logo.png" alt="D&amp;T Homes" width="70" style="width:70px;height:auto;display:block;border:0;outline:none;"></div>
-  <p style="font-size:15px;font-weight:400;color:#4a4439;margin:0 0 16px;line-height:1.6;">Hallo ${hallo}!</p>
-  <p style="font-size:15px;color:#4a4439;line-height:1.6;margin:0 0 20px;">
-    ${istWohnung ? (mmV ? "Euer Untermietvertrag f&uuml;r die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!" : "Dein Untermietvertrag f&uuml;r die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!") : "Dein Untermietvertrag ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!"}
-  </p>
-  <div style="background:#e8eadb;border-radius:8px;padding:18px 20px;margin:24px 0;">
-    <div style="font-size:10px;color:#5a6e4a;text-transform:uppercase;letter-spacing:.25em;margin-bottom:8px;font-weight:600;">&#10003; Vertrag erfolgreich unterzeichnet</div>
-    <div style="font-size:13px;color:#3d4f2f;line-height:1.6;">Deine unterzeichneten Vertrags-PDFs findest du im Anhang oder &uuml;ber die Buttons unten.</div>
-  </div>
-  <div style="margin-bottom:24px;">${linksHtml}</div>
-  <div style="background:#f9f5ec;border-left:3px solid #b8843e;padding:16px 20px;margin:28px 0;border-radius:0 8px 8px 0;">
-    <div style="font-size:10px;color:#b8843e;text-transform:uppercase;letter-spacing:.25em;font-weight:700;margin-bottom:12px;">&#128203; Deine Konditionen</div>
-    <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">Wohnung</div><div style="color:#1a1814;font-weight:600;">${wohnung}</div></div>
-    ${extraKonditionen}
-    <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">Einzug</div><div style="color:#1a1814;font-weight:600;">${einzugStr}</div></div>
-    <div style="display:flex;padding:5px 0;font-size:14px;"><div style="color:#8a8174;min-width:110px;">Mietzins</div><div style="color:#1a1814;font-weight:600;">${mietzinsStr}</div></div>
-    ${mietzinsDetailW}
-  </div>
-  <div style="margin:32px 0;padding-top:24px;border-top:1px solid #e8e0cd;">
-    <span style="display:inline-block;background:#1a1814;color:#fefcf7;width:28px;height:28px;line-height:28px;text-align:center;border-radius:50%;font-size:13px;font-weight:700;margin-right:10px;vertical-align:middle;">1</span>
-    <span style="font-size:16px;font-weight:600;color:#1a1814;vertical-align:middle;">Kaution einrichten</span>
-    <div style="font-size:14px;color:#4a4439;line-height:1.7;margin:14px 0 0 38px;">
-      Wir nutzen f&uuml;r Mietkautionen die Schweizer Plattform <strong>Evorest</strong>. Du erh&auml;ltst eine separate Email von Evorest mit einem Link.
-    </div>
-  </div>
-  <div style="margin:32px 0;padding-top:24px;border-top:1px solid #e8e0cd;">
-    <span style="display:inline-block;background:#1a1814;color:#fefcf7;width:28px;height:28px;line-height:28px;text-align:center;border-radius:50%;font-size:13px;font-weight:700;margin-right:10px;vertical-align:middle;">2</span>
-    <span style="font-size:16px;font-weight:600;color:#1a1814;vertical-align:middle;">Mietzahlung einrichten</span>
-    <div style="font-size:14px;color:#4a4439;line-height:1.7;margin:14px 0 0 38px;">
-      <table cellpadding="0" cellspacing="0" border="0" style="background:#f9f5ec;border:2px dashed #c5bca8;border-radius:10px;padding:20px;margin:14px 0;width:100%;">
-        <tr>
-          <td style="width:140px;vertical-align:middle;padding-right:20px;">
-            <div style="width:140px;height:140px;background:#fff;border:1px solid #d8c9a4;border-radius:6px;padding:10px;box-sizing:border-box;">
-              <img src="https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png" alt="QR-Rechnung" style="width:100%;height:100%;object-fit:contain;">
-            </div>
-          </td>
-          <td style="vertical-align:middle;font-size:12px;line-height:1.7;">
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Bank</span><br><span style="color:#1a1814;font-weight:600;">Graub&uuml;ndner Kantonalbank</span></div>
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">IBAN</span><br><span style="color:#1a1814;font-weight:600;font-family:'Menlo','Monaco',monospace;">CH80 0077 4010 5279 2690 0</span></div>
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">BIC/SWIFT</span><br><span style="color:#1a1814;font-weight:600;font-family:'Menlo','Monaco',monospace;">GRKBCH2270A</span></div>
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Betrag</span><br><span style="color:#1a1814;font-weight:600;">${mietzinsStr}</span></div>
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Referenz</span><br><span style="color:#1a1814;font-weight:600;">${referenz}</span></div>
-            <div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">Erste Belastung</span><br><span style="color:#1a1814;font-weight:600;">${ersteBelastungStr}</span></div>
-          </td>
-        </tr>
-      </table>
-    </div>
-  </div>
-  <div style="margin-top:32px;padding:18px 20px;background:#f5efe2;border-radius:8px;font-size:13px;color:#4a4439;line-height:1.6;">
-    <strong style="color:#1a1814;">Fragen?</strong><br>
-    &#128231; <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a>
-  </div>
-  <p style="font-size:14px;color:#4a4439;line-height:1.6;margin:24px 0 0;">
-    Wir freuen uns auf eine angenehme Zusammenarbeit!<br><br>
-    Beste Gr&uuml;sse,<br><strong>D&amp;T Homes Team</strong>
-  </p>
-  <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e1d8c5;font-size:11px;color:#8a8174;line-height:1.6;text-align:center;">
-    D&amp;T Partners GmbH, D&amp;T Homes, Z&uuml;rich · Vertragsnr. ${vertragId}
-  </div>
-</div></body></html>`;
+
+  const hallo = mmV ? `${vornameNice} ${T("und", "and")} ${gross(mmV.vorname || "")}` : vornameNice;
+  const objektW = istWohnung ? [T("Ganze Wohnung", "Entire apartment"), apt.zimmer ? `${apt.zimmer} ${T("Zimmer", "rooms")}` : "", apt.flaeche ? `${apt.flaeche} m²` : "", T("unmöbliert", "unfurnished")].filter(Boolean).join(" · ") : "";
+  const konditionen =
+    row(T("Wohnung", "Apartment"), esc(wohnung), true) +
+    (istWohnung ? row(T("Mietobjekt", "Rental object"), esc(objektW)) : "") +
+    (istWohnung && (vertrag.mietende || apt.mietende) ? row(T("Befristet bis", "Fixed term until"), esc(formatLongDate(vertrag.mietende || apt.mietende))) : "") +
+    (istWohnung ? row(T("Personen", "Persons"), String(persW)) : "") +
+    (mmV ? row(T("Mitmieter*in", "Co-tenant"), `${esc(mmName)} (${T("solidarisch", "jointly liable")})`) : "") +
+    row(T("Einzug", "Move-in"), esc(einzugStr)) +
+    (istWohnung ? row(T("Bruttomiete inkl. Nebenkosten", "Gross rent incl. additional costs"), chfW(vertrag.bruttomiete)) + row(en ? `Electricity (${persW} ${persW === 1 ? "person" : "persons"})` : `Strom (${persW} ${persW === 1 ? "Person" : "Personen"})`, chfW(vertrag.strom)) : "") +
+    (sg > 0 ? row(T("Servicegebühr für Kautionsreduktion", "Service fee for deposit reduction"), chfW(sg)) : "") +
+    `<tr><td style="padding:9px 0 0;font-weight:600;border-top:2px solid #1a1814;">${T("Mietzins", "Rent")}</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${mietzinsStr}<div style="font-weight:400;font-size:11.5px;color:#6e6a62;">${inkl}</div></td></tr>`;
+
+  const kautionText = km > 0
+    ? T(`Wir nutzen für Mietkautionen die Schweizer Plattform <strong>Evorest</strong>. Du erhältst eine separate E-Mail von Evorest mit einem Link. Deine Kaution beträgt <strong>${km} ${km === 1 ? "Monatsmiete" : "Monatsmieten"}${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>.`, `We use the Swiss platform <strong>Evorest</strong> for rental deposits. You will receive a separate email from Evorest with a link. Your deposit is <strong>${km} ${km === 1 ? "month's" : "months'"} rent${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>.`)
+    : T("Bei deiner Variante ist <strong>keine Kaution</strong> nötig. Dafür ist die monatliche Servicegebühr im Mietzins enthalten.", "With your option <strong>no deposit</strong> is required. Instead, the monthly service fee is included in your rent.");
+  const bankZeile = (l, v, mono = false) => `<div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">${l}</span><br><span style="color:#1a1814;font-weight:600;${mono ? "font-family:Menlo,Monaco,monospace;" : ""}">${v}</span></div>`;
+  const zahlung = `<table role="presentation" cellpadding="0" cellspacing="0" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;padding:16px;margin:4px 0 0;width:100%;"><tr>
+<td style="width:120px;vertical-align:middle;padding-right:16px;"><img src="https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png" alt="QR" width="120" style="width:120px;height:120px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td>
+<td style="vertical-align:middle;font-size:12px;line-height:1.6;">
+${bankZeile("Bank", "Graub&uuml;ndner Kantonalbank")}${bankZeile("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bankZeile("BIC/SWIFT", "GRKBCH2270A", true)}${bankZeile(T("Betrag", "Amount"), mietzinsStr)}${bankZeile(T("Referenz", "Reference"), esc(referenz))}${bankZeile(T("Erste Zahlung", "First payment"), T(`bis ${ersteBelastungStr}`, `by ${ersteBelastungStr}`))}
+</td></tr></table>`;
+
+  const intro = istWohnung
+    ? (mmV ? T("euer Untermietvertrag für die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!", "your sublease agreement for the apartment has been signed. Welcome to D&amp;T Homes!") : T("dein Untermietvertrag für die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!", "your sublease agreement for the apartment has been signed. Welcome to D&amp;T Homes!"))
+    : T("dein Untermietvertrag ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!", "your sublease agreement has been signed. Welcome to D&amp;T Homes!");
+  const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(hallo)},</p>
+<p style="font-size:14px;margin:0 0 18px;">${intro}</p>
+<p style="font-size:14px;margin:0 0 6px;">${T("Die unterzeichneten Dokumente findest du im Anhang oder hier:", "You will find the signed documents attached or here:")}</p>
+<div style="margin:0 0 22px;">${linksHtml}</div>
+${box(T("Deine Konditionen", "Your terms"), konditionen)}
+<div style="font-size:15px;font-weight:600;margin:6px 0 0;">${T("Die nächsten Schritte", "Next steps")}</div>
+${schritt(1, km > 0 ? T("Kaution einrichten", "Set up your deposit") : T("Kaution", "Deposit"), kautionText)}
+${schritt(2, T("Mietzahlung einrichten", "Set up your rent payment"), T("Bitte richte einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats:", "Please set up a standing order, due by the 25th of the previous month:") + zahlung)}
+<p style="font-size:14px;margin:22px 0 0;">${T("Wir freuen uns auf eine angenehme Zeit mit dir!", "We look forward to having you with us!")}</p>`;
+  return shell(T("Vertrag unterzeichnet", "Contract signed"), inhalt);
 }
 
 // ─── ANKER-ERKENNUNG ───────────────────────────────────────────────────
@@ -520,6 +469,7 @@ Deno.serve(async (req) => {
     }
 
     // Bestaetigungsmail an den Mieter senden (jetzt, nach der Gegenzeichnung).
+    let mailFehler = "";
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (RESEND_API_KEY) {
       const pdfAttachments = countersignedPdfs.map((sp, idx) => ({
@@ -540,23 +490,47 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Sprache des Mieters (Bewerbung, sonst Mieterdaten) und eingebettetes Logo
+      let sprache = "de";
       try {
-        await fetch("https://api.resend.com/emails", {
+        if (contract.bewerber_id) { const { data: ap } = await supabase.from("applicants").select("sprache").eq("id", contract.bewerber_id).maybeSingle(); if (ap?.sprache) sprache = ap.sprache; }
+        if (sprache === "de" && contract.mieter_email) { const { data: tn } = await supabase.from("tenants").select("sprache").ilike("email", contract.mieter_email).limit(1); if (tn && tn[0]?.sprache) sprache = tn[0].sprache; }
+      } catch (_) { /* Standard: Deutsch */ }
+      const en = sprache === "en";
+      let logoB64 = null;
+      try {
+        const lr = await fetch("https://mieter.dthomes.ch/dt-logo.png");
+        if (lr.ok) { logoB64 = bytesToBase64(new Uint8Array(await lr.arrayBuffer())); }
+      } catch (_) { /* ohne Logo */ }
+      const logoSrc = logoB64 ? "cid:dt-logo" : "https://mieter.dthomes.ch/dt-logo.png";
+      if (logoB64) pdfAttachments.push({ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" });
+      try {
+        const mailResp = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             from: "D&T Homes <noreply@dthomes.ch>",
             to: [contract.mieter_email],
             ...((() => { const mm = contract?.contract_data?.vertrag?.mitmieter; const e = mm && mm.vorname && String(mm.email || "").trim(); return (e && e.toLowerCase() !== String(contract.mieter_email || "").toLowerCase()) ? { cc: [e] } : {}; })()),
+            bcc: ["daan.theijse@dthomes.ch"],
+            reply_to: "info@dthomes.ch",
             subject: contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag"
-              ? "Deine Verl\u00e4ngerung ist best\u00e4tigt"
-              : "Willkommen bei D&T Homes: Vertrag unterzeichnet",
-            html: confirmationEmailToTenant(contract, downloadLinks),
+              ? (en ? "Your extension is confirmed" : "Deine Verl\u00e4ngerung ist best\u00e4tigt")
+              : (en ? "Welcome to D&T Homes: contract signed" : "Willkommen bei D&T Homes: Vertrag unterzeichnet"),
+            html: confirmationEmailToTenant(contract, downloadLinks, sprache, logoSrc),
             attachments: pdfAttachments,
           }),
         });
-        await supabase.from("contracts").update({ notification_sent_at: now.toISOString() }).eq("token", token);
-      } catch (e) { console.error("Tenant confirmation email failed:", e); }
+        if (mailResp.ok) {
+          await supabase.from("contracts").update({ notification_sent_at: now.toISOString() }).eq("token", token);
+        } else {
+          const det = await mailResp.text().catch(() => "");
+          console.error("Tenant confirmation email rejected:", mailResp.status, det);
+          mailFehler = "Die Bestaetigungsmail an den Mieter konnte nicht versendet werden (" + mailResp.status + ").";
+        }
+      } catch (e) { console.error("Tenant confirmation email failed:", e); mailFehler = "Die Bestaetigungsmail an den Mieter konnte nicht versendet werden."; }
+    } else {
+      mailFehler = "E-Mail-Versand nicht konfiguriert.";
     }
 
     return jsonResponse({
@@ -564,6 +538,8 @@ Deno.serve(async (req) => {
       message: "Vertrag erfolgreich gegengezeichnet",
       contract_id: contract.id,
       countersigned_at: now.toISOString(),
+      mail_sent: !mailFehler,
+      mail_error: mailFehler || null,
     });
 
   } catch (e) {

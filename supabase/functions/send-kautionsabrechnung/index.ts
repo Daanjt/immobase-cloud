@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -22,47 +23,53 @@ async function ladeLogo(): Promise<string | null> {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (!(await istAdminOderServer(req))) return verweigert(CORS);
   try {
     if (!RESEND_API_KEY) return j({ error: "Missing RESEND_API_KEY" }, 500);
     const { tenant_id, betrag, abzuege, nachricht } = await req.json();
     if (!tenant_id) return j({ error: "tenant_id erforderlich" }, 400);
     const sb = createClient(SUPABASE_URL!, SERVICE_KEY!);
-    const { data: t } = await sb.from("tenants").select("vorname, nachname, email").eq("id", tenant_id).single();
+    const { data: t } = await sb.from("tenants").select("vorname, nachname, email, kaution_abrechnung, sprache").eq("id", tenant_id).single();
     if (!t || !t.email) return j({ error: "Mieter oder Email nicht gefunden" }, 404);
+    // Schutz vor Doppelklick: dieselbe Abrechnung nicht innert 5 Minuten zweimal senden
+    const zuletzt = t.kaution_abrechnung && t.kaution_abrechnung.gesendet_am ? Date.parse(t.kaution_abrechnung.gesendet_am) : 0;
+    if (zuletzt && Date.now() - zuletzt < 5 * 60 * 1000) return j({ error: "Die Kautionsabrechnung wurde gerade eben schon gesendet." }, 409);
 
+    const en = t.sprache === "en";
+    const T = (de: string, e: string) => (en ? e : de);
     const base = +betrag || 0;
     const items = Array.isArray(abzuege) ? abzuege.filter((a: any) => a && (+a.betrag || 0) > 0) : [];
     const summe = items.reduce((s: number, a: any) => s + (+a.betrag || 0), 0);
     const rueck = Math.max(0, base - summe);
 
     const b64 = await ladeLogo(); const logoSrc = b64 ? "cid:dt-logo" : LOGO_URL;
-    const zeilen = items.map((a: any) => `<tr><td style="padding:6px 0;color:#4a4439;border-top:1px solid #f0eadd;">${esc(a.grund || "Abzug")}</td><td style="padding:6px 0;text-align:right;border-top:1px solid #f0eadd;">- ${chf(+a.betrag)}</td></tr>`).join("");
+    const zeilen = items.map((a: any) => `<tr><td style="padding:6px 0;color:#4a4439;border-top:1px solid #f0eadd;">${esc(a.grund || T("Abzug", "Deduction"))}</td><td style="padding:6px 0;text-align:right;border-top:1px solid #f0eadd;">- ${chf(+a.betrag)}</td></tr>`).join("");
     const tabelle = `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 20px;font-size:13.5px;color:#1a1814;border-collapse:collapse;">
-<tr><td style="padding:6px 0;color:#4a4439;">Kaution</td><td style="padding:6px 0;text-align:right;">${chf(base)}</td></tr>
+<tr><td style="padding:6px 0;color:#4a4439;">${T("Kaution", "Deposit")}</td><td style="padding:6px 0;text-align:right;">${chf(base)}</td></tr>
 ${zeilen || ''}
-<tr><td style="padding:9px 0 0;font-weight:600;border-top:2px solid #1a1814;">Rückzahlung</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${chf(rueck)}</td></tr>
+<tr><td style="padding:9px 0 0;font-weight:600;border-top:2px solid #1a1814;">${T("Rückzahlung", "Refund")}</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${chf(rueck)}</td></tr>
 </table>`;
 
-    const dankSchluss = `<p style="font-size:14px;margin:0 0 18px;">Schön, dass du Teil von D&amp;T Homes warst. Wir wünschen dir viel Erfolg und alles Gute für die Zukunft.</p>`;
+    const dankSchluss = `<p style="font-size:14px;margin:0 0 18px;">${T("Schön, dass du Teil von D&amp;T Homes warst. Wir wünschen dir viel Erfolg und alles Gute für die Zukunft.", "It was great having you at D&amp;T Homes. We wish you every success and all the best for the future.")}</p>`;
     const nt = (nachricht || "").trim();
     const inhalt = nt ? (nt.split(/\n{2,}/).map((p: string) => `<p style="font-size:14px;margin:0 0 14px;">${esc(p).replace(/\n/g, "<br>")}</p>`).join("") + tabelle) : (summe > 0
-      ? `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
-<p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei D&amp;T Homes, wir hoffen, du hattest eine schöne Zeit bei uns. Hier die Abrechnung deiner Kaution:</p>
+      ? `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(t.vorname || "")},</p>
+<p style="font-size:14px;margin:0 0 6px;">${T("vielen Dank für deine Zeit bei D&amp;T Homes, wir hoffen, du hattest eine schöne Zeit bei uns. Hier die Abrechnung deiner Kaution:", "thank you for your time at D&amp;T Homes, we hope you enjoyed living with us. Here is the statement of your deposit:")}</p>
 ${tabelle}
-<p style="font-size:14px;margin:0 0 18px;">Nach Abzug der oben aufgeführten Positionen erhältst du <strong>${chf(rueck)}</strong> zurück. Die Verrechnung und Rückzahlung werden direkt über Evorest abgewickelt.</p>
+<p style="font-size:14px;margin:0 0 18px;">${T(`Nach Abzug der oben aufgeführten Positionen erhältst du <strong>${chf(rueck)}</strong> zurück. Die Verrechnung und Rückzahlung werden direkt über Evorest abgewickelt.`, `After deducting the items listed above, you will receive <strong>${chf(rueck)}</strong> back. The settlement and refund are handled directly via Evorest.`)}</p>
 ${dankSchluss}`
-      : `<p style="font-size:14.5px;margin:0 0 14px;">Hallo ${esc(t.vorname || "")},</p>
-<p style="font-size:14px;margin:0 0 6px;">vielen Dank für deine Zeit bei D&amp;T Homes. Es freut uns, dir mitzuteilen, dass du deine volle Kaution von <strong>${chf(rueck)}</strong> zurückerhältst. Die Rückzahlung läuft direkt über Evorest.</p>
+      : `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(t.vorname || "")},</p>
+<p style="font-size:14px;margin:0 0 6px;">${T(`vielen Dank für deine Zeit bei D&amp;T Homes. Es freut uns, dir mitzuteilen, dass du deine volle Kaution von <strong>${chf(rueck)}</strong> zurückerhältst. Die Rückzahlung läuft direkt über Evorest.`, `thank you for your time at D&amp;T Homes. We are happy to let you know that you will receive your full deposit of <strong>${chf(rueck)}</strong> back. The refund is handled directly via Evorest.`)}</p>
 ${dankSchluss}`);
 
     const wa = `https://wa.me/${WA_DIGITS}`;
-    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
+    const html = `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
-<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">Kautionsabrechnung</div>
+<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${T("Kautionsabrechnung", "Deposit statement")}</div>
 ${inhalt}
-<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">Bei Fragen: <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> oder per WhatsApp <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
+<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${T("Bei Fragen:", "Questions?")} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${T("oder per WhatsApp", "or via WhatsApp")} <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
 </div>
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
 </div></body></html>`;
@@ -70,7 +77,7 @@ ${inhalt}
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: FROM_EMAIL, to: [t.email], bcc: [BCC], reply_to: REPLY_TO, subject: "Kautionsabrechnung", html, attachments: b64 ? [{ filename: "logo.png", content: b64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [] }),
+      body: JSON.stringify({ from: FROM_EMAIL, to: [t.email], bcc: [BCC], reply_to: REPLY_TO, subject: T("Deine Kautionsabrechnung bei D&T Homes", "Your deposit statement from D&T Homes"), html, attachments: b64 ? [{ filename: "logo.png", content: b64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [] }),
     });
     const rd = await resp.json();
     if (!resp.ok) return j({ error: rd }, 500);

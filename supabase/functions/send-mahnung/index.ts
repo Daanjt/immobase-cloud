@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -45,45 +46,48 @@ function logoAnhang(b64: string | null) {
   return b64 ? [{ filename: "logo.png", content: b64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [];
 }
 
-function huelle(inhalt: string, eyebrow: string | undefined, logoSrc: string) {
+const MONTHS_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function huelle(inhalt: string, eyebrow: string | undefined, logoSrc: string, en = false) {
   const wa = `https://wa.me/${WA_DIGITS}`;
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
+  return `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
 ${eyebrow ? `<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${eyebrow}</div>` : ""}
 ${inhalt}
-<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">Bei Fragen: <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> oder per WhatsApp <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
+<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${en ? "Questions?" : "Bei Fragen:"} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${en ? "or via WhatsApp" : "oder per WhatsApp"} <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
 </div>
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
 </div></body></html>`;
 }
 
 function buildEmailHtml(opts: any, logoSrc: string) {
-  const { stufe, vorname, monatLabel, betragSoll, mahnungFee, totalOffen, frist, mahnung1Datum } = opts;
-  const eyebrow = stufe === 1 ? "Zahlungserinnerung" : "Zweite Mahnung";
+  const { stufe, vorname, monatLabel, betragSoll, mahnungFee, totalOffen, frist, mahnung1Datum, en } = opts;
+  const T = (de: string, e: string) => (en ? e : de);
+  const eyebrow = stufe === 1 ? T("Zahlungserinnerung", "Payment reminder") : T("Zweite Mahnung", "Second reminder");
 
   const tabelle = `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:18px 0 22px;font-size:13.5px;color:#1a1814;border-collapse:collapse;">
-<tr><td style="padding:6px 0;color:#4a4439;">Ausstehende Miete</td><td style="padding:6px 0;text-align:right;">${chf(betragSoll)}</td></tr>
-<tr><td style="padding:6px 0;color:#4a4439;border-top:1px solid #f0eadd;">Mahnungsgebühr</td><td style="padding:6px 0;text-align:right;border-top:1px solid #f0eadd;">+ ${chf(mahnungFee)}</td></tr>
-<tr><td style="padding:9px 0 0;color:#1a1814;font-weight:600;border-top:2px solid #1a1814;">Total fällig</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${chf(totalOffen)}</td></tr>
+<tr><td style="padding:6px 0;color:#4a4439;">${T("Ausstehende Miete", "Outstanding rent")}</td><td style="padding:6px 0;text-align:right;">${chf(betragSoll)}</td></tr>
+<tr><td style="padding:6px 0;color:#4a4439;border-top:1px solid #f0eadd;">${T("Mahngebühr", "Reminder fee")}</td><td style="padding:6px 0;text-align:right;border-top:1px solid #f0eadd;">+ ${chf(mahnungFee)}</td></tr>
+<tr><td style="padding:9px 0 0;color:#1a1814;font-weight:600;border-top:2px solid #1a1814;">${T("Total fällig", "Total due")}</td><td style="padding:9px 0 0;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${chf(totalOffen)}</td></tr>
 </table>`;
 
   const inhalt1 = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${vorname},</p>
-<p style="font-size:14px;margin:0 0 18px;">uns ist aufgefallen, dass für deine Miete <strong>${monatLabel}</strong> noch ein offener Betrag von <strong>${chf(betragSoll)}</strong> aussteht. Vermutlich ist es einfach untergegangen.</p>
+<p style="font-size:14px;margin:0 0 18px;">${T(`uns ist aufgefallen, dass für deine Miete <strong>${monatLabel}</strong> noch ein offener Betrag von <strong>${chf(betragSoll)}</strong> aussteht. Vermutlich ist es einfach untergegangen.`, `we noticed that an amount of <strong>${chf(betragSoll)}</strong> is still outstanding for your rent for <strong>${monatLabel}</strong>. It has probably just slipped through.`)}</p>
 <div style="background:#fdf7e8;border:1px solid #e8d2a8;border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:13.5px;color:#8a6a2e;line-height:1.6;">
-⏱ Bitte überweise den offenen Betrag innert 10 Tagen, spätestens bis zum <strong>${frist}</strong>. Danach müssten wir eine zweite Mahnung mit einer Bearbeitungsgebühr von ${chf(mahnungFee)} zustellen.
+⏱ ${T(`Bitte überweise den offenen Betrag innert 10 Tagen, spätestens bis zum <strong>${frist}</strong>. Danach müssten wir eine zweite Mahnung mit einer Mahngebühr von ${chf(mahnungFee)} zustellen.`, `Please transfer the outstanding amount within 10 days, by <strong>${frist}</strong> at the latest. Otherwise we would have to send a second reminder with a reminder fee of ${chf(mahnungFee)}.`)}
 </div>
-<p style="font-size:14px;margin:0 0 18px;">Falls du den Betrag bereits überwiesen hast, betrachte diese Erinnerung als gegenstandslos.</p>`;
+<p style="font-size:14px;margin:0 0 18px;">${T("Falls du den Betrag bereits überwiesen hast, betrachte diese Erinnerung als gegenstandslos.", "If you have already paid, please disregard this reminder.")}</p>`;
 
   const inhalt2 = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${vorname},</p>
-<p style="font-size:14px;margin:0 0 18px;">trotz unserer Erinnerung vom <strong>${mahnung1Datum}</strong> ist für deine Miete <strong>${monatLabel}</strong> noch ein offener Betrag ausstehend. Gemäss Mietvertrag fällt dafür eine Bearbeitungsgebühr an.</p>
+<p style="font-size:14px;margin:0 0 18px;">${T(`trotz unserer Erinnerung vom <strong>${mahnung1Datum}</strong> ist für deine Miete <strong>${monatLabel}</strong> noch ein offener Betrag ausstehend. Gemäss Mietvertrag fällt dafür eine Mahngebühr an.`, `despite our reminder of <strong>${mahnung1Datum}</strong>, an amount is still outstanding for your rent for <strong>${monatLabel}</strong>. According to your agreement, a reminder fee applies.`)}</p>
 ${tabelle}
 <div style="background:#fdebe5;border:1px solid #e0bcb0;border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:13.5px;color:#9b4a3e;line-height:1.6;">
-⚠️ Bitte überweise den Gesamtbetrag innert 10 Tagen, spätestens bis zum <strong>${frist}</strong>. Sollte auch danach keine Zahlung eingehen, behalten wir uns weitere rechtliche Schritte vor.
+⚠️ ${T(`Bitte überweise den Gesamtbetrag innert 10 Tagen, spätestens bis zum <strong>${frist}</strong>. Sollte auch danach keine Zahlung eingehen, behalten wir uns weitere rechtliche Schritte vor.`, `Please transfer the total amount within 10 days, by <strong>${frist}</strong> at the latest. If no payment is received after that, we reserve the right to take further legal steps.`)}
 </div>`;
 
-  return huelle(stufe === 1 ? inhalt1 : inhalt2, eyebrow, logoSrc);
+  return huelle(stufe === 1 ? inhalt1 : inhalt2, eyebrow, logoSrc, en);
 }
 
 serve(async (req) => {
@@ -93,6 +97,7 @@ serve(async (req) => {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
   };
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (!(await istAdminOderServer(req))) return verweigert(CORS);
   try {
     if (!RESEND_API_KEY) return new Response(JSON.stringify({ error: "Missing RESEND_API_KEY" }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
 
@@ -116,10 +121,11 @@ serve(async (req) => {
       if (payment.mahnung_2_sent_at) return new Response(JSON.stringify({ error: "2. Mahnung wurde bereits am " + new Date(payment.mahnung_2_sent_at).toLocaleDateString("de-CH") + " gesendet." }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
-    const { data: tenant, error: tErr } = await supabase.from("tenants").select("vorname, nachname, email").eq("id", payment.tenant_id).single();
+    const { data: tenant, error: tErr } = await supabase.from("tenants").select("vorname, nachname, email, sprache").eq("id", payment.tenant_id).single();
     if (tErr || !tenant?.email) return new Response(JSON.stringify({ error: "Mieter oder Email nicht gefunden" }), { status: 404, headers: { ...CORS, "Content-Type": "application/json" } });
 
-    const monatLabel = `${MONATE[payment.monat - 1]} ${payment.jahr}`;
+    const en = tenant.sprache === "en";
+    const monatLabel = `${(en ? MONTHS_EN : MONATE)[payment.monat - 1]} ${payment.jahr}`;
     // Nur der noch offene Restbetrag: effektiver Soll (inkl. Uebertrag) minus bereits bezahlt
     const soll = Number(payment.betrag_soll || 0);
     const uebertrag = Number(payment.uebertrag || 0);
@@ -131,13 +137,18 @@ serve(async (req) => {
 
     const fristDate = new Date();
     fristDate.setDate(fristDate.getDate() + 10);
-    const frist = fristDate.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
-    const mahnung1Datum = payment.mahnung_1_sent_at ? new Date(payment.mahnung_1_sent_at).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+    const frist = en ? fristDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : fristDate.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const mahnung1Datum = payment.mahnung_1_sent_at ? (en ? new Date(payment.mahnung_1_sent_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : new Date(payment.mahnung_1_sent_at).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" })) : "";
 
     const logoB64 = await ladeLogo();
     const logoSrc = logoB64 ? "cid:dt-logo" : LOGO_URL;
-    const html = buildEmailHtml({ stufe: stufeNum, vorname: tenant.vorname, monatLabel, betragSoll, mahnungFee, totalOffen, frist, mahnung1Datum }, logoSrc);
-    const subject = stufeNum === 1 ? `Zahlungserinnerung: Miete ${monatLabel}` : `Zweite Mahnung: Miete ${monatLabel}`;
+    const html = buildEmailHtml({ stufe: stufeNum, vorname: tenant.vorname, monatLabel, betragSoll, mahnungFee, totalOffen, frist, mahnung1Datum, en }, logoSrc);
+    const subject = stufeNum === 1 ? (en ? `Payment reminder: rent ${monatLabel}` : `Zahlungserinnerung: Miete ${monatLabel}`) : (en ? `Second reminder: rent ${monatLabel}` : `Zweite Mahnung: Miete ${monatLabel}`);
+
+    // Zuerst reservieren (atomar): ein Doppelklick kann so keine zweite Mahnung ausloesen
+    const updateField = stufeNum === 1 ? "mahnung_1_sent_at" : "mahnung_2_sent_at";
+    const { data: claim, error: uErr } = await supabase.from("payments").update({ [updateField]: new Date().toISOString() }).eq("id", payment_id).is(updateField, null).select("id");
+    if (!uErr && (!claim || !claim.length)) return new Response(JSON.stringify({ error: "Diese Mahnung wurde bereits gesendet." }), { status: 409, headers: { ...CORS, "Content-Type": "application/json" } });
 
     const resendResp = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -147,11 +158,10 @@ serve(async (req) => {
     const resendData = await resendResp.json();
     if (!resendResp.ok) {
       console.error("Resend error:", resendData);
+      await supabase.from("payments").update({ [updateField]: null }).eq("id", payment_id);
       return new Response(JSON.stringify({ error: resendData }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
-    const updateField = stufeNum === 1 ? "mahnung_1_sent_at" : "mahnung_2_sent_at";
-    const { error: uErr } = await supabase.from("payments").update({ [updateField]: new Date().toISOString() }).eq("id", payment_id);
     if (uErr) return new Response(JSON.stringify({ error: "Email gesendet aber Status-Update fehlgeschlagen: " + uErr.message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
 
     return new Response(JSON.stringify({ success: true, sent_to: tenant.email, stufe: stufeNum, monat: monatLabel, total: totalOffen }), { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });

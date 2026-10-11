@@ -1899,6 +1899,9 @@ function useSupabaseData() {
     delete dbFields.eingereichtAm;
     delete dbFields.zugeteiltes_zimmer;
     delete dbFields.truthful;
+    // Felder, die es nur bei Bewerbern gibt (sonst schlaegt das Anlegen des Mieters fehl)
+    for (const f of ["aufenthalt","no_criminal_record","noCriminalRecord","empfohlen_von","quelle","notiz","whatsapp_followup_scheduled_at","whatsapp_followup_sent_at","whatsapp_followup_status","whatsapp_message_id","whatsapp_followup_error","whatsapp_followup_language"]) delete dbFields[f];
+    if (dbFields.sprache !== undefined && !["de","en"].includes(dbFields.sprache)) dbFields.sprache = "de";
     // Strip removed-feature fields (lifestyle)
     delete dbFields.rauchen;
     delete dbFields.haustiere;
@@ -6441,7 +6444,7 @@ async function sendContractForSigningShared(b, vertragData, onProgress, types, o
   progress("Email an Mieter senden...", 0.95);
   const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||SUPABASE_ANON_KEY}` },
     body: JSON.stringify({ contractId: contractRow.id }),
   });
   if (!emailRes.ok) { console.error("Email-Versand fehlgeschlagen:", await emailRes.text()); }
@@ -6567,7 +6570,7 @@ async function sendSingleDocForSigning(person, html, opts) {
   progress("Email an Mieter senden...", 0.95);
   const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||SUPABASE_ANON_KEY}` },
     body: JSON.stringify({ contractId: contractRow.id }),
   });
   if (!emailRes.ok) { console.error("Email-Versand fehlgeschlagen:", await emailRes.text()); }
@@ -6675,7 +6678,8 @@ function CountersignButton({contract, onDone, onSigned, light}){
       if (data && data.error) throw new Error(data.error);
       closePreview();
       if (onDone) await onDone();
-      alert("Vertrag gegengezeichnet. Die Bestaetigung wurde an den Mieter gesendet.");
+      if (data && data.mail_error) alert("Vertrag gegengezeichnet.\n\nAchtung: " + data.mail_error + " Bitte dem Mieter den Vertrag manuell senden.");
+      else alert("Vertrag gegengezeichnet. Die Bestätigung wurde an den Mieter gesendet.");
       if (onSigned) onSigned(contract && contract.roomId);
     } catch(e){
       console.error("countersign confirm:", e);
@@ -7570,7 +7574,7 @@ www.dthomes.ch`;
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Authorization": `Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({ contractId: contractRow.id }),
     });
@@ -10390,6 +10394,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
         <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={form.vorname||""} onChange={F("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={form.nachname||""} onChange={F("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={form.email||""} onChange={F("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={form.phone||""} onChange={F("phone")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Sprache für E-Mails</label><select className="fi" value={form.sprache==="en"?"en":"de"} onChange={F("sprache")}><option value="de">Deutsch</option><option value="en">Englisch</option></select></div><div className="fg"></div></div>
         <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={toDateInputValue(form.geburt)} onChange={F("geburt")}/></div><div className="fg"><label className="fl">Zivilstand</label><select className="fi" value={form.zivilstand||""} onChange={F("zivilstand")}><option value="">-</option><option>ledig</option><option>verheiratet</option><option>eingetragene Partnerschaft</option><option>geschieden</option><option>verwitwet</option><option>getrennt</option></select></div><div className="fg"><label className="fl">Land (Adresse)</label><select className="fi" value={form.land||""} onChange={F("land")}><option value="">Schweiz (Standard)</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={form.nat||""} onChange={F("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div></div>
@@ -10529,6 +10534,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
         <div className="frow"><div className="fg"><label className="fl">ID</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. T18"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Vorname *</label><input className="fi" value={newForm.vorname||""} onChange={NF("vorname")}/></div><div className="fg"><label className="fl">Nachname *</label><input className="fi" value={newForm.nachname||""} onChange={NF("nachname")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={newForm.email||""} onChange={NF("email")}/></div><div className="fg"><label className="fl">Telefon</label><input className="fi" value={newForm.phone||""} onChange={NF("phone")}/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Sprache für E-Mails</label><select className="fi" value={newForm.sprache==="en"?"en":"de"} onChange={NF("sprache")}><option value="de">Deutsch</option><option value="en">Englisch</option></select></div><div className="fg"></div></div>
         <div className="frow"><div className="fg"><label className="fl">Geburtsdatum</label><input className="fi" type="date" value={toDateInputValue(newForm.geburt)} onChange={NF("geburt")}/></div><div className="fg"><label className="fl">Zivilstand</label><select className="fi" value={newForm.zivilstand||""} onChange={NF("zivilstand")}><option value="">-</option><option>ledig</option><option>verheiratet</option><option>eingetragene Partnerschaft</option><option>geschieden</option><option>verwitwet</option><option>getrennt</option></select></div><div className="fg"><label className="fl">Land (Adresse)</label><select className="fi" value={newForm.land||""} onChange={NF("land")}><option value="">Schweiz (Standard)</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div><div className="fg"><label className="fl">Nationalität</label><select className="fi" value={newForm.nat||""} onChange={NF("nat")}><option value="">- Bitte wählen -</option>{NATIONALITAETEN_TOP.map(n=><option key={n} value={n}>{n}</option>)}<option disabled>──────────</option>{NATIONALITAETEN_REST.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div>
         <div className="fg"><label className="fl">Vorherige Adresse</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")}/></div>
         <div className="frow"><div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div><div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div></div>

@@ -38,6 +38,9 @@ Deno.serve(async (req) => {
 
   let sent = 0;
   for (const m of due) {
+    // Zuerst reservieren: verhindert Doppelversand, falls zwei Laeufe ueberlappen
+    const { data: claim } = await sb.from("scheduled_mails").update({ status: "sending" }).eq("id", m.id).eq("status", "pending").select("id");
+    if (!claim || !claim.length) continue;
     try {
       // Catch-up: nur senden, wenn der Deal noch in "kontaktiert" ist
       if (m.is_followup && m.deal_id) {

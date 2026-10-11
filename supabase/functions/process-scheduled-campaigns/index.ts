@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -8,12 +9,16 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (!(await istAdminOderServer(req))) return verweigert(CORS);
   try {
     const sb = createClient(SUPABASE_URL!, SERVICE_KEY!);
     const nowIso = new Date().toISOString();
     const { data: due } = await sb.from("kampagnen_geplant").select("*").eq("status", "geplant").lte("scheduled_for", nowIso).limit(20);
     let processed = 0;
     for (const g of (due || [])) {
+      // Zuerst reservieren: verhindert Doppelversand, falls zwei Laeufe ueberlappen
+      const { data: claim } = await sb.from("kampagnen_geplant").update({ status: "sendet" }).eq("id", g.id).eq("status", "geplant").select("id");
+      if (!claim || !claim.length) continue;
       try {
         const resp = await fetch(`${SUPABASE_URL}/functions/v1/send-campaign`, {
           method: "POST",

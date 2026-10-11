@@ -272,50 +272,60 @@ async function renderPdfViaApi(html: string, filename: string): Promise<string |
   }
 }
 
-function buildReminderHtml(name: string, daysLeft: number, deadline: string, url: string, urgency: "first" | "final", logoSrc: string) {
-  const isFinal = urgency === "final";
-  const bgColor = isFinal ? "#fdebe5" : "#fdf7e8";
-  const borderColor = isFinal ? "#e0bcb0" : "#e8d2a8";
-  const textColor = isFinal ? "#9b4a3e" : "#8a6a2e";
-  const icon = isFinal ? "⚠️" : "⏱";
-  const title = isFinal ? "Letzter Reminder" : "Freundlicher Reminder";
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
+function formatDateEN(input: string): string {
+  const s = String(input || "").trim();
+  const m = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  let d: Date | null = null;
+  const de = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (de) d = new Date(+de[3], +de[2] - 1, +de[1]); else { const x = new Date(s); if (!isNaN(x.getTime())) d = x; }
+  return d ? `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()}` : s;
+}
+const fristText = (deadline: string, en: boolean) => en ? formatDateEN(deadline) : formatDateDE(deadline);
+
+function shell(inhalt: string, eyebrow: string, logoSrc: string, en: boolean) {
+  return `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
-<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
-<p style="font-size:14.5px;margin:0 0 14px;">Hi ${name},</p>
-<p style="font-size:14px;margin:0 0 18px;">Dein Übernahmeprotokoll für die neue Wohnung ist noch nicht eingereicht.</p>
-<div style="background:${bgColor};border:1px solid ${borderColor};border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:13.5px;color:${textColor};line-height:1.6;">
-${icon} Du hast noch <strong>${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"}</strong> Zeit. Frist: <strong>${deadline}</strong>.<br>
-${isFinal ? "Danach gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen und Mängel können bei der Rückgabe nicht mehr geltend gemacht werden." : "Bitte fülle das Protokoll baldmöglich aus, damit allfällige Mängel dokumentiert sind."}
-</div>
-<div style="text-align:center;margin:28px 0;">
-<a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">Jetzt Protokoll ausfüllen</a>
-</div>
-<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">Oder kopiere diesen Link:<br><span style="color:#1a1814;word-break:break-all;">${url}</span></p>
-<p style="font-size:12px;color:#6e6a62;margin:14px 0 0;">Bei Fragen: <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> oder per WhatsApp <a href="https://wa.me/41766887091" style="color:#5a5448;">+41 76 688 70 91</a></p>
+<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${eyebrow}</div>
+${inhalt}
+<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${en ? "Questions?" : "Bei Fragen:"} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${en ? "or via WhatsApp" : "oder per WhatsApp"} <a href="https://wa.me/41766887091" style="color:#5a5448;">+41 76 688 70 91</a>.</p>
 </div>
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
 </div></body></html>`;
 }
 
-function buildAutoAcceptHtml(name: string, deadline: string, logoSrc: string) {
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
-<div style="max-width:560px;margin:0 auto;padding:30px 24px;">
-<div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
-<div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
-<div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">Übernahmeprotokoll</div>
-<p style="font-size:14.5px;margin:0 0 14px;">Hi ${name},</p>
-<p style="font-size:14px;margin:0 0 18px;">die 14-tägige Frist zur Einreichung deines digitalen Übernahmeprotokolls ist am <strong>${deadline}</strong> abgelaufen.</p>
+function buildReminderHtml(name: string, daysLeft: number, deadline: string, url: string, urgency: "first" | "final", logoSrc: string, en: boolean) {
+  const T = (de: string, e: string) => (en ? e : de);
+  const isFinal = urgency === "final";
+  const bgColor = isFinal ? "#fdebe5" : "#fdf7e8";
+  const borderColor = isFinal ? "#e0bcb0" : "#e8d2a8";
+  const textColor = isFinal ? "#9b4a3e" : "#8a6a2e";
+  const icon = isFinal ? "⚠️" : "⏱";
+  const title = isFinal ? T("Letzte Erinnerung", "Final reminder") : T("Freundliche Erinnerung", "Friendly reminder");
+  const tage = en ? `${daysLeft} ${daysLeft === 1 ? "day" : "days"}` : `${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"}`;
+  const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(name)},</p>
+<p style="font-size:14px;margin:0 0 18px;">${T("dein Übernahmeprotokoll ist noch nicht eingereicht.", "your handover protocol has not been submitted yet.")}</p>
+<div style="background:${bgColor};border:1px solid ${borderColor};border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:13.5px;color:${textColor};line-height:1.6;">
+${icon} ${T(`Du hast noch <strong>${tage}</strong> Zeit. Frist: <strong>${deadline}</strong>.`, `You have <strong>${tage}</strong> left. Deadline: <strong>${deadline}</strong>.`)}<br>
+${isFinal ? T("Danach gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen und Mängel können bei der Rückgabe nicht mehr geltend gemacht werden.", "After that, the apartment is deemed to have been handed over in perfect condition and defects can no longer be claimed at move-out.") : T("Bitte fülle das Protokoll bald aus, damit allfällige Mängel dokumentiert sind.", "Please complete the protocol soon so that any defects are documented.")}
+</div>
+<div style="text-align:center;margin:28px 0;">
+<a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${T("Jetzt Protokoll ausfüllen", "Complete protocol now")}</a>
+</div>
+<p style="font-size:12px;color:#6e6a62;margin:0;">${T("Oder kopiere diesen Link:", "Or copy this link:")}<br><span style="color:#1a1814;word-break:break-all;">${url}</span></p>`;
+  return shell(inhalt, title, logoSrc, en);
+}
+
+function buildAutoAcceptHtml(name: string, deadline: string, logoSrc: string, en: boolean, mitPdf: boolean) {
+  const T = (de: string, e: string) => (en ? e : de);
+  const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(name)},</p>
+<p style="font-size:14px;margin:0 0 18px;">${T(`die 14-tägige Frist für dein digitales Übernahmeprotokoll ist am <strong>${deadline}</strong> abgelaufen.`, `the 14-day deadline for your digital handover protocol expired on <strong>${deadline}</strong>.`)}</p>
 <div style="background:#e8efde;border:1px solid #c5d5b0;border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:13.5px;color:#3a5230;line-height:1.6;">
-✓ Da du keine Mängel gemeldet hast, gilt die Wohnung ab jetzt als in einwandfreiem Zustand übernommen. Anbei findest du das Protokoll als PDF zu deinen Unterlagen.
+✓ ${T("Da du keine Mängel gemeldet hast, gilt die Wohnung ab jetzt als in einwandfreiem Zustand übernommen.", "As you have not reported any defects, the apartment is now deemed to have been handed over in perfect condition.")}${mitPdf ? " " + T("Anbei findest du das Protokoll als PDF für deine Unterlagen.", "Attached you will find the protocol as a PDF for your records.") : ""}
 </div>
-<p style="font-size:14px;margin:0 0 18px;">Wichtig: Verdeckte Mängel, die bei der Übernahme trotz sorgfältiger Prüfung nicht erkennbar waren (z.B. Schimmel hinter Möbeln), kannst du weiterhin innert 10 Tagen ab Entdeckung an <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> melden (Art. 256 OR).</p>
-<p style="font-size:14px;margin:0 0 18px;">Bei Fragen melde dich einfach unter <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> oder per WhatsApp <a href="https://wa.me/41766887091" style="color:#5a5448;">+41 76 688 70 91</a>.</p>
-</div>
-<div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
-</div></body></html>`;
+<p style="font-size:14px;margin:0 0 18px;">${T("Wichtig: Verdeckte Mängel, die bei der Übernahme trotz sorgfältiger Prüfung nicht erkennbar waren (z.B. Schimmel hinter Möbeln), kannst du weiterhin innert 10 Tagen ab Entdeckung an", "Important: hidden defects that were not visible at handover despite careful inspection (e.g. mould behind furniture) can still be reported within 10 days of discovery to")} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${T("melden (Art. 256 OR).", "(Art. 256 Swiss Code of Obligations).")}</p>`;
+  return shell(inhalt, T("Übernahmeprotokoll", "Handover protocol"), logoSrc, en);
 }
 
 async function sendEmail(to: string, subject: string, htmlBauer: (logoSrc: string) => string, attachments?: Array<{ filename: string, content: string }>) {
@@ -352,8 +362,35 @@ async function patchProtocol(id: string, updates: Record<string, unknown>) {
   if (!res.ok) throw new Error(`PATCH failed: ${res.status} ${await res.text()}`);
 }
 
+// Feld atomar setzen, nur wenn es noch leer ist. true = dieser Lauf darf senden.
+async function claim(id: string, feld: string): Promise<boolean> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/handover_protocols?id=eq.${id}&${feld}=is.null`, {
+    method: "PATCH",
+    headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ [feld]: new Date().toISOString() }),
+  });
+  if (!res.ok) return false;
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0;
+}
+async function sprachVon(p: Record<string, unknown>): Promise<string> {
+  const H = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` };
+  try {
+    if (p.tenant_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/tenants?id=eq.${encodeURIComponent(String(p.tenant_id))}&select=sprache`, { headers: H }); const j = r.ok ? await r.json() : []; if (j[0]?.sprache) return j[0].sprache; }
+    if (p.bewerber_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/applicants?id=eq.${encodeURIComponent(String(p.bewerber_id))}&select=sprache`, { headers: H }); const j = r.ok ? await r.json() : []; if (j[0]?.sprache) return j[0].sprache; }
+  } catch (_) { /* Standard: Deutsch */ }
+  return "de";
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  // Nur der Cron-Job (Service-Role-Key) darf diese Funktion ausloesen
+  // (verify_jwt = true prueft die Signatur, hier nur noch die Rolle)
+  let _rolle = "";
+  try { const _t = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim(); _rolle = JSON.parse(atob(_t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role || ""; } catch (_) { /* leer */ }
+  if (_rolle !== "service_role") {
+    return new Response(JSON.stringify({ error: "Nicht berechtigt" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
 
   try {
     const url = `${SUPABASE_URL}/rest/v1/handover_protocols?status=in.(sent,in_progress)&select=*`;
@@ -366,66 +403,62 @@ Deno.serve(async (req: Request) => {
 
     for (const p of protocols) {
       try {
+        if (!p.deadline) continue; // ohne Frist nie automatisch abschliessen
         const deadline = new Date(p.deadline);
+        if (isNaN(deadline.getTime())) continue;
         const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        const signUrl = `${BASE_URL}/uebernahme/${p.token}`;
-        const name = (p.mieter_vorname || "").trim() || "zusammen";
+        const sprache = await sprachVon(p);
+        const en = sprache === "en";
+        const signUrl = `${BASE_URL}/uebernahme/${p.token}${en ? "?lang=en" : ""}`;
+        const name = (p.mieter_vorname || "").trim() || (en ? "there" : "zusammen");
+        const hatMail = p.mieter_email && String(p.mieter_email).includes("@");
 
         if (daysLeft <= 0 && !p.auto_accept_email_sent_at) {
           // PDF einmal erzeugen und fuer beides nutzen: Dokumente-Sektion und Mail.
           let pdfBase64: string | null = null;
           const filename = `Uebernahmeprotokoll_${p.mieter_nachname || "Mieter"}_${p.mieter_vorname || ""}.pdf`.replace(/\s+/g, "_");
           try { pdfBase64 = await renderPdfViaApi(buildProtocolHtml(p), filename); } catch (pdfErr) { console.error(`PDF generation failed for ${p.id}:`, pdfErr); }
-
-          // Mail ZUERST senden. Schlaegt der Versand fehl, wirft sendEmail und der
-          // Status wird NICHT gesetzt, sodass der naechste Lauf es erneut versucht
-          // (kein stiller Verlust der Auto-Abnahme-Mail).
-          if (p.mieter_email && p.mieter_email.includes("@")) {
-            const attachments = pdfBase64 ? [{ filename, content: pdfBase64 }] : undefined;
-            await sendEmail(
-              p.mieter_email,
-              "Dein Übernahmeprotokoll bei D&T Homes - Frist abgelaufen",
-              (logoSrc) => buildAutoAcceptHtml(name, formatDateDE(p.deadline), logoSrc),
-              attachments,
-            );
+          // Ohne PDF zuerst am naechsten Tag erneut versuchen; erst 2 Tage nach Fristende ohne PDF senden
+          if (!pdfBase64 && daysLeft > -2) { results.errors.push(`${p.id}: PDF nicht erzeugt, neuer Versuch beim naechsten Lauf`); continue; }
+          if (!(await claim(p.id, "auto_accept_email_sent_at"))) continue;
+          try {
+            if (hatMail) {
+              await sendEmail(
+                p.mieter_email,
+                en ? "Your handover protocol at D&T Homes: deadline expired" : "Dein Übernahmeprotokoll bei D&T Homes: Frist abgelaufen",
+                (logoSrc) => buildAutoAcceptHtml(name, fristText(p.deadline, en), logoSrc, en, !!pdfBase64),
+                pdfBase64 ? [{ filename, content: pdfBase64 }] : undefined,
+              );
+            }
+          } catch (mailErr) {
+            await patchProtocol(p.id, { auto_accept_email_sent_at: null });
+            throw mailErr;
           }
-
-          // Erst nach erfolgreichem Versand (oder wenn keine Adresse vorhanden):
-          // PDF in die Dokumente-Sektion ablegen und Protokoll abschliessen.
           if (pdfBase64) await savePdfToDocuments(p, pdfBase64);
-          await patchProtocol(p.id, {
-            status: "auto_accepted",
-            closed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            auto_accept_email_sent_at: new Date().toISOString(),
-          });
+          await patchProtocol(p.id, { status: "auto_accepted", closed_at: new Date().toISOString(), updated_at: new Date().toISOString() });
           results.auto_accepted++;
           continue;
         }
 
-        if (daysLeft > 0 && daysLeft <= 2 && !p.reminder_12d_sent_at) {
-          if (p.mieter_email && p.mieter_email.includes("@")) {
-            await sendEmail(
-              p.mieter_email,
-              "Letzter Reminder: Dein Übernahmeprotokoll bei D&T Homes",
-              (logoSrc) => buildReminderHtml(name, daysLeft, formatDateDE(p.deadline), signUrl, "final", logoSrc),
-            );
+        const stufe = (daysLeft > 0 && daysLeft <= 2 && !p.reminder_12d_sent_at) ? "final" : ((daysLeft > 2 && daysLeft <= 7 && !p.reminder_7d_sent_at) ? "first" : null);
+        if (stufe) {
+          const feld = stufe === "final" ? "reminder_12d_sent_at" : "reminder_7d_sent_at";
+          if (!(await claim(p.id, feld))) continue;
+          if (hatMail) {
+            try {
+              await sendEmail(
+                p.mieter_email,
+                stufe === "final"
+                  ? (en ? "Final reminder: your handover protocol at D&T Homes" : "Letzte Erinnerung: Dein Übernahmeprotokoll bei D&T Homes")
+                  : (en ? "Reminder: your handover protocol at D&T Homes" : "Erinnerung: Dein Übernahmeprotokoll bei D&T Homes"),
+                (logoSrc) => buildReminderHtml(name, daysLeft, fristText(p.deadline, en), signUrl, stufe, logoSrc, en),
+              );
+            } catch (mailErr) {
+              await patchProtocol(p.id, { [feld]: null });
+              throw mailErr;
+            }
           }
-          await patchProtocol(p.id, { reminder_12d_sent_at: new Date().toISOString() });
-          results.reminder_12d_sent++;
-          continue;
-        }
-
-        if (daysLeft > 2 && daysLeft <= 7 && !p.reminder_7d_sent_at) {
-          if (p.mieter_email && p.mieter_email.includes("@")) {
-            await sendEmail(
-              p.mieter_email,
-              "Reminder: Dein Übernahmeprotokoll bei D&T Homes",
-              (logoSrc) => buildReminderHtml(name, daysLeft, formatDateDE(p.deadline), signUrl, "first", logoSrc),
-            );
-          }
-          await patchProtocol(p.id, { reminder_7d_sent_at: new Date().toISOString() });
-          results.reminder_7d_sent++;
+          if (stufe === "final") results.reminder_12d_sent++; else results.reminder_7d_sent++;
         }
       } catch (e) {
         console.error(`Error processing protocol ${p.id}:`, e);

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -35,7 +36,7 @@ function esc(s: string) { return (s || "").replace(/&/g, "&amp;").replace(/</g, 
 function huelle(vorname: string, text: string, logoSrc: string) {
   const wa = `https://wa.me/${WA_DIGITS}`;
   const body = esc(text).replace(/\n/g, "<br>");
-  const anrede = vorname ? `Hallo ${esc(vorname)},` : "Hallo,";
+  const anrede = vorname ? `Hi ${esc(vorname)},` : "Hi,";
   return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
@@ -50,6 +51,7 @@ function huelle(vorname: string, text: string, logoSrc: string) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (!(await istAdminOderServer(req))) return verweigert(CORS);
   try {
     if (!RESEND_API_KEY) return j({ error: "Missing RESEND_API_KEY" }, 500);
     const { group, subject, text, test_email, exclude, include_future, recipients: inRecip, attachments: inAtt } = await req.json();
