@@ -6064,12 +6064,12 @@ ${W ? `<div class="section allow-break">
 <ul>
   <li>Tisch, Stühle, Besteck, Kochgeschirr, Tellerset, Bratpfanne, Küchenutensilien, Weingläser, Messerset, WC-Bürste, Abfalleimer, Schüsseln, Glas, Badematte, Seifenspender, Kanne, Zahnbürstenhalter, Duschvorhang und Topflappen.</li>
 </ul>
-<p class="clause"><span class="clause-num">7.1</span>Für eine ${(v.moeblierungModus==="monatlich")?`monatliche zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||150}</strong>`:`einmalige zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||990}</strong>`} kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
+${v.moebliert ? `<p class="clause"><span class="clause-num">7.1</span>Für eine ${(v.moeblierungModus==="monatlich")?`monatliche zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||150}</strong>`:`einmalige zusätzliche Gebühr von <strong>CHF ${v.moeblierungPauschale||990}</strong>`} kann das Zimmer möbliert angemietet werden. Die Möblierung umfasst:</p>
 <ul>
   <li>Bett (1,40 m breit) mit Bettgestell und Federkernmatratze, Bettwäsche (Innenkissen, Bettwäsche-Set, Bettlaken), Kommode, Nachttisch, Nachttischlampe, Deckenlampe, Schrank, Tisch, Tischlampe, Stuhl, Aufbau inklusive</li>
 </ul>
 <p>Die Möbel werden für die Dauer der Untermiete zur Nutzung überlassen. Der Untermieter verpflichtet sich zu einem sorgfältigen Gebrauch. Die Möbel bleiben im Eigentum der D&amp;T Partners GmbH. Das Nutzungsrecht endet mit Beendigung des Untermietvertrages.</p>
-<div class="highlight-box">Die Möblierung des Zimmers wird dazu gemietet: ${v.moebliert?"Ja":"Nein"}</div>
+<div class="highlight-box">Die Möblierung des Zimmers wird dazu gemietet: ${v.moebliert?"Ja":"Nein"}</div>` : `<p class="clause"><span class="clause-num">7.1</span>Die Gemeinschaftsräume der Wohnung sind möbliert. Das Zimmer wird unmöbliert übergeben. Der Untermieter richtet es auf eigene Kosten ein. Eigene Möbel und Gegenstände sind bei Vertragsende vollständig aus dem Zimmer zu entfernen.</p>`}
 <p class="clause"><span class="clause-num">7.2</span>Zum Zeitpunkt der Zimmerübergabe kann die Wohnung je nach Datum noch nicht vollständig möbliert sein. Die Möblierung erfolgt in der Regel innerhalb der ersten Tage nach Schlüsselübergabe oder nach vorgängiger Absprache.</p>
 </div>
 
