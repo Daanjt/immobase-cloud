@@ -6681,6 +6681,7 @@ function CountersignButton({contract, onDone, onSigned, light}){
       if (data && data.mail_error) alert("Vertrag gegengezeichnet.\n\nAchtung: " + data.mail_error + " Bitte dem Mieter den Vertrag manuell senden.");
       else alert("Vertrag gegengezeichnet. Die Bestätigung wurde an den Mieter gesendet.");
       if (onSigned) onSigned(contract && contract.roomId);
+      else if (c.bewerberId && !["verlaengerung","nachtrag"].includes(c.contractType) && window.__ibNavigate) window.__ibNavigate("bewerber", { zuteilen: c.bewerberId, roomId: c.roomId });
     } catch(e){
       console.error("countersign confirm:", e);
       toast("Gegenzeichnung fehlgeschlagen", "error");
@@ -6942,6 +6943,16 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       setNachmieterFor(navTarget.id.nachmieterFor);
       setFilterStatus("Neu"); // sicher dass wir auf "Neu" Tab sind
       setSel(null);
+    } else if (navTarget && navTarget.type === "bewerber" && navTarget.id && typeof navTarget.id === "object" && navTarget.id.zuteilen) {
+      // Nach der Gegenzeichnung: Bewerber oeffnen und Zimmerzuteilung mit Zimmer und Einzug vorbelegt anzeigen
+      const bz = bewerber.find(x => x.id === navTarget.id.zuteilen);
+      if (bz && bz.status !== "Zugeteilt") {
+        setSel(bz.id);
+        const rid = navTarget.id.roomId || bz.zimmerWunsch || null;
+        if (rid) setSelZimmer(rid);
+        if (bz.einzug) { const _d = _pdZ(bz.einzug); if (_d) setEinzugDate(_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0")); }
+        setZuteilModal(true);
+      } else if (bz) { setSel(bz.id); }
     } else if (navTarget && navTarget.type === "bewerber" && typeof navTarget.id === "string") {
       // Single bewerber selection
       setSel(navTarget.id);
@@ -14676,6 +14687,8 @@ function MainApp({rolle}) {
     setNavTarget({id: targetId, type: targetPage});
     setSidebarOpen(false); // close sidebar after navigation on mobile
   }
+  // Fuer Komponenten ohne navigateTo-Prop (z.B. Gegenzeichnen-Knopf): direkt weiter zur Zimmerzuteilung
+  window.__ibNavigate = navigateTo;
 
   async function logout() {
     try { await supabase.auth.signOut(); } catch (e) { console.warn("signOut:", e); }
