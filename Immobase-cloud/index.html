@@ -11115,6 +11115,30 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   const [mahnBetragStart, setMahnBetragStart] = useState("");
   
   const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  // Zusammensetzung eines Monats-Solls: eigener Monat + Uebertrag, aufgeteilt auf die Monate, aus denen er stammt.
+  // Zahlungen decken immer zuerst den aeltesten Betrag. Gleiche Logik wie in der Mahnung.
+  const zusammensetzung = (tenantId, j, m, eigenSoll, ue) => {
+    const mine = payments.filter(x=>x.tenantId===tenantId);
+    const key = (jj,mm)=>jj*12+(mm-1);
+    const byKey = {}; mine.forEach(x=>{ byKey[key(x.jahr,x.monat)] = x; });
+    const posten = [{ jahr:j, monat:m, betrag:+eigenSoll||0, rest:false, aktuell:true }];
+    let carried = +ue||0;
+    if (carried < 0) { posten.push({ jahr:j, monat:m, betrag:carried, guthaben:true }); carried = 0; }
+    let k = key(j,m)-1, guard = 0; const besucht = new Set([key(j,m)]);
+    while (carried > 0.009 && guard++ < 24) {
+      const v = byKey[k];
+      if (!v) { posten.unshift({ frueher:true, betrag:Math.round(carried*100)/100 }); break; }
+      besucht.add(k);
+      const vs = +v.betragSoll||0; const eigen = Math.min(vs, carried);
+      if (eigen > 0) posten.unshift({ jahr:v.jahr, monat:v.monat, betrag:Math.round(eigen*100)/100, rest: eigen < vs-0.009 });
+      carried = Math.round((carried-eigen)*100)/100; k--;
+    }
+    const andere = mine.filter(v=>{ const kv=key(v.jahr,v.monat); return !besucht.has(kv) && kv<key(j,m) && v.status!=="bezahlt" && v.status!=="erlassen" && ((+v.betragSoll||0)+(+v.uebertrag||0)-(+v.betragIst||0))>0.009; })
+      .map(v=>({ jahr:v.jahr, monat:v.monat, betrag:Math.round(((+v.betragSoll||0)+(+v.uebertrag||0)-(+v.betragIst||0))*100)/100, rest:(+v.betragIst||0)>0 }));
+    return { posten, andere };
+  };
+  const postenText = (x) => x.frueher ? "frühere Monate" : x.guthaben ? "Guthaben" : `${MONATS_NAMEN[x.monat-1]}${x.jahr!==jahr?" "+x.jahr:""}${x.rest?" (Rest)":""}`;
+  const chfK = (n) => (n<0?"−":"")+"CHF "+Math.abs(+n).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2});
   
   // Helper: parse DD.MM.YYYY oder YYYY-MM-DD zu Date
   function parseDate(s) {
@@ -11561,9 +11585,12 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                     <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.room?.id || "-"}<div style={{fontSize:10.5,color:"#8a8174"}}>{row.apt?.adresse || ""}</div></td>
                     <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>
                       CHF {row.soll.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})}
-                      {row.uebertrag!==0 && (
-                        <div style={{fontSize:10,color:row.uebertrag>0?"#8a3a2e":"#3a5230",fontWeight:500,marginTop:2}}>{(()=>{ const vm=monat===1?12:monat-1, vj=monat===1?jahr-1:jahr; const vp=payments.find(x=>x.tenantId===row.tenant.id&&x.jahr===vj&&x.monat===vm); const mehr=row.uebertrag>0 && vp && (+vp.uebertrag||0)>0; return mehr ? "Rückstand aus mehreren Vormonaten" : `${row.uebertrag>0?"Rest":"Guthaben"} aus ${MONATS_NAMEN[vm-1]}`; })()}: {row.uebertrag>0?"+":"−"}CHF {Math.abs(row.uebertrag).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}</div>
-                      )}
+                      {(()=>{ const z = zusammensetzung(row.tenant.id, jahr, monat, row.baseSoll, row.uebertrag); const zeigen = row.uebertrag!==0 || z.andere.length>0; if (!zeigen) return null; return (
+                        <div style={{marginTop:3,fontSize:10,lineHeight:1.45,textAlign:"right"}}>
+                          {row.uebertrag!==0 && z.posten.map((x,i)=>(<div key={i} style={{color:x.aktuell?"#8a8174":x.guthaben?"#3a5230":"#8a3a2e",fontWeight:x.aktuell?400:500,whiteSpace:"nowrap"}}>{postenText(x)}: {chfK(x.betrag)}</div>))}
+                          {z.andere.length>0 && <div style={{color:"#8a3a2e",fontWeight:600,marginTop:2,whiteSpace:"nowrap"}}>⚠ zusätzlich offen: {z.andere.map(x=>`${postenText(x)} ${chfK(x.betrag)}`).join(", ")}</div>}
+                        </div>
+                      ); })()}
                       {(+row.tenant.kautionAufschlag||0)>0 && (
                         <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Servicegebühr</div>
                       )}
@@ -11731,7 +11758,12 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
               const fmt = (n) => n.toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2});
               return (
                 <div style={{padding:"14px 16px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,fontSize:13,marginBottom:12}}>
-                  {ue !== 0 && <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={{color:"#8a8174"}}>Übertrag aus Vormonat</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{ue>0?"+":"−"}CHF {fmt(Math.abs(ue))}</span><button type="button" onClick={()=>setShowUeb(true)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>ändern</button><button type="button" onClick={()=>{setEditingPayment({...editingPayment, uebertrag:0}); setShowUeb(false);}} style={{background:"none",border:"none",color:"#c0392b",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>entfernen</button></span></div>}
+                  {ue !== 0 && (()=>{ const z = zusammensetzung(editingPayment.tenantId, editingPayment.jahr, editingPayment.monat, +editingPayment.betragSoll||0, ue); return (
+                    <div style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid #eee5d6"}}>
+                      <div style={{fontSize:10.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Zusammensetzung</div>
+                      {z.posten.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",color:x.aktuell?"#4a4439":x.guthaben?"#3a5230":"#8a3a2e"}}><span>{x.aktuell?`Miete ${MONATS_NAMEN[x.monat-1]}`:x.frueher?"Übertrag aus früheren Monaten":x.guthaben?"Guthaben aus Vormonat":`Rest ${MONATS_NAMEN[x.monat-1]} ${x.jahr}${x.rest?"":" (ganzer Monat)"}`}</span><span style={{fontWeight:600}}>{chfK(x.betrag)}</span></div>))}
+                    </div>); })()}
+                  {ue !== 0 && <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={{color:"#8a8174"}}>Übertrag gesamt</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{ue>0?"+":"−"}CHF {fmt(Math.abs(ue))}</span><button type="button" onClick={()=>setShowUeb(true)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>ändern</button><button type="button" onClick={()=>{setEditingPayment({...editingPayment, uebertrag:0}); setShowUeb(false);}} style={{background:"none",border:"none",color:"#c0392b",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>entfernen</button></span></div>}
                   <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#8a8174"}}>Effektiver Soll</span><span style={{fontWeight:700}}>CHF {fmt(soll)}</span></div>
                   <div style={{display:"flex",justifyContent:"space-between",marginTop:6,paddingTop:8,borderTop:"1px solid #eee5d6"}}><span style={{color:"#8a8174"}}>Differenz</span><span style={{fontWeight:700,fontSize:14,color:diff<0?"#c0392b":diff>0?"#2f6b3a":"#8a8174"}}>{diff===0?"ausgeglichen":`${diff<0?"−":"+"}CHF ${fmt(Math.abs(diff))}${diff<0?" zu wenig":" zu viel"}`}</span></div>
                   <div style={{marginTop:8}}>
