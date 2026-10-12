@@ -11438,6 +11438,43 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     setEditingPayment(null);
   }
 
+  // Einen einzelnen Posten (z.B. Rest September) als bezahlt verbuchen:
+  // Der Betrag wird beim Ursprungsmonat als bezahlt erfasst und aus dem Uebertrag aller Folgemonate bis zum aktuellen entfernt.
+  async function postenBezahlt(x) {
+    const ep = editingPayment; if (!ep) return;
+    const label = x.frueher ? "Übertrag aus früheren Monaten" : `Rest ${MONATS_NAMEN[x.monat-1]} ${x.jahr}`;
+    const eingabe = prompt(`${label}: wie viel wurde bezahlt? (CHF)`, String(x.betrag));
+    if (eingabe == null) return;
+    const amt = Math.round((+String(eingabe).replace(/'/g,"").replace(",", ".")||0)*100)/100;
+    if (!(amt > 0) || amt > x.betrag + 0.009) { alert("Bitte einen Betrag zwischen 0 und " + x.betrag + " eingeben."); return; }
+    const heute = new Date(); const datum = heute.toLocaleDateString("de-CH");
+    const key = (j,m)=>j*12+(m-1);
+    const kCur = key(ep.jahr, ep.monat);
+    const kStart = x.frueher ? null : key(x.jahr, x.monat);
+    try {
+      if (!x.frueher) {
+        const v = payments.find(p=>p.tenantId===ep.tenantId && p.jahr===x.jahr && p.monat===x.monat);
+        if (v) await upsertPayment({ ...v, betragIst: Math.round(((+v.betragIst||0)+amt)*100)/100, bemerkung: [v.bemerkung, `Nachzahlung CHF ${amt} am ${datum}`].filter(Boolean).join(" · ") });
+      }
+      // Uebertrag in allen Zwischenmonaten reduzieren
+      // Bei "fruehere Monate" ohne Datensatz wird nur der aktuelle Monat angepasst
+      const zwischen = kStart == null ? [] : payments.filter(p=>p.tenantId===ep.tenantId && key(p.jahr,p.monat) > kStart && key(p.jahr,p.monat) < kCur && (+p.uebertrag||0) > 0);
+      for (const w of zwischen) await upsertPayment({ ...w, uebertrag: Math.max(0, Math.round(((+w.uebertrag||0)-amt)*100)/100) });
+      const neuUe = Math.max(0, Math.round(((+ep.uebertrag||0)-amt)*100)/100);
+      await upsertPayment({ ...ep, uebertrag: neuUe, bemerkung: [ep.bemerkung, `${label}: CHF ${amt} bezahlt am ${datum}`].filter(Boolean).join(" · ") });
+      setEditingPayment({ ...ep, uebertrag: neuUe, bemerkung: [ep.bemerkung, `${label}: CHF ${amt} bezahlt am ${datum}`].filter(Boolean).join(" · ") });
+      toast(`${label}: CHF ${amt} als bezahlt verbucht`);
+    } catch (e) { alert("Fehler: " + (e.message || e)); }
+  }
+  // Separat offenen Monat (ohne Uebertrag) als vollstaendig bezahlt markieren
+  async function monatBezahlt(x) {
+    const ep = editingPayment; if (!ep) return;
+    const v = payments.find(p=>p.tenantId===ep.tenantId && p.jahr===x.jahr && p.monat===x.monat); if (!v) return;
+    if (!confirm(`${MONATS_NAMEN[x.monat-1]} ${x.jahr}: CHF ${x.betrag} als bezahlt markieren?`)) return;
+    const voll = Math.round(((+v.betragSoll||0)+(+v.uebertrag||0))*100)/100;
+    await upsertPayment({ ...v, betragIst: voll, status: "bezahlt", bezahltAm: v.bezahltAm || new Date().toISOString().slice(0,10), bemerkung: [v.bemerkung, `Rest CHF ${x.betrag} nachbezahlt am ${new Date().toLocaleDateString("de-CH")}`].filter(Boolean).join(" · ") });
+  }
+
   async function carryOverToNextMonth() {
     const ep = editingPayment;
     const sollEff = (+ep.betragSoll||0) + (+ep.uebertrag||0);
@@ -11761,7 +11798,12 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                   {ue !== 0 && (()=>{ const z = zusammensetzung(editingPayment.tenantId, editingPayment.jahr, editingPayment.monat, +editingPayment.betragSoll||0, ue); return (
                     <div style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid #eee5d6"}}>
                       <div style={{fontSize:10.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Zusammensetzung</div>
-                      {z.posten.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",color:x.aktuell?"#4a4439":x.guthaben?"#3a5230":"#8a3a2e"}}><span>{x.aktuell?`Miete ${MONATS_NAMEN[x.monat-1]}`:x.frueher?"Übertrag aus früheren Monaten":x.guthaben?"Guthaben aus Vormonat":`Rest ${MONATS_NAMEN[x.monat-1]} ${x.jahr}${x.rest?"":" (ganzer Monat)"}`}</span><span style={{fontWeight:600}}>{chfK(x.betrag)}</span></div>))}
+                      {z.posten.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"3px 0",color:x.aktuell?"#4a4439":x.guthaben?"#3a5230":"#8a3a2e"}}><span>{x.aktuell?`Miete ${MONATS_NAMEN[x.monat-1]}`:x.frueher?"Übertrag aus früheren Monaten":x.guthaben?"Guthaben aus Vormonat":`Rest ${MONATS_NAMEN[x.monat-1]} ${x.jahr}${x.rest?"":" (ganzer Monat)"}`}</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{chfK(x.betrag)}</span>{!x.aktuell && !x.guthaben && <button type="button" onClick={()=>postenBezahlt(x)} style={{background:"#eef5ec",border:"1px solid #bcd6b8",color:"#2f6b3a",borderRadius:5,fontSize:10.5,fontWeight:600,padding:"2px 7px",cursor:"pointer"}}>✓ bezahlt</button>}</span></div>))}
+                    </div>); })()}
+                  {(()=>{ const z = zusammensetzung(editingPayment.tenantId, editingPayment.jahr, editingPayment.monat, +editingPayment.betragSoll||0, +editingPayment.uebertrag||0); if (!z.andere.length) return null; return (
+                    <div style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid #eee5d6"}}>
+                      <div style={{fontSize:10.5,color:"#8a3a2e",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Weitere offene Monate</div>
+                      {z.andere.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"3px 0",color:"#8a3a2e"}}><span>{MONATS_NAMEN[x.monat-1]} {x.jahr}{x.rest?" (Rest)":""}</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{chfK(x.betrag)}</span><button type="button" onClick={()=>monatBezahlt(x)} style={{background:"#eef5ec",border:"1px solid #bcd6b8",color:"#2f6b3a",borderRadius:5,fontSize:10.5,fontWeight:600,padding:"2px 7px",cursor:"pointer"}}>✓ bezahlt</button></span></div>))}
                     </div>); })()}
                   {ue !== 0 && <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={{color:"#8a8174"}}>Übertrag gesamt</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{ue>0?"+":"−"}CHF {fmt(Math.abs(ue))}</span><button type="button" onClick={()=>setShowUeb(true)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>ändern</button><button type="button" onClick={()=>{setEditingPayment({...editingPayment, uebertrag:0}); setShowUeb(false);}} style={{background:"none",border:"none",color:"#c0392b",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>entfernen</button></span></div>}
                   <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#8a8174"}}>Effektiver Soll</span><span style={{fontWeight:700}}>CHF {fmt(soll)}</span></div>
