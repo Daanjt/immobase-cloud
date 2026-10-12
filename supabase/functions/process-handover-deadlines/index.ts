@@ -295,7 +295,18 @@ ${inhalt}
 </div></body></html>`;
 }
 
-function buildReminderHtml(name: string, daysLeft: number, deadline: string, url: string, urgency: "first" | "final", logoSrc: string, en: boolean) {
+// Hinweis: Fotos allein reichen nicht, erst Schluesselnummer + Unterschrift + Absenden
+function abschlussBox(en: boolean) {
+  const T = (de: string, e: string) => (en ? e : de);
+  const li = (n: number, txt: string) => `<tr><td width="30" style="width:30px;vertical-align:top;padding:4px 0;"><span style="display:inline-block;background:#1a1814;color:#fff;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;font-size:11.5px;font-weight:600;">${n}</span></td><td style="vertical-align:top;padding:5px 0;font-size:13.5px;color:#3a352d;">${txt}</td></tr>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 22px;"><tr><td bgcolor="#faf8f3" style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;">
+<div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("So ist dein Protokoll erledigt", "How to complete your protocol")}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">${li(1, T("Mängel pro Raum mit Foto erfassen (falls vorhanden)", "Record defects per room with a photo (if any)"))}${li(2, T("<strong>Schlüsselnummer</strong> abschreiben, die auf deinem Schlüssel steht", "Copy the <strong>key number</strong> shown on your key"))}${li(3, T("<strong>Unterschreiben</strong> und auf <strong>«Protokoll absenden»</strong> tippen", "<strong>Sign</strong> and tap <strong>«Submit protocol»</strong>"))}</table>
+<div style="font-size:12.5px;color:#9b4a3e;margin-top:10px;line-height:1.5;"><strong>${T("Wichtig:", "Important:")}</strong> ${T("Fotos hochladen allein reicht nicht. Erst nach dem Absenden ist das Protokoll bei uns eingegangen.", "Uploading photos alone is not enough. The protocol only reaches us once you have submitted it.")}</div>
+</td></tr></table>`;
+}
+
+function buildReminderHtml(name: string, daysLeft: number, deadline: string, url: string, urgency: "first" | "final", logoSrc: string, en: boolean, fotos = 0) {
   const T = (de: string, e: string) => (en ? e : de);
   const isFinal = urgency === "final";
   const bgColor = isFinal ? "#fdebe5" : "#fdf7e8";
@@ -305,13 +316,16 @@ function buildReminderHtml(name: string, daysLeft: number, deadline: string, url
   const title = isFinal ? T("Letzte Erinnerung", "Final reminder") : T("Freundliche Erinnerung", "Friendly reminder");
   const tage = en ? `${daysLeft} ${daysLeft === 1 ? "day" : "days"}` : `${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"}`;
   const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(name)},</p>
-<p style="font-size:14px;margin:0 0 18px;">${T("dein Übernahmeprotokoll ist noch nicht eingereicht.", "your handover protocol has not been submitted yet.")}</p>
+<p style="font-size:14px;margin:0 0 18px;">${fotos > 0
+  ? T(`du hast bereits ${fotos} Foto${fotos === 1 ? "" : "s"} hochgeladen, danke! Dein Übernahmeprotokoll ist aber <strong>noch nicht abgeschickt</strong>. Es fehlen noch die Schlüsselnummer, deine Unterschrift und das Absenden.`, `you have already uploaded ${fotos} photo${fotos === 1 ? "" : "s"}, thank you! However, your handover protocol has <strong>not been submitted yet</strong>. The key number, your signature and the submission are still missing.`)
+  : T("dein Übernahmeprotokoll ist noch nicht eingereicht.", "your handover protocol has not been submitted yet.")}</p>
 <div style="background:${bgColor};border:1px solid ${borderColor};border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:13.5px;color:${textColor};line-height:1.6;">
 ${icon} ${T(`Du hast noch <strong>${tage}</strong> Zeit. Frist: <strong>${deadline}</strong>.`, `You have <strong>${tage}</strong> left. Deadline: <strong>${deadline}</strong>.`)}<br>
 ${isFinal ? T("Danach gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen und Mängel können bei der Rückgabe nicht mehr geltend gemacht werden.", "After that, the apartment is deemed to have been handed over in perfect condition and defects can no longer be claimed at move-out.") : T("Bitte fülle das Protokoll bald aus, damit allfällige Mängel dokumentiert sind.", "Please complete the protocol soon so that any defects are documented.")}
 </div>
+${abschlussBox(en)}
 <div style="text-align:center;margin:28px 0;">
-<a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${T("Jetzt Protokoll ausfüllen", "Complete protocol now")}</a>
+<a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${fotos > 0 ? T("Protokoll jetzt abschliessen", "Finish protocol now") : T("Jetzt Protokoll ausfüllen", "Complete protocol now")}</a>
 </div>
 <p style="font-size:12px;color:#6e6a62;margin:0;">${T("Oder kopiere diesen Link:", "Or copy this link:")}<br><span style="color:#1a1814;word-break:break-all;">${url}</span></p>`;
   return shell(inhalt, title, logoSrc, en);
@@ -451,7 +465,7 @@ Deno.serve(async (req: Request) => {
                 stufe === "final"
                   ? (en ? "Final reminder: your handover protocol at D&T Homes" : "Letzte Erinnerung: Dein Übernahmeprotokoll bei D&T Homes")
                   : (en ? "Reminder: your handover protocol at D&T Homes" : "Erinnerung: Dein Übernahmeprotokoll bei D&T Homes"),
-                (logoSrc) => buildReminderHtml(name, daysLeft, fristText(p.deadline, en), signUrl, stufe, logoSrc, en),
+                (logoSrc) => buildReminderHtml(name, daysLeft, fristText(p.deadline, en), signUrl, stufe, logoSrc, en, Array.isArray(p.photos) ? p.photos.length : 0),
               );
             } catch (mailErr) {
               await patchProtocol(p.id, { [feld]: null });
