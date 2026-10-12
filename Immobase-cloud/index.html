@@ -11111,6 +11111,8 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   const [showUeb, setShowUeb] = useState(false);
   const [mahnungConfirm, setMahnungConfirm] = useState(null); // { row, stufe, monatLabel }
   const [mahnBetrag, setMahnBetrag] = useState("");
+  const [mahnVorschau, setMahnVorschau] = useState(null); // { posten, total_offen } oder { laden:true }
+  const [mahnBetragStart, setMahnBetragStart] = useState("");
   
   const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   
@@ -11353,8 +11355,16 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
     
     // Modal öffnen (statt direkt senden)
     const _offen = Math.max(0, (row.soll||0) - (+(row.payment&&row.payment.betragIst)||0));
-    setMahnBetrag(_offen.toFixed(2));
+    setMahnBetrag(_offen.toFixed(2)); setMahnBetragStart(_offen.toFixed(2));
     setMahnungConfirm({ row, stufe, monatLabel });
+    setMahnVorschau(null);
+    if (row.payment?.id) {
+      setMahnVorschau({ laden: true });
+      supabase.functions.invoke("send-mahnung", { body: { payment_id: row.payment.id, stufe, preview: true } }).then(({ data }) => {
+        if (data && Array.isArray(data.posten)) { setMahnVorschau(data); const t = (+data.total_offen||0).toFixed(2); setMahnBetrag(t); setMahnBetragStart(t); }
+        else setMahnVorschau(null);
+      }).catch(() => setMahnVorschau(null));
+    }
   }
   
   async function executeMahnung() {
@@ -11375,7 +11385,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       });
     }
     
-    await sendMahnung(paymentId, stufe, +mahnBetrag || undefined);
+    // Betrag nur mitschicken, wenn er von Hand angepasst wurde (sonst rechnet die Mail die Aufschluesselung selbst)
+    const _geaendert = String(mahnBetrag) !== String(mahnBetragStart);
+    await sendMahnung(paymentId, stufe, _geaendert ? (+mahnBetrag || undefined) : undefined);
   }
   
   function openDetails(row) {
@@ -11550,7 +11562,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                     <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>
                       CHF {row.soll.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})}
                       {row.uebertrag!==0 && (
-                        <div style={{fontSize:10,color:row.uebertrag>0?"#8a3a2e":"#3a5230",fontWeight:500,marginTop:2}}>{row.uebertrag>0?"Rest":"Guthaben"} aus {MONATS_NAMEN[(monat===1?12:monat-1)-1]}: {row.uebertrag>0?"+":"−"}CHF {Math.abs(row.uebertrag).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}</div>
+                        <div style={{fontSize:10,color:row.uebertrag>0?"#8a3a2e":"#3a5230",fontWeight:500,marginTop:2}}>{(()=>{ const vm=monat===1?12:monat-1, vj=monat===1?jahr-1:jahr; const vp=payments.find(x=>x.tenantId===row.tenant.id&&x.jahr===vj&&x.monat===vm); const mehr=row.uebertrag>0 && vp && (+vp.uebertrag||0)>0; return mehr ? "Rückstand aus mehreren Vormonaten" : `${row.uebertrag>0?"Rest":"Guthaben"} aus ${MONATS_NAMEN[vm-1]}`; })()}: {row.uebertrag>0?"+":"−"}CHF {Math.abs(row.uebertrag).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}</div>
                       )}
                       {(+row.tenant.kautionAufschlag||0)>0 && (
                         <div style={{fontSize:10,color:"#8a8174",fontWeight:400,marginTop:2}}>inkl. +{(+row.tenant.kautionAufschlag).toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})} Servicegebühr</div>
@@ -11640,9 +11652,20 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                 <div style={{color:"#8a8174"}}>Email</div>
                 <div style={{color:"#1a1814",wordBreak:"break-all"}}>{mahnungConfirm.row.tenant.email}</div>
                 <div style={{color:"#8a8174"}}>Monat</div>
-                <div style={{color:"#1a1814"}}>{mahnungConfirm.monatLabel}</div>
+                <div style={{color:"#1a1814"}}>{mahnVorschau && mahnVorschau.monat ? mahnVorschau.monat : mahnungConfirm.monatLabel}</div>
+                {mahnVorschau && mahnVorschau.laden && (<><div style={{color:"#8a8174"}}>Aufstellung</div><div style={{color:"#8a8174",fontSize:12}}>wird berechnet …</div></>)}
+                {mahnVorschau && Array.isArray(mahnVorschau.posten) && mahnVorschau.posten.length>0 && (<>
+                  <div style={{color:"#8a8174"}}>Aufstellung</div>
+                  <div style={{fontSize:12.5}}>
+                    {mahnVorschau.posten.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",gap:10,padding:"3px 0",borderTop:i?"1px solid #f0eadd":"none"}}>
+                      <span style={{color:"#4a4439"}}>{x.label==="frueher"?"Übertrag aus früheren Monaten":x.label==="guthaben"?"Guthaben aus Vormonat":`${MONATS_NAMEN[x.monat-1]} ${x.jahr}`}{x.rest && <span style={{color:"#8a8174",fontSize:11}}> (Rest)</span>}</span>
+                      <span style={{fontWeight:600,whiteSpace:"nowrap"}}>{x.betrag<0?"− ":""}CHF {Math.abs(+x.betrag).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                    </div>))}
+                    {mahnVorschau.posten.length>1 && <div style={{fontSize:11,color:"#7a5c3c",marginTop:4}}>Die Mail listet diese Monate einzeln auf.</div>}
+                  </div>
+                </>)}
                 <div style={{color:"#8a8174"}}>Offener Betrag</div>
-                <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:12,color:"#8a8174"}}>CHF</span><input type="number" step="0.01" value={mahnBetrag} onChange={e=>setMahnBetrag(e.target.value)} style={{width:110,padding:"5px 8px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontWeight:600,fontFamily:"inherit"}}/></div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:12,color:"#8a8174"}}>CHF</span><input type="number" step="0.01" value={mahnBetrag} onChange={e=>setMahnBetrag(e.target.value)} style={{width:110,padding:"5px 8px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontWeight:600,fontFamily:"inherit"}}/>{String(mahnBetrag)!==String(mahnBetragStart) && <span style={{fontSize:11,color:"#9b4a3e"}}>angepasst: Mail ohne Aufstellung</span>}</div>
                 {mahnungConfirm.stufe === 2 && (
                   <>
                     <div style={{color:"#8a8174"}}>Mahnungsgebühr</div>
