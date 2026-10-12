@@ -1191,6 +1191,10 @@ function TypeBadge({type}){
   const m={WG:["b","WG"],Wohnung:["g","Ganze Wohnung"],Airbnb:["p","Airbnb"],Evorest:["x","Evorest"],GoCaution:["x","GoCaution"],Firstcaution:["x","Firstcaution"],"Kautionsreduktion auf 0":["y","0-Kaution"],Versicherung:["b","Versicherung"],AOZ:["p","AOZ"],Student:["g","Student"],Arbeitnehmer:["g","Arbeitnehmer"],Selbstständig:["b","Selbst."]};
   if(!type||!m[type])return null;const [c,l]=m[type];return <span className={`bx b-${c}`}>{l}</span>;
 }
+// Kategorie einer Wohnung: "WG" (einzelne Zimmer), "Wohnung" (ganze Wohnung) oder "Airbnb".
+// Technisch sind ganze Wohnungen type "WG" mit vermietungsart "wohnung".
+function aptKat(a){ if(!a) return null; if(a.type==="Airbnb") return "Airbnb"; return a.vermietungsart==="wohnung" ? "Wohnung" : "WG"; }
+const APT_KAT_LABEL = {WG:"WGs", Wohnung:"Ganze Wohnungen", Airbnb:"Airbnb"};
 function Prog({val,max}){const p=max?Math.min(100,Math.round(val/max*100)):0;const bg=p===100?"#5a7c5e":p>60?"#a08864":"#c89653";return <div style={{height:4,background:"#e8e3d8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,background:bg,transition:"width .4s"}}/></div>;}
 function initialen(mail){
   const name = (mail||"").split("@")[0].replace(/[._-]+/g," ").trim();
@@ -4724,35 +4728,35 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
         <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Total Ausgaben / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:300,color:"#1a1814",lineHeight:1,marginBottom:6}}>{chf(totalAusgaben)}</div>
-          <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.length} WG + {airbnbApts.length} Airbnb</div>
+          <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.filter(a=>aptKat(a)==="WG").length} WG · {wgApts.filter(a=>aptKat(a)==="Wohnung").length} ganze Wohnungen · {airbnbApts.length} Airbnb</div>
         </div>
         <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:wgMargeIst>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${wgMargeIst>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-          <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>WG-Marge aktuell / Mt.</div>
+          <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Marge aktuell / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:wgMargeIst>=0?"#3d4f2f":"#9b4a3e",lineHeight:1,marginBottom:6}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</div>
-          <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WG-Einnahmen − WG-Ausgaben</div>
+          <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WGs + ganze Wohnungen, ohne Airbnb</div>
         </div>
         <div onClick={()=>navigateTo&&navigateTo("zimmer",null)} style={{background:"#1a1814",borderRadius:8,padding:"24px 26px",color:"#fefcf7",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.2)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-          <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>WG-Marge maximal / Mt.</div>
+          <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Marge maximal / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:"#fefcf7",lineHeight:1,marginBottom:6}}>+{chf(wgMargeMax)}</div>
           <div style={{fontSize:11,color:"#b8af9f",letterSpacing:".05em"}}>Bei 100% Belegung</div>
         </div>
       </div>
 
-      <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WG-Wohnungen</div>
+      <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WGs und ganze Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
-        <div className="sc"><div className="sl">Auslastung</div><div className="sv">{wgAuslastung}%</div><div className="sn" style={{color:wgAuslastung>=80?"#5a6e4a":wgAuslastung>=50?"#b8843e":"#9b4a3e"}}>{wgOcc}/{wgRooms.length} Zimmer</div></div>
+        <div className="sc"><div className="sl">Auslastung</div><div className="sv">{wgAuslastung}%</div><div className="sn" style={{color:wgAuslastung>=80?"#5a6e4a":wgAuslastung>=50?"#b8843e":"#9b4a3e"}}>{(()=>{const _wr=wgRooms.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _gr=wgRooms.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return `${_wr.filter(r=>r.occupied).length}/${_wr.length} WG-Zimmer · ${_gr.filter(r=>r.occupied).length}/${_gr.length} Wohnungen`;})()}</div></div>
         <div className="sc"><div className="sl">Ausgaben</div><div className="sv" style={{fontSize:24}}>{chf(wgAusgaben).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
         <div className="sc"><div className="sl">Einnahmen Ist</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(wgEinnahmenIst).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>von max. {chf(wgEinnahmenMax)}</div></div>
-        <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:wgLeerstand>0?"#9b4a3e":"#5a6e4a"}}>{wgLeerstand>0?"−":""}{chf(wgLeerstand).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{wgFree.length} freie Zimmer</div></div>
+        <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:wgLeerstand>0?"#9b4a3e":"#5a6e4a"}}>{wgLeerstand>0?"−":""}{chf(wgLeerstand).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{wgFree.length} frei</div></div>
       </div>
-      {wgFree.length>0&&<div className="warn">⚠ <strong>{wgFree.length} WG-Zimmer frei:</strong> {wgFree.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}
+      {(()=>{const _fz=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _fw=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return(<>{_fz.length>0&&<div className="warn">⚠ <strong>{_fz.length} WG-Zimmer frei:</strong> {_fz.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}{_fw.length>0&&<div className="warn">⚠ <strong>{_fw.length} ganze {_fw.length===1?"Wohnung":"Wohnungen"} frei:</strong> {_fw.map(r=>{const _a=apts.find(a=>a.id===r.aptId);return `${_a.id} ${_a.adresse} (${chf(r.miete)}/Mt.)`;}).join(" · ")}</div>}</>);})()}
 
       {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;60 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
 
       {/* PER-APARTMENT FINANCE BREAKDOWN - separated WG / Airbnb */}
       <div className="card finance-card-compact" style={{marginBottom:24}}>
-        <div className="ct">Finanzübersicht - WG-Wohnungen</div>
+        <div className="ct">Finanzübersicht - WGs und ganze Wohnungen</div>
         <div className="finance-scroll-table-wrap">
         <div className="finance-scroll-table">
         <table>
@@ -4774,7 +4778,9 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
             </tr>
           </thead>
           <tbody>
-            {wgApts.map(a=>{
+            {[["WG","WGs"],["Wohnung","Ganze Wohnungen"]].filter(([k])=>wgApts.some(a=>aptKat(a)===k)).map(([kat,katLabel])=>(<React.Fragment key={"kat-"+kat}>
+            <tr><td colSpan={14} style={{background:"#f5f2ea",fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".28em",fontWeight:700,padding:"8px 10px"}}>{katLabel}</td></tr>
+            {wgApts.filter(a=>aptKat(a)===kat).map(a=>{
               const rs=rooms.filter(r=>r.aptId===a.id);
               const aOcc=rs.filter(r=>r.occupied).length;
               // Strom: CHF 25 pro Zimmer (Pauschale)
@@ -4832,10 +4838,11 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 </tr>
               );
             })}
+            </React.Fragment>))}
           </tbody>
           <tfoot>
             <tr style={{borderTop:"2px solid #1a1814"}}>
-              <td colSpan={6} style={{fontWeight:700,paddingTop:14}}>Total WG</td>
+              <td colSpan={6} style={{fontWeight:700,paddingTop:14}}>Total WGs + ganze Wohnungen</td>
               <td style={{textAlign:"right",fontWeight:700,paddingTop:14}}>{chf(wgAusgaben)}</td>
               {/* Einnahmen IST/MAX: inkl. Strom, ohne Servicegebühr (Servicegebühr steht separat) */}
               <td style={{textAlign:"right",fontWeight:700,color:"#5a6e4a",paddingTop:14}}>{chf(wgEinnahmenIst - wgAufschlag)}</td>
@@ -4903,7 +4910,7 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                   const aMargeTotal = aMargeMax + aAufschlag;
                   return (
                     <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer",opacity:.85}}>
-                      <td style={{fontWeight:600}}>{a.id}</td>
+                      <td style={{fontWeight:600,whiteSpace:"nowrap"}}>{a.id} <TypeBadge type={aptKat(a)}/></td>
                       <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
                       <td data-label="Zimmer" style={{fontSize:11.5,color:"#4a4439"}}>{a.zimmer?`${a.zimmer} Zi.`:"-"}</td>
                       <td data-label="Stock" style={{fontSize:11.5,color:"#4a4439"}}>{a.stockwerk||"-"}</td>
@@ -8470,7 +8477,8 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
   function updAddRoom(i,key,val){ setAddRoomList(prev=>prev.map((r,idx)=>idx===i?{...r,[key]:val}:r)); }
   async function submitAddRooms(){ const list=(addRoomList||[]).filter(Boolean); if(!list.length){ setAddRoomsFor(null); return; } const res=await insertRooms(addRoomsFor,list); if(res){ setAddRoomsFor(null); setAddRoomList([]); } }
   const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id).sort((a,b)=>natSort(a.id, b.id)):[];
-  const wgApts=apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const wgApts=apts.filter(a=>aptKat(a)==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const ganzeApts=apts.filter(a=>aptKat(a)==="Wohnung" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
   const airbnbApts=apts.filter(a=>a.type==="Airbnb" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
   const pipelineApts=apts.filter(a=>!!a.pipeline).sort((a,b)=>natSort(a.id, b.id));
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
@@ -8701,12 +8709,12 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
         <div>
           <div className="pt">Wohnungen</div>
-          <div className="ps">{wgApts.length} WG · {airbnbApts.length} Airbnb</div>
+          <div className="ps">{wgApts.length} WGs · {ganzeApts.length} ganze Wohnungen · {airbnbApts.length} Airbnb</div>
         </div>
         <button className="btn btn-p" onClick={()=>{setNewForm({type:"WG",ort:"Zürich",id:nextAptId()});setAdding(true);}}>+ Neue Wohnung</button>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-        {[["alle",`Alle (${wgApts.length+airbnbApts.length+pipelineApts.length})`],["WG",`WG (${wgApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`],["pipeline",`Pipeline (${pipelineApts.length})`]].map(([k,l])=>(
+        {[["alle",`Alle (${wgApts.length+ganzeApts.length+airbnbApts.length+pipelineApts.length})`],["WG",`WGs (${wgApts.length})`],["Wohnung",`Ganze Wohnungen (${ganzeApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`],["pipeline",`Pipeline (${pipelineApts.length})`]].map(([k,l])=>(
           <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
         ))}
       </div>
@@ -8714,8 +8722,14 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
         <div>
           {(filter==="alle"||filter==="WG")&&wgApts.length>0&&(
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>WG-Wohnungen</div>
+              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>WGs</div>
               {wgApts.map(renderAptCard)}
+            </div>
+          )}
+          {(filter==="alle"||filter==="Wohnung")&&ganzeApts.length>0&&(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>Ganze Wohnungen</div>
+              {ganzeApts.map(renderAptCard)}
             </div>
           )}
           {(filter==="alle"||filter==="Airbnb")&&airbnbApts.length>0&&(
@@ -9089,6 +9103,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
 // ─── ZIMMER ──────────────────────────────────────────────────────────────────
 function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant,navigateTo,navTarget,istAdmin=true}){
   const [filter,setFilter]=useState("alle");
+  const [art,setArt]=useState("alle");
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
   const [assigning,setAssigning]=useState(null); // room being assigned
@@ -9101,7 +9116,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   // Auto-scroll & highlight when navigated here
   useEffect(() => {
     if (navTarget && navTarget.type === "zimmer" && navTarget.id) {
-      setFilter("alle");
+      setFilter("alle"); setArt("alle");
       setHighlightId(navTarget.id);
       setTimeout(() => {
         const el = document.getElementById(`zimmer-${navTarget.id}`);
@@ -9112,7 +9127,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   }, [navTarget]);
   const shown=filter==="frei"?rooms.filter(r=>!r.occupied):filter==="belegt"?rooms.filter(r=>r.occupied):rooms;
   const free=rooms.filter(r=>!r.occupied);
-  const grouped=apts.filter(a=>a.type==="WG").sort((a,b)=>natSort(a.id, b.id)).map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id, y.id))})).filter(g=>g.rs.length>0);
+  const grouped=apts.filter(a=>a.type==="WG" && (art==="alle"||aptKat(a)===art)).sort((a,b)=>(aptKat(a)===aptKat(b)?natSort(a.id, b.id):aptKat(a)==="WG"?-1:1)).map(a=>({apt:a,rs:shown.filter(r=>r.aptId===a.id).sort((x,y)=>natSort(x.id, y.id))})).filter(g=>g.rs.length>0);
   const eligibleBewerber=bewerber?bewerber.filter(b=>b.status==="Neu"):[];
 
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
@@ -9259,12 +9274,12 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
   return(
     <div>
       <div className="pt">Zimmer</div>
-      <div className="ps">{rooms.length} Zimmer · {free.length} frei</div>
-      <div className="row"><div style={{display:"flex",gap:6}}>{[["alle","Alle"],["frei","Nur freie"],["belegt","Belegt"]].map(([k,l])=>(<button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>))}</div></div>
+      <div className="ps">{(()=>{const _k=r=>aptKat(apts.find(a=>a.id===r.aptId));const _z=rooms.filter(r=>_k(r)==="WG"),_w=rooms.filter(r=>_k(r)==="Wohnung");return `${_z.length} WG-Zimmer (${_z.filter(r=>!r.occupied).length} frei) · ${_w.length} ganze Wohnungen (${_w.filter(r=>!r.occupied).length} frei)`;})()}</div>
+      <div className="row" style={{flexWrap:"wrap",gap:10}}><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{[["alle","Alle"],["frei","Nur freie"],["belegt","Belegt"]].map(([k,l])=>(<button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>))}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{[["alle","Alle Arten"],["WG","WGs"],["Wohnung","Ganze Wohnungen"]].map(([k,l])=>(<button key={k} className={`btn ${art===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setArt(k)}>{l}</button>))}</div></div>
       {grouped.map(({apt,rs})=>(
         <div key={apt.id} className="card">
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>{apt.id} - {apt.adresse}</span>
+            <span style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{apt.id} - {apt.adresse} <TypeBadge type={aptKat(apt)}/></span>
             <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>
           </div>
           <table>
@@ -9439,6 +9454,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({});
   const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
+  const [mArt,setMArt]=useState("alle"); // "alle" | "WG" | "Wohnung"
   const [changingRoom,setChangingRoom]=useState(null); // tenant whose room is being changed
   const [newRoomId,setNewRoomId]=useState("");
   const [qrBillSending,setQrBillSending]=useState(null); // tenant.id currently sending
@@ -10007,9 +10023,10 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       )}
       <div className="list-detail" style={{display:(typeof viewMode!=="undefined"&&viewMode==="papierkorb")?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
-          <input className="inp" style={{width:"100%",marginBottom:10}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
-          <div style={{maxHeight:"calc(100vh - 195px)",overflowY:"auto"}}>
-            {filtered.map(t=>{
+          <input className="inp" style={{width:"100%",marginBottom:8}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[["alle","Alle"],["WG","WG"],["Wohnung","Ganze Wohnung"]].map(([k,l])=>(<button key={k} className={`btn ${mArt===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setMArt(k)}>{l}</button>))}</div>
+          <div style={{maxHeight:"calc(100vh - 230px)",overflowY:"auto"}}>
+            {filtered.filter(t=>{ if(mArt==="alle") return true; const _r=rooms.find(r=>r.tenantId===t.id)||(t.roomId?rooms.find(r=>r.id===t.roomId):null); const _a=_r?apts.find(a=>a.id===_r.aptId):(t.aptId?apts.find(a=>a.id===t.aptId):null); return aptKat(_a)===mArt; }).map(t=>{
               const on=sel===t.id;
               const tRoom = rooms.find(r=>r.tenantId===t.id) || (t.roomId ? rooms.find(r=>r.id===t.roomId) : null);
               const tApt = tRoom ? apts.find(a=>a.id===tRoom.aptId) : null;
@@ -12211,11 +12228,12 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
   const wgRooms = (rooms||[]).filter(r=>wgAptIds.has(r.aptId));
   const tenantById = (id) => (tenants||[]).find(t=>t.id===id);
   const aptById = (id) => (apts||[]).find(a=>a.id===id);
-  const monthFin = (s, e, annahmeVoll=false) => {
+  const monthFin = (s, e, annahmeVoll=false, kat=null) => {
     let ausgaben=0;
     const activeApts = new Set();
     const aptFactor = new Map();
     wgApts.forEach(a=>{
+      if (kat && aptKat(a)!==kat) return;
       const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
       if((!ab||ab<=e)&&(!bis||bis>=s)){
         // Teilmonat: Mietbeginn ab dem 15. oder Mietende bis und mit dem 15. -> halber Monat
@@ -12338,27 +12356,29 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
       const fut = new Date(cy,cm,1) > new Date(now.getFullYear(),now.getMonth(),1);
       const wgF=monthFin(s,e,fut); const abF=airbnbFin(s,e,eNext);
+      const wgZF=monthFin(s,e,fut,"WG"); const wgWF=monthFin(s,e,fut,"Wohnung");
       const wg=floorFut(wgF.marge, fut); const ab=floorFut(abF.marge, fut);
       const umsatz=wgF.einnahmen+abF.umsatz; const mietausgaben=wgF.ausgaben+abF.miete;
       const uebrige=abF.kommission+abF.putzen+abF.waesche+abF.moeblierung;
-      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab, umsatz, umsatzWg:wgF.einnahmen, umsatzAb:abF.umsatz, mietausgaben, uebrige,
+      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab, umsatz, umsatzWg:wgF.einnahmen, umsatzWgZ:wgZF.einnahmen, umsatzWohn:wgWF.einnahmen, umsatzAb:abF.umsatz, mietausgaben, uebrige,
         future: fut, current: cy===now.getFullYear()&&cm===now.getMonth() });
       cm++; if(cm>11){cm=0;cy++;}
     }
   }
   const combinedYears = [];
   for (let y=2025; y<=now.getFullYear()+2; y++){
-    let wgY=0, abY=0, umsatzY=0, umsatzWgY=0, umsatzAbY=0, mietausgabenY=0, uebrigeY=0;
+    let wgY=0, abY=0, umsatzY=0, umsatzWgY=0, umsatzWgZY=0, umsatzWohnY=0, umsatzAbY=0, mietausgabenY=0, uebrigeY=0;
     for (let mo=0; mo<12; mo++){
       const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
       const fut = new Date(y,mo,1) > new Date(now.getFullYear(),now.getMonth(),1);
       const wgF=monthFin(s,e,fut); const abF=airbnbFin(s,e,eNext);
       wgY += floorFut(wgF.marge, fut); abY += floorFut(abF.marge, fut);
       umsatzY += wgF.einnahmen + abF.umsatz; umsatzWgY += wgF.einnahmen; umsatzAbY += abF.umsatz;
+      umsatzWgZY += monthFin(s,e,fut,"WG").einnahmen; umsatzWohnY += monthFin(s,e,fut,"Wohnung").einnahmen;
       mietausgabenY += wgF.ausgaben + abF.miete;
       uebrigeY += abF.kommission + abF.putzen + abF.waesche + abF.moeblierung;
     }
-    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY, umsatz:umsatzY, umsatzWg:umsatzWgY, umsatzAb:umsatzAbY, mietausgaben:mietausgabenY, uebrige:uebrigeY });
+    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY, umsatz:umsatzY, umsatzWg:umsatzWgY, umsatzWgZ:umsatzWgZY, umsatzWohn:umsatzWohnY, umsatzAb:umsatzAbY, mietausgaben:mietausgabenY, uebrige:uebrigeY });
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
@@ -12368,13 +12388,13 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     <div>
       <div style={{fontSize:22,fontWeight:300,letterSpacing:"-.01em",marginBottom:18}}>Finanzen</div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-      <SectionHead title="Gesamt" sub="WGs und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
+      <SectionHead title="Gesamt" sub="WGs, ganze Wohnungen und Airbnb zusammen, pro Monat seit November 2025. Noch nicht gebuchte Zukunftsmonate werden auf null gesetzt statt negativ, damit die Prognose nicht verzerrt." />
       <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Umsatz pro Monat</div>
       <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>m.umsatz)); return combinedMonths.map((m,i)=>{
           const h=Math.max(2,Math.round(m.umsatz/mx*H));
           return (
-            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Umsatz ${chf(Math.round(m.umsatz))} (WG ${chf(Math.round(m.umsatzWg))} · Airbnb ${chf(Math.round(m.umsatzAb))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Umsatz ${chf(Math.round(m.umsatz))} (WGs ${chf(Math.round(m.umsatzWgZ))} · ganze Wohnungen ${chf(Math.round(m.umsatzWohn))} · Airbnb ${chf(Math.round(m.umsatzAb))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
               <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.umsatz)}</div>
               <div style={{width:"70%",height:h,background:m.future?"#cbb896":"#8a6d4a",borderRadius:"3px 3px 0 0"}}/>
               <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
@@ -12387,7 +12407,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         {(()=>{ const mx=Math.max(1,...combinedMonths.map(m=>Math.abs(m.marge))); return combinedMonths.map((m,i)=>{
           const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
           return (
-            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Gesamt ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} (WG ${chf(Math.round(m.wg))} · Airbnb ${chf(Math.round(m.ab))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+            <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Gesamt ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} (WGs + ganze Wohnungen ${chf(Math.round(m.wg))} · Airbnb ${chf(Math.round(m.ab))})`} style={{flex:"1 0 32px",minWidth:32,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
               <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
               <div style={{width:"70%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#a9c088":"#4a6b2f"),borderRadius:"3px 3px 0 0"}}/>
               <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
@@ -12402,7 +12422,8 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
           <div key={i} ref={m.current?(el=>{curMonthRef.current.ges=el;}):null} style={{border:m.current?"1px solid var(--line)":"1px solid var(--line-soft)",borderRadius:9,padding:"11px 13px",background:m.current?"var(--beige-soft)":"transparent"}}>
             <CardHead title={`${m.full}${m.current?" · aktuell":m.future?" · Prognose":""}`} />
             <GrpRow label="Umsatz" value={chf(Math.round(m.umsatz))} />
-            <SubRow label="WG" value={chf(Math.round(m.umsatzWg))} />
+            <SubRow label="WGs" value={chf(Math.round(m.umsatzWgZ))} />
+            <SubRow label="Ganze Wohnungen" value={chf(Math.round(m.umsatzWohn))} />
             <SubRow label="Airbnb" value={chf(Math.round(m.umsatzAb))} />
             <GrpRow label="Kosten" value={chf(Math.round(m.mietausgaben+m.uebrige))} />
             <SubRow label="Mietausgaben" value={chf(Math.round(m.mietausgaben))} />
@@ -12413,13 +12434,14 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       </div>
       )}
 
-      <SubHead title="Jährlich · WGs und Airbnb" sub="Gesamtmarge pro Kalenderjahr. 2025 ab November." />
+      <SubHead title="Jährlich · alle Wohnungen" sub="Gesamtmarge pro Kalenderjahr. 2025 ab November." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(200px, 100%), 1fr))",gap:10}}>
         {combinedYears.map(yr=>(
           <div key={yr.y} style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
             <CardHead title={String(yr.y)} />
             <GrpRow label="Umsatz" value={chf(Math.round(yr.umsatz))} />
-            <SubRow label="WG" value={chf(Math.round(yr.umsatzWg))} />
+            <SubRow label="WGs" value={chf(Math.round(yr.umsatzWgZ))} />
+            <SubRow label="Ganze Wohnungen" value={chf(Math.round(yr.umsatzWohn))} />
             <SubRow label="Airbnb" value={chf(Math.round(yr.umsatzAb))} />
             <GrpRow label="Kosten" value={chf(Math.round(yr.mietausgaben+yr.uebrige))} />
             <SubRow label="Mietausgaben" value={chf(Math.round(yr.mietausgaben))} />
@@ -12431,7 +12453,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
 
       </div>
       <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-      <SectionHead title="WGs" sub="Nur Wohngemeinschaften, ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Servicegebühr, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
+      <SectionHead title="WGs und ganze Wohnungen" sub="Ohne Airbnb. Einnahmen aus Zimmermiete, Strom und Kautions-Servicegebühr, minus Hauptmieten. Künftige Monate sind eine Prognose auf Basis der heutigen Belegung und der Vertragsenden." />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:22}}>
         {[["Einnahmen / Mt.",cur.einnahmen,"#3d4f2f","var(--green-soft)",false],["Miete bezahlt / Mt.",cur.ausgaben,"#8a6d4a","#efe6d8",false],["Marge / Mt.",cur.marge,cur.marge>=0?"#3d4f2f":"#9b4a3e",cur.marge>=0?"var(--green-soft)":"#f7e4e0",true]].map(([l,v,fg,bg,plus])=>(
           <div key={l} style={{background:bg,borderRadius:10,padding:"14px 16px"}}>
@@ -13094,7 +13116,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
   const heute = new Date(); heute.setHours(0,0,0,0);
   const pd = (s)=>{ if(!s) return null; const str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(str)){const d=new Date(str);return isNaN(d.getTime())?null:d;} const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(str);return isNaN(d.getTime())?null:d; };
   const fmt = (d)=> d ? d.toLocaleDateString("de-CH") : "-";
-  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id,b.id));
+  const wgApts = apts.filter(a=>a.type==="WG" && !a.pipeline).sort((a,b)=>(aptKat(a)===aptKat(b)?natSort(a.id,b.id):aptKat(a)==="WG"?-1:1));
 
   function roomInfo(r, apt){
     const t = r.tenantId ? tenants.find(x=>x.id===r.tenantId) : null;
@@ -13155,7 +13177,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
     return (
       <div className="card" key={a.id} style={{marginBottom:16}}>
         <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-          <span>{a.adresse}</span>
+          <span style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{a.id} - {a.adresse} <TypeBadge type={aptKat(a)}/></span>
           <span style={{fontSize:11,color:"#8a8174",fontWeight:400}}>Wohnung endet: {fmt(pd(a.mietende))}</span>
         </div>
         <table><thead><tr><th>Zimmer</th><th>Aktueller Mieter</th><th>Auszug</th><th>Status</th><th>Nachmieter</th><th>Ausschreiben</th></tr></thead><tbody>
