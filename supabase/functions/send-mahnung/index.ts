@@ -32,6 +32,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // Offenen Betrag nach Monaten aufschluesseln.
 // Ein Fehlbetrag wird als "uebertrag" in den Folgemonat geschoben. Zahlungen decken immer zuerst den aeltesten Betrag.
+const gebuehrVon = (v: any) => (v && v.mahnung_2_sent_at && v.status !== "erlassen") ? (v.mahnung_fee != null && v.mahnung_fee !== "" ? Number(v.mahnung_fee) : 30) : 0;
 function aufschluesseln(p: any, alle: any[]): Posten[] {
   const key = (j: number, m: number) => j * 12 + (m - 1);
   const byKey = new Map<number, any>(); alle.forEach((x) => byKey.set(key(x.jahr, x.monat), x));
@@ -45,8 +46,9 @@ function aufschluesseln(p: any, alle: any[]): Posten[] {
     const v = byKey.get(k);
     if (!v) { posten.unshift({ jahr: 0, monat: 0, betrag: r2(carried), rest: true, label: "frueher" }); carried = 0; break; }
     besucht.add(k);
-    const eigen = Math.min(Number(v.betrag_soll || 0), carried);
-    if (eigen > 0) posten.unshift({ jahr: v.jahr, monat: v.monat, betrag: r2(eigen), rest: eigen < Number(v.betrag_soll || 0) - 0.009 });
+    const vs = Number(v.betrag_soll || 0) + gebuehrVon(v);
+    const eigen = Math.min(vs, carried);
+    if (eigen > 0) posten.unshift({ jahr: v.jahr, monat: v.monat, betrag: r2(eigen), rest: eigen < vs - 0.009 });
     carried = r2(carried - eigen);
     k--;
   }
@@ -62,7 +64,7 @@ function aufschluesseln(p: any, alle: any[]): Posten[] {
   for (const v of alle) {
     const kv = key(v.jahr, v.monat);
     if (besucht.has(kv) || kv > key(p.jahr, p.monat) || v.status === "bezahlt") continue;
-    const off = r2(Number(v.betrag_soll || 0) + Number(v.uebertrag || 0) - Number(v.betrag_ist || 0));
+    const off = r2(Number(v.betrag_soll || 0) + Number(v.uebertrag || 0) + gebuehrVon(v) - Number(v.betrag_ist || 0));
     if (off > 0.009) andere.push({ jahr: v.jahr, monat: v.monat, betrag: off, rest: Number(v.betrag_ist || 0) > 0 });
   }
   return [...andere, ...posten].filter((x) => Math.abs(x.betrag) > 0.009).sort((a, b) => key(a.jahr, a.monat) - key(b.jahr, b.monat));
@@ -182,7 +184,7 @@ serve(async (req) => {
     if (tErr || !tenant?.email) return new Response(JSON.stringify({ error: "Mieter oder Email nicht gefunden" }), { status: 404, headers: { ...CORS, "Content-Type": "application/json" } });
 
     const en = tenant.sprache === "en";
-    const { data: allePay } = await supabase.from("payments").select("jahr,monat,betrag_soll,betrag_ist,uebertrag,status").eq("tenant_id", payment.tenant_id);
+    const { data: allePay } = await supabase.from("payments").select("jahr,monat,betrag_soll,betrag_ist,uebertrag,status,mahnung_2_sent_at,mahnung_fee").eq("tenant_id", payment.tenant_id);
     let posten = aufschluesseln(payment, allePay || []);
     // Nur der noch offene Restbetrag: effektiver Soll (inkl. Uebertrag) minus bereits bezahlt
     const soll = Number(payment.betrag_soll || 0);

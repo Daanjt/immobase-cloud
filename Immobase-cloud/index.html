@@ -11117,11 +11117,13 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
   const MONATS_NAMEN = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   // Zusammensetzung eines Monats-Solls: eigener Monat + Uebertrag, aufgeteilt auf die Monate, aus denen er stammt.
   // Zahlungen decken immer zuerst den aeltesten Betrag. Gleiche Logik wie in der Mahnung.
-  const zusammensetzung = (tenantId, j, m, eigenSoll, ue) => {
+  const gebuehrVon = (v) => (v && v.mahnung2SentAt && v.status !== "erlassen") ? (v.mahnungFee != null && v.mahnungFee !== "" ? +v.mahnungFee : 30) : 0;
+  const zusammensetzung = (tenantId, j, m, eigenSoll, ue, gebuehr = 0) => {
     const mine = payments.filter(x=>x.tenantId===tenantId);
     const key = (jj,mm)=>jj*12+(mm-1);
     const byKey = {}; mine.forEach(x=>{ byKey[key(x.jahr,x.monat)] = x; });
     const posten = [{ jahr:j, monat:m, betrag:+eigenSoll||0, rest:false, aktuell:true }];
+    if (gebuehr > 0) posten.push({ jahr:j, monat:m, betrag:gebuehr, gebuehr:true, aktuell:true });
     let carried = +ue||0;
     if (carried < 0) { posten.push({ jahr:j, monat:m, betrag:carried, guthaben:true }); carried = 0; }
     let k = key(j,m)-1, guard = 0; const besucht = new Set([key(j,m)]);
@@ -11129,15 +11131,15 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       const v = byKey[k];
       if (!v) { posten.unshift({ frueher:true, betrag:Math.round(carried*100)/100 }); break; }
       besucht.add(k);
-      const vs = +v.betragSoll||0; const eigen = Math.min(vs, carried);
+      const vs = (+v.betragSoll||0) + gebuehrVon(v); const eigen = Math.min(vs, carried);
       if (eigen > 0) posten.unshift({ jahr:v.jahr, monat:v.monat, betrag:Math.round(eigen*100)/100, rest: eigen < vs-0.009 });
       carried = Math.round((carried-eigen)*100)/100; k--;
     }
-    const andere = mine.filter(v=>{ const kv=key(v.jahr,v.monat); return !besucht.has(kv) && kv<key(j,m) && v.status!=="bezahlt" && v.status!=="erlassen" && ((+v.betragSoll||0)+(+v.uebertrag||0)-(+v.betragIst||0))>0.009; })
-      .map(v=>({ jahr:v.jahr, monat:v.monat, betrag:Math.round(((+v.betragSoll||0)+(+v.uebertrag||0)-(+v.betragIst||0))*100)/100, rest:(+v.betragIst||0)>0 }));
+    const andere = mine.filter(v=>{ const kv=key(v.jahr,v.monat); return !besucht.has(kv) && kv<key(j,m) && v.status!=="bezahlt" && v.status!=="erlassen" && ((+v.betragSoll||0)+(+v.uebertrag||0)+gebuehrVon(v)-(+v.betragIst||0))>0.009; })
+      .map(v=>({ jahr:v.jahr, monat:v.monat, betrag:Math.round(((+v.betragSoll||0)+(+v.uebertrag||0)+gebuehrVon(v)-(+v.betragIst||0))*100)/100, rest:(+v.betragIst||0)>0 }));
     return { posten, andere };
   };
-  const postenText = (x) => x.frueher ? "frühere Monate" : x.guthaben ? "Guthaben" : `${MONATS_NAMEN[x.monat-1]}${x.jahr!==jahr?" "+x.jahr:""}${x.rest?" (Rest)":""}`;
+  const postenText = (x) => x.frueher ? "frühere Monate" : x.guthaben ? "Guthaben" : x.gebuehr ? "Mahngebühr" : `${MONATS_NAMEN[x.monat-1]}${x.jahr!==jahr?" "+x.jahr:""}${x.rest?" (Rest)":""}`;
   const chfK = (n) => (n<0?"−":"")+"CHF "+Math.abs(+n).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2});
   
   // Helper: parse DD.MM.YYYY oder YYYY-MM-DD zu Date
@@ -11242,7 +11244,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       partialNote = `${parts.join(" · ")}${half ? " · halbe Miete" : " · voller Monat"}`;
     }
     const uebertrag = +(p?.uebertrag) || 0;
-    const effektivSoll = soll + uebertrag;
+    // Mahngebuehr der 2. Mahnung gehoert zum offenen Betrag (ausser sie wurde erlassen: mahnung_fee = 0)
+    const gebuehr = (p?.mahnung2SentAt && p?.status !== "erlassen") ? (p?.mahnungFee != null && p?.mahnungFee !== "" ? +p.mahnungFee : 30) : 0;
+    const effektivSoll = soll + uebertrag + gebuehr;
     const ist = (p?.betragIst != null && p?.betragIst !== "") ? +p.betragIst : null;
     // Differenz gegen den tatsaechlich gebuchten Soll der Zahlung (nicht gegen den neu berechneten),
     // damit spaetere Miet-/Zimmeraenderungen alte, korrekt bezahlte Monate nicht faelschlich als Fehlbetrag markieren.
@@ -11255,6 +11259,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       payment: p,
       baseSoll: soll,
       uebertrag,
+      gebuehr,
       soll: effektivSoll,
       ist,
       diff,
@@ -11349,7 +11354,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       tenantId: row.tenant.id,
       jahr,
       monat,
-      betragSoll: row.soll,
+      betragSoll: row.baseSoll,
       betragIst: newStatus === "bezahlt" ? row.soll : null,
       status: newStatus,
       bezahltAm: newStatus === "bezahlt" ? new Date().toISOString().slice(0,10) : null,
@@ -11403,7 +11408,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       await upsertPayment({
         tenantId: row.tenant.id,
         jahr, monat,
-        betragSoll: row.soll,
+        betragSoll: row.baseSoll,
         status: "offen",
         markedBy: row.tenant.owner || null,
       });
@@ -11423,6 +11428,11 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       betragSoll: row.baseSoll,
       uebertrag: +(row.payment?.uebertrag) || 0,
       betragIst: row.payment?.betragIst || row.soll,
+      istGespeichert: row.payment?.betragIst ?? null,
+      bezahltAmGespeichert: row.payment?.bezahltAm ?? null,
+      mahnung2SentAt: row.payment?.mahnung2SentAt || null,
+      mahnungFee: row.payment?.mahnungFee,
+      paymentStatus: row.payment?.status || null,
       status: row.status,
       bezahltAm: row.payment?.bezahltAm || new Date().toISOString().slice(0,10),
       bezahltVia: row.payment?.bezahltVia || "Überweisung",
@@ -11461,23 +11471,37 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
       const zwischen = kStart == null ? [] : payments.filter(p=>p.tenantId===ep.tenantId && key(p.jahr,p.monat) > kStart && key(p.jahr,p.monat) < kCur && (+p.uebertrag||0) > 0);
       for (const w of zwischen) await upsertPayment({ ...w, uebertrag: Math.max(0, Math.round(((+w.uebertrag||0)-amt)*100)/100) });
       const neuUe = Math.max(0, Math.round(((+ep.uebertrag||0)-amt)*100)/100);
-      await upsertPayment({ ...ep, uebertrag: neuUe, bemerkung: [ep.bemerkung, `${label}: CHF ${amt} bezahlt am ${datum}`].filter(Boolean).join(" · ") });
-      setEditingPayment({ ...ep, uebertrag: neuUe, bemerkung: [ep.bemerkung, `${label}: CHF ${amt} bezahlt am ${datum}`].filter(Boolean).join(" · ") });
+      const notiz = [ep.bemerkung, `${label}: CHF ${amt} bezahlt am ${datum}`].filter(Boolean).join(" · ");
+      // Nur Uebertrag und Notiz aendern. "Bezahlt" des aktuellen Monats bleibt wie gespeichert (das Feld im Fenster ist nur vorausgefuellt).
+      const cur = payments.find(p=>p.tenantId===ep.tenantId && p.jahr===ep.jahr && p.monat===ep.monat);
+      await upsertPayment({ ...(cur||{}), tenantId: ep.tenantId, jahr: ep.jahr, monat: ep.monat, betragSoll: ep.betragSoll, betragIst: cur ? cur.betragIst : null, bezahltAm: cur ? cur.bezahltAm : null, status: cur ? cur.status : "offen", uebertrag: neuUe, bemerkung: notiz, markedBy: (cur && cur.markedBy) || ep.tenant?.owner || null });
+      const gebuehrEP = gebuehrVon({ mahnung2SentAt: ep.mahnung2SentAt, mahnungFee: ep.mahnungFee, status: ep.status });
+      const istAlt = cur && cur.betragIst != null && cur.betragIst !== "" ? +cur.betragIst : null;
+      setEditingPayment({ ...ep, uebertrag: neuUe, bemerkung: notiz, betragIst: istAlt != null ? istAlt : Math.round(((+ep.betragSoll||0)+neuUe+gebuehrEP)*100)/100 });
       toast(`${label}: CHF ${amt} als bezahlt verbucht`);
     } catch (e) { alert("Fehler: " + (e.message || e)); }
+  }
+  async function gebuehrErlassen() {
+    const ep = editingPayment; if (!ep) return;
+    if (!confirm("Mahngebühr erlassen? Sie zählt dann nicht mehr zum offenen Betrag.")) return;
+    const id = `PAY${ep.tenantId}-${ep.jahr}-${String(ep.monat).padStart(2,"0")}`;
+    const { error } = await supabase.from("payments").update({ mahnung_fee: 0 }).eq("id", id);
+    if (error) { alert("Fehler: " + error.message); return; }
+    setEditingPayment({ ...ep, mahnungFee: 0, betragIst: (+ep.betragIst||0) });
+    toast("Mahngebühr erlassen");
   }
   // Separat offenen Monat (ohne Uebertrag) als vollstaendig bezahlt markieren
   async function monatBezahlt(x) {
     const ep = editingPayment; if (!ep) return;
     const v = payments.find(p=>p.tenantId===ep.tenantId && p.jahr===x.jahr && p.monat===x.monat); if (!v) return;
     if (!confirm(`${MONATS_NAMEN[x.monat-1]} ${x.jahr}: CHF ${x.betrag} als bezahlt markieren?`)) return;
-    const voll = Math.round(((+v.betragSoll||0)+(+v.uebertrag||0))*100)/100;
+    const voll = Math.round(((+v.betragSoll||0)+(+v.uebertrag||0)+gebuehrVon(v))*100)/100;
     await upsertPayment({ ...v, betragIst: voll, status: "bezahlt", bezahltAm: v.bezahltAm || new Date().toISOString().slice(0,10), bemerkung: [v.bemerkung, `Rest CHF ${x.betrag} nachbezahlt am ${new Date().toLocaleDateString("de-CH")}`].filter(Boolean).join(" · ") });
   }
 
   async function carryOverToNextMonth() {
     const ep = editingPayment;
-    const sollEff = (+ep.betragSoll||0) + (+ep.uebertrag||0);
+    const sollEff = (+ep.betragSoll||0) + (+ep.uebertrag||0) + gebuehrVon({ mahnung2SentAt: ep.mahnung2SentAt, mahnungFee: ep.mahnungFee, status: ep.status });
     const ist = +ep.betragIst||0;
     const rest = Math.round((sollEff - ist) * 100) / 100; // positiv = Nachzahlung, negativ = Guthaben
     if (rest === 0) { alert("Keine offene Differenz zum Übertragen."); return; }
@@ -11622,9 +11646,9 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                     <td style={{padding:"12px 10px",fontSize:11.5,color:"#4a4439"}}>{row.room?.id || "-"}<div style={{fontSize:10.5,color:"#8a8174"}}>{row.apt?.adresse || ""}</div></td>
                     <td style={{padding:"12px 10px",textAlign:"right",fontSize:13,fontWeight:500,color:"#1a1814"}}>
                       CHF {row.soll.toLocaleString("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2})}
-                      {(()=>{ const z = zusammensetzung(row.tenant.id, jahr, monat, row.baseSoll, row.uebertrag); const zeigen = row.uebertrag!==0 || z.andere.length>0; if (!zeigen) return null; return (
+                      {(()=>{ const z = zusammensetzung(row.tenant.id, jahr, monat, row.baseSoll, row.uebertrag, row.gebuehr); const zeigen = row.uebertrag!==0 || row.gebuehr>0 || z.andere.length>0; if (!zeigen) return null; return (
                         <div style={{marginTop:3,fontSize:10,lineHeight:1.45,textAlign:"right"}}>
-                          {row.uebertrag!==0 && z.posten.map((x,i)=>(<div key={i} style={{color:x.aktuell?"#8a8174":x.guthaben?"#3a5230":"#8a3a2e",fontWeight:x.aktuell?400:500,whiteSpace:"nowrap"}}>{postenText(x)}: {chfK(x.betrag)}</div>))}
+                          {(row.uebertrag!==0 || row.gebuehr>0) && z.posten.map((x,i)=>(<div key={i} style={{color:x.aktuell?"#8a8174":x.guthaben?"#3a5230":"#8a3a2e",fontWeight:x.aktuell?400:500,whiteSpace:"nowrap"}}>{postenText(x)}: {chfK(x.betrag)}</div>))}
                           {z.andere.length>0 && <div style={{color:"#8a3a2e",fontWeight:600,marginTop:2,whiteSpace:"nowrap"}}>⚠ zusätzlich offen: {z.andere.map(x=>`${postenText(x)} ${chfK(x.betrag)}`).join(", ")}</div>}
                         </div>
                       ); })()}
@@ -11789,23 +11813,24 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
 
             {(() => {
               const ue = +editingPayment.uebertrag||0;
-              const soll = (+editingPayment.betragSoll||0) + ue;
+              const gebuehrEP = gebuehrVon({ mahnung2SentAt: editingPayment.mahnung2SentAt, mahnungFee: editingPayment.mahnungFee, status: editingPayment.status });
+              const soll = (+editingPayment.betragSoll||0) + ue + gebuehrEP;
               const ist = +editingPayment.betragIst||0;
               const diff = ist - soll;
               const fmt = (n) => n.toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2});
               return (
                 <div style={{padding:"14px 16px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,fontSize:13,marginBottom:12}}>
-                  {ue !== 0 && (()=>{ const z = zusammensetzung(editingPayment.tenantId, editingPayment.jahr, editingPayment.monat, +editingPayment.betragSoll||0, ue); return (
+                  {(ue !== 0 || gebuehrEP > 0) && (()=>{ const z = zusammensetzung(editingPayment.tenantId, editingPayment.jahr, editingPayment.monat, +editingPayment.betragSoll||0, ue, gebuehrEP); return (
                     <div style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid #eee5d6"}}>
                       <div style={{fontSize:10.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Zusammensetzung</div>
-                      {z.posten.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"3px 0",color:x.aktuell?"#4a4439":x.guthaben?"#3a5230":"#8a3a2e"}}><span>{x.aktuell?`Miete ${MONATS_NAMEN[x.monat-1]}`:x.frueher?"Übertrag aus früheren Monaten":x.guthaben?"Guthaben aus Vormonat":`Rest ${MONATS_NAMEN[x.monat-1]} ${x.jahr}${x.rest?"":" (ganzer Monat)"}`}</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{chfK(x.betrag)}</span>{!x.aktuell && !x.guthaben && <button type="button" onClick={()=>postenBezahlt(x)} style={{background:"#eef5ec",border:"1px solid #bcd6b8",color:"#2f6b3a",borderRadius:5,fontSize:10.5,fontWeight:600,padding:"2px 7px",cursor:"pointer"}}>✓ bezahlt</button>}</span></div>))}
+                      {z.posten.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"3px 0",color:x.aktuell?"#4a4439":x.guthaben?"#3a5230":"#8a3a2e"}}><span>{x.gebuehr?"Mahngebühr (2. Mahnung)":x.aktuell?`Miete ${MONATS_NAMEN[x.monat-1]}`:x.frueher?"Übertrag aus früheren Monaten":x.guthaben?"Guthaben aus Vormonat":`Rest ${MONATS_NAMEN[x.monat-1]} ${x.jahr}${x.rest?"":" (ganzer Monat)"}`}</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{chfK(x.betrag)}</span>{x.gebuehr && <button type="button" onClick={gebuehrErlassen} style={{background:"#fff",border:"1px solid #d8d0c0",color:"#8a7f6a",borderRadius:5,fontSize:10.5,fontWeight:600,padding:"2px 7px",cursor:"pointer"}}>erlassen</button>}{!x.aktuell && !x.guthaben && <button type="button" onClick={()=>postenBezahlt(x)} style={{background:"#eef5ec",border:"1px solid #bcd6b8",color:"#2f6b3a",borderRadius:5,fontSize:10.5,fontWeight:600,padding:"2px 7px",cursor:"pointer"}}>✓ bezahlt</button>}</span></div>))}
                     </div>); })()}
                   {(()=>{ const z = zusammensetzung(editingPayment.tenantId, editingPayment.jahr, editingPayment.monat, +editingPayment.betragSoll||0, +editingPayment.uebertrag||0); if (!z.andere.length) return null; return (
                     <div style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid #eee5d6"}}>
                       <div style={{fontSize:10.5,color:"#8a3a2e",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Weitere offene Monate</div>
                       {z.andere.map((x,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"3px 0",color:"#8a3a2e"}}><span>{MONATS_NAMEN[x.monat-1]} {x.jahr}{x.rest?" (Rest)":""}</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{chfK(x.betrag)}</span><button type="button" onClick={()=>monatBezahlt(x)} style={{background:"#eef5ec",border:"1px solid #bcd6b8",color:"#2f6b3a",borderRadius:5,fontSize:10.5,fontWeight:600,padding:"2px 7px",cursor:"pointer"}}>✓ bezahlt</button></span></div>))}
                     </div>); })()}
-                  {ue !== 0 && <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={{color:"#8a8174"}}>Übertrag gesamt</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{ue>0?"+":"−"}CHF {fmt(Math.abs(ue))}</span><button type="button" onClick={()=>setShowUeb(true)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>ändern</button><button type="button" onClick={()=>{setEditingPayment({...editingPayment, uebertrag:0}); setShowUeb(false);}} style={{background:"none",border:"none",color:"#c0392b",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>entfernen</button></span></div>}
+                  {ue !== 0 && <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={{color:"#8a8174"}}>Übertrag aus Vormonaten</span><span style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600}}>{ue>0?"+":"−"}CHF {fmt(Math.abs(ue))}</span><button type="button" onClick={()=>setShowUeb(true)} style={{background:"none",border:"none",color:"#8a7f6a",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>ändern</button><button type="button" onClick={()=>{setEditingPayment({...editingPayment, uebertrag:0}); setShowUeb(false);}} style={{background:"none",border:"none",color:"#c0392b",fontSize:10,cursor:"pointer",padding:0,textDecoration:"underline"}}>entfernen</button></span></div>}
                   <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#8a8174"}}>Effektiver Soll</span><span style={{fontWeight:700}}>CHF {fmt(soll)}</span></div>
                   <div style={{display:"flex",justifyContent:"space-between",marginTop:6,paddingTop:8,borderTop:"1px solid #eee5d6"}}><span style={{color:"#8a8174"}}>Differenz</span><span style={{fontWeight:700,fontSize:14,color:diff<0?"#c0392b":diff>0?"#2f6b3a":"#8a8174"}}>{diff===0?"ausgeglichen":`${diff<0?"−":"+"}CHF ${fmt(Math.abs(diff))}${diff<0?" zu wenig":" zu viel"}`}</span></div>
                   <div style={{marginTop:8}}>
@@ -11815,7 +11840,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                 </div>
               );
             })()}
-            {(() => { const rest = Math.round(((+editingPayment.betragSoll||0)+(+editingPayment.uebertrag||0) - (+editingPayment.betragIst||0))*100)/100; if (rest === 0) return null; return (
+            {(() => { const rest = Math.round(((+editingPayment.betragSoll||0)+(+editingPayment.uebertrag||0)+gebuehrVon({ mahnung2SentAt: editingPayment.mahnung2SentAt, mahnungFee: editingPayment.mahnungFee, status: editingPayment.status }) - (+editingPayment.betragIst||0))*100)/100; if (rest === 0) return null; return (
               <button onClick={carryOverToNextMonth} style={{width:"100%",padding:"14px 16px",marginBottom:14,background:"#4e7d55",color:"#fff",border:"none",borderRadius:9,cursor:"pointer",fontSize:14,fontWeight:700,lineHeight:1.35,boxShadow:"0 2px 8px rgba(78,125,85,.28)"}}>
                 ↪ Differenz in den nächsten Monat übertragen<br/><span style={{fontSize:12,fontWeight:500,opacity:.92}}>{rest>0?"Nachzahlung":"Guthaben"} CHF {Math.abs(rest).toLocaleString("de-CH",{minimumFractionDigits:0,maximumFractionDigits:2})}</span>
               </button>
