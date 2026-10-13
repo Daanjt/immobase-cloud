@@ -12338,7 +12338,9 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
     const from = a>s?a:s; const to = d<eNext?d:eNext;
     const n = Math.round((to-from)/86400000); return n>0?n:0;
   };
-  const CLEAN_PER_BOOKING = 100, LAUNDRY_PER_GUEST = 12.5;
+  const LAUNDRY_PER_GUEST = 12.5;
+  // Reinigung pro Buchung: bis September 2026 CHF 100, ab Oktober 2026 CHF 120 (massgebend ist das Abreisedatum = Reinigungstag)
+  const putzVon = (bk) => { const d = bk && bk.departure ? new Date(bk.departure) : null; return (d && d >= new Date(2026,9,1)) ? 120 : 100; };
   const airbnbFin = (s, e, eNext) => {
     let occNights=0, umsatz=0, putzen=0, waesche=0, anz=0, kommission=0;
     abBookings.forEach(bk=>{
@@ -12349,7 +12351,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         occNights += no;
         umsatz += (bk.price||0)*frac;
         kommission += (bk.commission||0)*frac;
-        putzen += CLEAN_PER_BOOKING*frac;
+        putzen += putzVon(bk)*frac;
         waesche += LAUNDRY_PER_GUEST*((bk.adults||0)+(bk.children||0))*frac;
         anz += frac;
       }
@@ -12543,7 +12545,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {hasAb && (
         <>
           <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-          <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möbelmiete Myotaku Feldeggstrasse (bis Juli 2026 CHF 900, ab August CHF 819.83 pro Monat inkl. MWST), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
+          <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möbelmiete Myotaku Feldeggstrasse (bis Juli 2026 CHF 900, ab August CHF 819.83 pro Monat inkl. MWST), Reinigung (CHF 100 pro Buchung, ab Oktober 2026 CHF 120) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
