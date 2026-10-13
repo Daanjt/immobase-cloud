@@ -1,0 +1,73 @@
+name: Datenbank-Backup (nachts, verschluesselt)
+# Exportiert alle Tabellen (public + Login-Konten) als JSON ueber die Supabase
+# Management API, packt und verschluesselt sie und legt sie als privates Artefakt
+# fuer 30 Tage ab. Verschluesselung: zufaelliger AES-256-Schluessel pro Backup,
+# dieser wird mit dem oeffentlichen RSA-Schluessel unten verschluesselt. Nur wer
+# den privaten Schluessel (bei Daan) hat, kann das Backup oeffnen:
+#   openssl pkeyutl -decrypt -inkey ImmoBase_Backup_Schluessel_PRIVAT.pem -in key.bin.enc -out key.bin
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in backup.tar.gz.enc -out backup.tar.gz -pass file:key.bin
+#   tar xzf backup.tar.gz
+on:
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: aohcqrxpsqronlcwssrk
+    steps:
+      - name: Export
+        run: |
+          set -e
+          python3 - <<'PY'
+          import json, os, urllib.request, datetime
+          ref = os.environ["PROJECT_ID"]; tok = os.environ["SUPABASE_ACCESS_TOKEN"]
+          def q(sql):
+              req = urllib.request.Request(f"https://api.supabase.com/v1/projects/{ref}/database/query",
+                  data=json.dumps({"query": sql}).encode(), method="POST",
+                  headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json", "User-Agent": "immobase-backup"})
+              with urllib.request.urlopen(req, timeout=300) as r: return json.loads(r.read())
+          os.makedirs("dump", exist_ok=True)
+          tabellen = [r["t"] for r in q("select table_name t from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1")]
+          stats = {}
+          for t in tabellen:
+              rows = q(f'select coalesce(json_agg(x), \'[]\'::json) d from public."{t}" x')[0]["d"]
+              json.dump(rows, open(f"dump/{t}.json", "w"), ensure_ascii=False)
+              stats[t] = len(rows)
+          users = q("select coalesce(json_agg(x),'[]'::json) d from (select id, email, created_at, last_sign_in_at, raw_user_meta_data from auth.users) x")[0]["d"]
+          json.dump(users, open("dump/_auth_users.json", "w"), ensure_ascii=False)
+          json.dump({"zeit": datetime.datetime.utcnow().isoformat()+"Z", "tabellen": stats}, open("dump/_info.json", "w"), indent=1)
+          print(f"{len(tabellen)} Tabellen, {sum(stats.values())} Zeilen")
+          PY
+          tar czf backup.tar.gz dump
+          cat > pub.pem <<'KEY'
+            -----BEGIN PUBLIC KEY-----
+            MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvjaWl0lAiE+O7cDcRc2P
+            2cE9Q1alYBsb8+bBCBBTXjuQd0cD3DXq/fnDqQe+Vuw/SYc1ybKG7UM8r/m9pnJb
+            NFJ0DCrldzniqIAoxGYql5Zkwj/vAt/29xpT15V1naTOw6VlZOVr8S8jJgfgcrbO
+            69WaejFYXZQ6b8esrY+VCZgk4RQIhvWAalpvnYKfnDgvB4x8l52AvVTOqS5p7scT
+            tUaPeStWLzQ/vtF8Of/BXi2ibdQwimMkVGn7a3gQM1AwosroSPYwmo58CvMD0Ya0
+            avb5pjc/GLMhVqV8zwpdZFLU08RiIv+aS8Ij5FmjATAwRt2pWWO6UGRPfrt4Bla3
+            hXNmGIrEOuvY0bwgMU8XEtSha3BXNeZQX8QrkDay+piDb/JceX/yAr3A81ufU9UD
+            IOyy1vNqs9PmQUdv47wePchSInEnCOoLBT1hJeHQ2+EfyaPbDvi//5M5V6horGXq
+            q1Dv2VQMm+1r5FEG6UDJ94S5upoDFxdthTn066OnCyrEIxtlaTQcEy4P+iGbZBOV
+            PLnKPqnYvyNKQ+iJ4A7j76rbuy6jqc3iH0g+Wg4Hz1vWNvit2rX//XqCBhFIYwbc
+            1GUF/MeJUbV2gBZx65vsbOZZsso+AZlPU+5JfX6QDY5NqKWsMm6LzXdGwBUKZJxI
+            mtVZiZK0uZQASZ0vLzNp5fMCAwEAAQ==
+            -----END PUBLIC KEY-----
+          KEY
+          sed -i 's/^ *//' pub.pem
+          openssl rand -hex 32 > key.bin
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in backup.tar.gz -out backup.tar.gz.enc -pass file:key.bin
+          openssl pkeyutl -encrypt -pubin -inkey pub.pem -in key.bin -out key.bin.enc
+          rm -rf dump backup.tar.gz key.bin
+          ls -la backup.tar.gz.enc key.bin.enc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: immobase-backup-${{ github.run_id }}
+          path: |
+            backup.tar.gz.enc
+            key.bin.enc
+          retention-days: 30
