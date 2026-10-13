@@ -12323,10 +12323,13 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
         anz += frac;
       }
     });
+    // Moebelmiete Myotaku (Feldeggstrasse 36): bis Juli 2026 CHF 900/Mt. (inkl. MWST),
+    // ab August 2026 CHF 758.40 + 8.1% MWST = CHF 819.83/Mt. (Verlaengerung bis 31.01.2027, Angebot Carlos 24.07.2026)
+    const moeblFeldegg = (monatStart) => (monatStart >= new Date(2026,7,1)) ? Math.round(758.40*1.081*100)/100 : 900;
     let miete=0, moeblierung=0, availNights=0;
     abApts.forEach(a=>{
       const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
-      if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += 900; }
+      if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += moeblFeldegg(s); }
       // Verfuegbare Naechte: nur solange die Wohnung im Monat tatsaechlich gemietet war
       const von = (ab && ab>s) ? ab : s;
       const bisExkl = bis ? new Date(bis.getFullYear(), bis.getMonth(), bis.getDate()+1) : eNext;
@@ -12509,7 +12512,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       {hasAb && (
         <>
           <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-          <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möblierung Feldeggstrasse (CHF 900 pro Monat), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
+          <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möbelmiete Myotaku Feldeggstrasse (bis Juli 2026 CHF 900, ab August CHF 819.83 pro Monat inkl. MWST), Reinigung (CHF 100 pro Buchung) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
