@@ -10,6 +10,7 @@
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
 // Verwaltungen: [Anzeigename, Homegate-Anbieter-ID, Slug]
 const ANBIETER: [string, string, string][] = [
@@ -65,7 +66,8 @@ async function fetchPage(aid: string, slug: string, ep: number): Promise<string>
   return await r.text();
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (!(await istAdminOderServer(req))) return verweigert({});
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
