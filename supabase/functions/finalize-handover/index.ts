@@ -80,6 +80,13 @@ function buildSubmittedHtml(p: Record<string, any>): string {
   `;
   const aptZeile = p.apt_adresse ? `${p.apt_adresse}${p.apt_plz || p.apt_ort ? ", " : ""}${p.apt_plz || ""} ${p.apt_ort || ""}`.trim() : "";
   const sk = parseSchluessel(p.schluessel_info || "");
+  // Neues Format: vom Mieter eingetragene Schluesselnummern (schluessel_data) haben Vorrang
+  if (p.schluessel_data) {
+    const sd = p.schluessel_data;
+    const nrs = (Array.isArray(sd.normal) ? sd.normal : []).map((k: any) => String((k && k.nr) || "").trim()).filter(Boolean);
+    if (nrs.length) sk.nr = `${nrs.length}× ${nrs.join(", ")}`;
+    if (sd.extraText && String(sd.extraText).trim()) sk.extra = String(sd.extraText).trim();
+  }
   const vollName = `${p.mieter_vorname || ""} ${p.mieter_nachname || ""}`.trim() || "-";
   const submitStr = formatDateDE(p.submitted_at) || formatDateDE(new Date().toISOString());
   const tsig = String(p.tenant_signature||"");
