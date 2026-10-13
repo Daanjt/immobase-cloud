@@ -25,6 +25,3 @@ verify_jwt = false
 
 [functions.system-check]
 verify_jwt = true
-
-[functions.finalize-auszug]
-verify_jwt = false

@@ -4491,7 +4491,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     <div style={{fontSize:15,fontWeight:700}}>{kautionTenant.vorname} {kautionTenant.nachname}</div>
                     <button onClick={()=>setKautionTenant(null)} style={{border:"none",background:"none",fontSize:24,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
                   </div>
-                  <div style={{padding:"0 18px 18px"}}>{(()=>{ const _r=rooms.find(r=>r.tenantId===kautionTenant.id)||(kautionTenant.roomId?rooms.find(r=>r.id===kautionTenant.roomId):null); const _a=_r?apts.find(a=>a.id===_r.aptId):(kautionTenant.aptId?apts.find(a=>a.id===kautionTenant.aptId):null); return <AuszugProtokoll tenant={kautionTenant} room={_r} apt={_a}/>; })()}<KautionsAbrechnung tenant={kautionTenant} updateTenant={updateTenant} onDone={()=>{setDismissed(d=>[...d,kautionTenant.id]); setKautionTenant(null);}}/></div>
+                  <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant} updateTenant={updateTenant} onDone={()=>{setDismissed(d=>[...d,kautionTenant.id]); setKautionTenant(null);}}/></div>
                 </div>
               </div>}
               {reminders.map(r => {
@@ -10427,7 +10427,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               <button onClick={()=>setUebTab("einzug")} style={{flex:1,textAlign:"center",background:uebTab==="einzug"?"var(--ink)":"transparent",color:uebTab==="einzug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Einzug</button>
               <button onClick={()=>setUebTab("auszug")} style={{flex:1,textAlign:"center",background:uebTab==="auszug"?"var(--ink)":"transparent",color:uebTab==="auszug"?"#fff":"var(--ink)",border:"none",borderRadius:7,padding:"8px 0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Auszug</button>
             </div>}
-            {tab==="uebergabe" && uebTab==="auszug" && <><AuszugProtokoll tenant={tenant} room={room} apt={apt}/><KautionsAbrechnung tenant={tenant} updateTenant={updateTenant}/></>}
+            {tab==="uebergabe" && uebTab==="auszug" && <KautionsAbrechnung tenant={tenant} updateTenant={updateTenant}/>}
             {tab==="uebergabe" && uebTab==="einzug" && (()=>{
               const hatAltesDok = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===tenant.id && (d.category||"").toLowerCase().includes("übergabeprotokoll"));
               const hatDigital = (handoverProtocols||[]).some(h => h.tenant_id===tenant.id && ["accepted","auto_accepted","abgeschlossen","completed"].includes(h.status));
@@ -14686,270 +14686,6 @@ function WerbungTab(){
   </div>);
 }
 
-// ═══ Auszugsprotokoll (vor Ort, durch D&T erfasst) ═══
-// Vergleicht mit dem Einzugsprotokoll, haelt Schluesselrueckgabe, neue Maengel (mit Haftung
-// und Kosten), Reinigung und Unterschrift fest. Abschluss erzeugt ein PDF (finalize-auszug).
-const AUSZUG_RAEUME = ["Zimmer","Küche","Bad","Wohnbereich","Balkon/Keller","Andere"];
-async function auszugBildVerkleinern(file){
-  try {
-    const url = URL.createObjectURL(file);
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-    const max = 1600, f = Math.min(1, max / Math.max(img.width, img.height));
-    const c = document.createElement("canvas"); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
-    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    URL.revokeObjectURL(url);
-    return await new Promise(res => c.toBlob(b => res(b || file), "image/jpeg", 0.82));
-  } catch (e) { return file; }
-}
-function AuszugProtokoll({tenant, room, apt}){
-  const [p, setP] = React.useState(null);
-  const [laden, setLaden] = React.useState(true);
-  const [einzug, setEinzug] = React.useState(null);
-  const [busy, setBusy] = React.useState("");
-  const [zeigeEinzug, setZeigeEinzug] = React.useState(false);
-  const [dirty, setDirty] = React.useState(false);
-  const chf = (n) => "CHF " + (+n || 0).toLocaleString("de-CH", {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const istWG = aptKat(apt) === "WG";
-
-  async function laden_(){
-    setLaden(true);
-    const [{data: ap}, {data: hp}] = await Promise.all([
-      supabase.from("auszug_protokolle").select("*").eq("tenant_id", tenant.id).order("created_at", {ascending: false}).limit(1),
-      supabase.from("handover_protocols").select("schluessel_data,photos,mangel_notes,submitted_at,status").eq("tenant_id", tenant.id).order("created_at", {ascending: false}).limit(1),
-    ]);
-    setP(ap && ap[0] ? ap[0] : null);
-    setEinzug(hp && hp[0] ? hp[0] : null);
-    setLaden(false); setDirty(false);
-  }
-  React.useEffect(() => { laden_(); }, [tenant.id]);
-
-  async function starten(){
-    setBusy("start");
-    const sd = (einzug && einzug.schluessel_data) || {};
-    const normal = Array.isArray(sd.normal) ? sd.normal : [];
-    let schluessel = normal.map((k, i) => ({label: `Wohnungsschlüssel ${i + 1}`, nr: (k && k.nr) || "", zurueck: true, kosten: ""}));
-    if (!schluessel.length) {
-      const nr = (tenant.schluesselNr || "").trim();
-      schluessel = [{label: "Wohnungsschlüssel", nr, zurueck: true, kosten: ""}];
-    }
-    if ((sd.extraText || "").trim()) schluessel.push({label: "Persönliche Extraschlüssel", nr: sd.extraText.trim(), zurueck: true, kosten: ""});
-    const wgText = (sd.wgText || "").trim();
-    const {data: sess} = await supabase.auth.getSession();
-    const row = {
-      tenant_id: tenant.id, apt_id: apt ? apt.id : null, room_id: room ? room.id : null,
-      datum: new Date().toISOString().slice(0, 10), schluessel,
-      wg_schluessel: (istWG || wgText) ? {text: wgText, vollstaendig: true, bemerkung: ""} : null,
-      erfasst_von: sess && sess.session && sess.session.user ? sess.session.user.email : null,
-    };
-    const {data, error} = await supabase.from("auszug_protokolle").insert(row).select().single();
-    setBusy("");
-    if (error) { console.error("Auszug starten", error); toast("Auszugsprotokoll konnte nicht erstellt werden", "error"); return; }
-    setP(data);
-  }
-
-  const upd = (k, v) => { setP(x => ({...x, [k]: v})); setDirty(true); };
-  const updListe = (k, i, f, v) => { setP(x => ({...x, [k]: x[k].map((r, j) => j === i ? {...r, [f]: v} : r)})); setDirty(true); };
-  const addListe = (k, row) => { setP(x => ({...x, [k]: [...(x[k] || []), row]})); setDirty(true); };
-  const delListe = (k, i) => { setP(x => ({...x, [k]: x[k].filter((_, j) => j !== i)})); setDirty(true); };
-
-  async function speichern(still){
-    if (!p) return false;
-    const {id, created_at, ...rest} = p;
-    const {error} = await supabase.from("auszug_protokolle").update({...rest, updated_at: new Date().toISOString()}).eq("id", id);
-    if (error) { console.error("Auszug speichern", error); toast("Auszugsprotokoll konnte nicht gespeichert werden", "error"); return false; }
-    setDirty(false); if (!still) toast("Gespeichert");
-    return true;
-  }
-
-  async function fotoHochladen(i, file){
-    if (!file) return;
-    setBusy("foto" + i);
-    const blob = await auszugBildVerkleinern(file);
-    const path = `auszug/${p.id}/${Date.now()}.jpg`;
-    const {error} = await supabase.storage.from("handover-photos").upload(path, blob, {contentType: "image/jpeg"});
-    setBusy("");
-    if (error) { console.error("Auszug Foto", error); toast("Foto-Upload fehlgeschlagen", "error"); return; }
-    const {data: pub} = supabase.storage.from("handover-photos").getPublicUrl(path);
-    setP(x => ({...x, maengel: x.maengel.map((r, j) => j === i ? {...r, url: pub.publicUrl, path} : r)})); setDirty(true);
-  }
-
-  const fehlendeSchluessel = p ? (p.schluessel || []).filter(s => !s.zurueck) : [];
-  const abzugMaengel = p ? (p.maengel || []).filter(m => m.haftet && (+m.kosten || 0) > 0) : [];
-  const totalAbzug = abzugMaengel.reduce((s, m) => s + (+m.kosten || 0), 0) + fehlendeSchluessel.reduce((s, k) => s + (+k.kosten || 0), 0);
-  const abgeschlossen = p && p.status === "abgeschlossen";
-
-  async function abschliessen(mitMail){
-    if (!p.mieter_verweigert && !p.unterschrift_mieter) { alert("Bitte die Unterschrift der Mietpartei einholen oder «Mietpartei unterschreibt nicht» anwählen."); return; }
-    if (mitMail && !tenant.email) { alert("Für diese Mietpartei ist keine E-Mail-Adresse hinterlegt."); return; }
-    if (!confirm(mitMail ? `Protokoll abschliessen, als PDF ablegen und an ${tenant.email} senden?` : "Protokoll abschliessen und als PDF in den Dokumenten ablegen? (keine Mail an die Mietpartei)")) return;
-    if (!(await speichern(true))) return;
-    setBusy("abschluss");
-    const {data, error} = await supabase.functions.invoke("finalize-auszug", {body: {protocolId: p.id, sendEmail: !!mitMail}});
-    setBusy("");
-    if (error || (data && data.error)) {
-      let m = (data && data.error) || (error && error.message) || "unbekannt";
-      try { const j = error && error.context ? await error.context.json() : null; if (j && j.error) m = j.error; } catch (_e) {}
-      alert("Abschluss fehlgeschlagen: " + m); return;
-    }
-    toast(mitMail ? "Abgeschlossen, PDF abgelegt und versendet" : "Abgeschlossen, PDF abgelegt");
-    laden_();
-  }
-  async function vorschau(){
-    if (!(await speichern(true))) return;
-    setBusy("vorschau");
-    const {data, error} = await supabase.functions.invoke("finalize-auszug", {body: {protocolId: p.id, preview: true}});
-    setBusy("");
-    if (error || !data || !data.pdfBase64) { alert("Vorschau fehlgeschlagen: " + ((data && data.error) || (error && error.message) || "")); return; }
-    const bytes = Uint8Array.from(atob(data.pdfBase64), c => c.charCodeAt(0));
-    window.open(URL.createObjectURL(new Blob([bytes], {type: "application/pdf"})), "_blank");
-  }
-
-  const box = {border: "1px solid var(--line)", borderRadius: 12, padding: "16px 16px", marginBottom: 14, background: "#fff"};
-  const h = {fontSize: 10, textTransform: "uppercase", letterSpacing: ".2em", color: "var(--muted)", fontWeight: 700, marginBottom: 10};
-  const inp = {padding: "9px 11px", border: "1px solid var(--line)", borderRadius: 8, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", width: "100%"};
-  const chk = {width: 20, height: 20, accentColor: "#1a1814", flexShrink: 0};
-
-  if (laden) return <div style={{padding: 16, color: "var(--muted)", fontSize: 13}}>Auszugsprotokoll wird geladen…</div>;
-  if (!p) return (
-    <div style={{...box, background: "#fdf6e3", borderColor: "#e8d2a8"}}>
-      <div style={{fontSize: 15, fontWeight: 700, marginBottom: 6}}>Auszugsprotokoll</div>
-      <div style={{fontSize: 13, color: "#5a5044", lineHeight: 1.55, marginBottom: 12}}>Vor Ort mit der Mietpartei ausfüllen: Schlüsselrückgabe, neue Mängel mit Fotos, Reinigung und Unterschrift. Die Schlüssel und Mängel aus dem Einzugsprotokoll werden übernommen. Mängel, für die die Mietpartei haftet, müssen sofort gerügt werden (Art. 267a OR).</div>
-      <button className="btn btn-p" disabled={busy === "start"} onClick={starten}>{busy === "start" ? "Wird erstellt…" : "📋 Auszugsprotokoll starten"}</button>
-    </div>
-  );
-
-  const einzugFotos = (einzug && Array.isArray(einzug.photos)) ? einzug.photos.filter(f => f && (f.url || f.beschreibung)) : [];
-  return (
-    <div style={{marginBottom: 6}}>
-      <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12}}>
-        <div style={{fontSize: 15, fontWeight: 700}}>Auszugsprotokoll <span style={{fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, marginLeft: 6, background: abgeschlossen ? "var(--green-soft)" : "#fdf2e0", color: abgeschlossen ? "#3d4f2f" : "#8a6a2e"}}>{abgeschlossen ? "abgeschlossen" : "Entwurf"}</span></div>
-        {!abgeschlossen && <button className="btn btn-g btn-sm" disabled={!dirty} onClick={() => speichern(false)}>{dirty ? "💾 Zwischenspeichern" : "✓ gespeichert"}</button>}
-      </div>
-      <fieldset disabled={abgeschlossen} style={{border: "none", padding: 0, margin: 0}}>
-        <div style={box}>
-          <div style={h}>Datum</div>
-          <input type="date" value={p.datum || ""} onChange={e => upd("datum", e.target.value)} style={{...inp, maxWidth: 200}}/>
-        </div>
-
-        <div style={box}>
-          <div style={h}>🔑 Schlüsselrückgabe</div>
-          {(p.schluessel || []).map((s, i) => (
-            <div key={i} style={{display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #f0ebe1", flexWrap: "wrap"}}>
-              <input type="checkbox" checked={!!s.zurueck} onChange={e => updListe("schluessel", i, "zurueck", e.target.checked)} style={{...chk, marginTop: 9}} aria-label="zurückgegeben"/>
-              <div style={{flex: "1 1 200px", minWidth: 0, display: "flex", flexDirection: "column", gap: 6}}>
-                <input value={s.label || ""} onChange={e => updListe("schluessel", i, "label", e.target.value)} style={inp} placeholder="Bezeichnung"/>
-                <input value={s.nr || ""} onChange={e => updListe("schluessel", i, "nr", e.target.value)} style={inp} placeholder="Nummer"/>
-              </div>
-              {!s.zurueck && <div style={{flex: "0 1 150px"}}><div style={{fontSize: 11, color: "#9b4a3e", fontWeight: 600, marginBottom: 4}}>Fehlt · Kosten CHF</div><input type="number" inputMode="decimal" value={s.kosten || ""} onChange={e => updListe("schluessel", i, "kosten", e.target.value)} style={inp} placeholder="z.B. 250"/></div>}
-              {!abgeschlossen && <button type="button" onClick={() => delListe("schluessel", i)} style={{border: "none", background: "none", color: "#9b4a3e", fontSize: 18, cursor: "pointer", padding: "6px"}} aria-label="Zeile entfernen">×</button>}
-            </div>
-          ))}
-          {!abgeschlossen && <button type="button" className="btn btn-g btn-sm" style={{marginTop: 10}} onClick={() => addListe("schluessel", {label: "", nr: "", zurueck: true, kosten: ""})}>+ Schlüssel</button>}
-          <div style={{fontSize: 11.5, color: "var(--muted)", marginTop: 8}}>Häkchen = zurückgegeben. Bei fehlenden Schlüsseln die Kosten für Ersatz bzw. Schlossersatz eintragen.</div>
-          {p.wg_schluessel && (
-            <div style={{marginTop: 14, padding: "12px 12px", background: "#f7f4ee", borderRadius: 8}}>
-              <div style={{fontSize: 12.5, fontWeight: 700, marginBottom: 6}}>Gemeinsame WG-Schlüssel</div>
-              <input value={p.wg_schluessel.text || ""} onChange={e => upd("wg_schluessel", {...p.wg_schluessel, text: e.target.value})} style={inp} placeholder="z.B. 1x Keller, 1x Waschküche"/>
-              <label style={{display: "flex", gap: 8, alignItems: "center", marginTop: 8, fontSize: 13}}><input type="checkbox" checked={!!p.wg_schluessel.vollstaendig} onChange={e => upd("wg_schluessel", {...p.wg_schluessel, vollstaendig: e.target.checked})} style={chk}/> Vollständig in der Wohnung vorhanden</label>
-              {!p.wg_schluessel.vollstaendig && <input value={p.wg_schluessel.bemerkung || ""} onChange={e => upd("wg_schluessel", {...p.wg_schluessel, bemerkung: e.target.value})} style={{...inp, marginTop: 8}} placeholder="Was fehlt?"/>}
-            </div>
-          )}
-        </div>
-
-        <div style={box}>
-          <div style={h}>Beim Einzug festgehalten</div>
-          {einzug ? (
-            <>
-              <div style={{fontSize: 12.5, color: "#5a5044", marginBottom: 8}}>{einzugFotos.length} Einträge{einzug.mangel_notes ? ` · Notiz: ${einzug.mangel_notes}` : ""}</div>
-              <button type="button" className="btn btn-g btn-sm" onClick={() => setZeigeEinzug(!zeigeEinzug)}>{zeigeEinzug ? "Verbergen" : "👁 Einzugsmängel ansehen"}</button>
-              {zeigeEinzug && <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8, marginTop: 10}}>
-                {einzugFotos.map((f, i) => (
-                  <div key={i} style={{fontSize: 11, color: "#5a5044"}}>
-                    {f.url ? <a href={f.url} target="_blank" rel="noreferrer"><img src={f.url} alt={f.beschreibung || f.raum || "Einzugsfoto"} loading="lazy" style={{width: "100%", height: 90, objectFit: "cover", borderRadius: 6, display: "block"}}/></a> : <div style={{height: 40, background: "#f5f2ec", borderRadius: 6}}/>}
-                    <div style={{marginTop: 3}}>{f.raum ? f.raum.charAt(0).toUpperCase() + f.raum.slice(1) + ": " : ""}{f.beschreibung || ""}</div>
-                  </div>
-                ))}
-              </div>}
-            </>
-          ) : <div style={{fontSize: 12.5, color: "var(--muted)"}}>Kein digitales Einzugsprotokoll vorhanden.</div>}
-        </div>
-
-        <div style={box}>
-          <div style={h}>Neue Mängel beim Auszug</div>
-          {(p.maengel || []).length === 0 && <div style={{fontSize: 12.5, color: "var(--muted)", marginBottom: 8}}>Keine neuen Mängel erfasst.</div>}
-          {(p.maengel || []).map((m, i) => (
-            <div key={i} style={{border: "1px solid #ece3d2", borderRadius: 10, padding: 12, marginBottom: 10}}>
-              <div style={{display: "flex", gap: 8, marginBottom: 8}}>
-                <select value={m.raum || "Zimmer"} onChange={e => updListe("maengel", i, "raum", e.target.value)} style={{...inp, flex: "0 0 150px"}} aria-label="Raum">
-                  {AUSZUG_RAEUME.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-                {!abgeschlossen && <button type="button" onClick={() => delListe("maengel", i)} style={{marginLeft: "auto", border: "none", background: "none", color: "#9b4a3e", fontSize: 18, cursor: "pointer"}} aria-label="Mangel entfernen">×</button>}
-              </div>
-              <textarea value={m.beschreibung || ""} onChange={e => updListe("maengel", i, "beschreibung", e.target.value)} rows={2} style={{...inp, resize: "vertical"}} placeholder="Was ist beschädigt bzw. anders als beim Einzug?"/>
-              <div style={{display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8}}>
-                {m.url ? <a href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt="Foto Mangel" style={{width: 90, height: 68, objectFit: "cover", borderRadius: 6, display: "block"}}/></a> : null}
-                {!abgeschlossen && <label className="btn btn-g btn-sm" style={{cursor: "pointer"}}>{busy === "foto" + i ? "Lädt…" : (m.url ? "📷 Foto ersetzen" : "📷 Foto")}<input type="file" accept="image/*" capture="environment" style={{display: "none"}} onChange={e => fotoHochladen(i, e.target.files && e.target.files[0])}/></label>}
-                <label style={{display: "flex", gap: 7, alignItems: "center", fontSize: 13}}><input type="checkbox" checked={!!m.haftet} onChange={e => updListe("maengel", i, "haftet", e.target.checked)} style={chk}/> Mietpartei haftet</label>
-                {m.haftet && <input type="number" inputMode="decimal" value={m.kosten || ""} onChange={e => updListe("maengel", i, "kosten", e.target.value)} style={{...inp, width: 130}} placeholder="Kosten CHF"/>}
-              </div>
-            </div>
-          ))}
-          {!abgeschlossen && <button type="button" className="btn btn-g btn-sm" onClick={() => addListe("maengel", {raum: "Zimmer", beschreibung: "", haftet: false, kosten: ""})}>+ Mangel</button>}
-        </div>
-
-        <div style={box}>
-          <div style={h}>Reinigung, Zähler und Weiteres</div>
-          <div style={{display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap"}}>
-            {[["ok", "Sauber übergeben"], ["mangelhaft", "Nachreinigung nötig"]].map(([k, l]) => (
-              <button type="button" key={k} className={`btn btn-sm ${p.reinigung === k ? "btn-p" : "btn-g"}`} onClick={() => upd("reinigung", k)}>{l}</button>
-            ))}
-          </div>
-          {p.reinigung === "mangelhaft" && <input value={p.reinigung_notiz || ""} onChange={e => upd("reinigung_notiz", e.target.value)} style={{...inp, marginBottom: 8}} placeholder="Was muss nachgereinigt werden? (Kosten als Mangel erfassen)"/>}
-          <label style={{display: "block", fontSize: 12, fontWeight: 600, margin: "6px 0 4px"}}>Zurückgelassene Gegenstände</label>
-          <input value={p.gegenstaende || ""} onChange={e => upd("gegenstaende", e.target.value)} style={inp} placeholder="keine"/>
-          <label style={{display: "block", fontSize: 12, fontWeight: 600, margin: "10px 0 4px"}}>Zählerstände (falls relevant)</label>
-          <input value={p.zaehler || ""} onChange={e => upd("zaehler", e.target.value)} style={inp} placeholder="z.B. Strom 12345 kWh"/>
-          <label style={{display: "block", fontSize: 12, fontWeight: 600, margin: "10px 0 4px"}}>Neue Adresse der Mietpartei</label>
-          <input value={p.neue_adresse || ""} onChange={e => upd("neue_adresse", e.target.value)} style={inp} placeholder="für die Kautionsabrechnung"/>
-          <label style={{display: "block", fontSize: 12, fontWeight: 600, margin: "10px 0 4px"}}>Bemerkungen</label>
-          <textarea value={p.bemerkung || ""} onChange={e => upd("bemerkung", e.target.value)} rows={2} style={{...inp, resize: "vertical"}}/>
-        </div>
-
-        <div style={box}>
-          <div style={h}>Zusammenfassung</div>
-          <div style={{fontSize: 13, lineHeight: 1.7}}>
-            <div>Schlüssel: {(p.schluessel || []).length - fehlendeSchluessel.length} von {(p.schluessel || []).length} zurück{fehlendeSchluessel.length ? <span style={{color: "#9b4a3e", fontWeight: 600}}> · {fehlendeSchluessel.length} fehlt</span> : ""}</div>
-            <div>Neue Mängel: {(p.maengel || []).length}, davon {abzugMaengel.length} zulasten der Mietpartei</div>
-            <div style={{fontWeight: 700}}>Voraussichtlicher Abzug von der Kaution: {chf(totalAbzug)}</div>
-          </div>
-        </div>
-
-        <div style={box}>
-          <div style={h}>Unterschrift der Mietpartei</div>
-          <label style={{display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 10}}><input type="checkbox" checked={!!p.mieter_verweigert} onChange={e => upd("mieter_verweigert", e.target.checked)} style={chk}/> Mietpartei unterschreibt nicht bzw. ist nicht anwesend</label>
-          {p.mieter_verweigert ? (
-            <div style={{fontSize: 12.5, color: "#9b4a3e", background: "#fdf0ec", borderRadius: 8, padding: "10px 12px", lineHeight: 1.5}}>Wichtig: Die Mängel, für die die Mietpartei haftet, müssen ihr <strong>sofort schriftlich gemeldet</strong> werden (in der Praxis innert 2 bis 3 Werktagen, Art. 267a OR). Schliesse das Protokoll ab und sende es per Mail.</div>
-          ) : (
-            <>
-              <input value={p.unterschrift_name || ""} onChange={e => upd("unterschrift_name", e.target.value)} style={inp} placeholder={`Name, z.B. ${tenant.vorname || ""} ${tenant.nachname || ""}`.trim()}/>
-              {!abgeschlossen ? <SignaturePad value={p.unterschrift_mieter || ""} onChange={v => upd("unterschrift_mieter", v)}/> : (p.unterschrift_mieter ? <img src={p.unterschrift_mieter} alt="Unterschrift" style={{maxHeight: 80, marginTop: 8}}/> : null)}
-              <div style={{fontSize: 11.5, color: "var(--muted)", marginTop: 6}}>Mit der Unterschrift bestätigt die Mietpartei die festgehaltenen Punkte und die Schlüsselrückgabe.</div>
-            </>
-          )}
-        </div>
-      </fieldset>
-
-      <div style={{display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end"}}>
-        <button className="btn btn-g btn-sm" disabled={!!busy} onClick={vorschau}>{busy === "vorschau" ? "PDF wird erstellt…" : "📄 PDF-Vorschau"}</button>
-        {!abgeschlossen && <button className="btn btn-g btn-sm" disabled={!!busy} onClick={() => abschliessen(false)}>{busy === "abschluss" ? "Wird abgeschlossen…" : "✓ Abschliessen (ohne Mail)"}</button>}
-        {!abgeschlossen && <button className="btn btn-p btn-sm" disabled={!!busy} onClick={() => abschliessen(true)}>✓ Abschliessen und an Mietpartei senden</button>}
-        {abgeschlossen && !p.email_sent_at && <button className="btn btn-p btn-sm" disabled={!!busy} onClick={async () => { if (!tenant.email) { alert("Keine E-Mail-Adresse hinterlegt."); return; } if (!confirm(`PDF an ${tenant.email} senden?`)) return; setBusy("abschluss"); const {data, error} = await supabase.functions.invoke("finalize-auszug", {body: {protocolId: p.id, sendEmail: true, nurMail: true}}); setBusy(""); if (error || (data && data.error)) { alert("Senden fehlgeschlagen: " + ((data && data.error) || error.message)); return; } toast("PDF versendet"); laden_(); }}>✉ PDF an Mietpartei senden</button>}
-      </div>
-      {abgeschlossen && <div style={{fontSize: 11.5, color: "var(--muted)", textAlign: "right", marginTop: 6}}>Abgeschlossen {p.abgeschlossen_at ? new Date(p.abgeschlossen_at).toLocaleString("de-CH") : ""}{p.email_sent_at ? ` · an Mietpartei gesendet ${new Date(p.email_sent_at).toLocaleDateString("de-CH")}` : " · noch nicht an die Mietpartei gesendet"}</div>}
-    </div>
-  );
-}
-
 function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const [betrag,setBetrag]=React.useState("");
   const [abzuege,setAbzuege]=React.useState([]);
@@ -14959,15 +14695,6 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const [preview,setPreview]=React.useState(false);
   const [mailText,setMailText]=React.useState("");
   const [neu,setNeu]=React.useState(false);
-  const [auszugVorschlag,setAuszugVorschlag]=React.useState(null);
-  React.useEffect(()=>{(async()=>{ try{
-    const {data}=await supabase.from("auszug_protokolle").select("id,status,schluessel,maengel,reinigung_notiz").eq("tenant_id",tenant.id).eq("status","abgeschlossen").order("created_at",{ascending:false}).limit(1);
-    const ap=data&&data[0]; if(!ap) return;
-    const zeilen=[];
-    (ap.schluessel||[]).filter(k=>!k.zurueck&&(+k.kosten||0)>0).forEach(k=>zeilen.push({grund:`Fehlender Schlüssel: ${[k.label,k.nr].filter(Boolean).join(" ")}`.trim(),betrag:String(+k.kosten)}));
-    (ap.maengel||[]).filter(m=>m.haftet&&(+m.kosten||0)>0).forEach(m=>zeilen.push({grund:`${m.raum?m.raum+": ":""}${m.beschreibung||"Mangel"}`,betrag:String(+m.kosten)}));
-    if(zeilen.length) setAuszugVorschlag(zeilen);
-  }catch(e){ console.error("Auszugsvorschlag",e); } })();},[tenant.id]);
   React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung,kaution_betrag,kaution_monate,mietzins").eq("id",tenant.id).single(); const _kb=(data&&data.kaution_betrag!=null&&data.kaution_betrag!=="")?+data.kaution_betrag:((data&&+data.kaution_monate>0&&data.mietzins)?(+data.kaution_monate*(+data.mietzins+25)):null); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):(_kb!=null?String(_kb):"")); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); setErledigt(k.erledigt_am||null); } else if(_kb!=null){ setBetrag(String(_kb)); } }catch(_e){} })();},[tenant.id]);
   const summe=abzuege.reduce((s,a)=>s+(+a.betrag||0),0);
   const rueck=Math.max(0,(+betrag||0)-summe);
@@ -14985,11 +14712,6 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const chipb={background:"#fff",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
   const fmt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("de-CH");}catch(_e){return "";}};
   return (<div style={{border:"1px solid var(--line)",borderRadius:14,padding:"20px 22px",marginTop:18,background:"#fff"}}>
-    {auszugVorschlag && !erledigt && (()=>{ const vorhanden=new Set(abzuege.map(a=>a.grund)); const neueZ=auszugVorschlag.filter(z=>!vorhanden.has(z.grund)); if(!neueZ.length) return null; const sum=neueZ.reduce((x,z)=>x+(+z.betrag||0),0); return (
-      <div style={{background:"#fdf6e3",border:"1px solid #e8d2a8",borderRadius:10,padding:"10px 12px",marginBottom:14,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-        <div style={{fontSize:12.5,color:"#5a5044",flex:"1 1 220px"}}>Aus dem Auszugsprotokoll: {neueZ.length} {neueZ.length===1?"Abzug":"Abzüge"} über {chf(sum)}</div>
-        <button type="button" className="btn btn-p btn-sm" onClick={()=>setAbzuege(p=>[...p.filter(a=>(a.grund||"").trim()||(+a.betrag||0)>0),...neueZ])}>Übernehmen</button>
-      </div>); })()}
     {(sent||erledigt) && <div style={{border:"1px solid #cdebd4",background:"#f0f9f2",borderRadius:12,padding:"16px 18px",marginBottom:18}}>
       <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:13,flexWrap:"wrap"}}>
         <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",background:"#2e7d4f",color:"#fff",fontSize:12,fontWeight:700}}>✓</span>
