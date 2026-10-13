@@ -22,3 +22,6 @@ verify_jwt = false
 
 [functions.draft-reply]
 verify_jwt = false
+
+[functions.system-check]
+verify_jwt = true
