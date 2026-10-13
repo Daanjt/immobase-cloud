@@ -4020,7 +4020,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                 <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #ece3d2"}}>
                   {h.submittedAt && <div style={{fontSize:11,color:"#8a8478",marginBottom:8}}>Eingereicht am {new Date(h.submittedAt).toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
                   {(()=>{ const sd=h.schluesselData||{}; const nrs=(Array.isArray(sd.normal)?sd.normal:[]).map(k=>String((k&&k.nr)||"").trim()); const ex=String(sd.extraText||"").trim(); const wg=String(sd.wgText||"").trim(); if(!nrs.length && !ex && !wg) return null; return (
-                    <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>🔑 Schlüssel:</strong> {nrs.length?`${nrs.length}× ${nrs.map(n=>n||"(keine Nr.)").join(", ")}`:""}{nrs.length&&ex?" · ":""}{ex?`persönlich zusätzlich: ${ex}`:""}{wg?<div style={{color:"#6b6253"}}>Gemeinsame WG-Schlüssel (nicht persönlich übergeben): {wg}</div>:null}</div>
+                    <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>🔑 Schlüssel:</strong> {nrs.length?`${nrs.length}× ${nrs.map(n=>n||"(keine Nr.)").join(", ")}`:""}{nrs.length&&ex?" · ":""}{ex?`persönlich zusätzlich: ${ex}`:""}{wg?<div style={{color:"#6b6253"}}>Gemeinsame WG-Schlüssel (gemeinsam anvertraut): {wg}</div>:null}</div>
                   ); })()}
                   <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>Mängel:</strong> {h.mangelNotes ? h.mangelNotes : "keine angegeben"}</div>
                   {h.bemerkung && <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>Bemerkung:</strong> {h.bemerkung}</div>}
@@ -4082,7 +4082,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               />
               {aptKat(apt)==="WG" && (<>
                 <label style={{display:"block",fontSize:12.5,fontWeight:600,marginTop:12,marginBottom:2,color:"#3a352d"}}>Gemeinsame WG-Schlüssel</label>
-                <div style={{fontSize:11,color:"#8a8174",marginBottom:6}}>Gehören zur WG und bleiben in der Wohnung, werden nicht persönlich übergeben (z.B. Keller, Waschküche).</div>
+                <div style={{fontSize:11,color:"#8a8174",marginBottom:6}}>Allen Bewohnern gemeinsam anvertraut (z.B. Keller, Waschküche). Bei Verlust ohne feststellbaren Verursacher haften die Bewohner zu gleichen Teilen.</div>
                 <textarea
                   value={startWgSchluessel}
                   onChange={e=>setStartWgSchluessel(e.target.value)}
@@ -4524,7 +4524,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:aptKat(startFor.apt)==="WG"?12:16,fontFamily:"inherit",resize:"vertical"}}/>
             {aptKat(startFor.apt)==="WG" && (<>
               <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:2}}>Gemeinsame WG-Schlüssel</label>
-              <div style={{fontSize:11,color:"var(--muted)",marginBottom:5}}>Gehören zur WG und bleiben in der Wohnung, nicht persönlich übergeben.</div>
+              <div style={{fontSize:11,color:"var(--muted)",marginBottom:5}}>Allen Bewohnern gemeinsam anvertraut, bei Verlust anteilige Haftung.</div>
               <textarea value={wgText} onChange={e=>setWgText(e.target.value)} rows={2} placeholder="z.B. 1x Keller, 1x Waschküche"
                 style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
             </>)}
