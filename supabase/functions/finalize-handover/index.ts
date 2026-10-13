@@ -87,6 +87,7 @@ function buildSubmittedHtml(p: Record<string, any>): string {
     if (nrs.length) sk.nr = `${nrs.length}× ${nrs.join(", ")}`;
     if (sd.extraText && String(sd.extraText).trim()) sk.extra = String(sd.extraText).trim();
   }
+  const wgKeys = (p.schluessel_data && p.schluessel_data.wgText) ? String(p.schluessel_data.wgText).trim() : "";
   const vollName = `${p.mieter_vorname || ""} ${p.mieter_nachname || ""}`.trim() || "-";
   const submitStr = formatDateDE(p.submitted_at) || formatDateDE(new Date().toISOString());
   const tsig = String(p.tenant_signature||"");
@@ -106,10 +107,10 @@ function buildSubmittedHtml(p: Record<string, any>): string {
   const maengelSection = hasMaengel
     ? `${mnotes?`<div class="mnote">${esc(mnotes)}</div>`:""}${withUrl.length?`<div class="photos">${photoHtml}</div>`:""}`
     : `<div class="no-maengel">Es wurden keine Mängel gemeldet; die Wohnung wurde in einwandfreiem Zustand übernommen.</div>`;
-  const schluesselSection = (sk.nr || sk.extra) ? `<div class="info-section"><div class="card-eyebrow">Schlüsselübergabe</div><div class="info-grid">${sk.nr?`<span class="lbl">Schlüsselnummer:</span><span>${esc(sk.nr)}</span>`:""}${sk.extra?`<span class="lbl">Extra-Schlüssel:</span><span style="white-space:pre-wrap">${esc(sk.extra)}</span>`:""}</div></div>` : "";
+  const schluesselSection = (sk.nr || sk.extra || wgKeys) ? `<div class="info-section"><div class="card-eyebrow">Schlüsselübergabe</div><div class="info-grid">${sk.nr?`<span class="lbl">Schlüsselnummer:</span><span>${esc(sk.nr)}</span>`:""}${sk.extra?`<span class="lbl">Extra-Schlüssel:</span><span style="white-space:pre-wrap">${esc(sk.extra)}</span>`:""}${wgKeys?`<span class="lbl">Gemeinsame WG-Schlüssel:</span><span style="white-space:pre-wrap">${esc(wgKeys)} <em style="color:#8a8174">(gehören zur WG, bleiben in der Wohnung, nicht persönlich übergeben)</em></span>`:""}</div></div>` : "";
 
   const clauses = `<div class="clauses"><div class="ct">Erklärung der Vertragsparteien</div><ol>
-    <li>Die Mietpartei bestätigt den Erhalt der aufgeführten Schlüssel${clause1Key} und verpflichtet sich, diese sorgfältig zu verwahren und am Ende des Mietverhältnisses vollzählig zurückzugeben. Das Anfertigen zusätzlicher Schlüssel ohne Zustimmung ist untersagt.</li>
+    <li>Die Mietpartei bestätigt den Erhalt der aufgeführten Schlüssel${clause1Key} und verpflichtet sich, diese sorgfältig zu verwahren und am Ende des Mietverhältnisses vollzählig zurückzugeben. Das Anfertigen zusätzlicher Schlüssel ohne Zustimmung ist untersagt.${wgKeys ? " Die aufgeführten gemeinsamen WG-Schlüssel gehören zur WG und sind nicht Teil der persönlichen Übergabe." : ""}</li>
     <li>Die Mietpartei bestätigt, dass die Wohnung im obenstehend dokumentierten Zustand übernommen wurde. Sichtbare Mängel, die innerhalb der 14-tägigen Frist nach Einzug nicht aufgeführt wurden, gelten als nicht vorhanden.</li>
     <li>Verdeckte Mängel, die bei der Übernahme trotz sorgfältiger Prüfung nicht erkennbar waren (z.B. Schimmel hinter Möbeln), sind der Hauptmieterin innert 10 Tagen ab Entdeckung schriftlich zu melden (Art. 256 OR).</li>
     <li>Die Mietpartei verpflichtet sich, das Mietobjekt sorgfältig zu nutzen und in vergleichbarem Zustand zurückzugeben (vorbehaltlich normaler Abnutzung gemäss Schweizer Mietrecht).</li>

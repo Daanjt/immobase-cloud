@@ -3891,6 +3891,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   const [showStartModal, setShowStartModal] = React.useState(false);
   const [startSchluesselNr, setStartSchluesselNr] = React.useState("");
   const [startExtraSchluessel, setStartExtraSchluessel] = React.useState("");
+  const [startWgSchluessel, setStartWgSchluessel] = React.useState("");
   const [starting, setStarting] = React.useState(false);
   const [openProto, setOpenProto] = React.useState(null);
   const [refKeyInfo, setRefKeyInfo] = React.useState(null);
@@ -3907,7 +3908,9 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   React.useEffect(() => {
     if (showStartModal && tenant) {
       setStartSchluesselNr(String((apt&&apt.schluesselAnzahl)||tenant.schluesselAnzahl||""));
-      setStartExtraSchluessel((apt&&apt.extraSchluessel)||"");
+      // Extraschluessel der Wohnung gehoeren in einer WG meist allen (Keller, Briefkasten ...)
+      if (aptKat(apt)==="WG") { setStartWgSchluessel((apt&&apt.extraSchluessel)||""); setStartExtraSchluessel(""); }
+      else { setStartExtraSchluessel((apt&&apt.extraSchluessel)||""); setStartWgSchluessel(""); }
     }
   }, [showStartModal, tenant?.id]);
   const myHandovers = (handoverProtocols || []).filter(h => h.tenantId === tenant?.id);
@@ -4016,8 +4019,8 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               {openProto===h.id && (
                 <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #ece3d2"}}>
                   {h.submittedAt && <div style={{fontSize:11,color:"#8a8478",marginBottom:8}}>Eingereicht am {new Date(h.submittedAt).toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
-                  {(()=>{ const sd=h.schluesselData||{}; const nrs=(Array.isArray(sd.normal)?sd.normal:[]).map(k=>String((k&&k.nr)||"").trim()); const ex=String(sd.extraText||"").trim(); if(!nrs.length && !ex) return null; return (
-                    <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>🔑 Schlüssel:</strong> {nrs.length?`${nrs.length}× ${nrs.map(n=>n||"(keine Nr.)").join(", ")}`:""}{nrs.length&&ex?" · ":""}{ex?`zusätzlich: ${ex}`:""}</div>
+                  {(()=>{ const sd=h.schluesselData||{}; const nrs=(Array.isArray(sd.normal)?sd.normal:[]).map(k=>String((k&&k.nr)||"").trim()); const ex=String(sd.extraText||"").trim(); const wg=String(sd.wgText||"").trim(); if(!nrs.length && !ex && !wg) return null; return (
+                    <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>🔑 Schlüssel:</strong> {nrs.length?`${nrs.length}× ${nrs.map(n=>n||"(keine Nr.)").join(", ")}`:""}{nrs.length&&ex?" · ":""}{ex?`persönlich zusätzlich: ${ex}`:""}{wg?<div style={{color:"#6b6253"}}>Gemeinsame WG-Schlüssel (nicht persönlich übergeben): {wg}</div>:null}</div>
                   ); })()}
                   <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>Mängel:</strong> {h.mangelNotes ? h.mangelNotes : "keine angegeben"}</div>
                   {h.bemerkung && <div style={{fontSize:11.5,color:"#3a352d",marginBottom:6,lineHeight:1.5}}><strong>Bemerkung:</strong> {h.bemerkung}</div>}
@@ -4069,13 +4072,24 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
               />
             </div>
             <div style={{marginBottom:16}}>
-              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:6,color:"#3a352d"}}>Extraschlüssel</label>
+              <label style={{display:"block",fontSize:12.5,fontWeight:600,marginBottom:2,color:"#3a352d"}}>{aptKat(apt)==="WG"?"Persönliche Extraschlüssel":"Extraschlüssel"}</label>
+              {aptKat(apt)==="WG" && <div style={{fontSize:11,color:"#8a8174",marginBottom:6}}>Nur was diese Person persönlich bekommt (z.B. eigener Briefkastenschlüssel).</div>}
               <textarea
                 value={startExtraSchluessel}
                 onChange={e=>setStartExtraSchluessel(e.target.value)}
                 placeholder={"z.B.\nBriefkastenschlüssel Nr. 4711\nWaschküche Nr. 89"}
                 style={{width:"100%",minHeight:70,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
               />
+              {aptKat(apt)==="WG" && (<>
+                <label style={{display:"block",fontSize:12.5,fontWeight:600,marginTop:12,marginBottom:2,color:"#3a352d"}}>Gemeinsame WG-Schlüssel</label>
+                <div style={{fontSize:11,color:"#8a8174",marginBottom:6}}>Gehören zur WG und bleiben in der Wohnung, werden nicht persönlich übergeben (z.B. Keller, Waschküche).</div>
+                <textarea
+                  value={startWgSchluessel}
+                  onChange={e=>setStartWgSchluessel(e.target.value)}
+                  placeholder={"z.B.\n1x Keller\n1x Waschküche"}
+                  style={{width:"100%",minHeight:60,padding:"10px 12px",border:"1px solid #d8d0c0",borderRadius:6,fontSize:13,fontFamily:"inherit",lineHeight:1.5,boxSizing:"border-box",resize:"vertical"}}
+                />
+              </>)}
               <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
                 Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
               </div>
@@ -4090,14 +4104,16 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                 try {
                   const nCount = Math.max(0, parseInt(startSchluesselNr)||0);
                   const extraTrim = startExtraSchluessel.trim();
+                  const wgTrim = aptKat(apt)==="WG" ? startWgSchluessel.trim() : "";
                   await updateTenant(tenant.id, {
                     extra_schluessel: extraTrim,
                     schluessel_uebergeben: false,
                   });
-                  const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
+                  const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim, wgText: wgTrim };
                   const snapshot = [
                     nCount>0 && `${nCount}x Wohnungsschlüssel`,
-                    extraTrim && `Extra: ${extraTrim}`
+                    extraTrim && `Extra: ${extraTrim}`,
+                    wgTrim && `Gemeinsam (WG): ${wgTrim}`
                   ].filter(Boolean).join("\n");
                   // 3. Start the protocol mit vollem Snapshot
                   await startHandoverProtocol({
@@ -4201,13 +4217,15 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [sExtra, setSExtra] = useState("");
   const [normalCount, setNormalCount] = useState(1);
   const [extraText, setExtraText] = useState("");
+  const [wgText, setWgText] = useState("");
   const [starting, setStarting] = useState(false);
   const oeffneStart = (eintrag) => {
     const t = eintrag.tenant;
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
-    setExtraText((eintrag.apt&&eintrag.apt.extraSchluessel)||"");
+    if (aptKat(eintrag.apt)==="WG") { setWgText((eintrag.apt&&eintrag.apt.extraSchluessel)||""); setExtraText(""); }
+    else { setExtraText((eintrag.apt&&eintrag.apt.extraSchluessel)||""); setWgText(""); }
     setStartFor(eintrag);
   };
   const schluesselText = (t) => {
@@ -4500,9 +4518,16 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
             <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Anzahl Wohnungsschlüssel</label>
             <input type="number" min="0" value={normalCount} onChange={e=>setNormalCount(e.target.value)}
               style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:14,fontFamily:"inherit"}}/>
-            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:5}}>Extraschlüssel</label>
-            <textarea value={extraText} onChange={e=>setExtraText(e.target.value)} rows={2} placeholder="z.B. 1x Briefkasten, 2x Keller"
-              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
+            <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:aptKat(startFor.apt)==="WG"?2:5}}>{aptKat(startFor.apt)==="WG"?"Persönliche Extraschlüssel":"Extraschlüssel"}</label>
+            {aptKat(startFor.apt)==="WG" && <div style={{fontSize:11,color:"var(--muted)",marginBottom:5}}>Nur was diese Person persönlich bekommt.</div>}
+            <textarea value={extraText} onChange={e=>setExtraText(e.target.value)} rows={2} placeholder="z.B. 1x eigener Briefkastenschlüssel"
+              style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:aptKat(startFor.apt)==="WG"?12:16,fontFamily:"inherit",resize:"vertical"}}/>
+            {aptKat(startFor.apt)==="WG" && (<>
+              <label style={{display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",marginBottom:2}}>Gemeinsame WG-Schlüssel</label>
+              <div style={{fontSize:11,color:"var(--muted)",marginBottom:5}}>Gehören zur WG und bleiben in der Wohnung, nicht persönlich übergeben.</div>
+              <textarea value={wgText} onChange={e=>setWgText(e.target.value)} rows={2} placeholder="z.B. 1x Keller, 1x Waschküche"
+                style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
+            </>)}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
               <button className="btn btn-sm" disabled={starting}
@@ -4512,11 +4537,13 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     const nCount = Math.max(0, parseInt(normalCount)||0);
                     const t = startFor.tenant;
                     const extraTrim = (extraText||"").trim();
-                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim };
+                    const wgTrim = aptKat(startFor.apt)==="WG" ? (wgText||"").trim() : "";
+                    const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim, wgText: wgTrim };
                     await updateTenant(t.id, { extra_schluessel: extraTrim, schluessel_uebergeben: false });
                     const snapshot = [
                       nCount>0 && `${nCount}x Wohnungsschlüssel`,
-                      extraTrim && `Extra: ${extraTrim}`
+                      extraTrim && `Extra: ${extraTrim}`,
+                      wgTrim && `Gemeinsam (WG): ${wgTrim}`
                     ].filter(Boolean).join("\n");
                     await startHandoverProtocol({
                       tenantId: t.id,
