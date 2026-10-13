@@ -1,27 +1,30 @@
 project_id = "aohcqrxpsqronlcwssrk"
 
-# Beide Functions werden ohne JWT aufgerufen (oeffentliche Signatur bzw.
-# Gegenzeichnung mit eigener Absicherung), daher verify_jwt = false.
+# finalize-contract wird oeffentlich ueber den Mieter-Token aufgerufen (eigene Pruefung),
+# alle anderen nur mit Admin-Login oder Service-Key (_shared/auth.ts).
 [functions.finalize-contract]
 verify_jwt = false
 
 [functions.countersign-contract]
-verify_jwt = false
+verify_jwt = true
 
 [functions.process-handover-deadlines]
 verify_jwt = true
 
 [functions.finalize-handover]
-verify_jwt = false
+verify_jwt = true
 
 [functions.process-scheduled-mails]
-verify_jwt = false
+verify_jwt = true
 
 [functions.check-pipeline-replies]
-verify_jwt = false
+verify_jwt = true
 
 [functions.draft-reply]
-verify_jwt = false
+verify_jwt = true
 
 [functions.system-check]
+verify_jwt = true
+
+[functions.flatfox-watch]
 verify_jwt = true

@@ -15,6 +15,7 @@
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
 const FLATFOX = "https://flatfox.ch/api/v1/public-listing/";
 const PAGE = 100;
@@ -54,6 +55,7 @@ async function ff(offset, limit = PAGE) {
 }
 
 Deno.serve(async (req) => {
+  if (!(await istAdminOderServer(req))) return verweigert({});
   const backfill = new URL(req.url).searchParams.get("backfill") === "1";
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL"),

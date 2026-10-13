@@ -8,6 +8,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
@@ -260,6 +261,8 @@ async function detectAnchors(pdfBytes, side) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+  // Gegenzeichnung nur durch eingeloggte Admins (nicht mit dem Mieter-Token allein)
+  if (!(await istAdminOderServer(req))) return verweigert(corsHeaders);
 
   try {
     const body = await req.json();

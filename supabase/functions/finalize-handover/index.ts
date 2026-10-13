@@ -2,6 +2,7 @@
 // Unterschrift, Klauseln) serverseitig zu PDF und loest ueber send-handover-pdf
 // Mail + Dokument + Abschluss aus. Mit skipEmail=true nur Dokument ersetzen (kein Mail).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { istAdminOderServer } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -176,16 +177,10 @@ async function saveDoc(p: Record<string, any>, pdfBase64: string): Promise<{ sav
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   try {
-    // Absicherung: nur eingeloggte Admin-Nutzer duerfen ein Protokoll finalisieren
+    // Absicherung: nur eingeloggte Admins (allowed_users.role = admin) duerfen ein Protokoll finalisieren
     // oder eine Vorschau erzeugen. Blockt Aufrufe mit blossem Anon-Key oder ganz
     // ohne Auth (jemand, der nur die Funktions-URL und eine protocolId kennt).
-    const authHeader = req.headers.get("Authorization") || "";
-    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-    let authOk = false;
-    if (jwt && jwt !== ANON_KEY) {
-      const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${jwt}` } });
-      if (authRes.ok) { const u = await authRes.json().catch(() => null); authOk = !!(u && u.id); }
-    }
+    const authOk = await istAdminOderServer(req);
     if (!authOk) return new Response(JSON.stringify({ error: "Nicht autorisiert - bitte im Admin einloggen." }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
     const { protocolId, skipEmail, preview } = await req.json();
