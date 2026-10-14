@@ -1,4 +1,7 @@
 {
+  "buildCommand": "node build.cjs",
+  "outputDirectory": "dist",
+  "installCommand": "npm install --no-audit --no-fund",
   "rewrites": [
     {
       "source": "/:path*",

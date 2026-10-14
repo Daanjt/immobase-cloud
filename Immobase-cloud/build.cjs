@@ -1,0 +1,34 @@
+// Build fuer admin.dthomes.ch: wandelt den JSX-Code (text/babel) schon beim Veroeffentlichen
+// in normales JavaScript um. So muss das Handy beim Start nichts mehr umwandeln (viel schnellerer Start).
+// Gleicher Babel wie vorher im Browser (@babel/standalone 7.18.6, preset react) => gleiches Verhalten.
+const fs = require("fs"), path = require("path");
+const B = require("@babel/standalone");
+const SRC = __dirname, OUT = path.join(__dirname, "dist");
+const SKIP = new Set(["node_modules", "dist", "build.cjs", "package.json", "package-lock.json", ".vercel", "vercel.json", "README.md"]);
+fs.rmSync(OUT, { recursive: true, force: true });
+fs.mkdirSync(OUT, { recursive: true });
+function kopieren(von, nach) {
+  for (const n of fs.readdirSync(von)) {
+    if (SKIP.has(n) || n.startsWith(".")) continue;
+    const a = path.join(von, n), b = path.join(nach, n);
+    if (fs.statSync(a).isDirectory()) { fs.mkdirSync(b, { recursive: true }); kopieren(a, b); }
+    else fs.copyFileSync(a, b);
+  }
+}
+kopieren(SRC, OUT);
+let total = 0;
+for (const f of fs.readdirSync(OUT).filter(n => n.endsWith(".html"))) {
+  let h = fs.readFileSync(path.join(OUT, f), "utf8");
+  let anzahl = 0;
+  h = h.replace(/<script([^>]*)type="text\/babel"([^>]*)>([\s\S]*?)<\/script>/g, (m, a1, a2, code) => {
+    anzahl++;
+    const js = B.transform(code, { presets: ["react"], sourceType: "script", compact: false, comments: false }).code;
+    if (/<\/script/i.test(js)) throw new Error(f + ": kompilierter Code enthaelt </script>");
+    return "<script>" + js + "</script>";
+  });
+  if (anzahl) h = h.replace(/<script[^>]*@babel\/standalone[^>]*><\/script>\s*/g, "");
+  fs.writeFileSync(path.join(OUT, f), h);
+  if (anzahl) console.log(f + ": " + anzahl + " Skript(e) vorkompiliert");
+  total += anzahl;
+}
+if (!total) throw new Error("Keine text/babel-Skripte gefunden");

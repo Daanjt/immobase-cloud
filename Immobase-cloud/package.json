@@ -1,0 +1,6 @@
+{
+  "name": "immobase-admin",
+  "private": true,
+  "scripts": { "build": "node build.cjs" },
+  "devDependencies": { "@babel/standalone": "7.18.6" }
+}
