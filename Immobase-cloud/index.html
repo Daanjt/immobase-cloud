@@ -107,8 +107,23 @@ if ('serviceWorker' in navigator) {
     var bogen = i.querySelector('.ptr-bogen'); bogen.setAttribute('stroke-dashoffset', '34');
     var svg = i.querySelector('svg'); svg.style.animation = 'ibPtrDreh .7s linear infinite';
     if (!document.getElementById('ib-ptr-css')) { var st = document.createElement('style'); st.id = 'ib-ptr-css'; st.textContent = '@keyframes ibPtrDreh{to{transform:rotate(360deg)}}'; document.head.appendChild(st); }
-    setTimeout(function(){ r.style.transition = 'opacity .22s ease, transform .38s cubic-bezier(.2,.8,.2,1)'; r.style.opacity = '0'; }, 380);
-    setTimeout(function(){ location.reload(); }, 600);
+    function ganzNeu(){ r.style.transition = 'opacity .22s ease, transform .38s cubic-bezier(.2,.8,.2,1)'; r.style.opacity = '0'; setTimeout(function(){ location.reload(); }, 240); }
+    function fertig(){
+      svg.style.animation = '';
+      setze(0, true);
+      setTimeout(function(){ r.style.transform = ''; r.style.transition = ''; ind.style.opacity = 0; laedt = false; }, 420);
+    }
+    var t0 = Date.now();
+    version().then(function(v){
+      // Neue Version online: ganz neu laden. Sonst nur die Daten still auffrischen.
+      if (v && basis && v !== basis) return ganzNeu();
+      if (typeof window.__ibNeuLaden !== 'function') return ganzNeu();
+      var stopp = setTimeout(fertig, 12000);
+      Promise.resolve(window.__ibNeuLaden()).catch(function(){}).then(function(){
+        clearTimeout(stopp);
+        setTimeout(fertig, Math.max(0, 550 - (Date.now() - t0)));
+      });
+    });
   }, { passive: true });
   if (app) document.addEventListener('touchcancel', function(){ if (startY !== null && !laedt) { startY = null; setze(0, true); } }, { passive: true });
 
@@ -1935,8 +1950,8 @@ function useSupabaseData() {
   const [timeApprovals, setTimeApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  async function loadAll() {
-    setLoading(true);
+  async function loadAll(still) {
+    if (!still) setLoading(true);
     const [a, r, t, b] = await Promise.all([
       supabase.from("apartments").select("*").order("id"),
       supabase.from("rooms").select("*").order("id"),
@@ -2845,6 +2860,11 @@ function useSupabaseData() {
     }
   }
   useEffect(() => { loadHandoverProtocols(); }, []);
+  // Runterziehen in der App: Daten still im Hintergrund neu laden (ohne Startbildschirm)
+  useEffect(() => {
+    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle()]);
+    return () => { delete window.__ibNeuLaden; };
+  }, []);
   
   async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum }) {
     const now = new Date();
