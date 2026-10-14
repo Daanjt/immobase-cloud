@@ -4937,10 +4937,35 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
       <div className="pt">Dashboard</div>
       <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
 
+      {/* GEGENZEICHNUNG-BANNER: gleich wie im Bewerber-Tab */}
+      {(() => {
+        const wartend = (contracts||[]).filter(c => c.status === "mieter_signiert");
+        if (wartend.length === 0) return null;
+        const typLabel = (ct) => ct === "untermietvertrag" ? "Untermietvertrag"
+          : ct === "anfangsmietzins" ? "Anfangsmietzins"
+          : (ct === "verlaengerung" || ct === "nachtrag") ? "Verlängerung"
+          : "Untermietvertrag + Anfangsmietzins";
+        return (
+          <div style={{background:"#2c4a6e",color:"#fefcf7",borderRadius:8,padding:"14px 18px",margin:"16px 0 22px"}}>
+            <div style={{fontSize:10,letterSpacing:".25em",textTransform:"uppercase",color:"#b0c8e0",marginBottom:10,fontWeight:600}}>✍ Wartet auf Gegenzeichnung ({wartend.length})</div>
+            <div style={{display:"flex",flexDirection:"column",gap:9}}>
+              {wartend.map(c => (
+                <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                  <div style={{fontSize:13.5,fontWeight:600,minWidth:0}}>
+                    {`${c.mieterVorname||""} ${c.mieterNachname||""}`.trim() || "Unbenannt"}
+                    <span style={{fontSize:11,color:"#b0c8e0",fontWeight:400,marginLeft:8}}>{typLabel(c.contractType)}</span>
+                  </div>
+                  <CountersignButton contract={c} onDone={loadContracts} light />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {(() => {
         const pPendList = (handoverProtocols||[]).filter(h=>h.status==="submitted");
-        const cPendList = (contracts||[]).filter(c=>c.status==="mieter_signiert");
-        if (!cPendList.length && !pPendList.length) return null;
+        if (!pPendList.length) return null;
         const row = {display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",background:"#fff",border:"1px solid #ecd7ab",borderRadius:8,padding:"9px 12px"};
         const nm = (v,n)=>`${(v||"").trim()} ${(n||"").trim()}`.trim();
         return (
@@ -4951,12 +4976,6 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
                 <div key={"h"+hp.id} style={row}>
                   <div style={{fontSize:12.5,color:"#3a352d",minWidth:0}}>🔑 <strong>Übernahmeprotokoll</strong>{nm(hp.mieterVorname,hp.mieterNachname)?` · ${nm(hp.mieterVorname,hp.mieterNachname)}`:""}{hp.submittedAt?<span style={{color:"#8a8478"}}> · eingereicht {new Date(hp.submittedAt).toLocaleDateString("de-CH")}</span>:null}</div>
                   <HandoverConfirmButton protocol={hp} onDone={loadHandoverProtocols} />
-                </div>
-              ))}
-              {cPendList.map(ct => (
-                <div key={"c"+ct.id} style={row}>
-                  <div style={{fontSize:12.5,color:"#3a352d",minWidth:0}}>✍ <strong>Untermietvertrag</strong>{nm(ct.mieterVorname,ct.mieterNachname)?` · ${nm(ct.mieterVorname,ct.mieterNachname)}`:""} · gegenzuzeichnen</div>
-                  <CountersignButton contract={ct} onDone={loadContracts} light />
                 </div>
               ))}
             </div>
