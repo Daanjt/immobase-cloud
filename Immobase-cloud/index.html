@@ -1131,6 +1131,25 @@ a:hover{border-bottom-color:var(--gold)}
   .modal { padding: 18px 14px !important; }
 }
 
+/* ─── Modals auf dem Handy stabil: kein seitliches Wischen, kein Auto-Zoom, Hintergrund fixiert ─── */
+@media (max-width: 768px) {
+  html:has(.ov), body:has(.ov) { overflow: hidden !important; overscroll-behavior: none; }
+  .ov { overflow: hidden !important; overscroll-behavior: contain; touch-action: pan-y; }
+  .modal {
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .modal table { display: block; overflow-x: auto; }
+  /* iOS zoomt bei Eingabefeldern unter 16px automatisch hinein: das macht die Ansicht wackelig */
+  .modal input, .modal select, .modal textarea { font-size: 16px !important; }
+  .modal [style*="white-space: nowrap"], .modal [style*="white-space:nowrap"] { white-space: normal !important; }
+}
+
 /* Finanztabellen am Rechner: Woerter nie umbrechen, stattdessen seitlich scrollen */
 @media (min-width: 769px) {
   .finance-card-compact .finance-scroll-table-wrap,
