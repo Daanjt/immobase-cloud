@@ -51,53 +51,66 @@ if ('serviceWorker' in navigator) {
 <!-- Neu laden: Runterziehen (Pull-to-Refresh) + Hinweis bei neuer Version -->
 <script>
 (function(){
-  // 1) Pull-to-Refresh: ganz oben nach unten ziehen und loslassen
-  var SCHWELLE = 80, startY = null, zug = 0, aktiv = false, el = null;
-  function fensterOffen(){ return !!document.querySelector('.ov, .ov-x, .sidebar-overlay[style*="block"]'); }
+  // 1) Pull-to-Refresh: ganz oben nach unten ziehen und loslassen (fliessend, mit Gummiband-Effekt)
+  var SCHWELLE = 70, MAX = 120, startY = null, zug = 0, aktiv = false, ind = null, laedt = false;
+  function fensterOffen(){ return !!document.querySelector('.ov, .ov-x') || document.body.classList.contains('menu-offen'); }
   function scrollTop(t){
-    // innerhalb eines scrollbaren Bereichs nur, wenn dieser oben ist
     for (var n = t; n && n !== document.body; n = n.parentElement) {
       var cs = getComputedStyle(n);
       if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 2) return n.scrollTop;
     }
     return window.scrollY || document.documentElement.scrollTop || 0;
   }
-  function anzeige(){
-    if (!el) {
-      el = document.createElement('div');
-      el.style.cssText = 'position:fixed;left:50%;top:0;z-index:6000;transform:translate(-50%,-60px);transition:opacity .15s;opacity:0;pointer-events:none;'
-        + 'background:#1a1814;color:#fefcf7;border-radius:999px;padding:8px 14px;font:500 12.5px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;white-space:nowrap;width:max-content;';
-      el.innerHTML = '<span class="ptr-pfeil" style="display:inline-block;transition:transform .15s">↓</span><span class="ptr-text">Zum Neuladen ziehen</span>';
-      document.body.appendChild(el);
+  function root(){ return document.getElementById('root'); }
+  function indikator(){
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.style.cssText = 'position:fixed;left:50%;top:0;z-index:6000;width:38px;height:38px;margin-left:-19px;border-radius:50%;background:#fefcf7;'
+        + 'box-shadow:0 2px 10px rgba(31,29,24,.14);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;will-change:transform,opacity;';
+      ind.innerHTML = '<svg width="22" height="22" viewBox="0 0 22 22" style="display:block"><circle cx="11" cy="11" r="8" fill="none" stroke="rgba(0,0,0,.08)" stroke-width="2"/>'
+        + '<circle class="ptr-bogen" cx="11" cy="11" r="8" fill="none" stroke="#b8843e" stroke-width="2" stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="50.3" transform="rotate(-90 11 11)"/></svg>';
+      document.body.appendChild(ind);
     }
-    return el;
+    return ind;
   }
-  // Nur in der installierten App (Homescreen): im Browser gibt es das Runterziehen schon
+  function gummi(x){ return MAX * (1 - Math.exp(-x / (MAX * 1.4))); }
+  function setze(d, mitAnim){
+    var r = root(), i = indikator(), p = Math.min(1, d / gummi(SCHWELLE * 1.6));
+    var t = mitAnim ? 'transform .38s cubic-bezier(.2,.8,.2,1), opacity .38s ease' : 'none';
+    r.style.transition = mitAnim ? 'transform .38s cubic-bezier(.2,.8,.2,1)' : 'none';
+    r.style.transform = d > 0 ? 'translate3d(0,' + d + 'px,0)' : '';
+    i.style.transition = t;
+    i.style.opacity = Math.min(1, d / 40);
+    i.style.transform = 'translate3d(0,' + (d - 44 + 6) + 'px,0) rotate(' + (p * 240) + 'deg)';
+    i.querySelector('.ptr-bogen').setAttribute('stroke-dashoffset', String(50.3 * (1 - Math.min(p, 0.92))));
+  }
   var app = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
   if (app) document.addEventListener('touchstart', function(e){
-    if (e.touches.length !== 1 || fensterOffen() || scrollTop(e.target) > 0) { startY = null; return; }
+    if (laedt || e.touches.length !== 1 || fensterOffen() || scrollTop(e.target) > 0) { startY = null; return; }
     startY = e.touches[0].clientY; zug = 0; aktiv = false;
   }, { passive: true });
   if (app) document.addEventListener('touchmove', function(e){
     if (startY === null) return;
     zug = e.touches[0].clientY - startY;
-    if (zug <= 0) { if (aktiv && el) el.style.opacity = 0; return; }
+    if (zug <= 4) { if (aktiv) setze(0, false); return; }
     aktiv = true;
-    var a = anzeige(), weg = Math.min(zug, 140);
-    a.style.opacity = Math.min(1, weg / 50);
-    a.style.transform = 'translate(-50%,' + (Math.min(weg * 0.6, 70) + 10) + 'px)';
-    var bereit = zug > SCHWELLE;
-    a.querySelector('.ptr-pfeil').style.transform = bereit ? 'rotate(180deg)' : 'none';
-    a.querySelector('.ptr-text').textContent = bereit ? 'Loslassen zum Neuladen' : 'Zum Neuladen ziehen';
+    setze(gummi(zug), false);
   }, { passive: true });
   if (app) document.addEventListener('touchend', function(){
     if (startY === null) return;
-    if (aktiv && zug > SCHWELLE) {
-      var a = anzeige(); a.querySelector('.ptr-pfeil').textContent = '⟳'; a.querySelector('.ptr-text').textContent = 'Wird neu geladen…';
-      setTimeout(function(){ location.reload(); }, 120);
-    } else if (el) { el.style.opacity = 0; el.style.transform = 'translate(-50%,-60px)'; }
-    startY = null; aktiv = false; zug = 0;
+    var ok = aktiv && zug > SCHWELLE;
+    startY = null; aktiv = false;
+    if (!ok) { setze(0, true); setTimeout(function(){ var r = root(); if (r && !laedt) { r.style.transform = ''; r.style.transition = ''; } }, 400); return; }
+    laedt = true;
+    var r = root(), i = indikator();
+    setze(56, true);
+    var bogen = i.querySelector('.ptr-bogen'); bogen.setAttribute('stroke-dashoffset', '34');
+    var svg = i.querySelector('svg'); svg.style.animation = 'ibPtrDreh .7s linear infinite';
+    if (!document.getElementById('ib-ptr-css')) { var st = document.createElement('style'); st.id = 'ib-ptr-css'; st.textContent = '@keyframes ibPtrDreh{to{transform:rotate(360deg)}}'; document.head.appendChild(st); }
+    setTimeout(function(){ r.style.transition = 'opacity .22s ease, transform .38s cubic-bezier(.2,.8,.2,1)'; r.style.opacity = '0'; }, 380);
+    setTimeout(function(){ location.reload(); }, 600);
   }, { passive: true });
+  if (app) document.addEventListener('touchcancel', function(){ if (startY !== null && !laedt) { startY = null; setze(0, true); } }, { passive: true });
 
   // 2) Neue Version erkennen: beim Zurueckkehren in die App und alle 5 Minuten pruefen
   var basis = null, hinweis = null;
@@ -339,6 +352,17 @@ a:hover{border-bottom-color:var(--gold)}
 .link-text{font-size:11.5px;color:var(--muted);font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
 
 .loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:18px;background:var(--bg)}
+html,body{background:var(--bg)}
+.loading{gap:0 !important;min-height:100vh;min-height:100dvh}
+.ib-splash-logo{font-family:'Manrope',sans-serif;font-size:30px;font-weight:300;letter-spacing:.01em;color:var(--ink);animation:ibSplashIn .5s ease both}
+.ib-splash-sub{margin-top:6px;font-size:10px;letter-spacing:.35em;text-transform:uppercase;color:var(--muted);animation:ibSplashIn .5s .05s ease both}
+.ib-splash-bar{margin-top:26px;width:120px;height:2px;border-radius:2px;background:rgba(0,0,0,.07);overflow:hidden;animation:ibSplashIn .5s .1s ease both}
+.ib-splash-bar span{display:block;width:40%;height:100%;border-radius:2px;background:var(--gold);animation:ibSplashBar 1.1s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes ibSplashIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes ibSplashBar{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}
+#root > :not(.loading){animation:ibAppIn .35s ease both}
+@keyframes ibAppIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.ib-splash-bar span,#root > *,.ib-splash-logo,.ib-splash-sub,.ib-splash-bar{animation:none !important}}
 .spinner{width:36px;height:36px;border:1px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading p{font-size:11px;color:var(--muted);letter-spacing:.3em;text-transform:uppercase;font-weight:400}
@@ -1304,7 +1328,7 @@ a:hover{border-bottom-color:var(--gold)}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div class="loading"><div class="ib-splash-logo">ImmoBase</div><div class="ib-splash-sub">D&amp;T Homes</div><div class="ib-splash-bar"><span></span></div></div></div>
 
 <script type="text/babel" data-presets="react">
 (function() {
@@ -15167,7 +15191,7 @@ function MainApp({rolle}) {
     if (window.scrollTo) window.scrollTo(0,0);
   }, [page]);
 
-  if (data.loading) return <div className="loading"><div className="spinner"/><p>Lade Daten…</p></div>;
+  if (data.loading) return <div className="loading"><div className="ib-splash-logo">ImmoBase</div><div className="ib-splash-sub">D&amp;T Homes</div><div className="ib-splash-bar"><span></span></div></div>;
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
@@ -15689,13 +15713,13 @@ function App() {
     return () => { aktiv = false; };
   }, [authed]);
 
-  if (authed === undefined) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
+  if (authed === undefined) return <div className="loading"><div className="ib-splash-logo">ImmoBase</div><div className="ib-splash-sub">D&amp;T Homes</div><div className="ib-splash-bar"><span></span></div></div>;
   if (!authed) return <Login onLogin={()=>setAuthed(true)}/>;
   if (recovery) return <PasswortAendern pflicht onClose={()=>{
     setRecovery(false);
     if (window.history.replaceState) window.history.replaceState(null, "", window.location.pathname);
   }}/>;
-  if (rolle === null) return <div className="loading"><div className="spinner"/><p>Lade…</p></div>;
+  if (rolle === null) return <div className="loading"><div className="ib-splash-logo">ImmoBase</div><div className="ib-splash-sub">D&amp;T Homes</div><div className="ib-splash-bar"><span></span></div></div>;
   return <React.Fragment><MainApp rolle={rolle}/><Toast/></React.Fragment>;
 }
 
