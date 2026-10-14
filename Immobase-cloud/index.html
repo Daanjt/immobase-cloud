@@ -1151,7 +1151,7 @@ a:hover{border-bottom-color:var(--gold)}
 
   /* Einheitliches Fenster-Design: Vollbild, Titel oben fixiert, Knöpfe unten fixiert */
   .ov { align-items: stretch !important; justify-content: stretch !important; padding: 0 !important; }
-  .modal {
+  .ov .modal.modal, .modal.modal.modal[style] {
     width: 100% !important; max-width: 100% !important;
     height: 100vh !important; height: 100dvh !important;
     max-height: 100vh !important; max-height: 100dvh !important;
@@ -1165,7 +1165,14 @@ a:hover{border-bottom-color:var(--gold)}
     padding: calc(14px + env(safe-area-inset-top)) 16px 12px !important;
     border-bottom: 1px solid var(--line-soft);
   }
-  .modal > .mt:first-child { font-size: 17px !important; }
+  .modal > .mt:first-child { font-size: 17px !important; border-bottom: 1px solid var(--line-soft) !important; }
+  /* Kopfzeile mit Titel + Schliessen-Knopf: immer in einer Zeile */
+  .modal > div:first-child[style*="display: flex"], .modal > div:first-child[style*="display:flex"] {
+    flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important;
+  }
+  .modal > div:first-child .mt { margin: 0 !important; padding: 0 !important; border: 0 !important; font-size: 17px !important; flex: 1 1 auto; min-width: 0; }
+  .modal > div:first-child > .btn { flex-shrink: 0 !important; width: auto !important; padding: 8px 12px !important; font-size: 12.5px !important; min-height: 0 !important; }
+  .modal .ma:not(:last-child) { position: static !important; box-shadow: none !important; }
   .modal .ma {
     position: sticky; bottom: 0; z-index: 3; max-width: none !important;
     background: var(--surface);
@@ -1175,7 +1182,30 @@ a:hover{border-bottom-color:var(--gold)}
     box-shadow: 0 -6px 16px rgba(31,29,24,.06);
   }
   .modal .ma .btn { min-height: 46px; font-size: 14px !important; }
+  .modal .ma:not(:last-child) { position: static !important; box-shadow: none !important; margin: 20px 0 0 !important; padding: 16px 0 0 !important; background: transparent !important; }
   .modal > :last-child:not(.ma) { margin-bottom: calc(20px + env(safe-area-inset-bottom)) !important; }
+}
+
+/* ─── Eigene Fenster (ov-x/modal-x) auf dem Handy gleich wie die Standard-Fenster ─── */
+@media (max-width: 768px) {
+  html:has(.ov-x), body:has(.ov-x) { overflow: hidden !important; overscroll-behavior: none; }
+  .ov-x { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; overflow: hidden !important; overscroll-behavior: contain; touch-action: pan-y; }
+  .ov-x > .modal-x:not(.klein) {
+    width: 100% !important; max-width: 100% !important;
+    height: 100vh !important; height: 100dvh !important; max-height: 100vh !important; max-height: 100dvh !important;
+    margin: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    padding-top: calc(16px + env(safe-area-inset-top)) !important;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important; overflow-x: hidden !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    box-sizing: border-box !important;
+  }
+  .ov-x > .modal-x[style*="flex-direction: column"]:not(.klein) { overflow-y: hidden !important; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) !important; }
+  .ov-x:has(> .klein) { align-items: center !important; justify-content: center !important; padding: 16px !important; }
+  .ov-x > .modal-x.klein { width: 100% !important; max-height: calc(100dvh - 32px) !important; overflow-y: auto !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+  .modal-x * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .modal-x input, .modal-x select, .modal-x textarea { font-size: 16px !important; }
+  .modal-x [style*="white-space: nowrap"], .modal-x [style*="white-space:nowrap"] { white-space: normal !important; }
+  .modal-x iframe { max-width: 100% !important; }
 }
 
 /* Finanztabellen am Rechner: Woerter nie umbrechen, stattdessen seitlich scrollen */
@@ -4224,8 +4254,8 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
       
       {/* START-MODAL fuer Uebernahmeprotokoll */}
       {showStartModal && (
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget && !starting && setShowStartModal(false)}>
-          <div style={{background:"#fefcf7",borderRadius:10,padding:"22px 26px",maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="ov-x" style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget && !starting && setShowStartModal(false)}>
+          <div className="modal-x" style={{background:"#fefcf7",borderRadius:10,padding:"22px 26px",maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}}>
             <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>📋 Übernahmeprotokoll starten</div>
             <div style={{fontSize:12,color:"#8a8174",marginBottom:18}}>Für {tenant?.vorname||""} {tenant?.nachname||""} · {apt?.adresse||""}{room?.id ? ", Zimmer "+room.id : ""}</div>
             
@@ -4629,8 +4659,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
             </div>
           ) : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10}}>
-              {kautionTenant && <div onClick={()=>setKautionTenant(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"36px 14px",overflowY:"auto"}}>
-                <div onClick={e=>e.stopPropagation()} style={{background:"#f7f3eb",borderRadius:16,maxWidth:560,width:"100%"}}>
+              {kautionTenant && <div className="ov-x" onClick={()=>setKautionTenant(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"36px 14px",overflowY:"auto"}}>
+                <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"#f7f3eb",borderRadius:16,maxWidth:560,width:"100%"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px 4px"}}>
                     <div style={{fontSize:15,fontWeight:700}}>{kautionTenant.vorname} {kautionTenant.nachname}</div>
                     <button onClick={()=>setKautionTenant(null)} style={{border:"none",background:"none",fontSize:24,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
@@ -4682,8 +4712,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       )}
 
       {startFor && (
-        <div onClick={()=>!starting&&setStartFor(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"20px 20px 16px",maxWidth:420,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+        <div className="ov-x" onClick={()=>!starting&&setStartFor(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
+          <div className="modal-x klein" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"20px 20px 16px",maxWidth:420,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
             <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:4}}>Protokoll starten</div>
             <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>
               {startFor.tenant.vorname} {startFor.tenant.nachname} · {startFor.room?.id||"-"} · {startFor.apt?.adresse||"-"}<br/>
@@ -6904,8 +6934,8 @@ function HandoverConfirmButton({protocol, onDone}){
   return (<>
     <button onClick={openPreview} disabled={busy} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy&&!previewUrl?"lädt…":"👁 Vorschau & bestätigen"}</button>
     {previewUrl && (
-      <div onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
+      <div className="ov-x" onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+        <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid #e8e3d8"}}>
             <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Übernahmeprotokoll · Vorschau</div>
             <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Fertiges Protokoll mit beiden Unterschriften. Mit Bestätigen geht die Bestätigung samt PDF an den Mieter und wird im Dokumente-Ordner gespeichert.</div>
@@ -6981,8 +7011,8 @@ function CountersignButton({contract, onDone, onSigned, light}){
       {busy && !preview ? "lädt…" : "✍ Gegenzeichnen"}
     </button>
     {preview && (
-      <div onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
+      <div className="ov-x" onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+        <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid #e8e3d8"}}>
             <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Gegenzeichnung · Vorschau</div>
             <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Final unterzeichnetes Dokument mit beiden Unterschriften. Mit Bestaetigen wird der Vertrag gültig und die Bestaetigung geht an den Mieter.</div>
@@ -13222,8 +13252,8 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
       )}
 
       {empModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setEmpModal(null)}>
-          <div style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div className="ov-x" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setEmpModal(null)}>
+          <div className="modal-x" style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontFamily:"Georgia,serif",fontSize:19,color:"var(--ink)",marginBottom:16}}>{empModal.id?"Mitarbeiter bearbeiten":"Neuer Mitarbeiter"}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
               <div><label className="fl">Vorname</label><input className="fi" value={empModal.vorname||""} onChange={e=>setEmpModal(p=>({...p,vorname:e.target.value}))}/></div>
@@ -13246,8 +13276,8 @@ function Zeiterfassung({employees, timeEntries, apts, insertEmployee, updateEmpl
       )}
 
       {entryModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setEntryModal(null)}>
-          <div style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div className="ov-x" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setEntryModal(null)}>
+          <div className="modal-x" style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontFamily:"Georgia,serif",fontSize:19,color:"var(--ink)",marginBottom:16}}>{entryModal.id?"Zeiteintrag bearbeiten":"Zeit erfassen"}</div>
             <label className="fl">Mitarbeiter</label>
             <select className="fi" style={{width:"100%",marginBottom:10}} value={entryModal.employeeId||""} onChange={e=>setEntryModal(p=>({...p,employeeId:e.target.value}))}>
@@ -13365,8 +13395,8 @@ function MitarbeiterZeit({employees, timeEntries, benutzerMail, insertTimeEntry,
       </div>
 
       {manModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setManModal(null)}>
-          <div style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div className="ov-x" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={()=>setManModal(null)}>
+          <div className="modal-x" style={{background:"var(--surface)",borderRadius:12,padding:22,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontFamily:"Georgia,serif",fontSize:19,color:"var(--ink)",marginBottom:16}}>{manModal.id?"Eintrag bearbeiten":"Zeit nachtragen"}</div>
             <label className="fl">Datum</label>
             <input className="fi" type="date" style={{width:"100%",marginBottom:10}} value={manModal.datum||""} onChange={e=>setManModal(p=>({...p,datum:e.target.value}))}/>
@@ -13794,8 +13824,8 @@ function Pipeline(){
         <span>Offen: <b style={{color:"var(--ink)"}}>{deals.filter(z=>!["gewonnen","verloren"].includes(z.stage)).length}</b></span>
       </div>
       {newDeal&&(
-        <div onClick={()=>setNewDeal(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:14,maxWidth:560,width:"100%",maxHeight:"92vh",overflow:"auto",padding:"18px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
+        <div className="ov-x" onClick={()=>setNewDeal(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+          <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:14,maxWidth:560,width:"100%",maxHeight:"92vh",overflow:"auto",padding:"18px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>Neuer Deal</div>
               <div onClick={()=>setNewDeal(null)} style={{cursor:"pointer",fontSize:20,color:"var(--muted)"}}>×</div>
@@ -13856,8 +13886,8 @@ function Pipeline(){
         ); })}
       </div>
       {d&&(
-        <div onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
+        <div className="ov-x" onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
+          <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
               <div style={{minWidth:0}}>
                 <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:19,color:"var(--ink)"}}>{d.strasse||"Adresse"}, {d.plz} {d.ort}</div>
@@ -14049,8 +14079,8 @@ function Kontakte(){
         ))}
       </div>
       {firm&&fd&&(
-        <div onClick={()=>{setFirm(null);setCf(null);}} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"18px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
+        <div className="ov-x" onClick={()=>{setFirm(null);setCf(null);}} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
+          <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"18px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}>
               {fd.isNew
                 ? <input value={fd.organisation} onChange={e=>setFd({...fd,organisation:e.target.value})} placeholder="Firmenname" style={{...inp,fontSize:15,fontWeight:600}} />
@@ -15430,8 +15460,8 @@ function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {
   const istIch = (mail) => mail.toLowerCase() === (eigeneMail || "").toLowerCase();
 
   return (
-    <div onClick={()=>{ if(!busy) onClose(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:560,width:"100%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+    <div className="ov-x" onClick={()=>{ if(!busy) onClose(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+      <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:560,width:"100%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>Team verwalten</div>
           <button className="btn btn-sm" onClick={onClose}>✕</button>
@@ -15499,8 +15529,8 @@ function PasswortAendern({onClose, pflicht}) {
     else { setMsg({t:"ok", m:"Passwort geändert."}); setPw1(""); setPw2(""); setTimeout(onClose, 1200); }
   }
   return (
-    <div onClick={()=>{ if(!busy && !pflicht) onClose(); }} style={{position:"fixed",inset:0,background:pflicht?"var(--bg)":"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:400,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+    <div className="ov-x" onClick={()=>{ if(!busy && !pflicht) onClose(); }} style={{position:"fixed",inset:0,background:pflicht?"var(--bg)":"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+      <div className="modal-x klein" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:400,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
         <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:pflicht?8:14}}>{pflicht ? "Neues Passwort festlegen" : "Passwort ändern"}</div>
         {pflicht && <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.55,marginBottom:14}}>Du bist über den Link aus der E-Mail angemeldet. Bitte lege jetzt ein neues Passwort fest, danach steht die App zur Verfügung.</div>}
         <input type="password" placeholder="Neues Passwort" autoComplete="new-password" value={pw1} onChange={e=>setPw1(e.target.value)}
