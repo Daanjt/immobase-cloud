@@ -6400,44 +6400,114 @@ async function vertragPdfsErstellen(b, vertragData, types, onProgress) {
   if (sel.includes("amz")) { progress("Vorschau Anfangsmietzinsformular…", 0.6); out.amzBlob = await htmlToPdf(buildAnfangsmietzinsHTML(b, amzData, fullName, formatDateLong), `Anfangsmietzinsformular_${fullName.replace(/\s+/g,"_")}.pdf`); }
   return out;
 }
+// Alle Seiten eines PDFs als Bilder (fuer Handys: iOS/Android zeigen PDFs im iframe schlecht oder gar nicht)
+function PdfSeiten({ url }) {
+  const [seiten, setSeiten] = useState([]);
+  const [fehler, setFehler] = useState(false);
+  const [fertig, setFertig] = useState(false);
+  useEffect(() => {
+    let abbruch = false;
+    setSeiten([]); setFehler(false); setFertig(false);
+    (async () => {
+      try {
+        const pdfjs = await _ensurePdfJsAdmin();
+        const pdf = await pdfjs.getDocument(url).promise;
+        const breite = Math.min(window.innerWidth || 400, 900);
+        for (let i = 1; i <= pdf.numPages; i++) {
+          if (abbruch) return;
+          const page = await pdf.getPage(i);
+          const basis = page.getViewport({ scale: 1 });
+          const scale = (breite * Math.min(window.devicePixelRatio || 1, 2.5)) / basis.width;
+          const vp = page.getViewport({ scale });
+          const c = document.createElement("canvas");
+          c.width = vp.width; c.height = vp.height;
+          await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+          const d = c.toDataURL("image/jpeg", 0.88);
+          if (abbruch) return;
+          setSeiten(prev => [...prev, d]);
+        }
+        if (!abbruch) setFertig(true);
+      } catch (e) { console.warn("PDF-Vorschau:", e); if (!abbruch) setFehler(true); }
+    })();
+    return () => { abbruch = true; };
+  }, [url]);
+  if (fehler) return <div style={{padding:24,textAlign:"center",fontSize:13,color:"#6e6a62"}}>Vorschau konnte nicht geladen werden. Bitte oben „Öffnen" verwenden.</div>;
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {seiten.map((src,i)=>(
+        <div key={i}>
+          <img src={src} alt={"Seite "+(i+1)} style={{width:"100%",display:"block",background:"#fff",border:"1px solid #d8d0c0",borderRadius:4,boxShadow:"0 1px 4px rgba(0,0,0,.08)"}}/>
+          <div style={{fontSize:10.5,color:"#8a8174",textAlign:"center",marginTop:3}}>Seite {i+1}</div>
+        </div>
+      ))}
+      {!fertig && <div style={{padding:20,textAlign:"center",fontSize:12.5,color:"#8a8174"}}>⏳ Seiten werden geladen…</div>}
+    </div>
+  );
+}
+function useIstHandy() {
+  const q = "(max-width: 760px), (pointer: coarse) and (max-width: 1024px)";
+  const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia(q).matches : false);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia(q); const h = () => setM(mq.matches);
+    mq.addEventListener ? mq.addEventListener("change", h) : mq.addListener(h);
+    return () => { mq.removeEventListener ? mq.removeEventListener("change", h) : mq.removeListener(h); };
+  }, []);
+  return m;
+}
 function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConfirm }) {
   const [idx, setIdx] = useState(0);
+  const handy = useIstHandy();
   const docs = React.useMemo(() => {
     if (!vorschau) return [];
     const n = vorschau.fullName ? vorschau.fullName.replace(/\s+/g, "_") : "Vertrag";
     const d = [];
-    if (vorschau.umvBlob) d.push({ name: "Untermietvertrag", url: URL.createObjectURL(vorschau.umvBlob), fn: `Untermietvertrag_${n}.pdf` });
-    if (vorschau.amzBlob) d.push({ name: "Anfangsmietzinsformular", url: URL.createObjectURL(vorschau.amzBlob), fn: `Anfangsmietzinsformular_${n}.pdf` });
+    if (vorschau.umvBlob) d.push({ name: "Untermietvertrag", kurz: "Vertrag", url: URL.createObjectURL(vorschau.umvBlob), fn: `Untermietvertrag_${n}.pdf` });
+    if (vorschau.amzBlob) d.push({ name: "Anfangsmietzinsformular", kurz: "Mietzinsformular", url: URL.createObjectURL(vorschau.amzBlob), fn: `Anfangsmietzinsformular_${n}.pdf` });
     return d;
   }, [vorschau]);
   useEffect(() => () => { docs.forEach(x => { try { URL.revokeObjectURL(x.url); } catch (e) {} }); }, [docs]);
+  useEffect(() => {
+    if (!vorschau) return;
+    const alt = document.body.style.overflow; document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = alt; };
+  }, [vorschau]);
   if (!vorschau) return null;
   const cur = docs[Math.min(idx, docs.length - 1)];
+  const kleinBtn = {fontSize:12,padding:handy?"8px 12px":"5px 12px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:6,textDecoration:"none",cursor:"pointer",whiteSpace:"nowrap"};
   const inhalt = (
-    <div style={{position:"fixed",inset:0,background:"rgba(20,18,15,.55)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{background:"#fefcf7",borderRadius:10,width:"min(980px,100%)",height:"min(92vh,1100px)",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-        <div style={{padding:"14px 20px",borderBottom:"1px solid #e8e3d8",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:600,color:"#1a1814"}}>Vorschau vor dem Versand</div>
-            <div style={{fontSize:11.5,color:"#8a8174"}}>So erhält {email || "der Mieter"} die Dokumente zum Unterschreiben.</div>
+    <div style={{position:"fixed",inset:0,background:"rgba(20,18,15,.55)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:handy?0:16}}>
+      <div style={{background:"#fefcf7",borderRadius:handy?0:10,width:handy?"100%":"min(980px,100%)",height:handy?"100%":"min(92vh,1100px)",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+        <div style={{padding:handy?"calc(10px + env(safe-area-inset-top)) 14px 10px":"14px 20px",borderBottom:"1px solid #e8e3d8",display:"flex",flexDirection:handy?"column":"row",alignItems:handy?"stretch":"center",justifyContent:"space-between",gap:handy?8:10,flexWrap:"wrap",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:handy?16:15,fontWeight:600,color:"#1a1814"}}>Vorschau vor dem Versand</div>
+              <div style={{fontSize:11.5,color:"#8a8174",wordBreak:"break-word"}}>So erhält {email || "der Mieter"} die Dokumente zum Unterschreiben.</div>
+            </div>
+            {handy && <button onClick={()=>!busy&&onClose()} disabled={busy} aria-label="Schliessen" style={{flexShrink:0,width:36,height:36,borderRadius:18,border:"1px solid #d8d0c0",background:"#f0ebe1",fontSize:18,lineHeight:1,cursor:"pointer",color:"#4a4439"}}>×</button>}
           </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {docs.length > 1 && <div style={{display:"flex",gap:6}}>
             {docs.map((d,i)=>(
-              <button key={i} onClick={()=>setIdx(i)} style={{fontSize:11.5,padding:"7px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,border:"1px solid",borderColor:idx===i?"#2c4a6e":"#d8d0c0",background:idx===i?"#2c4a6e":"#fefcf7",color:idx===i?"#fefcf7":"#4a4439"}}>{d.name}</button>
+              <button key={i} onClick={()=>setIdx(i)} style={{flex:handy?1:"none",fontSize:12,padding:handy?"9px 8px":"7px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,border:"1px solid",borderColor:idx===i?"#2c4a6e":"#d8d0c0",background:idx===i?"#2c4a6e":"#fefcf7",color:idx===i?"#fefcf7":"#4a4439"}}>{handy?d.kurz:d.name}</button>
             ))}
-          </div>
-        </div>
-        <div style={{flex:1,minHeight:0,padding:12,display:"flex",flexDirection:"column",gap:8}}>
-          {cur && <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexShrink:0}}>
-            <a href={cur.url} download={cur.fn} style={{fontSize:11.5,padding:"5px 12px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,textDecoration:"none"}}>⬇ {cur.name} herunterladen</a>
-            <button onClick={()=>window.open(cur.url,"_blank")} style={{fontSize:11.5,padding:"5px 12px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:"pointer"}}>↗ In neuem Tab</button>
           </div>}
-          {cur && <iframe key={cur.url} src={cur.url} title={cur.name} style={{flex:1,width:"100%",minHeight:300,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>}
         </div>
-        {busy && progress && <div style={{padding:"0 20px 8px",fontSize:11.5,color:"#6e6a62"}}>⏳ {progress}</div>}
-        <div style={{padding:"12px 20px",borderTop:"1px solid #e8e3d8",display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>!busy&&onClose()} disabled={busy} style={{fontSize:12.5,padding:"9px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:5,cursor:busy?"wait":"pointer"}}>Zurück zum Bearbeiten</button>
-          <button onClick={onConfirm} disabled={busy} style={{fontSize:12.5,padding:"9px 18px",background:"#3a5230",color:"#fefcf7",border:"1px solid #2f4527",borderRadius:5,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"Wird gesendet…":"✓ Bestätigen und Vertrag digital senden"}</button>
+        <div style={{flex:1,minHeight:0,padding:handy?"10px 10px 0":12,display:"flex",flexDirection:"column",gap:8}}>
+          {cur && <div style={{display:"flex",justifyContent:handy?"space-between":"flex-end",alignItems:"center",gap:8,flexShrink:0}}>
+            {handy && <div style={{fontSize:12,fontWeight:600,color:"#4a4439",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.name}</div>}
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <a href={cur.url} download={cur.fn} style={kleinBtn}>⬇ {handy?"Laden":cur.name+" herunterladen"}</a>
+              <button onClick={()=>window.open(cur.url,"_blank")} style={kleinBtn}>↗ {handy?"Öffnen":"In neuem Tab"}</button>
+            </div>
+          </div>}
+          {cur && (handy
+            ? <div key={cur.url} style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:12}}><PdfSeiten url={cur.url}/></div>
+            : <iframe key={cur.url} src={cur.url} title={cur.name} style={{flex:1,width:"100%",minHeight:300,border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>)}
+        </div>
+        {busy && progress && <div style={{padding:"6px 16px",fontSize:11.5,color:"#6e6a62",flexShrink:0}}>⏳ {progress}</div>}
+        <div style={{padding:handy?"10px 12px calc(10px + env(safe-area-inset-bottom))":"12px 20px",borderTop:"1px solid #e8e3d8",display:"flex",flexDirection:handy?"column-reverse":"row",justifyContent:"flex-end",gap:8,flexShrink:0,background:"#fefcf7"}}>
+          <button onClick={()=>!busy&&onClose()} disabled={busy} style={{fontSize:handy?14:12.5,padding:handy?"12px 16px":"9px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:6,cursor:busy?"wait":"pointer"}}>Zurück zum Bearbeiten</button>
+          <button onClick={onConfirm} disabled={busy} style={{fontSize:handy?14.5:12.5,padding:handy?"14px 18px":"9px 18px",background:"#3a5230",color:"#fefcf7",border:"1px solid #2f4527",borderRadius:6,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"Wird gesendet…":(handy?"✓ Bestätigen und senden":"✓ Bestätigen und Vertrag digital senden")}</button>
         </div>
       </div>
     </div>
