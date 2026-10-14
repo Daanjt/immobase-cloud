@@ -113,17 +113,25 @@ if ('serviceWorker' in navigator) {
       setze(0, true);
       setTimeout(function(){ r.style.transform = ''; r.style.transition = ''; ind.style.opacity = 0; laedt = false; }, 420);
     }
-    var t0 = Date.now();
-    version().then(function(v){
+    var t0 = Date.now(), erledigt = false;
+    function ende(){ if (erledigt) return; erledigt = true; clearTimeout(notbremse); setTimeout(fertig, Math.max(0, 550 - (Date.now() - t0))); }
+    // Notbremse: spaetestens nach 8 Sekunden ist Schluss, egal was haengt
+    var notbremse = setTimeout(function(){
+      try { window.meldeFehler && window.meldeFehler('Neuladen', 'Runterziehen: Zeitüberschreitung nach 8s', { schritt: schritt }); } catch(_e) {}
+      ende();
+    }, 8000);
+    var schritt = 'version';
+    function mitLimit(prom, ms){ return Promise.race([prom, new Promise(function(res){ setTimeout(function(){ res('__zeit'); }, ms); })]); }
+    mitLimit(version(), 2500).then(function(v){
+      if (erledigt) return;
       // Neue Version online: ganz neu laden. Sonst nur die Daten still auffrischen.
-      if (v && basis && v !== basis) return ganzNeu();
-      if (typeof window.__ibNeuLaden !== 'function') return ganzNeu();
-      var stopp = setTimeout(fertig, 12000);
-      Promise.resolve(window.__ibNeuLaden()).catch(function(){}).then(function(){
-        clearTimeout(stopp);
-        setTimeout(fertig, Math.max(0, 550 - (Date.now() - t0)));
-      });
-    });
+      if (v && v !== '__zeit' && basis && v !== basis) { erledigt = true; clearTimeout(notbremse); return ganzNeu(); }
+      if (typeof window.__ibNeuLaden !== 'function') { erledigt = true; clearTimeout(notbremse); return ganzNeu(); }
+      schritt = 'daten';
+      var lauf;
+      try { lauf = window.__ibNeuLaden(); } catch(_e) { lauf = null; }
+      mitLimit(Promise.resolve(lauf).catch(function(){}), 7000).then(ende, ende);
+    }, ende);
   }, { passive: true });
   if (app) document.addEventListener('touchcancel', function(){ if (startY !== null && !laedt) { startY = null; setze(0, true); } }, { passive: true });
 
