@@ -1314,6 +1314,26 @@ html,body{background:var(--bg)}
   .modal > :last-child:not(.ma) { margin-bottom: calc(20px + env(safe-area-inset-bottom)) !important; }
 }
 
+/* ─── Einheitliches Aussehen aller Fenster (auch der eigenen ov-x/modal-x) ─── */
+.ov-x { background: rgba(31,29,24,.4) !important; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.modal-x {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 80px rgba(31,29,24,.12) !important;
+  color: var(--ink);
+}
+.modal-x [style*="Georgia"] { font-family: 'Manrope', sans-serif !important; font-weight: 400 !important; letter-spacing: .01em; }
+.ov, .ov-x { animation: ibOvIn .2s ease backwards; }
+.modal, .ov-x > .modal-x { animation: ibModalIn .26s cubic-bezier(.2,.8,.2,1) backwards; }
+@keyframes ibOvIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes ibModalIn { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
+
+/* ─── Sanfte Seitenwechsel ─── */
+.seite-anim { animation: ibSeite .28s cubic-bezier(.2,.8,.2,1) backwards; }
+@keyframes ibSeite { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .seite-anim, .ov, .ov-x, .modal, .ov-x > .modal-x { animation: none !important; } }
+
 /* ─── Eigene Fenster (ov-x/modal-x) auf dem Handy gleich wie die Standard-Fenster ─── */
 @media (max-width: 768px) {
   html:has(.ov-x), body:has(.ov-x) { overflow: hidden !important; overscroll-behavior: none; }
@@ -15364,7 +15384,7 @@ function MainApp({rolle}) {
           </button>
         </div>
       </div>
-      <div className="main">{(window.__IB_DATA=data, null)}<Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div>
+      <div className="main">{(window.__IB_DATA=data, null)}<div key={page} className="seite-anim"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
       {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail} insertEmployee={data.insertEmployee} employees={data.employees}/>}
     </div>
