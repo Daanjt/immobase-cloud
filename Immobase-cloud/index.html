@@ -1148,6 +1148,34 @@ a:hover{border-bottom-color:var(--gold)}
   /* iOS zoomt bei Eingabefeldern unter 16px automatisch hinein: das macht die Ansicht wackelig */
   .modal input, .modal select, .modal textarea { font-size: 16px !important; }
   .modal [style*="white-space: nowrap"], .modal [style*="white-space:nowrap"] { white-space: normal !important; }
+
+  /* Einheitliches Fenster-Design: Vollbild, Titel oben fixiert, Knöpfe unten fixiert */
+  .ov { align-items: stretch !important; justify-content: stretch !important; padding: 0 !important; }
+  .modal {
+    width: 100% !important; max-width: 100% !important;
+    height: 100vh !important; height: 100dvh !important;
+    max-height: 100vh !important; max-height: 100dvh !important;
+    margin: 0 !important; border: 0 !important; border-radius: 0 !important;
+    padding: 0 16px !important;
+  }
+  .modal > :first-child {
+    position: sticky; top: 0; z-index: 3; max-width: none !important;
+    background: var(--surface);
+    margin: 0 -16px 14px !important;
+    padding: calc(14px + env(safe-area-inset-top)) 16px 12px !important;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .modal > .mt:first-child { font-size: 17px !important; }
+  .modal .ma {
+    position: sticky; bottom: 0; z-index: 3; max-width: none !important;
+    background: var(--surface);
+    margin: 20px -16px 0 !important;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom)) !important;
+    border-top: 1px solid var(--line-soft);
+    box-shadow: 0 -6px 16px rgba(31,29,24,.06);
+  }
+  .modal .ma .btn { min-height: 46px; font-size: 14px !important; }
+  .modal > :last-child:not(.ma) { margin-bottom: calc(20px + env(safe-area-inset-bottom)) !important; }
 }
 
 /* Finanztabellen am Rechner: Woerter nie umbrechen, stattdessen seitlich scrollen */
@@ -1210,7 +1238,104 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   var _alert = window.alert;
   window.alert = function(m){
     try { if (/fehler|fehlgeschlagen|failed|error|nicht möglich|konnte nicht/i.test(String(m || ""))) window.meldeFehler("Meldung an Nutzer", m); } catch(_e) {}
-    return _alert.apply(window, arguments);
+    try { if (typeof m === "string") m = window.fehlerText(m); } catch(_e) {}
+    return _alert.call(window, m);
+  };
+})();
+
+// ─── Verstaendliche Fehlermeldungen: technische Meldungen in klares Deutsch uebersetzen ───
+(function(){
+  var REGELN = [
+    [/Failed to send a request to the Edge Function|Failed to fetch|Load failed|NetworkError|network error|ERR_INTERNET|ERR_NETWORK/i, "Keine Verbindung zum Server. Bitte prüfe deine Internetverbindung und versuche es nochmals."],
+    [/JWT expired|Invalid JWT|invalid claim|Missing authorization|Nicht berechtigt|Nicht autorisiert|not authorized|permission denied|row-level security/i, "Keine Berechtigung oder Anmeldung abgelaufen. Bitte lade die Seite neu und melde dich falls nötig nochmals an."],
+    [/timed? ?out|timeout|504|Gateway Time/i, "Der Server hat zu lange gebraucht. Bitte versuche es in einem Moment nochmals."],
+    [/PDF generation failed|pdf-generate/i, "Das PDF konnte nicht erstellt werden. Bitte versuche es nochmals."],
+    [/duplicate key|already exists/i, "Dieser Eintrag existiert bereits."],
+    [/non-2xx status code|Internal Server Error|status 5\d\d|\(5\d\d\)/i, "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es nochmals. Wir wurden automatisch informiert."],
+  ];
+  window.fehlerText = function(m){
+    m = String(m == null ? "" : m);
+    for (var i = 0; i < REGELN.length; i++) {
+      var rx = REGELN[i][0];
+      var pos = m.search(rx);
+      if (pos < 0) continue;
+      var schnitt = m.lastIndexOf(": ", pos);
+      var vorne = schnitt >= 0 ? m.slice(0, schnitt + 2) : "";
+      if (vorne && REGELN[i][1].indexOf(vorne) === 0) vorne = "";
+      return vorne + REGELN[i][1];
+    }
+    return m;
+  };
+})();
+
+// ─── Ladeanzeige + bessere Fehler fuer Server-Funktionen und PDF-Erstellung ───
+(function(){
+  var TEXTE = {
+    "finalize-handover": "Protokoll wird erstellt…", "countersign-contract": "Vertrag wird gegengezeichnet…",
+    "send-contract-email": "Vertrag wird gesendet…", "send-handover-invite": "Einladung wird gesendet…",
+    "send-mahnung": "Mahnung wird erstellt…", "send-kautionsabrechnung": "Abrechnung wird gesendet…",
+    "send-message": "Nachricht wird gesendet…", "send-campaign": "Kampagne wird verarbeitet…",
+    "outlook-send": "E-Mail wird gesendet…", "draft-reply": "Antwort wird vorbereitet…",
+    "generate-inserat": "Inserat wird erstellt…", "generate-beschreibung": "Beschreibung wird erstellt…",
+    "edit-image": "Bild wird bearbeitet…", "import-listing-images": "Bilder werden importiert…",
+    "bexio-invoice": "Rechnung wird erstellt…", "translate-clause": "Klausel wird übersetzt…",
+    "bauradar-fetch": "Daten werden geladen…", "vault-recover": "Wird verarbeitet…", "pdf": "PDF wird erstellt…"
+  };
+  var STILL = { "outlook-thread": 1 };
+  var laufend = [], el = null, timer = null;
+  function zeichnen(){
+    if (!el) {
+      el = document.createElement("div");
+      el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
+      el.innerHTML = '<div class="ib-lade-bar"></div><div class="ib-lade-pill"><span class="ib-lade-spin"></span><span class="ib-lade-text"></span></div>';
+      var st = document.createElement("style");
+      st.textContent = ".ib-lade-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:5000;background:linear-gradient(90deg,transparent,#3a5230,transparent);background-size:40% 100%;background-repeat:no-repeat;animation:ibLade 1.1s ease-in-out infinite}"
+        + "@keyframes ibLade{0%{background-position:-40% 0}100%{background-position:140% 0}}"
+        + ".ib-lade-pill{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5000;display:flex;align-items:center;gap:10px;background:#1a1814;color:#fefcf7;padding:10px 18px;border-radius:999px;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.25);max-width:calc(100vw - 32px);pointer-events:none}"
+        + ".ib-lade-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:ibDreh .8s linear infinite;flex-shrink:0}"
+        + "@keyframes ibDreh{to{transform:rotate(360deg)}}"
+        + "@media (prefers-reduced-motion: reduce){.ib-lade-bar,.ib-lade-spin{animation:none}}";
+      document.head.appendChild(st);
+      document.body.appendChild(el);
+    }
+    var aktiv = laufend.length > 0;
+    el.style.display = aktiv ? "" : "none";
+    if (aktiv) el.querySelector(".ib-lade-text").textContent = laufend[laufend.length - 1].text;
+  }
+  function start(name){
+    var eintrag = { text: TEXTE[name] || "Wird verarbeitet…", t: Date.now() };
+    laufend.push(eintrag);
+    clearTimeout(timer); timer = setTimeout(zeichnen, 300);
+    return function(){ var i = laufend.indexOf(eintrag); if (i >= 0) laufend.splice(i, 1); if (!laufend.length) clearTimeout(timer); zeichnen(); };
+  }
+  // supabase.functions.invoke: Ladeanzeige + Servermeldung statt "non-2xx" + verstaendlicher Text
+  try {
+    var proto = Object.getPrototypeOf(supabase.functions);
+    if (proto && proto.invoke && !proto.__ibGepatcht) {
+      var orig = proto.invoke;
+      proto.invoke = async function(name, opts){
+        var stop = STILL[name] ? function(){} : start(name);
+        try {
+          var r = await orig.call(this, name, opts);
+          if (r && r.error) {
+            var msg = r.error.message || String(r.error);
+            try { if (r.error.context && typeof r.error.context.clone === "function") { var j = await r.error.context.clone().json(); if (j && (j.error || j.message)) msg = String(j.error || j.message); } } catch(_e) {}
+            try { r.error.message = window.fehlerText(msg); } catch(_e) {}
+          }
+          return r;
+        } finally { stop(); }
+      };
+      proto.__ibGepatcht = true;
+    }
+  } catch(_e) {}
+  // direkte fetch-Aufrufe (PDF-Erstellung, Vertragsmail)
+  var _f = window.fetch;
+  window.fetch = function(u, o){
+    var url = typeof u === "string" ? u : (u && u.url) || "";
+    var name = /\/api\/pdf-generate/.test(url) ? "pdf" : ((url.match(/\/functions\/v1\/([a-z0-9-]+)/) || [])[1] || null);
+    if (!name || STILL[name]) return _f.apply(this, arguments);
+    var stop = start(name);
+    return _f.apply(this, arguments).then(function(r){ stop(); return r; }, function(e){ stop(); throw e; });
   };
 })();
 window.__sb = supabase; // Debug-only: expose client for diagnostics
@@ -14535,7 +14660,7 @@ function DokumenteSection({documents, uploadDocument, getDocumentUrl, deleteDocu
 }
 
 let _toastFn = null;
-function toast(msg, type){ if(type==="error" && window.meldeFehler) window.meldeFehler("Meldung an Nutzer", msg); if(_toastFn) _toastFn(msg, type||"ok"); }
+function toast(msg, type){ if(type==="error" && window.meldeFehler) window.meldeFehler("Meldung an Nutzer", msg); if(type==="error" && window.fehlerText) msg = window.fehlerText(msg); if(_toastFn) _toastFn(msg, type||"ok"); }
 function Toast(){
   const [t, setT] = React.useState(null);
   React.useEffect(()=>{ _toastFn = (msg, type)=>setT({msg, type, id:Date.now()}); return ()=>{ _toastFn = null; }; },[]);
