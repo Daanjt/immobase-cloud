@@ -2899,6 +2899,22 @@ function useSupabaseData() {
     window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle()]);
     return () => { delete window.__ibNeuLaden; };
   }, []);
+  // Automatisch aktuell halten: Verträge und Übergaben werden nicht live gepusht.
+  // Darum beim Zurückkehren in die App alles still nachladen und, solange sie offen
+  // und sichtbar ist, Verträge/Übergaben jede Minute neu holen.
+  useEffect(() => {
+    let zuletzt = Date.now();
+    const still = () => { zuletzt = Date.now(); try { window.__ibNeuLaden && window.__ibNeuLaden(); } catch (_) {} };
+    const sichtbar = () => { if (document.visibilityState === "visible" && Date.now() - zuletzt > 15000) still(); };
+    document.addEventListener("visibilitychange", sichtbar);
+    window.addEventListener("focus", sichtbar);
+    const iv = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      zuletzt = Date.now();
+      Promise.allSettled([loadContracts(), loadHandoverProtocols()]);
+    }, 60000);
+    return () => { document.removeEventListener("visibilitychange", sichtbar); window.removeEventListener("focus", sichtbar); clearInterval(iv); };
+  }, []);
   
   async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum }) {
     const now = new Date();
