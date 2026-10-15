@@ -4455,7 +4455,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                 />
               </>)}
               <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
-                Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
+                Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Vorausgefüllt aus dem Schlüssel-Tab, beim Starten wird der Mieter aktualisiert.
               </div>
             </div>
             
@@ -9047,7 +9047,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
         )}
       </div>
       <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4}}>Schlüssel bei Mietern</div>
-      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → Bearbeiten). {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
+      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → 🔑 Schlüssel). {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
       {mieter.length===0 ? <div className="empty">Keine aktiven Mieter in dieser Wohnung.</div> : (
         <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th><th style={{padding:"6px 10px"}}>Übergeben</th></tr></thead>
@@ -9403,7 +9403,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
             </div>
-            <div className="tabs">{[["info","Übersicht"],["zimmer",apt.vermietungsart==="wohnung"?"Mietobjekt":"Zimmer"],["medien","Medien"],["schluessel","🔑 Schlüssel"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Übersicht"],["zimmer",apt.vermietungsart==="wohnung"?"Mietobjekt":"Zimmer"],["medien","Medien"],["schluessel","🔑\u00a0Schlüssel"],["docs","Dokumente"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&(() => {
               const isWG = apt.type === "WG";
               const aptRooms = rooms.filter(r => r.aptId === apt.id);
@@ -10086,6 +10086,49 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
 }
 
 // ─── MIETER ──────────────────────────────────────────────────────────────────
+function MieterSchluessel({tenant, updateTenant}) {
+  const nrStart = ((tenant.schluesselNr||"").toString().trim() || (tenant.schluesselAnzahl||"").toString().trim());
+  const [edit, setEdit] = useState(false);
+  const [nr, setNr] = useState(nrStart);
+  const [extra, setExtra] = useState(tenant.extraSchluessel||"");
+  const [ueb, setUeb] = useState(!!tenant.schluesselUebergeben);
+  const [busy, setBusy] = useState(false);
+  function oeffnen(){ setNr(nrStart); setExtra(tenant.extraSchluessel||""); setUeb(!!tenant.schluesselUebergeben); setEdit(true); }
+  async function speichern(){
+    setBusy(true);
+    try{ const v=nr.trim(); await updateTenant(tenant.id, {schluesselAnzahl:v, schluesselNr:v, extraSchluessel:extra.trim(), schluesselUebergeben:!!ueb}); setEdit(false); }
+    finally{ setBusy(false); }
+  }
+  return (
+    <div>
+      <div style={{background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:8,padding:"12px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:edit?10:8}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#3a5230"}}>Schlüssel des Mieters</div>
+          {!edit && <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={oeffnen}>✏ Bearbeiten</button>}
+        </div>
+        {edit ? (<>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <div style={{flex:"0 1 180px",minWidth:0}}><label className="fl">Schlüsselnummer</label><input className="fi" style={{fontFamily:"monospace"}} value={nr} onChange={e=>setNr(e.target.value)} placeholder="z.B. A145 oder 12B" autoFocus/></div>
+            <div style={{flex:"1 1 220px",minWidth:0}}><label className="fl">Extra-Schlüssel</label><input className="fi" value={extra} onChange={e=>setExtra(e.target.value)} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={ueb} onChange={e=>setUeb(e.target.checked)}/> Schlüssel übergeben</label>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+            <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>setEdit(false)}>Abbrechen</button>
+            <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy} onClick={speichern}>{busy?"Speichert…":"✓ Speichern"}</button>
+          </div>
+        </>) : (
+          <div style={{display:"flex",gap:28,flexWrap:"wrap",fontSize:13}}>
+            <div><div className="fl" style={{marginBottom:3}}>Schlüsselnummer</div><div style={{fontWeight:600,fontFamily:nrStart?"monospace":"inherit",color:nrStart?"inherit":"#a4442e"}}>{nrStart||"fehlt"}</div></div>
+            <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Extra-Schlüssel</div><div style={{fontWeight:600,whiteSpace:"pre-wrap"}}>{(tenant.extraSchluessel||"").trim()||"-"}</div></div>
+            <div><div className="fl" style={{marginBottom:3}}>Übergeben</div><div style={{fontWeight:600,color:tenant.schluesselUebergeben?"#5a6e4a":"#8a8174"}}>{tenant.schluesselUebergeben?"✓ Ja":"Nein"}</div></div>
+          </div>
+        )}
+      </div>
+      <div style={{fontSize:11,color:"#8a8174",marginTop:10,lineHeight:1.5}}>Die Schlüsselnummern, die der Mieter im Übergabeprotokoll einträgt, werden nach Abschluss automatisch hier übernommen.</div>
+    </div>
+  );
+}
+
 function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,restoreTenant,purgeTenant,deletedTenants,loadDeleted,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
@@ -10605,9 +10648,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       kautionAufschlag:+form.kautionAufschlag||0,kautionBetrag:+form.kautionBetrag||0,
       mietzins:(form.mietzins===""||form.mietzins==null)?null:+form.mietzins,
       kautionType:(form.kautionType||"Evorest"),
-      schluesselAnzahl:form.schluesselAnzahl,
-      extraSchluessel:form.extraSchluessel,
-      schluesselUebergeben:!!form.schluesselUebergeben,
       moebliert:!!form.moebliert,furnished:!!form.moebliert,
       zivilstand:form.zivilstand||"",gender:form.gender||"",
       noDebt:!!form.noDebt,
@@ -10831,7 +10871,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               };
               return <button className="btn btn-p btn-sm" onClick={doBexio} style={{marginTop:10}}>Bexio: QR-Rechnung erstellen (Entwurf)</button>;
             })()}
-            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["schluessel","🔑\u00a0Schlüssel"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
               {(() => {
                 const ezDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && d.category==="Drittmeldebestätigung (Einzug)");
@@ -10880,9 +10920,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 istAdmin && ["Servicegebühr/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
                 istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale}${tenant.moeblierungModus==="monatlich"?"/Mt.":" einmalig"})`:""):"Nein"],
                 !istAdmin && ["Möbliert",tenant.moebliert?"Ja":"Nein"],
-                ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
-                ["Extra-Schlüssel",tenant.extraSchluessel||"-"],
-                ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>- Nein</span>],
                 ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].filter(Boolean).map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
@@ -10971,6 +11008,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
               <DocumentChecklist entityType="tenant" entityId={tenant.id} documents={documents} onJumpToDocs={()=>setTab("docs")} tenant={tenant} onJumpToDrittmeldung={()=>setTab("drittmeldung")}/>
             </div>}
             {tab==="docs"&&<DocumentsManager entityType="tenant" entityId={tenant.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
+            {tab==="schluessel"&&<MieterSchluessel key={"ms"+tenant.id} tenant={tenant} updateTenant={updateTenant}/>}
             {tab==="komm"&&(()=>{
               // Neuestes Uebergabeprotokoll des Mieters finden, dessen Link als
               // Platzhalter {uebergabe_link} bereitstellen (falls vorhanden).
@@ -11091,9 +11129,6 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
         }}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Fixer Mietzins (netto + NK) CHF/Mt.</label><input className="fi" type="number" step="5" value={form.mietzins||""} onChange={F("mietzins")} placeholder="netto + Nebenkosten, ohne Strom"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Servicegebühr CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div></div>
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
-        <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
-        <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!form.schluesselUebergeben} onChange={FB("schluesselUebergeben")}/> Schlüssel übergeben</label>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
