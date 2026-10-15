@@ -8919,7 +8919,14 @@ async function keyboxBildLink(pfad, sekunden){
 function KeyboxBild({box, aptId, onChange}){
   const [url,setUrl]=useState("");
   const [busy,setBusy]=useState(false);
+  const [ziehen,setZiehen]=useState(false);
   const inp=React.useRef(null);
+  const dnd={
+    onDragOver:e=>{ e.preventDefault(); e.dataTransfer.dropEffect="copy"; if(!ziehen) setZiehen(true); },
+    onDragEnter:e=>{ e.preventDefault(); setZiehen(true); },
+    onDragLeave:e=>{ if(!e.currentTarget.contains(e.relatedTarget)) setZiehen(false); },
+    onDrop:e=>{ e.preventDefault(); setZiehen(false); const f=[...(e.dataTransfer.files||[])].find(x=>/^image\//.test(x.type)); if(f) hochladen(f); else toast("Bitte ein Bild hineinziehen","error"); },
+  };
   useEffect(()=>{ let ok=true; if(box.bild_path){ keyboxBildLink(box.bild_path,3600).then(u=>{ if(ok) setUrl(u); }); } else setUrl(""); return ()=>{ok=false;}; },[box.bild_path]);
   async function hochladen(file){
     if(!file) return;
@@ -8945,14 +8952,14 @@ function KeyboxBild({box, aptId, onChange}){
     onChange(null); toast("Bild entfernt");
   }
   return (
-    <div style={{display:"flex",gap:12,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+    <div {...dnd} style={{display:"flex",gap:12,alignItems:"center",marginTop:10,flexWrap:"wrap",padding:6,margin:"4px -6px 0",borderRadius:10,border:ziehen?"2px dashed #6b8a52":"2px dashed transparent",background:ziehen?"#eef3e8":"transparent",transition:"background .15s, border-color .15s"}}>
       <input ref={inp} type="file" accept="image/*" style={{display:"none"}} onChange={e=>hochladen(e.target.files&&e.target.files[0])}/>
       {box.bild_path ? (
         <a href={url||undefined} target="_blank" rel="noopener noreferrer" style={{display:"block",width:120,height:90,borderRadius:8,overflow:"hidden",border:"1px solid #e6dccb",background:"#efe8da",flex:"0 0 auto"}}>
           {url && <img src={url} alt="Keybox" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
         </a>
       ) : (
-        <div style={{width:120,height:90,borderRadius:8,border:"1px dashed #d8ccb6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#8a8174",flex:"0 0 auto",textAlign:"center",padding:6}}>Noch kein Bild</div>
+        <div style={{width:120,height:90,borderRadius:8,border:"1px dashed #d8ccb6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#8a8174",flex:"0 0 auto",textAlign:"center",padding:6}}>{ziehen?"Hier loslassen":"Bild hierher ziehen"}</div>
       )}
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>inp.current&&inp.current.click()}>{busy?"Lädt hoch…":(box.bild_path?"📷 Bild ersetzen":"📷 Bild hinzufügen")}</button>
@@ -8968,7 +8975,6 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
   const [erhEdit, setErhEdit] = useState(false);
   const [erhAlt, setErhAlt] = useState({n:"",e:""});
   const [boxen, setBoxen] = useState(null);
-  const [zeigen, setZeigen] = useState({});
   useEffect(()=>{
     supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel||""); } });
     ladeBoxen();
@@ -8988,7 +8994,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
     const nr=(boxen||[]).length+1;
     const {data,error}=await supabase.from("keyboxes").insert({apartment_id:apt.id, bezeichnung: nr===1?"Keybox":"Keybox "+nr, sort:nr}).select().single();
     if(error){ toast("Keybox konnte nicht angelegt werden","error"); return; }
-    setBoxen(p=>[...(p||[]), data]); setZeigen(z=>({...z,[data.id]:true}));
+    setBoxen(p=>[...(p||[]), data]);
   }
   async function boxLoeschen(b){
     if(!confirm(`«${b.bezeichnung||"Keybox"}» wirklich löschen?`)) return;
@@ -8998,8 +9004,11 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
   }
   async function codeKopieren(code){ try{ await navigator.clipboard.writeText(code); toast("Code kopiert"); }catch(_){ toast("Kopieren nicht möglich","error"); } }
   async function saveErhalten(n, e){ let error=null; try{ if(updateApt){ await updateApt(apt.id,{schluesselAnzahl: n===""?null:+n, extraSchluessel: e===""?null:e}); return; } ({error}=await supabase.from("apartments").update({schluessel_anzahl: n===""?null:+n, extra_schluessel: e===""?null:e}).eq("id", apt.id)); }catch(x){ error=x; } toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok"); }
-  const aptRoomIds = (rooms||[]).filter(r=>r.aptId===apt.id).map(r=>r.id);
-  const mieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv" && (t.aptId===apt.id || aptRoomIds.includes(t.roomId))).sort((a,b)=>String(a.roomId||"").localeCompare(String(b.roomId||""),undefined,{numeric:true}));
+  const aptRooms = (rooms||[]).filter(r=>r.aptId===apt.id);
+  const aptRoomIds = aptRooms.map(r=>r.id);
+  // Mieter sind meist nur ueber das Zimmer (rooms.tenant_id) verknuepft, nicht ueber tenants.room_id
+  const zimmerVon = (t)=>{ const r=aptRooms.find(r=>r.tenantId===t.id); return r ? r.id : (aptRoomIds.includes(t.roomId) ? t.roomId : ""); };
+  const mieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv" && (t.aptId===apt.id || aptRoomIds.includes(t.roomId) || aptRooms.some(r=>r.tenantId===t.id))).sort((a,b)=>String(zimmerVon(a)).localeCompare(String(zimmerVon(b)),undefined,{numeric:true}));
   const nrVon = (t)=>((t.schluesselNr||"").toString().trim() || (t.schluesselAnzahl||"").toString().trim());
   const td={padding:"8px 10px",borderTop:"1px solid #efe8da",fontSize:12.5,verticalAlign:"top"};
   const kopf={fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4};
@@ -9034,7 +9043,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
           <tbody>{mieter.map(t=>(
             <tr key={t.id}>
               <td style={{...td,fontWeight:600}}>{t.vorname} {t.nachname}</td>
-              <td style={td}>{t.roomId||"-"}</td>
+              <td style={td}>{zimmerVon(t)||"-"}</td>
               <td style={{...td,fontFamily:"monospace"}}>{nrVon(t)||<span style={{color:"#a4442e",fontFamily:"inherit"}}>fehlt</span>}</td>
               <td style={td}>{(t.extraSchluessel||"").trim()||"-"}</td>
               <td style={td}>{t.schluesselUebergeben?"✓":"–"}</td>
@@ -9055,8 +9064,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
               <div style={{flex:"1 1 160px",minWidth:0}}><label className="fl">Bezeichnung</label><input className="fi" defaultValue={b.bezeichnung||""} placeholder="z.B. Keybox Hauseingang" onBlur={e=>boxSpeichern(b.id,"bezeichnung",e.target.value.trim()||"Keybox")}/></div>
               <div style={{flex:"1 1 200px",minWidth:0}}><label className="fl">Code</label>
                 <div style={{display:"flex",gap:6,flexWrap:"nowrap",alignItems:"stretch"}}>
-                  <input className="fi" style={{fontFamily:"monospace",letterSpacing:".12em",minWidth:0}} type={zeigen[b.id]?"text":"password"} autoComplete="off" inputMode="text" defaultValue={b.code||""} placeholder="z.B. 4711" onBlur={e=>boxSpeichern(b.id,"code",e.target.value.trim())}/>
-                  <button className="btn btn-g btn-sm" style={{flex:"0 0 auto",width:"auto",minWidth:42,margin:0}} title={zeigen[b.id]?"Verbergen":"Anzeigen"} onClick={()=>setZeigen(z=>({...z,[b.id]:!z[b.id]}))}>{zeigen[b.id]?"🙈":"👁"}</button>
+                  <input className="fi" style={{fontFamily:"monospace",letterSpacing:".12em",minWidth:0}} type="text" autoComplete="off" inputMode="text" defaultValue={b.code||""} placeholder="z.B. 4711" onBlur={e=>boxSpeichern(b.id,"code",e.target.value.trim())}/>
                   {b.code && <button className="btn btn-g btn-sm" style={{flex:"0 0 auto",width:"auto",minWidth:42,margin:0}} title="Code kopieren" onClick={()=>codeKopieren(b.code)}>⧉</button>}
                 </div>
               </div>

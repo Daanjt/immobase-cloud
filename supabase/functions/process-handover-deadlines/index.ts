@@ -142,6 +142,26 @@ function parseSchluessel(info: string): { nr: string; extra: string } {
   return { nr, extra };
 }
 
+// Schluessel aus dem Protokoll lesen: neues Format (schluessel_data + Snapshot
+// "2x Wohnungsschlüssel / Extra: … / Gemeinsam (WG): …") und altes Format
+// ("Schlüsselnummer: … / Extra-Schlüssel: …"). Auch ohne Nummern wird die Anzahl gezeigt.
+function schluesselAusProtokoll(p: Record<string, unknown>): { anzahl: number; nrs: string; extra: string; wg: string } {
+  const info = String(p.schluessel_info || "");
+  const alt = parseSchluessel(info);
+  // deno-lint-ignore no-explicit-any
+  const sd: any = p.schluessel_data || {};
+  const normal = Array.isArray(sd.normal) ? sd.normal : [];
+  let anzahl = normal.length;
+  if (!anzahl) { const m = info.match(/(\d+)\s*x\s*Wohnungsschl/i); if (m) anzahl = +m[1]; }
+  let nrs = normal.map((k: { nr?: string }) => String((k && k.nr) || "").trim()).filter(Boolean).join(", ");
+  if (!nrs) nrs = alt.nr;
+  let extra = String(sd.extraText || "").trim();
+  if (!extra) { const m = info.match(/^Extra:\s*(.+)$/m); extra = m ? m[1].trim() : alt.extra; }
+  let wg = String(sd.wgText || "").trim();
+  if (!wg) { const m = info.match(/^Gemeinsam \(WG\):\s*(.+)$/m); if (m) wg = m[1].trim(); }
+  return { anzahl, nrs, extra, wg };
+}
+
 // Auto-Accept-Protokoll als HTML, exakt im Layout des normalen Mieterportal-PDFs
 // (.protocol-page). Ohne Mängel und ohne Unterschrift, da nichts eingereicht wurde;
 // Status: Frist abgelaufen, automatisch akzeptiert.
@@ -176,7 +196,11 @@ function buildProtocolHtml(pRaw: Record<string, unknown>): string {
   `;
 
   const aptZeile = p.apt_adresse ? `${p.apt_adresse}${p.apt_plz || p.apt_ort ? ", " : ""}${p.apt_plz || ""} ${p.apt_ort || ""}`.trim() : "";
-  const { nr: schluesselNr, extra: extraSchluessel } = parseSchluessel(p.schluessel_info || "");
+  const sk = schluesselAusProtokoll(pRaw);
+  const schluesselNr = sk.nrs, extraSchluessel = sk.extra, wgSchluessel = sk.wg;
+  const wohnungsSchluessel = sk.anzahl
+    ? `${sk.anzahl}×${schluesselNr ? ` (Nr. ${schluesselNr})` : " (Nummer noch nicht erfasst)"}`
+    : (schluesselNr ? `Nr. ${schluesselNr}` : "");
   const deadlineStr = formatDateDE(p.deadline);
   const vollName = `${p.mieter_vorname || ""} ${p.mieter_nachname || ""}`.trim() || "-";
 
@@ -187,16 +211,21 @@ function buildProtocolHtml(pRaw: Record<string, unknown>): string {
     `<span class="lbl">Frist abgelaufen am:</span><span>${esc(deadlineStr)}</span>`,
   ].join("");
 
-  const schluesselSection = (schluesselNr || extraSchluessel) ? `
+  const schluesselSection = (wohnungsSchluessel || extraSchluessel || wgSchluessel) ? `
     <div class="info-section">
       <div class="card-eyebrow">Schlüsselübergabe</div>
       <div class="info-grid">
-        ${schluesselNr ? `<span class="lbl">Schlüsselnummer:</span><span>${esc(schluesselNr)}</span>` : ""}
+        ${wohnungsSchluessel ? `<span class="lbl">Wohnungsschlüssel:</span><span>${esc(wohnungsSchluessel)}</span>` : ""}
         ${extraSchluessel ? `<span class="lbl">Extra-Schlüssel:</span><span style="white-space:pre-wrap">${esc(extraSchluessel)}</span>` : ""}
+        ${wgSchluessel ? `<span class="lbl">Gemeinsame WG-Schlüssel:</span><span style="white-space:pre-wrap">${esc(wgSchluessel)} <em style="color:#8a8174">(allen Bewohnern der WG gemeinsam anvertraut)</em></span>` : ""}
       </div>
     </div>` : "";
 
-  const clause1Key = schluesselNr ? ` (Nr. ${esc(schluesselNr)}${extraSchluessel ? `; zusätzlich: ${esc(extraSchluessel.replace(/\n/g, ", "))}` : ""})` : "";
+  const keyTeile = [
+    sk.anzahl ? `${sk.anzahl}× Wohnungsschlüssel${schluesselNr ? ` Nr. ${schluesselNr}` : ""}` : (schluesselNr ? `Nr. ${schluesselNr}` : ""),
+    extraSchluessel ? `zusätzlich: ${extraSchluessel.replace(/\n/g, ", ")}` : "",
+  ].filter(Boolean);
+  const clause1Key = keyTeile.length ? ` (${esc(keyTeile.join("; "))})` : "";
 
   return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>${CSS}
     body{margin:0;background:#fff;}
