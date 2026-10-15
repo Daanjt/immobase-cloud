@@ -4455,7 +4455,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                 />
               </>)}
               <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
-                Vorausgefüllt aus dem Schlüssel-Tab der Wohnung. Die Schlüsselnummern, die der Mieter im Protokoll einträgt, landen nach Abschluss automatisch wieder dort.
+                Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
               </div>
             </div>
             
@@ -8909,12 +8909,11 @@ www.dthomes.ch`;
 
 // ─── WOHNUNGEN ───────────────────────────────────────────────────────────────
 
-function SchluesselManager({apt, rooms, tenants, updateApt, updateTenant}) {
+function SchluesselManager({apt, rooms, tenants, updateApt}) {
   const [erhNormal, setErhNormal] = useState("");
   const [erhExtra, setErhExtra] = useState("");
   const [boxen, setBoxen] = useState(null);
   const [zeigen, setZeigen] = useState({});
-  const [entwurf, setEntwurf] = useState({});
   useEffect(()=>{
     supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel||""); } });
     ladeBoxen();
@@ -8947,14 +8946,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt, updateTenant}) {
   const aptRoomIds = (rooms||[]).filter(r=>r.aptId===apt.id).map(r=>r.id);
   const mieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv" && (t.aptId===apt.id || aptRoomIds.includes(t.roomId))).sort((a,b)=>String(a.roomId||"").localeCompare(String(b.roomId||""),undefined,{numeric:true}));
   const nrVon = (t)=>((t.schluesselNr||"").toString().trim() || (t.schluesselAnzahl||"").toString().trim());
-  const wert = (t,feld,start)=> (entwurf[t.id] && entwurf[t.id][feld]!==undefined) ? entwurf[t.id][feld] : start;
-  const setW = (t,feld,v)=> setEntwurf(p=>({...p,[t.id]:{...(p[t.id]||{}),[feld]:v}}));
-  async function mieterSpeichern(t, felder){
-    if(!updateTenant){ toast("Speichern hier nicht möglich","error"); return; }
-    await updateTenant(t.id, felder);
-    setEntwurf(p=>{ const n={...p}; if(n[t.id]){ const e={...n[t.id]}; Object.keys(felder).forEach(k=>{ delete e[k==="schluesselNr"?"nr":k]; }); if(felder.schluesselAnzahl!==undefined) delete e.nr; n[t.id]=e; } return n; });
-  }
-  const td={padding:"8px 10px",borderTop:"1px solid #efe8da",fontSize:12.5,verticalAlign:"middle"};
+  const td={padding:"8px 10px",borderTop:"1px solid #efe8da",fontSize:12.5,verticalAlign:"top"};
   const kopf={fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4};
   return (
     <div>
@@ -8992,26 +8984,26 @@ function SchluesselManager({apt, rooms, tenants, updateApt, updateTenant}) {
         <div style={{flex:"0 0 130px"}}><label className="fl">Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={erhNormal} onChange={e=>setErhNormal(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 3"/></div>
         <div style={{flex:"1 1 220px"}}><label className="fl">Extra-Schlüssel</label><input className="fi" type="text" value={erhExtra} onChange={e=>setErhExtra(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 2× Briefkasten, 1× Keller"/></div>
       </div>
-      <div style={kopf}>Schlüssel bei Mietern</div>
-      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Hier erfassen und ändern. {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
+      <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4}}>Schlüssel bei Mietern</div>
+      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → Bearbeiten). {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
       {mieter.length===0 ? <div className="empty">Keine aktiven Mieter in dieser Wohnung.</div> : (
-        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>
-          <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th><th style={{padding:"6px 10px",textAlign:"center"}}>Übergeben</th></tr></thead>
-          <tbody>{mieter.map(t=>{ const nr=wert(t,"nr",nrVon(t)); const ex=wert(t,"extraSchluessel",(t.extraSchluessel||"")); return (
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th><th style={{padding:"6px 10px"}}>Übergeben</th></tr></thead>
+          <tbody>{mieter.map(t=>(
             <tr key={t.id}>
               <td style={{...td,fontWeight:600}}>{t.vorname} {t.nachname}</td>
               <td style={td}>{t.roomId||"-"}</td>
-              <td style={td}><input className="fi" style={{fontFamily:"monospace",minWidth:110,borderColor:nr.trim()?undefined:"#e0bcb0"}} value={nr} placeholder="fehlt" onChange={e=>setW(t,"nr",e.target.value)} onBlur={e=>{ const v=e.target.value.trim(); if(v!==nrVon(t)) mieterSpeichern(t,{schluesselAnzahl:v, schluesselNr:v}); }}/></td>
-              <td style={td}><input className="fi" style={{minWidth:150}} value={ex} placeholder="z.B. 1× Briefkasten" onChange={e=>setW(t,"extraSchluessel",e.target.value)} onBlur={e=>{ const v=e.target.value.trim(); if(v!==(t.extraSchluessel||"").trim()) mieterSpeichern(t,{extraSchluessel:v}); }}/></td>
-              <td style={{...td,textAlign:"center"}}><input type="checkbox" style={{width:18,height:18}} checked={!!t.schluesselUebergeben} onChange={e=>mieterSpeichern(t,{schluesselUebergeben:e.target.checked})}/></td>
-            </tr>);})}</tbody>
+              <td style={{...td,fontFamily:"monospace"}}>{nrVon(t)||<span style={{color:"#a4442e",fontFamily:"inherit"}}>fehlt</span>}</td>
+              <td style={td}>{(t.extraSchluessel||"").trim()||"-"}</td>
+              <td style={td}>{t.schluesselUebergeben?"✓":"–"}</td>
+            </tr>))}</tbody>
         </table></div>
       )}
     </div>
   );
 }
 
-function Wohnungen({apts,rooms,tenants,updateTenant,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom:updateRoomDb,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
+function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom:updateRoomDb,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -9342,8 +9334,6 @@ function Wohnungen({apts,rooms,tenants,updateTenant,partners,updateApt,insertApt
                   ["Kautionstyp",apt.kautionType||apt.kaution_type],
                   ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"-"],
                   ["Referenz-Nr.",apt.refnr||"-"],
-                  ["Wohnungsschlüssel",apt.schluesselAnzahl?`${apt.schluesselAnzahl}×`:"-"],
-                  ["Extra-Schlüssel",apt.extraSchluessel||"-"],
                   ["Mietbeginn",apt.mietbeginn],
                   ["Mietende",apt.mietende||"-"],
                   istAdmin && ["Verwaltung",apt.verwaltung],
@@ -9397,7 +9387,7 @@ function Wohnungen({apts,rooms,tenants,updateTenant,partners,updateApt,insertApt
             })()}
             {tab==="zimmer"&&(<div>{apt.type==="WG"&&apt.vermietungsart==="wohnung"&&<div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Wohnung: genau 1 Zimmer, an das der Mieter gekoppelt ist. Die Miete dieses Zimmers ist die Bruttomiete der Wohnung (inkl. CHF 100 Nebenkosten), dazu kommt Strom CHF 25 pro Person.</div>}{apt.type==="WG"&&apt.vermietungsart!=="wohnung"&&istAdmin&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn btn-p btn-sm" onClick={()=>openAddRooms(apt.id)}>+ Zimmer hinzufügen</button></div>}{aptRooms.length===0?<div className="empty">Noch keine Zimmer erfasst.{apt.type==="WG"&&istAdmin?" Füge oben ein Zimmer hinzu.":""}</div>:<table><thead><tr><th>Zimmer</th><th>Miete</th><th>Status</th><th>Mieter</th><th></th></tr></thead><tbody>{aptRooms.map(r=>{const t=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;return(<tr key={r.id}><td style={{fontWeight:600}}><button onClick={()=>navigateTo&&navigateTo("zimmer",r.id)} style={{background:"none",border:"none",color:"#1a1814",fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{objektLabel(r.id)}</button></td><td data-label="Miete" style={{color:"#5a6e4a"}}>{chf(r.miete)}</td><td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td><td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td><td style={{textAlign:"right",whiteSpace:"nowrap"}}><button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",r.id)}>→ Zimmer</button></td></tr>);})}</tbody></table>}</div>)}
             {tab==="medien"&&<MediaManager apt={apt} editApt={updateApt} rooms={rooms}/>}
-            {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants} updateApt={updateApt} updateTenant={updateTenant}/>}
+            {tab==="schluessel"&&<SchluesselManager apt={apt} rooms={rooms} tenants={tenants} updateApt={updateApt}/>}
             {tab==="docs"&&<DocumentsManager entityType="apartment" entityId={apt.id} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Wohnung wählen</span></div>}
@@ -9545,8 +9535,6 @@ function Wohnungen({apts,rooms,tenants,updateTenant,partners,updateApt,insertApt
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
         </div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:6,fontWeight:500}}>Schlüssel</div>
-        <div style={{fontSize:12,color:"#8a8174",marginBottom:4}}>Schlüssel werden im Tab <b>🔑 Schlüssel</b> der Wohnung erfasst: erhaltene Schlüssel und das Schlüsselregister.</div>
 
         <div className="ma">
           <button className="btn btn-g" onClick={()=>{setAdding(false);setRoomList([]);}}>Abbrechen</button>
@@ -9647,8 +9635,6 @@ function Wohnungen({apts,rooms,tenants,updateTenant,partners,updateApt,insertApt
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
         </div>
 
-        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:6,fontWeight:500}}>Schlüssel</div>
-        <div style={{fontSize:12,color:"#8a8174",marginBottom:4}}>Schlüssel werden im Tab <b>🔑 Schlüssel</b> der Wohnung erfasst: erhaltene Schlüssel und das Schlüsselregister.</div>
 
         <div className="ma"><button className="btn btn-g" onClick={()=>setEditing(false)}>Abbrechen</button><button className="btn btn-p" onClick={save}>Speichern</button></div>
       </div></div>}
@@ -10519,6 +10505,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
       kautionAufschlag:+form.kautionAufschlag||0,kautionBetrag:+form.kautionBetrag||0,
       mietzins:(form.mietzins===""||form.mietzins==null)?null:+form.mietzins,
       kautionType:(form.kautionType||"Evorest"),
+      schluesselAnzahl:form.schluesselAnzahl,
+      extraSchluessel:form.extraSchluessel,
+      schluesselUebergeben:!!form.schluesselUebergeben,
       moebliert:!!form.moebliert,furnished:!!form.moebliert,
       zivilstand:form.zivilstand||"",gender:form.gender||"",
       noDebt:!!form.noDebt,
@@ -10791,6 +10780,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 istAdmin && ["Servicegebühr/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
                 istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale}${tenant.moeblierungModus==="monatlich"?"/Mt.":" einmalig"})`:""):"Nein"],
                 !istAdmin && ["Möbliert",tenant.moebliert?"Ja":"Nein"],
+                ["Schlüsselnummer",tenant.schluesselAnzahl||"-"],
+                ["Extra-Schlüssel",tenant.extraSchluessel||"-"],
+                ["Schlüssel übergeben",tenant.schluesselUebergeben?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Ja</span>:<span style={{color:"#8a8174"}}>- Nein</span>],
                 ["Keine offenen Betreibungen",tenant.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].filter(Boolean).map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
@@ -10998,6 +10990,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
         }}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionsbetrag CHF</label><input className="fi" type="number" value={form.kautionBetrag||""} onChange={F("kautionBetrag")}/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Fixer Mietzins (netto + NK) CHF/Mt.</label><input className="fi" type="number" step="5" value={form.mietzins||""} onChange={F("mietzins")} placeholder="netto + Nebenkosten, ohne Strom"/></div></div>
         <div className="frow"><div className="fg"><label className="fl">Servicegebühr CHF/Mt.</label><input className="fi" type="number" value={form.kautionAufschlag||""} onChange={F("kautionAufschlag")}/></div></div>
+        <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Schlüssel</div>
+        <div className="frow"><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={form.schluesselAnzahl||""} onChange={F("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div><div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={form.extraSchluessel||""} onChange={F("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div></div>
+        <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!form.schluesselUebergeben} onChange={FB("schluesselUebergeben")}/> Schlüssel übergeben</label>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12.5}}>
@@ -11126,7 +11121,9 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
             {freeRooms.length===0?<option disabled>Keine freien Zimmer verfügbar</option>:freeRooms.map(r=>{const a=apts.find(x=>x.id===r.aptId);return <option key={r.id} value={r.id}>{objektLabel(r.id)} - {a?.adresse} ({chf(r.miete)}/Mt.)</option>;})}
           </select>
         </div>
-        <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div></div>
+        <div className="frow"><div className="fg"><label className="fl">Einzug</label><input className="fi" value={newForm.einzug||""} onChange={NF("einzug")} placeholder="DD.MM.YYYY"/></div><div className="fg"><label className="fl">Schlüsselnummer</label><input className="fi" value={newForm.schluesselAnzahl||""} onChange={NF("schluesselAnzahl")} placeholder="z.B. A145 oder 12B"/></div></div>
+        <div className="fg"><label className="fl">Extra-Schlüssel</label><input className="fi" value={newForm.extraSchluessel||""} onChange={NF("extraSchluessel")} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div>
+        <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={!!newForm.schluesselUebergeben} onChange={NFB("schluesselUebergeben")}/> Schlüssel bereits übergeben</label>
         <div className="frow"><div className="fg"><label className="fl">Kaution-Variante</label><select className="fi" value={newForm.kautionOpt||""} onChange={NF("kautionOpt")}><option value="">-</option><option value="3x">3× Miete (Standard)</option><option value="2x">2× Miete (+CHF 50/Mt.)</option><option value="1x">1× Miete (+CHF 100/Mt.)</option><option value="0x">Keine Kaution (+CHF 150/Mt.)</option></select></div><div className="fg"><label className="fl">Kautionstyp</label><select className="fi" value={newForm.kautionType||""} onChange={NF("kautionType")}><option value="">-</option><option>Evorest</option><option>Firstcaution</option><option>GoCaution</option><option>Bankkaution</option><option>Bar</option></select></div></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Möblierung & Status</div>
@@ -13178,7 +13175,7 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
     const nm=`${t.vorname||""} ${t.nachname||""}`.trim()||t.id;
     if(!hasDoc(t,"Untermietvertrag")) auto.push({id:"umv-"+t.id,icon:"📄",label:"Untermietvertrag fehlt",sub:nm,page:"mieter",target:t.id});
     if(!hasDoc(t,"Anfangsmietzins")) auto.push({id:"amz-"+t.id,icon:"📄",label:"Anfangsmietzinsformular fehlt",sub:nm,page:"mieter",target:t.id});
-    if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"wohnungen",target:(t.aptId||String(t.roomId||"").split("-")[0]||"")+"#schluessel"});
+    if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
     if((t.drittmeldungStatus||"offen")!=="gemeldet") auto.push({id:"dm-ez-"+t.id,icon:"📮",label:"Drittmeldung Einzug offen",sub:nm,page:"mieter",target:t.id});
     if((t.uebergabeStatus||"offen")!=="erledigt" && !hasDoc(t,"Übergabeprotokoll") && !(handoverProtocols||[]).some(h=>h.tenant_id===t.id && ["accepted","abgeschlossen","completed"].includes(h.status))) auto.push({id:"hop-"+t.id,icon:"🔑",label:"Übergabeprotokoll fehlt",sub:nm,page:"mieter",target:t.id});
