@@ -4475,8 +4475,8 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   const extraTrim = startExtraSchluessel.trim();
                   const wgTrim = aptKat(apt)==="WG" ? startWgSchluessel.trim() : "";
                   await updateTenant(tenant.id, {
-                    extra_schluessel: extraTrim,
-                    schluessel_uebergeben: false,
+                    extraSchluessel: extraTrim,
+                    schluesselUebergeben: false,
                   });
                   const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim, wgText: wgTrim };
                   const snapshot = [
@@ -4908,7 +4908,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     const extraTrim = (extraText||"").trim();
                     const wgTrim = aptKat(startFor.apt)==="WG" ? (wgText||"").trim() : "";
                     const schluesselData = { normal: Array.from({length:nCount},()=>({nr:""})), extraText: extraTrim, wgText: wgTrim };
-                    await updateTenant(t.id, { extra_schluessel: extraTrim, schluessel_uebergeben: false });
+                    await updateTenant(t.id, { extraSchluessel: extraTrim, schluesselUebergeben: false });
                     const snapshot = [
                       nCount>0 && `${nCount}x Wohnungsschlüssel`,
                       extraTrim && `Extra: ${extraTrim}`,
