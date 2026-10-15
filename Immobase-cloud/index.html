@@ -28,7 +28,7 @@
 <link rel="shortcut icon" href="/favicon.ico">
 
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@7.18.6/babel.min.js"></script>
@@ -1387,7 +1387,18 @@ const { useState, useEffect, useCallback, useRef } = React;
 const SUPABASE_URL = "https://aohcqrxpsqronlcwssrk.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvaGNxcnhwc3Fyb25sY3dzc3JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODM0MjEsImV4cCI6MjA5MzU1OTQyMX0.izqvV2CPiOyVXoCsFTq_k8KRzBgfomp8LXwwAx22XP4";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { experimental: { passkey: true } } });
+// Face ID / Passkeys: nur anbieten, wo das Geraet es kann
+const PASSKEY_MOEGLICH = typeof window !== "undefined" && !!window.PublicKeyCredential && !!(supabase.auth && supabase.auth.signInWithPasskey);
+function passkeyName(){ const ua=navigator.userAgent||""; if(/iPhone|iPad/i.test(ua)) return "Face ID"; if(/Mac/i.test(ua)) return "Touch ID"; if(/Android/i.test(ua)) return "Fingerabdruck"; if(/Windows/i.test(ua)) return "Windows Hello"; return "Passkey"; }
+function passkeyFehlerText(error){
+  const c=(error&&(error.code||error.error_code))||""; const m=(error&&error.message)||"";
+  if(/NotAllowed|abort|cancel/i.test(c+" "+m)) return null; // vom Nutzer abgebrochen
+  if(c==="webauthn_credential_not_found") return "Dieser Passkey ist nicht mehr hinterlegt. Bitte mit Passwort anmelden und neu einrichten.";
+  if(c==="webauthn_credential_exists") return "Dieses Gerät ist bereits eingerichtet.";
+  if(c==="passkey_disabled") return "Anmeldung mit Passkey ist im Moment nicht verfügbar.";
+  return "Hat nicht geklappt: " + (m||c||"unbekannt");
+}
 
 // ── Fehlerueberwachung: meldet Fehler in die Tabelle system_fehler (Warnmail via system-check) ──
 (function(){
@@ -1926,10 +1937,28 @@ function Login({onLogin}) {
         : ("Anmeldung fehlgeschlagen: " + (error?.message || "unbekannt"))});
       setPassword("");
     } else {
+      try { sessionStorage.setItem("ib_pw_login","1"); } catch(_) {}
       onLogin();
     }
     setLoading(false);
   }
+
+  async function mitPasskey() {
+    setLoading(true); setMsg(null);
+    try {
+      const {data, error} = await supabase.auth.signInWithPasskey();
+      if (error || !data?.session) { const t = passkeyFehlerText(error); if (t) setMsg({type:"error", text:t}); }
+      else { try { localStorage.setItem("ib_passkey","1"); } catch(_) {} onLogin(); }
+    } catch (e) { const t = passkeyFehlerText(e); if (t) setMsg({type:"error", text:t}); }
+    setLoading(false);
+  }
+  const hatPasskey = (()=>{ try { return localStorage.getItem("ib_passkey")==="1"; } catch(_) { return false; } })();
+  const pkKnopf = PASSKEY_MOEGLICH && !resetMode && !registerMode && (
+    <button type="button" className="login-btn" onClick={mitPasskey} disabled={loading}
+      style={hatPasskey ? {marginTop:0,marginBottom:14} : {marginTop:10,background:"transparent",color:"var(--ink)",border:"1px solid var(--line)"}}>
+      {loading ? "Bitte warten…" : `Mit ${passkeyName()} anmelden`}
+    </button>
+  );
 
   return (
     <div className="login-wrap">
@@ -1941,8 +1970,10 @@ function Login({onLogin}) {
           : (registerMode
             ? "Nur fuer freigeschaltete Adressen. Waehle ein Passwort mit mindestens 10 Zeichen."
             : "Melde dich mit deiner D&T-Adresse an.")}</p>
+        {hatPasskey && pkKnopf}
+        {hatPasskey && PASSKEY_MOEGLICH && !resetMode && !registerMode && <div style={{fontSize:11,color:"var(--muted)",textAlign:"center",margin:"-4px 0 12px"}}>oder mit Passwort</div>}
         <form onSubmit={handleLogin}>
-          <input className="login-input" type="email" required placeholder="E-Mail" autoFocus autoComplete="username"
+          <input className="login-input" type="email" required placeholder="E-Mail" autoFocus={!hatPasskey} autoComplete="username webauthn"
             value={email} onChange={e=>setEmail(e.target.value)} disabled={loading}/>
           {!resetMode && (
             <input className="login-input" type="password" required placeholder="Passwort" autoComplete={registerMode?"new-password":"current-password"}
@@ -1952,6 +1983,7 @@ function Login({onLogin}) {
             {loading ? "Bitte warten…" : (resetMode ? "Link senden" : (registerMode ? "Konto erstellen →" : "Anmelden →"))}
           </button>
         </form>
+        {!hatPasskey && pkKnopf}
         {msg && <div className={`login-msg ${msg.type}`}>{msg.text}</div>}
         <div style={{display:"flex",gap:16,justifyContent:"center"}}>
           <button onClick={()=>{setResetMode(!resetMode);setRegisterMode(false);setMsg(null);}}
@@ -2899,9 +2931,29 @@ function useSupabaseData() {
     window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle()]);
     return () => { delete window.__ibNeuLaden; };
   }, []);
-  // Automatisch aktuell halten: Verträge und Übergaben werden nicht live gepusht.
-  // Darum beim Zurückkehren in die App alles still nachladen und, solange sie offen
-  // und sichtbar ist, Verträge/Übergaben jede Minute neu holen.
+  // Live: Verträge und Übergaben kommen per Realtime-Push. Neue Unterschrift = Hinweis.
+  useEffect(() => {
+    let tc = null, th = null;
+    const gemeldet = new Set();
+    const ch = supabase.channel("live_vertraege_uebergaben")
+      .on("postgres_changes", {event:"*", schema:"public", table:"contracts"}, (pl) => {
+        clearTimeout(tc); tc = setTimeout(() => { loadContracts(); }, 400);
+        const n = pl && pl.new;
+        if (n && n.status === "mieter_signiert" && n.signed_at && !gemeldet.has(n.id) && (Date.now() - Date.parse(n.signed_at)) < 10*60000) {
+          gemeldet.add(n.id);
+          const name = `${n.mieter_vorname||""} ${n.mieter_nachname||""}`.trim() || "Ein Mieter";
+          try { toast(`✍ ${name} hat unterschrieben${n.room_id ? " ("+n.room_id+")" : ""}. Bitte gegenzeichnen.`); } catch (_) {}
+        }
+      })
+      .on("postgres_changes", {event:"*", schema:"public", table:"handover_protocols"}, () => {
+        clearTimeout(th); th = setTimeout(() => { loadHandoverProtocols(); }, 400);
+      })
+      .subscribe();
+    return () => { clearTimeout(tc); clearTimeout(th); supabase.removeChannel(ch); };
+  }, []);
+
+  // Rückfall falls die Live-Verbindung schläft (z.B. iPhone im Hintergrund):
+  // beim Zurückkehren alles still nachladen und alle 5 Minuten Verträge/Übergaben holen.
   useEffect(() => {
     let zuletzt = Date.now();
     const still = () => { zuletzt = Date.now(); try { window.__ibNeuLaden && window.__ibNeuLaden(); } catch (_) {} };
@@ -2912,7 +2964,7 @@ function useSupabaseData() {
       if (document.visibilityState !== "visible") return;
       zuletzt = Date.now();
       Promise.allSettled([loadContracts(), loadHandoverProtocols()]);
-    }, 60000);
+    }, 300000);
     return () => { document.removeEventListener("visibilitychange", sichtbar); window.removeEventListener("focus", sichtbar); clearInterval(iv); };
   }, []);
   
@@ -15405,6 +15457,7 @@ function MainApp({rolle}) {
   const [pwOpen, setPwOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
+  const [pkOpen, setPkOpen] = useState(false);
   const [benutzerMail, setBenutzerMail] = useState("");
   const acctRef = useRef(null);
   const data = useSupabaseData();
@@ -15583,6 +15636,7 @@ function MainApp({rolle}) {
             <div className="acct-menu">
               {rolle === "admin" && <button onClick={()=>{setAcctOpen(false);setTeamOpen(true);}}>Team verwalten</button>}
               <button onClick={()=>{setAcctOpen(false);setPwOpen(true);}}>Passwort ändern</button>
+              <button onClick={()=>{setAcctOpen(false);setPkOpen(true);}}>{passkeyName()}</button>
               <button className="gefahr" onClick={()=>{setAcctOpen(false);logout();}}>Abmelden</button>
             </div>
           )}
@@ -15598,6 +15652,8 @@ function MainApp({rolle}) {
       </div>
       <div className="main">{(window.__IB_DATA=data, null)}<div key={page} className="seite-anim"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
+      {pkOpen && <PasskeysVerwalten onClose={()=>setPkOpen(false)}/>}
+      <PasskeyAngebot/>
       {teamOpen && <TeamVerwaltung onClose={()=>setTeamOpen(false)} eigeneMail={benutzerMail} insertEmployee={data.insertEmployee} employees={data.employees}/>}
     </div>
   );
@@ -15925,6 +15981,90 @@ function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {
         </div>
 
         {msg && <div style={{fontSize:12,marginTop:12,lineHeight:1.5,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Face ID / Passkeys verwalten: auflisten, hinzufuegen, entfernen
+function PasskeysVerwalten({onClose}) {
+  const [liste, setListe] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  async function laden(){ const {data,error}=await supabase.auth.passkey.list(); if(error){ setMsg({t:"err",m:"Konnte nicht geladen werden."}); setListe([]); } else setListe(data||[]); }
+  useEffect(()=>{ laden(); },[]);
+  async function hinzufuegen(){
+    setBusy(true); setMsg(null);
+    try{ const {error}=await supabase.auth.registerPasskey(); if(error){ const t=passkeyFehlerText(error); if(t) setMsg({t:"err",m:t}); } else { try{localStorage.setItem("ib_passkey","1");}catch(_){} setMsg({t:"ok",m:`${passkeyName()} ist eingerichtet. Ab jetzt kannst du dich damit anmelden.`}); await laden(); } }
+    catch(e){ const t=passkeyFehlerText(e); if(t) setMsg({t:"err",m:t}); }
+    setBusy(false);
+  }
+  async function entfernen(p){
+    if(!confirm(`«${p.friendly_name||"Passkey"}» entfernen? Danach geht die Anmeldung mit diesem Gerät nur noch mit Passwort.`)) return;
+    setBusy(true); const {error}=await supabase.auth.passkey.delete({passkeyId:p.id}); setBusy(false);
+    if(error) setMsg({t:"err",m:"Entfernen fehlgeschlagen."}); else { await laden(); }
+  }
+  const dat=(d)=>{ try{ return new Date(d).toLocaleDateString("de-CH"); }catch(_){ return ""; } };
+  return (
+    <div className="ov-x" onClick={()=>{ if(!busy) onClose(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+      <div className="modal-x klein" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:420,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:6}}>{passkeyName()}</div>
+        <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.55,marginBottom:14}}>Melde dich ohne Passwort an, mit Gesicht oder Fingerabdruck. Das Passwort bleibt als Ersatz bestehen.</div>
+        {liste===null ? <div style={{fontSize:12,color:"var(--muted)"}}>Lädt…</div> : liste.length===0 ? (
+          <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:12}}>Noch kein Gerät eingerichtet.</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+            {liste.map(p=>(
+              <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,border:"1px solid var(--line)",borderRadius:8,padding:"9px 12px"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600}}>{p.friendly_name||"Passkey"}</div>
+                  <div style={{fontSize:11,color:"var(--muted)"}}>Eingerichtet {dat(p.created_at)}{p.last_used_at?` · zuletzt ${dat(p.last_used_at)}`:""}</div>
+                </div>
+                <button className="btn btn-g btn-sm" style={{width:"auto",color:"#9b4a3e"}} disabled={busy} onClick={()=>entfernen(p)}>Entfernen</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {msg && <div style={{fontSize:12,marginBottom:10,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",flexWrap:"wrap"}}>
+          <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={onClose}>Schliessen</button>
+          {PASSKEY_MOEGLICH && <button className="btn btn-sm" style={{width:"auto"}} disabled={busy} onClick={hinzufuegen}>{busy?"Bitte warten…":"+ Dieses Gerät einrichten"}</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Nach einer Anmeldung mit Passwort einmal anbieten, Face ID einzurichten
+function PasskeyAngebot() {
+  const [zeigen, setZeigen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  useEffect(()=>{
+    let pw=false; try{ pw=sessionStorage.getItem("ib_pw_login")==="1"; sessionStorage.removeItem("ib_pw_login"); }catch(_){}
+    let nein=false; try{ nein=localStorage.getItem("ib_passkey_nein")==="1"; }catch(_){}
+    if(!pw || nein || !PASSKEY_MOEGLICH) return;
+    supabase.auth.passkey.list().then(({data})=>{ if(!data || data.length===0) setZeigen(true); else { try{localStorage.setItem("ib_passkey","1");}catch(_){} } }).catch(()=>{});
+  },[]);
+  if(!zeigen) return null;
+  async function ja(){
+    setBusy(true); setMsg(null);
+    try{ const {error}=await supabase.auth.registerPasskey(); if(error){ const t=passkeyFehlerText(error); if(t) setMsg(t); setBusy(false); return; } try{localStorage.setItem("ib_passkey","1");}catch(_){} toast(`${passkeyName()} eingerichtet`); setZeigen(false); }
+    catch(e){ const t=passkeyFehlerText(e); if(t) setMsg(t); }
+    setBusy(false);
+  }
+  function spaeter(nie){ if(nie){ try{localStorage.setItem("ib_passkey_nein","1");}catch(_){} } setZeigen(false); }
+  return (
+    <div className="ov-x" onClick={()=>!busy&&spaeter(false)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+      <div className="modal-x klein" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"22px 22px 18px",maxWidth:400,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+        <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:8}}>Nächstes Mal mit {passkeyName()}?</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.55,marginBottom:14}}>Richte dieses Gerät ein, dann meldest du dich künftig ohne Passwort an. Das Passwort bleibt als Ersatz bestehen.</div>
+        {msg && <div style={{fontSize:12,marginBottom:10,color:"#9b4a3e"}}>{msg}</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",flexWrap:"wrap"}}>
+          <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>spaeter(true)}>Nicht mehr fragen</button>
+          <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>spaeter(false)}>Später</button>
+          <button className="btn btn-sm" style={{width:"auto"}} disabled={busy} onClick={ja}>{busy?"Bitte warten…":"Einrichten"}</button>
+        </div>
       </div>
     </div>
   );
