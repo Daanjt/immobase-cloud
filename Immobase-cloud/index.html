@@ -8965,6 +8965,8 @@ function KeyboxBild({box, aptId, onChange}){
 function SchluesselManager({apt, rooms, tenants, updateApt}) {
   const [erhNormal, setErhNormal] = useState("");
   const [erhExtra, setErhExtra] = useState("");
+  const [erhEdit, setErhEdit] = useState(false);
+  const [erhAlt, setErhAlt] = useState({n:"",e:""});
   const [boxen, setBoxen] = useState(null);
   const [zeigen, setZeigen] = useState({});
   useEffect(()=>{
@@ -9003,10 +9005,26 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
   const kopf={fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4};
   return (
     <div>
-      <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end",marginBottom:18,background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:8,padding:"12px 14px"}}>
-        <div style={{fontSize:12,fontWeight:600,color:"#3a5230",flexBasis:"100%",marginBottom:2}}>Erhaltene Schlüssel (von Verwaltung/Eigentümer)</div>
-        <div style={{flex:"0 0 130px"}}><label className="fl">Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={erhNormal} onChange={e=>setErhNormal(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 3"/></div>
-        <div style={{flex:"1 1 220px"}}><label className="fl">Extra-Schlüssel</label><input className="fi" type="text" value={erhExtra} onChange={e=>setErhExtra(e.target.value)} onBlur={()=>saveErhalten(erhNormal, erhExtra)} placeholder="z.B. 2× Briefkasten, 1× Keller"/></div>
+      <div style={{marginBottom:18,background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:8,padding:"12px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:erhEdit?10:8}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#3a5230"}}>Erhaltene Schlüssel (von Verwaltung/Eigentümer)</div>
+          {!erhEdit && <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>{ setErhAlt({n:erhNormal,e:erhExtra}); setErhEdit(true); }}>✏ Bearbeiten</button>}
+        </div>
+        {erhEdit ? (<>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <div style={{flex:"0 0 130px"}}><label className="fl">Wohnungsschlüssel</label><input className="fi" type="number" min="0" value={erhNormal} onChange={e=>setErhNormal(e.target.value)} placeholder="z.B. 3" autoFocus/></div>
+            <div style={{flex:"1 1 220px"}}><label className="fl">Extra-Schlüssel</label><input className="fi" type="text" value={erhExtra} onChange={e=>setErhExtra(e.target.value)} placeholder="z.B. 2× Briefkasten, 1× Keller"/></div>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+            <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>{ setErhNormal(erhAlt.n); setErhExtra(erhAlt.e); setErhEdit(false); }}>Abbrechen</button>
+            <button className="btn btn-p btn-sm" style={{width:"auto"}} onClick={async()=>{ await saveErhalten(erhNormal.trim?erhNormal.trim():erhNormal, erhExtra.trim()); setErhEdit(false); }}>✓ Speichern</button>
+          </div>
+        </>) : (
+          <div style={{display:"flex",gap:28,flexWrap:"wrap",fontSize:13}}>
+            <div><div className="fl" style={{marginBottom:3}}>Wohnungsschlüssel</div><div style={{fontWeight:600}}>{erhNormal!==""?`${erhNormal}×`:"-"}</div></div>
+            <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Extra-Schlüssel</div><div style={{fontWeight:600,whiteSpace:"pre-wrap"}}>{(erhExtra||"").trim()||"-"}</div></div>
+          </div>
+        )}
       </div>
       <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4}}>Schlüssel bei Mietern</div>
       <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → Bearbeiten). {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
