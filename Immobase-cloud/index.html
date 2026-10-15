@@ -7504,7 +7504,13 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   }
 
   async function setStatus(id,status){
+    // Bei Ablehnung werden offene Vertraege automatisch zurueckgezogen (Datenbank-Trigger)
+    const offen = status === "Abgelehnt" ? (contracts||[]).filter(c => c.bewerberId === id && ["gesendet","geoeffnet","mieter_signiert"].includes(c.status)) : [];
+    if (offen.length && !confirm(offen.length === 1
+        ? "Dieser Bewerber hat einen offenen Vertrag. Er wird beim Ablehnen automatisch zurückgezogen und der Link wird ungültig.\n\nAblehnen?"
+        : offen.length + " offene Verträge werden beim Ablehnen automatisch zurückgezogen und die Links werden ungültig.\n\nAblehnen?")) return;
     await updateBewerber(id,{status});
+    if (offen.length) { try { await loadContracts(); } catch(e){} toast(offen.length === 1 ? "Abgelehnt · Vertrag zurückgezogen" : "Abgelehnt · " + offen.length + " Verträge zurückgezogen"); }
     if (status === "Abgelehnt") {
       setSel(null); // bei Ablehnung auf aktueller Liste bleiben, nicht zu Abgelehnt springen
     } else {
