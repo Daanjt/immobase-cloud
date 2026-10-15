@@ -8916,7 +8916,7 @@ async function keyboxBildLink(pfad, sekunden){
   const {data,error}=await supabase.storage.from("documents").createSignedUrl(pfad, sekunden||3600);
   return error?"":((data&&data.signedUrl)||"");
 }
-function KeyboxBild({box, aptId, onChange}){
+function KeyboxBild({box, aptId, onChange, bearbeiten}){
   const [url,setUrl]=useState("");
   const [busy,setBusy]=useState(false);
   const [ziehen,setZiehen]=useState(false);
@@ -8951,6 +8951,14 @@ function KeyboxBild({box, aptId, onChange}){
     supabase.storage.from("documents").remove([box.bild_path]).catch(()=>{});
     onChange(null); toast("Bild entfernt");
   }
+  if(!bearbeiten){
+    if(!box.bild_path) return null;
+    return (
+      <a href={url||undefined} target="_blank" rel="noopener noreferrer" style={{display:"block",width:120,height:90,marginTop:10,borderRadius:8,overflow:"hidden",border:"1px solid #e6dccb",background:"#efe8da"}}>
+        {url && <img src={url} alt="Keybox" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+      </a>
+    );
+  }
   return (
     <div {...dnd} style={{display:"flex",gap:12,alignItems:"center",marginTop:10,flexWrap:"wrap",padding:6,margin:"4px -6px 0",borderRadius:10,border:ziehen?"2px dashed #6b8a52":"2px dashed transparent",background:ziehen?"#eef3e8":"transparent",transition:"background .15s, border-color .15s"}}>
       <input ref={inp} type="file" accept="image/*" style={{display:"none"}} onChange={e=>hochladen(e.target.files&&e.target.files[0])}/>
@@ -8984,17 +8992,20 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
     if(error){ toast("Keyboxen konnten nicht geladen werden","error"); setBoxen([]); return; }
     setBoxen(data||[]);
   }
-  async function boxSpeichern(id, feld, wert){
-    const alt=(boxen||[]).find(b=>b.id===id); if(!alt || (alt[feld]||"")===(wert||"")) return;
-    setBoxen(p=>p.map(b=>b.id===id?{...b,[feld]:wert}:b));
-    const {error}=await supabase.from("keyboxes").update({[feld]: wert===""?null:wert, updated_at:new Date().toISOString()}).eq("id", id);
-    toast(error?"Fehler beim Speichern":"Gespeichert", error?"error":"ok");
+  const [bearbeite, setBearbeite] = useState(null);
+  const [entwurfBox, setEntwurfBox] = useState({bezeichnung:"",code:"",notiz:""});
+  function boxBearbeiten(b){ setEntwurfBox({bezeichnung:b.bezeichnung||"",code:b.code||"",notiz:b.notiz||""}); setBearbeite(b.id); }
+  async function boxAllesSpeichern(b){
+    const felder={ bezeichnung:(entwurfBox.bezeichnung||"").trim()||"Keybox", code:(entwurfBox.code||"").trim()||null, notiz:(entwurfBox.notiz||"").trim()||null, updated_at:new Date().toISOString() };
+    const {error}=await supabase.from("keyboxes").update(felder).eq("id", b.id);
+    if(error){ toast("Fehler beim Speichern","error"); return; }
+    setBoxen(p=>p.map(x=>x.id===b.id?{...x,...felder}:x)); setBearbeite(null); toast("Gespeichert");
   }
   async function boxNeu(){
     const nr=(boxen||[]).length+1;
     const {data,error}=await supabase.from("keyboxes").insert({apartment_id:apt.id, bezeichnung: nr===1?"Keybox":"Keybox "+nr, sort:nr}).select().single();
     if(error){ toast("Keybox konnte nicht angelegt werden","error"); return; }
-    setBoxen(p=>[...(p||[]), data]);
+    setBoxen(p=>[...(p||[]), data]); boxBearbeiten(data);
   }
   async function boxLoeschen(b){
     if(!confirm(`«${b.bezeichnung||"Keybox"}» wirklich löschen?`)) return;
@@ -9058,24 +9069,34 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
       <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
         {boxen===null ? <div style={{fontSize:12,color:"#8a8174"}}>Lädt…</div> : boxen.length===0 ? (
           <div className="empty">Noch keine Keybox erfasst. <button className="btn btn-g btn-sm" style={{marginLeft:8}} onClick={boxNeu}>+ Keybox anlegen</button></div>
-        ) : boxen.map(b=>(
-          <div key={b.id} style={{background:"#faf7f1",border:"1px solid #e6dccb",borderRadius:10,padding:"12px 14px"}}>
-            <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-              <div style={{flex:"1 1 160px",minWidth:0}}><label className="fl">Bezeichnung</label><input className="fi" defaultValue={b.bezeichnung||""} placeholder="z.B. Keybox Hauseingang" onBlur={e=>boxSpeichern(b.id,"bezeichnung",e.target.value.trim()||"Keybox")}/></div>
-              <div style={{flex:"1 1 200px",minWidth:0}}><label className="fl">Code</label>
-                <div style={{display:"flex",gap:6,flexWrap:"nowrap",alignItems:"stretch"}}>
-                  <input className="fi" style={{fontFamily:"monospace",letterSpacing:".12em",minWidth:0}} type="text" autoComplete="off" inputMode="text" defaultValue={b.code||""} placeholder="z.B. 4711" onBlur={e=>boxSpeichern(b.id,"code",e.target.value.trim())}/>
-                  {b.code && <button className="btn btn-g btn-sm" style={{flex:"0 0 auto",width:"auto",minWidth:42,margin:0}} title="Code kopieren" onClick={()=>codeKopieren(b.code)}>⧉</button>}
-                </div>
+        ) : boxen.map(b=>{ const edit=bearbeite===b.id; return (
+          <div key={b.id} style={{background:"#faf7f1",border:"1px solid "+(edit?"#cdbb98":"#e6dccb"),borderRadius:10,padding:"12px 14px"}}>
+            {edit ? (<>
+              <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+                <div style={{flex:"1 1 160px",minWidth:0}}><label className="fl">Bezeichnung</label><input className="fi" value={entwurfBox.bezeichnung} placeholder="z.B. Keybox Hauseingang" onChange={e=>setEntwurfBox(x=>({...x,bezeichnung:e.target.value}))}/></div>
+                <div style={{flex:"1 1 200px",minWidth:0}}><label className="fl">Code</label><input className="fi" style={{fontFamily:"monospace",letterSpacing:".12em"}} type="text" autoComplete="off" value={entwurfBox.code} placeholder="z.B. 4711" onChange={e=>setEntwurfBox(x=>({...x,code:e.target.value}))}/></div>
               </div>
-            </div>
-            <KeyboxBild box={b} aptId={apt.id} onChange={pfad=>setBoxen(p=>p.map(x=>x.id===b.id?{...x,bild_path:pfad}:x))}/>
-            <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
-              <div style={{flex:"1 1 220px",minWidth:0}}><input className="fi" defaultValue={b.notiz||""} placeholder="Notiz (optional), z.B. welche Schlüssel drin sind" onBlur={e=>boxSpeichern(b.id,"notiz",e.target.value.trim())}/></div>
-              <button className="btn btn-g btn-sm" style={{color:"#9b4a3e",flex:"0 0 auto",width:"auto"}} onClick={()=>boxLoeschen(b)}>Löschen</button>
-            </div>
+              <div style={{marginTop:8}}><label className="fl">Notiz</label><input className="fi" value={entwurfBox.notiz} placeholder="optional, z.B. welche Schlüssel drin sind" onChange={e=>setEntwurfBox(x=>({...x,notiz:e.target.value}))}/></div>
+              <KeyboxBild box={b} aptId={apt.id} bearbeiten={true} onChange={pfad=>setBoxen(p=>p.map(x=>x.id===b.id?{...x,bild_path:pfad}:x))}/>
+              <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+                <button className="btn btn-g btn-sm" style={{color:"#9b4a3e",width:"auto"}} onClick={()=>boxLoeschen(b)}>Löschen</button>
+                <div style={{flex:1}}/>
+                <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setBearbeite(null)}>Abbrechen</button>
+                <button className="btn btn-p btn-sm" style={{width:"auto"}} onClick={()=>boxAllesSpeichern(b)}>✓ Speichern</button>
+              </div>
+            </>) : (<>
+              <div style={{display:"flex",gap:12,alignItems:"flex-start",justifyContent:"space-between"}}>
+                <div style={{display:"flex",gap:28,flexWrap:"wrap",minWidth:0}}>
+                  <div><div className="fl" style={{marginBottom:3}}>Bezeichnung</div><div style={{fontWeight:600,fontSize:13}}>{b.bezeichnung||"Keybox"}</div></div>
+                  <div><div className="fl" style={{marginBottom:3}}>Code</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:"monospace",fontWeight:600,fontSize:15,letterSpacing:".12em"}}>{(b.code||"").trim()||"-"}</span>{b.code && <button className="btn btn-g btn-sm" style={{width:"auto",padding:"2px 8px"}} title="Code kopieren" onClick={()=>codeKopieren(b.code)}>⧉</button>}</div></div>
+                  {(b.notiz||"").trim() && <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Notiz</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{b.notiz}</div></div>}
+                </div>
+                <button className="btn btn-g btn-sm" style={{width:"auto",flex:"0 0 auto"}} onClick={()=>boxBearbeiten(b)}>✏ Bearbeiten</button>
+              </div>
+              <KeyboxBild box={b} aptId={apt.id} bearbeiten={false} onChange={()=>{}}/>
+            </>)}
           </div>
-        ))}
+        );})}
       </div>
 
     </div>
