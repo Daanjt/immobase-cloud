@@ -2247,7 +2247,8 @@ function useSupabaseData() {
     }
     // Leere Zahlenfelder muessen null sein, sonst schlaegt das Speichern fehl
     for (const nf of ["einkommen","kaution_aufschlag","kaution_betrag","moeblierung_pauschale"]) {
-      if (dbFields[nf] === "" || dbFields[nf] === undefined) dbFields[nf] = null;
+      // nur Felder anfassen, die wirklich mitgeschickt werden (sonst loescht jedes Teil-Update Kaution etc.)
+      if (Object.prototype.hasOwnProperty.call(dbFields, nf) && dbFields[nf] === "") dbFields[nf] = null;
     }
     // Strip system fields
     delete dbFields.created_at;
@@ -4454,7 +4455,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                 />
               </>)}
               <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>
-                Diese Felder sind mit den Schlüssel-Daten des Mieters synchronisiert. Prefill aus Bearbeiten-Modal, und beim Starten wird der Mieter aktualisiert.
+                Vorausgefüllt aus dem Schlüssel-Tab der Wohnung. Die Schlüsselnummern, die der Mieter im Protokoll einträgt, landen nach Abschluss automatisch wieder dort.
               </div>
             </div>
             
