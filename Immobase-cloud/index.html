@@ -7237,13 +7237,19 @@ function CountersignButton({contract, onDone, onSigned, light}){
   async function confirmSend(){
     setBusy(true);
     try {
+      // Offene Vertraege anderer Personen fuer dasselbe Zimmer zieht die Datenbank beim Gegenzeichnen zurueck
+      const andere = (c.roomId && !["verlaengerung","nachtrag"].includes(c.contractType))
+        ? (((window.__IB_DATA||{}).contracts)||[]).filter(x => x.id !== c.id && x.roomId === c.roomId && (x.bewerberId||"") !== (c.bewerberId||"")
+            && ["gesendet","geoeffnet","geoeffnet_ungelesen","mieter_signiert"].includes(x.status) && !["verlaengerung","nachtrag"].includes(x.contractType))
+        : [];
       const { data, error } = await supabase.functions.invoke("countersign-contract", { body: { token: c.token } });
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
       closePreview();
       if (onDone) await onDone();
-      if (data && data.mail_error) alert("Vertrag gegengezeichnet.\n\nAchtung: " + data.mail_error + " Bitte dem Mieter den Vertrag manuell senden.");
-      else alert("Vertrag gegengezeichnet. Die Bestätigung wurde an den Mieter gesendet.");
+      const zusatz = andere.length ? `\n\n${andere.length === 1 ? "Der offene Vertrag" : "Die " + andere.length + " offenen Verträge"} für ${c.roomId} wurde${andere.length === 1 ? "" : "n"} automatisch zurückgezogen: ${andere.map(x => `${x.mieterVorname||""} ${x.mieterNachname||""}`.trim()).join(", ")}.` : "";
+      if (data && data.mail_error) alert("Vertrag gegengezeichnet.\n\nAchtung: " + data.mail_error + " Bitte dem Mieter den Vertrag manuell senden." + zusatz);
+      else alert("Vertrag gegengezeichnet. Die Bestätigung wurde an den Mieter gesendet." + zusatz);
       if (onSigned) onSigned(contract && contract.roomId);
       else if (c.bewerberId && !["verlaengerung","nachtrag"].includes(c.contractType) && window.__ibNavigate) window.__ibNavigate("bewerber", { zuteilen: c.bewerberId, roomId: c.roomId });
     } catch(e){
