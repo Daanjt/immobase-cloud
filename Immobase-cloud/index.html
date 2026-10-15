@@ -345,6 +345,11 @@ tr:hover td{background:var(--beige-soft)}
 .ma{display:flex;gap:12px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
 
 .tabs{display:flex;margin-bottom:22px;border-bottom:1px solid var(--line);gap:4px}
+/* Detailbereich darf nie breiter als der Bildschirm werden; zu viele Tabs scrollen seitlich */
+.list-detail > *{min-width:0}
+@media (min-width:769px){ .tabs{flex-wrap:wrap} }
+.tabs .tab{white-space:nowrap;flex:0 0 auto}
+.list-detail .tabs .tab{padding-left:14px;padding-right:14px}
 .tab{padding:10px 20px;border:none;background:none;color:var(--muted);cursor:pointer;font-family:'Manrope', sans-serif;font-size:10.5px;font-weight:500;border-bottom:1px solid transparent;margin-bottom:-1px;transition:.2s;letter-spacing:.18em;text-transform:uppercase}
 .tab.on{color:var(--ink);border-bottom-color:var(--gold)}
 .tab:hover:not(.on){color:var(--ink)}
@@ -9047,17 +9052,16 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
         )}
       </div>
       <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:4}}>Schlüssel bei Mietern</div>
-      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → 🔑 Schlüssel). {mieter.length} aktive Mieter · {mieter.filter(t=>t.schluesselUebergeben).length} Schlüssel übergeben</div>
+      <div style={{fontSize:11,color:"#8a8174",marginBottom:10}}>Wird beim jeweiligen Mieter erfasst (Mieter → 🔑 Schlüssel). {mieter.length} aktive Mieter</div>
       {mieter.length===0 ? <div className="empty">Keine aktiven Mieter in dieser Wohnung.</div> : (
         <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th><th style={{padding:"6px 10px"}}>Übergeben</th></tr></thead>
+          <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th></tr></thead>
           <tbody>{mieter.map(t=>(
             <tr key={t.id}>
               <td style={{...td,fontWeight:600}}>{t.vorname} {t.nachname}</td>
               <td style={td}>{zimmerVon(t)||"-"}</td>
               <td style={{...td,fontFamily:"monospace"}}>{nrVon(t)||<span style={{color:"#a4442e",fontFamily:"inherit"}}>fehlt</span>}</td>
               <td style={td}>{(t.extraSchluessel||"").trim()||"-"}</td>
-              <td style={td}>{t.schluesselUebergeben?"✓":"–"}</td>
             </tr>))}</tbody>
         </table></div>
       )}
@@ -10091,12 +10095,11 @@ function MieterSchluessel({tenant, updateTenant}) {
   const [edit, setEdit] = useState(false);
   const [nr, setNr] = useState(nrStart);
   const [extra, setExtra] = useState(tenant.extraSchluessel||"");
-  const [ueb, setUeb] = useState(!!tenant.schluesselUebergeben);
   const [busy, setBusy] = useState(false);
-  function oeffnen(){ setNr(nrStart); setExtra(tenant.extraSchluessel||""); setUeb(!!tenant.schluesselUebergeben); setEdit(true); }
+  function oeffnen(){ setNr(nrStart); setExtra(tenant.extraSchluessel||""); setEdit(true); }
   async function speichern(){
     setBusy(true);
-    try{ const v=nr.trim(); await updateTenant(tenant.id, {schluesselAnzahl:v, schluesselNr:v, extraSchluessel:extra.trim(), schluesselUebergeben:!!ueb}); setEdit(false); }
+    try{ const v=nr.trim(); await updateTenant(tenant.id, {schluesselAnzahl:v, schluesselNr:v, extraSchluessel:extra.trim()}); setEdit(false); }
     finally{ setBusy(false); }
   }
   return (
@@ -10111,7 +10114,6 @@ function MieterSchluessel({tenant, updateTenant}) {
             <div style={{flex:"0 1 180px",minWidth:0}}><label className="fl">Schlüsselnummer</label><input className="fi" style={{fontFamily:"monospace"}} value={nr} onChange={e=>setNr(e.target.value)} placeholder="z.B. A145 oder 12B" autoFocus/></div>
             <div style={{flex:"1 1 220px",minWidth:0}}><label className="fl">Extra-Schlüssel</label><input className="fi" value={extra} onChange={e=>setExtra(e.target.value)} placeholder="z.B. 1× Briefkasten, 1× Keller"/></div>
           </div>
-          <label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 0",fontSize:12.5,cursor:"pointer"}}><input type="checkbox" checked={ueb} onChange={e=>setUeb(e.target.checked)}/> Schlüssel übergeben</label>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
             <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>setEdit(false)}>Abbrechen</button>
             <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy} onClick={speichern}>{busy?"Speichert…":"✓ Speichern"}</button>
@@ -10120,7 +10122,6 @@ function MieterSchluessel({tenant, updateTenant}) {
           <div style={{display:"flex",gap:28,flexWrap:"wrap",fontSize:13}}>
             <div><div className="fl" style={{marginBottom:3}}>Schlüsselnummer</div><div style={{fontWeight:600,fontFamily:nrStart?"monospace":"inherit",color:nrStart?"inherit":"#a4442e"}}>{nrStart||"fehlt"}</div></div>
             <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Extra-Schlüssel</div><div style={{fontWeight:600,whiteSpace:"pre-wrap"}}>{(tenant.extraSchluessel||"").trim()||"-"}</div></div>
-            <div><div className="fl" style={{marginBottom:3}}>Übergeben</div><div style={{fontWeight:600,color:tenant.schluesselUebergeben?"#5a6e4a":"#8a8174"}}>{tenant.schluesselUebergeben?"✓ Ja":"Nein"}</div></div>
           </div>
         )}
       </div>
