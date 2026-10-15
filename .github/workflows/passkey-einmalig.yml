@@ -1,0 +1,19 @@
+name: Passkeys einschalten (einmalig)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/passkey-einmalig.yml']
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF: aohcqrxpsqronlcwssrk
+    steps:
+      - name: Passkeys aktivieren
+        run: |
+          curl -sS -f -X PATCH "https://api.supabase.com/v1/projects/$REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d '{"passkey_enabled":true,"webauthn_rp_display_name":"ImmoBase","webauthn_rp_id":"dthomes.ch","webauthn_rp_origins":"https://admin.dthomes.ch"}' -o /dev/null
+          curl -sS "https://api.supabase.com/v1/projects/$REF/config/auth" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            | jq '{passkey_enabled, webauthn_rp_id, webauthn_rp_display_name, webauthn_rp_origins}'
