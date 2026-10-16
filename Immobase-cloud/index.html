@@ -7529,8 +7529,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     }
   }, [navTarget]);
 
-  // Form link: always bewerbung.dthomes.ch (hardcoded)
-  const formLink = "https://bewerbung.dthomes.ch";
+  // Bewerbungen laufen ueber die Webseite (WG-Zimmer), nicht mehr ueber bewerbung.dthomes.ch
+  const formLink = "https://www.dthomes.ch/zimmer";
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
@@ -8228,8 +8228,8 @@ www.dthomes.ch`;
       })()}
       
       <div className="card" style={{marginBottom:20}}>
-        <div className="ct">📋 Bewerbungsformular-Link</div>
-        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden - Bewerbungen erscheinen automatisch hier.</div>
+        <div className="ct">📋 Bewerbungs-Link (Webseite)</div>
+        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden. Dort sehen sie alle freien Zimmer mit Bildern und können sich direkt bewerben. Bewerbungen erscheinen automatisch hier.</div>
         <div className="link-box">
           <span className="link-text">{formLink}</span>
           <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
