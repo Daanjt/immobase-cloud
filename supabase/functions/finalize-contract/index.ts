@@ -80,7 +80,7 @@ function notificationEmailToDaan(contract, downloadLinks, ip) {
     <table style="width:100%;font-size:13px;">
       <tr><td style="padding:4px 0;color:#8a8174;width:40%;">Mieter</td><td style="text-align:right;font-weight:500;">${contract.mieter_vorname} ${contract.mieter_nachname}</td></tr>
       <tr><td style="padding:4px 0;color:#8a8174;">E-Mail</td><td style="text-align:right;">${contract.mieter_email}</td></tr>
-      ${apt.adresse ? `<tr><td style="padding:4px 0;color:#8a8174;">Wohnung</td><td style="text-align:right;font-weight:500;">${apt.adresse}</td></tr>` : ""}
+      ${contract.contract_type === "parkplatz" ? `<tr><td style="padding:4px 0;color:#8a8174;">Parkplatz</td><td style="text-align:right;font-weight:500;">${(data.parkplatz && data.parkplatz.bezeichnung) || ""}, ${apt.adresse || ""}</td></tr>` : apt.adresse ? `<tr><td style="padding:4px 0;color:#8a8174;">Wohnung</td><td style="text-align:right;font-weight:500;">${apt.adresse}</td></tr>` : ""}
     </table>
   </div>
   <div style="background:#fff;border:1px solid #e1d8c5;border-radius:8px;padding:14px 16px;margin-bottom:24px;font-size:11px;color:#5a5448;line-height:1.6;">
@@ -422,7 +422,7 @@ Deno.serve(async (req) => {
 
       const isUmv = (u.type === "umv" || u.type === "untermietvertrag");
       const isAmz = (u.type === "amz" || u.type === "anfangsmietzins");
-      const isNachtrag = (u.type === "verlaengerung" || u.type === "nachtrag");
+      const isNachtrag = (u.type === "verlaengerung" || u.type === "nachtrag" || u.type === "parkplatz");
 
       // ─── COORDINATES per PDF type ─────────────────────────────────────
       // Primär: aus dem PDF gelesene Label-Position (detectAnchors: x, Breite, y),

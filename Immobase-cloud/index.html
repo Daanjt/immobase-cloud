@@ -2728,6 +2728,15 @@ function useSupabaseData() {
   // ─── PARTNER (Verwaltungen & Eigentümer) ──────────────────────
   const [partners, setPartners] = useState([]);
   const [parkplaetze, setParkplaetze] = useState([]);
+  const [parkVertraege, setParkVertraege] = useState([]);
+  async function loadParkVertraege() {
+    const {data, error} = await supabase.from("contracts").select("id, token, tenant_id, apt_id, contract_type, status, mieter_email, mieter_vorname, mieter_nachname, sent_at, opened_at, signed_at, countersigned_at, expires_at, created_at, signed_pdfs, signed_pdf_path, unsigned_pdfs, parkplatz_id:contract_data->>parkplatz_id").eq("contract_type","parkplatz").order("created_at", {ascending:false});
+    if (error) { console.warn("Parkplatzverträge:", error.message); return; }
+    setParkVertraege((data||[]).map(c=>({id:c.id, token:c.token, tenantId:c.tenant_id, aptId:c.apt_id, roomId:null, bewerberId:null, contractType:c.contract_type, status:c.status,
+      mieterEmail:c.mieter_email, mieterVorname:c.mieter_vorname, mieterNachname:c.mieter_nachname, sentAt:c.sent_at, openedAt:c.opened_at, signedAt:c.signed_at,
+      countersignedAt:c.countersigned_at, expiresAt:c.expires_at, createdAt:c.created_at, signedPdfs:c.signed_pdfs, signedPdfPath:c.signed_pdf_path, unsignedPdfs:c.unsigned_pdfs,
+      parkplatzId:c.parkplatz_id, signUrl:c.token?`https://mieter.dthomes.ch/${c.token}`:null})));
+  }
   async function loadParkplaetze() {
     const {data, error} = await supabase.from("parkplaetze").select("*").order("adresse").order("bezeichnung");
     if (error) { console.warn("Parkplätze:", error.message); return; }
@@ -2771,7 +2780,7 @@ function useSupabaseData() {
     setPartners(p => p.filter(x => x.id !== id));
   }
   useEffect(() => { loadPartners(); }, []);
-  useEffect(() => { loadParkplaetze(); }, []);
+  useEffect(() => { loadParkplaetze(); loadParkVertraege(); }, []);
 
   // ─── TO-DOS (Kanban) ──────────────────────────────────────────
   const [todos, setTodos] = useState([]);
@@ -2845,7 +2854,7 @@ function useSupabaseData() {
   
   async function loadContracts() {
     try {
-      const { data, error } = await supabase.from("contracts").select("id, token, bewerber_id, tenant_id, room_id, apt_id, contract_type, status, mieter_email, mieter_vorname, mieter_nachname, sent_at, opened_at, signed_at, expires_at, created_at, updated_at, bemerkung, signed_pdf_path, signed_pdfs, mieter_signature_png, signed_ip, signed_user_agent").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("contracts").select("id, token, bewerber_id, tenant_id, room_id, apt_id, contract_type, status, mieter_email, mieter_vorname, mieter_nachname, sent_at, opened_at, signed_at, expires_at, created_at, updated_at, bemerkung, signed_pdf_path, signed_pdfs, mieter_signature_png, signed_ip, signed_user_agent").neq("contract_type", "parkplatz").order("created_at", { ascending: false });
       if (error) throw error;
       setContracts((data || []).map(c => ({
         id: c.id,
@@ -2937,7 +2946,7 @@ function useSupabaseData() {
   useEffect(() => { loadHandoverProtocols(); }, []);
   // Runterziehen in der App: Daten still im Hintergrund neu laden (ohne Startbildschirm)
   useEffect(() => {
-    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle(), loadParkplaetze()]);
+    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle(), loadParkplaetze(), loadParkVertraege()]);
     return () => { delete window.__ibNeuLaden; };
   }, []);
   // Live: Verträge und Übergaben kommen per Realtime-Push. Neue Unterschrift = Hinweis.
@@ -2946,12 +2955,12 @@ function useSupabaseData() {
     const gemeldet = new Set();
     const ch = supabase.channel("live_vertraege_uebergaben")
       .on("postgres_changes", {event:"*", schema:"public", table:"contracts"}, (pl) => {
-        clearTimeout(tc); tc = setTimeout(() => { loadContracts(); }, 400);
+        clearTimeout(tc); tc = setTimeout(() => { loadContracts(); loadParkVertraege(); }, 400);
         const n = pl && pl.new;
         if (n && n.status === "mieter_signiert" && n.signed_at && !gemeldet.has(n.id) && (Date.now() - Date.parse(n.signed_at)) < 10*60000) {
           gemeldet.add(n.id);
           const name = `${n.mieter_vorname||""} ${n.mieter_nachname||""}`.trim() || "Ein Mieter";
-          try { toast(`✍ ${name} hat unterschrieben${n.room_id ? " ("+n.room_id+")" : ""}. Bitte gegenzeichnen.`); } catch (_) {}
+          try { toast(`✍ ${name} hat unterschrieben${n.contract_type==="parkplatz" ? " (Parkplatz)" : n.room_id ? " ("+n.room_id+")" : ""}. Bitte gegenzeichnen.`); } catch (_) {}
         }
       })
       .on("postgres_changes", {event:"*", schema:"public", table:"handover_protocols"}, () => {
@@ -2972,7 +2981,7 @@ function useSupabaseData() {
     const iv = setInterval(() => {
       if (document.visibilityState !== "visible") return;
       zuletzt = Date.now();
-      Promise.allSettled([loadContracts(), loadHandoverProtocols()]);
+      Promise.allSettled([loadContracts(), loadHandoverProtocols(), loadParkVertraege()]);
     }, 300000);
     return () => { document.removeEventListener("visibilitychange", sichtbar); window.removeEventListener("focus", sichtbar); clearInterval(iv); };
   }, []);
@@ -3317,7 +3326,7 @@ function useSupabaseData() {
     setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
   }
 
-  return {parkplaetze, loadParkplaetze, apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, deleteRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
+  return {parkplaetze, loadParkplaetze, parkVertraege, loadParkVertraege, apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, deleteRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -5034,7 +5043,7 @@ function stromVonZimmer(r, t, apts){
   }
   return 25;
 }
-function Dashboard({parkplaetze=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
+function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
   const heute=new Date();
   heute.setHours(0,0,0,0);
 
@@ -5178,9 +5187,9 @@ function Dashboard({parkplaetze=[],apts,rooms,tenants,bewerber,navigateTo,update
 
       {/* GEGENZEICHNUNG-BANNER: gleich wie im Bewerber-Tab */}
       {(() => {
-        const wartend = (contracts||[]).filter(c => c.status === "mieter_signiert");
+        const wartend = [...(contracts||[]), ...(parkVertraege||[])].filter(c => c.status === "mieter_signiert");
         if (wartend.length === 0) return null;
-        const typLabel = (ct) => ct === "untermietvertrag" ? "Untermietvertrag"
+        const typLabel = (ct) => ct === "parkplatz" ? "Parkplatz" : ct === "untermietvertrag" ? "Untermietvertrag"
           : ct === "anfangsmietzins" ? "Anfangsmietzins"
           : (ct === "verlaengerung" || ct === "nachtrag") ? "Verlängerung"
           : "Untermietvertrag + Anfangsmietzins";
@@ -5194,7 +5203,7 @@ function Dashboard({parkplaetze=[],apts,rooms,tenants,bewerber,navigateTo,update
                     {`${c.mieterVorname||""} ${c.mieterNachname||""}`.trim() || "Unbenannt"}
                     <span style={{fontSize:11,color:"#b0c8e0",fontWeight:400,marginLeft:8}}>{typLabel(c.contractType)}</span>
                   </div>
-                  <CountersignButton contract={c} onDone={loadContracts} light />
+                  <CountersignButton contract={c} onDone={c.contractType==="parkplatz" ? loadParkVertraege : loadContracts} onSigned={c.contractType==="parkplatz" ? (()=>{}) : undefined} light />
                 </div>
               ))}
             </div>
@@ -15050,6 +15059,185 @@ function PasswoerterPage(){
   </>);
 }
 
+// ─── PARKPLATZVERTRAG (eigener Vertrag, unabhaengig vom Untermietvertrag) ───
+function ppDatumLang(s, en){
+  if(!s) return "____";
+  const str=String(s).trim(); let d=null; const m=str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if(m) d=new Date(+m[3],+m[2]-1,+m[1]); else if(/^\d{4}-\d{2}-\d{2}/.test(str)) d=new Date(str.slice(0,10));
+  if(!d||isNaN(d)) return str;
+  const de=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"], e=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return en ? `${d.getDate()} ${e[d.getMonth()]} ${d.getFullYear()}` : `${d.getDate()}. ${de[d.getMonth()]} ${d.getFullYear()}`;
+}
+function ppEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function buildParkplatzHTML(d, en){
+  const T=(a,b)=>en?b:a, E=ppEsc;
+  const betrag = Number(d.miete||0).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const kf = Math.max(1, parseInt(d.kuendigungsfrist)||1);
+  const kfDe = {1:"einem Monat",2:"zwei Monaten",3:"drei Monaten"}[kf] || `${kf} Monaten`;
+  const kfEn = kf===1 ? "one month's" : `${kf} months'`;
+  const objekt = `${E(d.bezeichnung)}, ${E(d.objektAdresse)}${d.plzOrt?`, ${E(d.plzOrt)}`:""}`;
+  const dauer = d.bis
+    ? T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und ist befristet bis und mit <strong>${ppDatumLang(d.bis)}</strong>. Es endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf.`,
+        `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is fixed-term until and including <strong>${ppDatumLang(d.bis,true)}</strong>. It ends automatically on that date without notice being required.`)
+    : T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und wird auf unbestimmte Zeit abgeschlossen. Es kann von beiden Parteien unter Einhaltung einer Kündigungsfrist von <strong>${kfDe}</strong> schriftlich auf das Ende jedes Monats gekündigt werden.`,
+        `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is concluded for an indefinite period. Either party may terminate it in writing with <strong>${kfEn} notice</strong> to the end of any month.`);
+  const ref = `Parkplatz ${d.bezeichnung} ${d.name}`.replace(/\s+/g," ").trim();
+  return `<!DOCTYPE html>
+<html lang="${en?"en":"de"}"><head><meta charset="UTF-8"><title>${T("Mietvertrag Parkplatz","Parking Space Agreement")} - ${E(d.name)}</title>
+<style>
+@page{size:A4;margin:18mm 18mm 22mm 18mm}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{background:#fff}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.55;color:#1a1a1a;padding:18mm 18mm 22mm 18mm;width:210mm;margin:0 auto}
+@media print{body{padding:0;width:auto}}
+.doc-header{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12pt;border-bottom:1.5pt solid #1a1a1a;margin-bottom:16pt}
+.doc-header .left{flex:1}
+.doc-header .left .label{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:500;margin-bottom:5pt}
+.doc-header .left .doc-title{font-size:20pt;font-weight:300;letter-spacing:-.3pt;color:#1a1a1a}
+.doc-header .logo{width:38mm;height:auto}
+.doc-header .logo img{width:100%;display:block}
+.parties{display:flex;gap:24pt;margin-bottom:14pt}
+.parties .p{flex:1;background:#faf8f3;padding:9pt 12pt;font-size:9.5pt;line-height:1.5}
+.parties .p .r{font-size:7.5pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
+.section{margin-bottom:11pt;page-break-inside:avoid;break-inside:avoid}
+.section h2{font-size:11pt;font-weight:700;color:#1a1a1a;margin-bottom:6pt;padding-bottom:3pt;border-bottom:.5pt solid #ddd}
+.section p{margin-bottom:5pt;text-align:justify;hyphens:auto;-webkit-hyphens:auto}
+.section ul{margin:0 0 5pt 16pt}
+.section li{margin-bottom:2pt}
+.kv{width:100%;border-collapse:collapse;font-size:10pt;margin:2pt 0 6pt}
+.kv td{padding:3pt 0;border-bottom:.5pt solid #eee;vertical-align:top}
+.kv td:first-child{color:#555;width:45%}
+.box{background:#faf8f3;border-left:3pt solid #1a1a1a;padding:10pt 14pt;margin:12pt 0;font-size:9.5pt;page-break-inside:avoid}
+.signatures{margin-top:24pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
+.sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
+.sig-block .role{font-size:8pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
+.sig-block .name{font-size:11pt;font-weight:600;margin-bottom:18pt}
+.sig-block .sig-row{display:flex;gap:14pt;margin-bottom:6pt;font-size:9pt}
+.sig-block .sig-row .lbl{font-weight:600;color:#444;min-width:64pt}
+.sig-block .sig-row .line{flex:none;width:150pt;border-bottom:.5pt solid #888;min-height:14pt}
+</style></head>
+<body>
+<div class="doc-header"><div class="left"><div class="label">${T("Parkplatz &middot; D&amp;T Homes","Parking &middot; D&amp;T Homes")}</div><div class="doc-title">${T("Mietvertrag für einen Parkplatz","Parking Space Rental Agreement")}</div></div><div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div></div>
+<div class="parties">
+  <div class="p"><div class="r">${T("Vermieterin","Landlord")}</div><strong>D&amp;T Partners GmbH</strong><br>Via Campeun 40<br>7403 Rhäzüns<br>info@dthomes.ch</div>
+  <div class="p"><div class="r">${T("Mieter*in","Tenant")}</div><strong>${E(d.name)}</strong>${d.adresseMieter?`<br>${E(d.adresseMieter).replace(/\n/g,"<br>")}`:""}${d.email?`<br>${E(d.email)}`:""}${d.telefon?`<br>${E(d.telefon)}`:""}</div>
+</div>
+<div class="section">
+<h2>1. ${T("Mietobjekt","Rental object")}</h2>
+<table class="kv">
+<tr><td>${T("Parkplatz","Parking space")}</td><td><strong>${objekt}</strong></td></tr>
+${d.kennzeichen?`<tr><td>${T("Fahrzeug (Kennzeichen)","Vehicle (licence plate)")}</td><td>${E(d.kennzeichen)}</td></tr>`:""}
+</table>
+<p>${T("Der Parkplatz dient ausschliesslich dem Abstellen eines eingelösten und versicherten Fahrzeugs der Mieterin bzw. des Mieters. Die Vermieterin hat den Parkplatz ihrerseits gemietet und überlässt ihn der Mieterin bzw. dem Mieter zum Gebrauch.","The parking space may only be used to park a registered and insured vehicle of the tenant. The landlord itself rents the parking space and lets it to the tenant for use.")}</p>
+</div>
+<div class="section">
+<h2>2. ${T("Beginn und Dauer","Start and duration")}</h2>
+<p>${dauer}</p>
+<p>${T("Das Mietverhältnis endet in jedem Fall spätestens mit dem Ende des Mietverhältnisses der Vermieterin über diesen Parkplatz. Die Vermieterin informiert die Mieterin bzw. den Mieter darüber, sobald sie davon Kenntnis hat.","In any case, the tenancy ends no later than the end of the landlord's own tenancy of this parking space. The landlord will inform the tenant as soon as it becomes aware of this.")}</p>
+</div>
+<div class="section">
+<h2>3. ${T("Mietzins und Zahlung","Rent and payment")}</h2>
+<table class="kv"><tr><td>${T("Mietzins pro Monat","Rent per month")}</td><td><strong>CHF ${betrag}</strong></td></tr></table>
+<p>${T(`Der Mietzins ist monatlich im Voraus, spätestens bis zum 25. des Vormonats, zu bezahlen auf das Konto der D&amp;T Partners GmbH bei der Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, Referenz «${E(ref)}».`,`The rent is payable monthly in advance, no later than the 25th of the preceding month, to the account of D&amp;T Partners GmbH at Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, reference "${E(ref)}".`)}</p>
+<p>${T("Bei Zahlungsverzug kann die Vermieterin eine Mahngebühr von CHF 30 pro Mahnung erheben und das Mietverhältnis nach den gesetzlichen Bestimmungen (Art. 257d OR) kündigen.","In case of late payment, the landlord may charge a reminder fee of CHF 30 per reminder and terminate the tenancy in accordance with the statutory provisions (Art. 257d CO).")}</p>
+</div>
+<div class="section">
+<h2>4. ${T("Benutzung","Use")}</h2>
+<ul>
+<li>${T("Die Haus- und Garagenordnung der Liegenschaft gilt auch für die Mieterin bzw. den Mieter.","The house and garage rules of the property also apply to the tenant.")}</li>
+<li>${T("Nicht gestattet sind insbesondere das Lagern von Gegenständen, Reifen oder brennbaren Stoffen, Reparaturen, Ölwechsel und das Waschen von Fahrzeugen.","In particular, storing objects, tyres or flammable materials, carrying out repairs, oil changes and washing vehicles are not permitted.")}</li>
+<li>${T("Die Weitervermietung oder Überlassung an Dritte ist nur mit schriftlicher Zustimmung der Vermieterin erlaubt.","Subletting or passing the space on to third parties is only permitted with the landlord's written consent.")}</li>
+<li>${T("Schäden sind der Vermieterin umgehend zu melden. Die Mieterin bzw. der Mieter haftet für Schäden, die sie bzw. er verursacht.","Damage must be reported to the landlord immediately. The tenant is liable for any damage they cause.")}</li>
+</ul>
+</div>
+<div class="section">
+<h2>5. ${T("Haftung","Liability")}</h2>
+<p>${T("Die Vermieterin haftet nicht für Diebstahl, Beschädigung oder Verlust des Fahrzeugs oder von Gegenständen im Fahrzeug, ausser bei Vorsatz oder grober Fahrlässigkeit.","The landlord is not liable for theft of, damage to or loss of the vehicle or of items inside it, except in cases of intent or gross negligence.")}</p>
+</div>
+<div class="section">
+<h2>6. ${T("Rückgabe","Return")}</h2>
+<p>${T("Bei Vertragsende ist der Parkplatz geräumt und sauber zurückzugeben. Allfällige Schlüssel, Fernbedienungen oder Badges sind vollständig zurückzugeben; fehlende Exemplare werden der Mieterin bzw. dem Mieter in Rechnung gestellt.","At the end of the tenancy, the parking space must be returned empty and clean. Any keys, remote controls or badges must be returned in full; missing items will be charged to the tenant.")}</p>
+</div>
+<div class="section">
+<h2>7. ${T("Schlussbestimmungen","Final provisions")}</h2>
+<p>${T("Dieser Vertrag ist ein eigenständiger Vertrag. Er ist kein Bestandteil eines allfälligen Untermietvertrags über ein Zimmer oder eine Wohnung und kann unabhängig davon gekündigt werden. Änderungen und Ergänzungen bedürfen der Schriftform. Im Übrigen gelten die Bestimmungen des Schweizerischen Obligationenrechts.","This agreement is a separate agreement. It is not part of any sublease agreement for a room or apartment and can be terminated independently of it. Amendments and additions must be made in writing. Otherwise, the provisions of the Swiss Code of Obligations apply.")}</p>
+${d.notiz?`<p><strong>${T("Besondere Vereinbarung","Special agreement")}:</strong> ${E(d.notiz)}</p>`:""}
+</div>
+${en?`<div class="box">This English version is a translation for your understanding. Only the German version is legally binding.</div>`:""}
+<div class="signatures">
+  <div class="sig-block">
+    <div class="role">${T("Mieter*in","Tenant")}</div>
+    <div class="name">${E(d.name)}</div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+  </div>
+  <div class="sig-block">
+    <div class="role">${T("Vermieterin","Landlord")}</div>
+    <div class="name">D&amp;T Partners GmbH</div>
+    <div class="sig-row"><span class="lbl">Ort, Datum:</span><span class="line"></span></div>
+    <div class="sig-row"><span class="lbl">Unterschrift:</span><span class="line"></span></div>
+  </div>
+</div>
+</body></html>`;
+}
+// Vertragsdaten aus Parkplatz + Mieter/Externem zusammenstellen. Liefert {d, fehlt[]}.
+function ppVertragsDaten(p, apts, tenants, rooms){
+  const t = p.tenant_id ? (tenants||[]).find(x=>x.id===p.tenant_id) : null;
+  const apt = (apts||[]).find(a=>a.id===p.apt_id) || (apts||[]).find(a=>a.adresse && a.adresse===p.adresse) || null;
+  const tRoom = t ? ((rooms||[]).find(r=>r.tenantId===t.id) || (rooms||[]).find(r=>r.id===t.roomId)) : null;
+  const tApt = tRoom ? (apts||[]).find(a=>a.id===tRoom.aptId) : null;
+  let vorname="", nachname="";
+  if (t){ vorname=t.vorname||""; nachname=t.nachname||""; }
+  else { const n=(p.mieter_extern||"").trim().split(/\s+/); nachname=n.length>1?n.pop():""; vorname=n.join(" "); if(!nachname){ nachname=vorname; vorname=""; } }
+  const d = {
+    name: `${vorname} ${nachname}`.trim(), vorname, nachname,
+    email: t ? (t.email||"") : (p.mieter_email||""),
+    telefon: t ? (t.phone||"") : (p.mieter_telefon||""),
+    adresseMieter: t ? (tApt ? `${tApt.adresse||""}\n${[tApt.plz,tApt.ort].filter(Boolean).join(" ")}`.trim() : "") : (p.mieter_adresse||""),
+    sprache: t ? (t.sprache||"de") : (p.sprache||"de"),
+    bezeichnung: p.bezeichnung, objektAdresse: p.adresse || (apt&&apt.adresse) || "",
+    plzOrt: apt ? [apt.plz, apt.ort].filter(Boolean).join(" ") : "",
+    kennzeichen: p.kennzeichen||"", ab: p.vermietet_ab||"", bis: p.vermietet_bis||"",
+    miete: p.miete_verkauf, kuendigungsfrist: p.kuendigungsfrist||1,
+  };
+  const fehlt=[];
+  if(!d.name) fehlt.push("Mieter*in");
+  if(!d.email) fehlt.push("E-Mail");
+  if(!(+d.miete>0)) fehlt.push("Mietpreis");
+  if(!parseDMY(d.ab)) fehlt.push("Mietbeginn (ab)");
+  if(!d.objektAdresse) fehlt.push("Adresse");
+  return {d, fehlt, tenant:t, apt};
+}
+async function ppVertragSenden(p, apts, tenants, rooms){
+  const {d, fehlt, tenant, apt} = ppVertragsDaten(p, apts, tenants, rooms);
+  if (fehlt.length) throw new Error("Es fehlt: " + fehlt.join(", "));
+  const html = buildParkplatzHTML(d, false);
+  const htmlEn = buildParkplatzHTML(d, true);
+  const blob = await htmlToPdf(html, `Parkplatzvertrag_${d.name.replace(/\s+/g,"_")}.pdf`);
+  const token = generateContractToken();
+  const path = `${token}/parkplatz.pdf`;
+  const { error: upErr } = await supabase.storage.from("contracts").upload(path, blob, { contentType: "application/pdf", upsert: false });
+  if (upErr) throw new Error(`Upload: ${upErr.message}`);
+  const { data: row, error } = await supabase.from("contracts").insert({
+    token, tenant_id: tenant ? tenant.id : null, apt_id: p.apt_id || (apt&&apt.id) || null, room_id: null,
+    mieter_email: d.email.trim(), mieter_vorname: d.vorname, mieter_nachname: d.nachname,
+    contract_type: "parkplatz",
+    contract_data: { parkplatz_id: p.id, sprache: d.sprache, person: {vorname:d.vorname, nachname:d.nachname, email:d.email, telefon:d.telefon, adresse:d.adresseMieter},
+      parkplatz: {...d}, doc_html: html, doc_html_en: htmlEn,
+      vertrag: { einzug: d.ab, mietende: d.bis||null, total: +d.miete, apt: {adresse: d.objektAdresse, plz: apt&&apt.plz, ort: apt&&apt.ort} } },
+    status: "gesendet",
+    unsigned_pdfs: [{ name: "Parkplatzvertrag", path, type: "parkplatz" }],
+    created_by: (window.currentUser && window.currentUser.email) || null,
+  }).select().single();
+  if (error) throw new Error(`DB: ${error.message}`);
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ contractId: row.id }),
+  });
+  return { contractId: row.id, signUrl: `https://mieter.dthomes.ch/${token}`, emailSent: res.ok };
+}
+
 // ─── PARKPLÄTZE ──────────────────────────────────────────────────────────────
 // Ein Parkplatz kostet uns (Einkauf) und bringt Miete (Verkauf). Beides gilt im
 // jeweiligen Zeitraum; ohne Datum gilt es unbefristet.
@@ -15087,6 +15275,11 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       vermietet_ab: f.mieterArt==="frei" ? null : ((f.vermietet_ab||"").trim()||null),
       vermietet_bis: f.mieterArt==="frei" ? null : ((f.vermietet_bis||"").trim()||null),
       notiz:(f.notiz||"").trim()||null, updated_at:new Date().toISOString(),
+      kennzeichen:(f.kennzeichen||"").trim()||null, kuendigungsfrist: parseInt(f.kuendigungsfrist)||1,
+      mieter_email: f.mieterArt==="extern" ? ((f.mieter_email||"").trim()||null) : null,
+      mieter_telefon: f.mieterArt==="extern" ? ((f.mieter_telefon||"").trim()||null) : null,
+      mieter_adresse: f.mieterArt==="extern" ? ((f.mieter_adresse||"").trim()||null) : null,
+      sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
     };
     let error=null;
     if(neu){
@@ -15137,11 +15330,25 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
         </div>
         {f.mieterArt==="mieter" && <div className="fg"><label className="fl">Mieter</label><select className="fi" value={f.tenant_id||""} onChange={set("tenant_id")}>
           <option value="">Bitte wählen…</option>{aktiveMieter.map(t=><option key={t.id} value={t.id}>{t.vorname} {t.nachname}</option>)}</select></div>}
-        {f.mieterArt==="extern" && <div className="fg"><label className="fl">Name</label><input className="fi" value={f.mieter_extern||""} onChange={set("mieter_extern")} placeholder="Name der Person oder Firma"/></div>}
+        {f.mieterArt==="extern" && <>
+          <div className="frow">
+            <div className="fg"><label className="fl">Vorname Nachname</label><input className="fi" value={f.mieter_extern||""} onChange={set("mieter_extern")} placeholder="z.B. Hans Muster"/></div>
+            <div className="fg"><label className="fl">E-Mail (für den Vertrag)</label><input className="fi" type="email" value={f.mieter_email||""} onChange={set("mieter_email")}/></div>
+          </div>
+          <div className="frow">
+            <div className="fg"><label className="fl">Telefon</label><input className="fi" value={f.mieter_telefon||""} onChange={set("mieter_telefon")}/></div>
+            <div className="fg"><label className="fl">Vertragssprache</label><select className="fi" value={f.sprache||"de"} onChange={set("sprache")}><option value="de">Deutsch</option><option value="en">Deutsch + englische Übersetzung</option></select></div>
+          </div>
+          <div className="fg"><label className="fl">Adresse</label><input className="fi" value={f.mieter_adresse||""} onChange={set("mieter_adresse")} placeholder="Strasse Nr., PLZ Ort"/></div>
+        </>}
         {f.mieterArt!=="frei" && <div className="frow pp3">
           <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div>
           <div className="fg"><label className="fl">Ab</label><input className="fi" value={f.vermietet_ab||""} onChange={set("vermietet_ab")} placeholder="TT.MM.JJJJ"/></div>
           <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.vermietet_bis||""} onChange={set("vermietet_bis")} placeholder="TT.MM.JJJJ"/></div>
+        </div>}
+        {f.mieterArt!=="frei" && <div className="frow">
+          <div className="fg"><label className="fl">Kennzeichen (optional)</label><input className="fi" value={f.kennzeichen||""} onChange={set("kennzeichen")} placeholder="z.B. ZH 123456"/></div>
+          <div className="fg"><label className="fl">Kündigungsfrist (unbefristet)</label><select className="fi" value={f.kuendigungsfrist||1} onChange={set("kuendigungsfrist")}><option value="1">1 Monat auf Monatsende</option><option value="2">2 Monate auf Monatsende</option><option value="3">3 Monate auf Monatsende</option></select></div>
         </div>}
         {f.mieterArt==="frei" && <div className="frow"><div className="fg"><label className="fl">Angebotspreis CHF / Mt. (für die Marge)</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div></div>}
         <div style={{fontSize:12.5,marginTop:4,color:marge>=0?"#3d4f2f":"#9b4a3e"}}>Marge: {marge>=0?"+":""}{chf(marge)} / Mt.{f.mieterArt==="frei"?" (sobald vermietet)":""}</div>
@@ -15156,8 +15363,90 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
   );
 }
 
-function ParkplaetzePage({parkplaetze, loadParkplaetze, apts, tenants, istAdmin=true}){
+const PP_OFFEN = ["gesendet","geoeffnet","geoeffnet_ungelesen","mieter_signiert"];
+function ppAktuellerVertrag(p, vertraege){ return (vertraege||[]).filter(c=>c.parkplatzId===p.id && !["zurueckgezogen","storniert","abgelaufen"].includes(c.status)).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""))[0] || null; }
+const PP_STATUS = {gesendet:["Versendet","#8a6d3b","#f6eedb"], geoeffnet:["Geöffnet","#8a6d3b","#f6eedb"], geoeffnet_ungelesen:["Geöffnet","#8a6d3b","#f6eedb"], mieter_signiert:["Unterschrieben","#2c4a6e","#e3ebf4"], signiert:["✓ Gültig","#3d4f2f","#e8eadb"]};
+async function ppPdfOeffnen(c){
+  const pfad = (c.signedPdfs&&c.signedPdfs[0]&&c.signedPdfs[0].path) || c.signedPdfPath || (c.unsignedPdfs&&c.unsignedPdfs[0]&&c.unsignedPdfs[0].path);
+  if(!pfad){ toast("Kein PDF gefunden","error"); return; }
+  const w = window.open("about:blank","_blank");
+  const {data, error} = await supabase.storage.from("contracts").createSignedUrl(pfad, 600);
+  if(error||!data){ if(w) w.close(); toast("PDF konnte nicht geöffnet werden","error"); return; }
+  if(w) w.location.href = data.signedUrl; else window.location.href = data.signedUrl;
+}
+function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChanged, onEdit}){
+  const [busy, setBusy] = useState("");
+  const [ergebnis, setErgebnis] = useState(null);
+  const {d, fehlt} = ppVertragsDaten(pp, apts, tenants, rooms);
+  const liste = (vertraege||[]).filter(c=>c.parkplatzId===pp.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  const aktuell = ppAktuellerVertrag(pp, vertraege);
+  const offen = aktuell && PP_OFFEN.includes(aktuell.status);
+  async function vorschau(){
+    setBusy("pdf");
+    try { const blob = await htmlToPdf(buildParkplatzHTML(d, false), "Parkplatzvertrag.pdf"); const u = URL.createObjectURL(blob); window.open(u, "_blank") || downloadBlob(blob, `Parkplatzvertrag_${(d.name||"").replace(/\s+/g,"_")}.pdf`); }
+    catch(e){ alert("PDF konnte nicht erstellt werden: " + (e.message||e)); }
+    finally { setBusy(""); }
+  }
+  async function senden(){
+    if(offen && !confirm("Es gibt bereits einen offenen Vertrag. Diesen zurückziehen und einen neuen senden?")) return;
+    setBusy("send");
+    try {
+      if(offen){ const {error} = await supabase.from("contracts").update({status:"zurueckgezogen", updated_at:new Date().toISOString()}).eq("id", aktuell.id); if(error) throw new Error(error.message); }
+      const r = await ppVertragSenden(pp, apts, tenants, rooms);
+      setErgebnis(r); onChanged && await onChanged();
+    } catch(e){ alert("Senden fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(""); }
+  }
+  async function zurueckziehen(){
+    if(!aktuell || !confirm("Vertrag zurückziehen? Der Link funktioniert danach nicht mehr.")) return;
+    setBusy("zurueck");
+    const {error} = await supabase.from("contracts").update({status:"zurueckgezogen", updated_at:new Date().toISOString()}).eq("id", aktuell.id);
+    setBusy(""); if(error){ toast("Zurückziehen fehlgeschlagen","error"); return; }
+    toast("Vertrag zurückgezogen"); onChanged && onChanged();
+  }
+  const R = ({l,v})=> <div style={{display:"flex",justifyContent:"space-between",gap:12,padding:"6px 0",borderBottom:"1px solid #efe8da",fontSize:13}}><span style={{color:"#8a8174"}}>{l}</span><span style={{fontWeight:500,textAlign:"right"}}>{v||"-"}</span></div>;
+  return (
+    <div className="ov" onClick={e=>e.target===e.currentTarget&&!busy&&onClose()}>
+      <div className="modal" style={{width:560}}>
+        <div className="mt">Parkplatzvertrag · {pp.bezeichnung}</div>
+        <div style={{fontSize:12,color:"#8a8174",marginTop:-10,marginBottom:14,lineHeight:1.5}}>Eigener Vertrag, unabhängig vom Untermietvertrag. Ablauf wie bei den Zimmern: Link per E-Mail, digital unterschreiben, danach gegenzeichnen.</div>
+        <R l="Mieter*in" v={d.name}/>
+        <R l="E-Mail" v={d.email}/>
+        <R l="Parkplatz" v={`${d.bezeichnung}, ${d.objektAdresse}${d.plzOrt?`, ${d.plzOrt}`:""}`}/>
+        <R l="Mietbeginn" v={d.ab}/>
+        <R l="Dauer" v={d.bis ? `befristet bis ${d.bis}` : `unbefristet, ${d.kuendigungsfrist||1} Mt. Kündigungsfrist`}/>
+        <R l="Miete / Mt." v={+d.miete>0 ? chf(+d.miete) : ""}/>
+        {d.kennzeichen && <R l="Kennzeichen" v={d.kennzeichen}/>}
+        <R l="Sprache" v={d.sprache==="en" ? "Deutsch + englische Übersetzung" : "Deutsch"}/>
+        {fehlt.length>0 && <div className="warn" style={{marginTop:14}}>Für den Vertrag fehlt noch: <strong>{fehlt.join(", ")}</strong>. <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={onEdit}>Parkplatz bearbeiten</span></div>}
+        {aktuell && (
+          <div style={{marginTop:16,padding:"12px 14px",background:"#faf8f3",borderRadius:8,fontSize:12.5}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"space-between"}}>
+              <span>Aktueller Vertrag: <strong>{(PP_STATUS[aktuell.status]||[aktuell.status])[0]}</strong>{aktuell.sentAt?` · gesendet ${new Date(aktuell.sentAt).toLocaleDateString("de-CH")}`:""}</span>
+              <span style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {aktuell.status==="mieter_signiert" && <CountersignButton contract={aktuell} onDone={onChanged} onSigned={()=>{}}/>}
+                <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>ppPdfOeffnen(aktuell)}>📄 PDF</button>
+                {offen && aktuell.signUrl && <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>{ try{ navigator.clipboard.writeText(aktuell.signUrl); toast("Link kopiert"); }catch(_){ prompt("Link", aktuell.signUrl); } }}>⧉ Link</button>}
+                {offen && <button className="btn btn-g btn-sm" style={{width:"auto",color:"#9b4a3e"}} disabled={!!busy} onClick={zurueckziehen}>Zurückziehen</button>}
+              </span>
+            </div>
+          </div>
+        )}
+        {ergebnis && <div style={{marginTop:12,fontSize:12.5,color:"#3d4f2f"}}>✓ Vertrag erstellt{ergebnis.emailSent?` und an ${d.email} gesendet`:", aber die E-Mail konnte nicht gesendet werden. Link kopieren und selbst schicken"}.</div>}
+        {liste.length>1 && <div style={{marginTop:12,fontSize:11.5,color:"#8a8174"}}>Frühere Verträge: {liste.filter(c=>c!==aktuell).map(c=>`${new Date(c.createdAt).toLocaleDateString("de-CH")} (${(PP_STATUS[c.status]||[c.status==="zurueckgezogen"?"zurückgezogen":c.status])[0]})`).join(", ")}</div>}
+        <div className="ma" style={{flexWrap:"wrap"}}>
+          <button className="btn btn-g" disabled={!!busy} onClick={onClose}>Schliessen</button>
+          <button className="btn btn-g" disabled={!!busy||fehlt.length>0} onClick={vorschau}>{busy==="pdf"?"Erstellt…":"PDF ansehen"}</button>
+          {(!aktuell || offen) && <button className="btn btn-p" disabled={!!busy||fehlt.length>0} onClick={senden}>{busy==="send"?"Sendet…":offen?"Neu senden":"✍ Zum Unterschreiben senden"}</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadParkVertraege, apts, tenants, rooms, istAdmin=true}){
   const [edit, setEdit] = useState(null);
+  const [vertragFuer, setVertragFuer] = useState(null);
   const pps = parkplaetze||[];
   const fin = parkFinHeute(pps);
   const gruppen = {};
@@ -15185,7 +15474,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, apts, tenants, istAdmin=
             </div>
             <div style={{overflowX:"auto"}}><table className="pp-tbl" style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}>
-                <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th></th>}</tr></thead>
+                <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th style={{padding:"6px 10px"}}>Vertrag</th>}{istAdmin&&<th></th>}</tr></thead>
               <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); return (
                 <tr key={p.id}>
                   <td style={{...td,fontWeight:600}}>{p.bezeichnung}{apt && <div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>zu {apt.id}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div>}</td>
@@ -15193,12 +15482,17 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, apts, tenants, istAdmin=
                   <td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
                   <td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>
-                  {istAdmin && <td style={{...td,textAlign:"right"}}><button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setEdit(p)}>✏</button></td>}
+                  {istAdmin && <td data-label="Vertrag" style={td}>{(()=>{ const c=ppAktuellerVertrag(p, parkVertraege); if(!name) return <span style={{color:"#a89f8f"}}>-</span>;
+                    if(c && c.status==="mieter_signiert") return <CountersignButton contract={c} onDone={loadParkVertraege} onSigned={()=>{}}/>;
+                    if(c){ const [l,col,bg]=PP_STATUS[c.status]||[c.status,"#8a8174","#f0ebe1"]; return <span onClick={()=>setVertragFuer(p)} style={{cursor:"pointer",fontSize:11,padding:"3px 8px",borderRadius:10,color:col,background:bg,whiteSpace:"nowrap"}}>{l}</span>; }
+                    return <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setVertragFuer(p)}>📄 Vertrag</button>; })()}</td>}
+                  {istAdmin && <td style={{...td,textAlign:"right",whiteSpace:"nowrap"}}>{ppAktuellerVertrag(p, parkVertraege) && <button className="btn btn-g btn-sm" style={{width:"auto",marginRight:4}} title="Vertrag" onClick={()=>setVertragFuer(p)}>📄</button>}<button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setEdit(p)}>✏</button></td>}
                 </tr>);})}</tbody>
             </table></div>
           </div>
         );
       })}
+      {vertragFuer && <ParkVertragModal pp={(pps.find(x=>x.id===vertragFuer.id))||vertragFuer} apts={apts} tenants={tenants} rooms={rooms} vertraege={parkVertraege} onClose={()=>setVertragFuer(null)} onChanged={()=>loadParkVertraege&&loadParkVertraege()} onEdit={()=>{ const p=vertragFuer; setVertragFuer(null); setEdit(p); }}/>}
       {edit && <ParkplatzModal pp={edit} apts={apts} tenants={tenants} onClose={()=>setEdit(null)} onSaved={()=>{ setEdit(null); loadParkplaetze&&loadParkplaetze(); }}/>}
     </div>
   );

@@ -5,6 +5,10 @@ project_id = "aohcqrxpsqronlcwssrk"
 [functions.finalize-contract]
 verify_jwt = false
 
+# send-contract-email prueft selbst (Admin-Login oder Service-Key)
+[functions.send-contract-email]
+verify_jwt = false
+
 [functions.countersign-contract]
 verify_jwt = true
 

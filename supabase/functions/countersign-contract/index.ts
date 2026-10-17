@@ -164,6 +164,18 @@ ${inhalt}
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch &middot; ${T("Vertragsnr.", "Contract no.")} ${esc(vertragId)}</div>
 </div></body></html>`;
 
+  if (contract.contract_type === "parkplatz") {
+    const pp = data.parkplatz || {};
+    const ort = [pp.objektAdresse, pp.plzOrt].filter(Boolean).join(", ");
+    const ref = `Parkplatz ${pp.bezeichnung || ""} ${fullName}`.replace(/\s+/g, " ").trim();
+    const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(vornameNice)},</p>
+<p style="font-size:14px;margin:0 0 18px;">${T("dein Mietvertrag für den Parkplatz ist von beiden Seiten unterzeichnet und damit gültig. Vielen Dank!", "your parking space agreement has been signed by both parties and is now valid. Thank you!")}</p>
+${box(T("Dein Parkplatz", "Your parking space"), rowVoll(T("Parkplatz", "Parking space"), esc([pp.bezeichnung, ort].filter(Boolean).join(", ")), true) + row(T("Mietbeginn", "Start"), esc(formatLongDate(pp.ab))) + (pp.bis ? row(T("Befristet bis", "Fixed term until"), esc(formatLongDate(pp.bis))) : "") + row(T("Miete pro Monat", "Rent per month"), chf2(pp.miete)))}
+<p style="font-size:14px;margin:0 0 14px;">${T(`Bitte überweise die Miete monatlich im Voraus, spätestens bis zum 25. des Vormonats, an die D&amp;T Partners GmbH, Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, Referenz «${esc(ref)}».`, `Please pay the rent monthly in advance, no later than the 25th of the preceding month, to D&amp;T Partners GmbH, Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, reference "${esc(ref)}".`)}</p>
+<p style="font-size:14px;margin:0 0 6px;">${T("Den unterzeichneten Vertrag findest du im Anhang oder hier:", "You will find the signed agreement attached or here:")}</p>
+<div style="margin:0 0 6px;">${linksHtml}</div>`;
+    return shell(T("Parkplatz bestätigt", "Parking space confirmed"), inhalt);
+  }
   const isVerlaengerung = contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag";
   if (isVerlaengerung) {
     const endeStr = formatLongDate(vertrag.mietende || vertrag.auszug);
@@ -335,7 +347,8 @@ Deno.serve(async (req) => {
 
       const isUmv = (u.type === "umv" || u.type === "untermietvertrag");
       const isAmz = (u.type === "amz" || u.type === "anfangsmietzins");
-      const isNachtrag = (u.type === "verlaengerung" || u.type === "nachtrag");
+      const isPark = (u.type === "parkplatz");
+      const isNachtrag = (u.type === "verlaengerung" || u.type === "nachtrag" || isPark);
 
       // ─── D&T-Block (Gegenstueck zur Mieter-Signatur) ───────────────────
       // Beim UMV/Nachtrag steht der D&T-Block (Hauptmieterin) RECHTS, beim AMZ
@@ -361,7 +374,7 @@ Deno.serve(async (req) => {
         const pg = pdfDoc.addPage([Math.max(400, W), Math.max(560, H)]);
         const PW = pg.getWidth(), PH = pg.getHeight();
         const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-        const docName = u.name || (isAmz ? "Anfangsmietzinsformular" : isNachtrag ? "Nachtrag" : "Untermietvertrag");
+        const docName = u.name || (isAmz ? "Anfangsmietzinsformular" : isPark ? "Parkplatzvertrag" : isNachtrag ? "Nachtrag" : "Untermietvertrag");
         let y = PH - 90;
         pg.drawText("Gegenzeichnung der Hauptmieterin", { x: 60, y, size: 16, font: bold, color: rgb(0.1, 0.1, 0.1) }); y -= 34;
         const lines = [
@@ -374,7 +387,7 @@ Deno.serve(async (req) => {
         ];
         for (const l of lines) { pg.drawText(l, { x: 60, y, size: 10.5, font: helvetica, color: rgb(0.15, 0.15, 0.15) }); y -= 17; }
         y -= 30;
-        pg.drawText(isAmz ? "VERMIETER*IN" : "HAUPTMIETER", { x: 60, y, size: 8, font: bold, color: rgb(0.5, 0.5, 0.5) }); y -= 16;
+        pg.drawText((isAmz || isPark) ? "VERMIETER*IN" : "HAUPTMIETER", { x: 60, y, size: 8, font: bold, color: rgb(0.5, 0.5, 0.5) }); y -= 16;
         pg.drawText("D&T Partners GmbH", { x: 60, y, size: 11, font: bold, color: rgb(0.1, 0.1, 0.1) }); y -= 30;
         pg.drawText("Ort, Datum:", { x: 60, y, size: 9, font: bold, color: rgb(0.27, 0.27, 0.27) });
         pg.drawText(ortDatumStr, { x: 140, y, size: 9, font: helvetica, color: rgb(0.1, 0.1, 0.1) }); y -= 34;
@@ -419,7 +432,8 @@ Deno.serve(async (req) => {
         const entityId = contract.tenant_id || contract.bewerber_id || null;
         if (entityType && entityId) {
           let category = "Vertrag";
-          if (isNachtrag) category = "Verlängerung (unterzeichnet)";
+          if (isPark) category = "Parkplatzvertrag (unterzeichnet)";
+          else if (isNachtrag) category = "Verlängerung (unterzeichnet)";
           else if (isUmv) category = "Untermietvertrag (unterzeichnet)";
           else if (isAmz) category = "Anfangsmietzinsformular (unterzeichnet)";
           else if (u.name) category = u.name;
@@ -503,6 +517,7 @@ Deno.serve(async (req) => {
         if (contract.bewerber_id) { const { data: ap } = await supabase.from("applicants").select("sprache").eq("id", contract.bewerber_id).maybeSingle(); if (ap?.sprache) sprache = ap.sprache; }
         if (sprache === "de" && contract.mieter_email) { const { data: tn } = await supabase.from("tenants").select("sprache").ilike("email", contract.mieter_email).limit(1); if (tn && tn[0]?.sprache) sprache = tn[0].sprache; }
       } catch (_) { /* Standard: Deutsch */ }
+      if (contract.contract_type === "parkplatz" && contract?.contract_data?.sprache) sprache = contract.contract_data.sprache;
       const en = sprache === "en";
       let logoB64 = null;
       try {
@@ -521,7 +536,9 @@ Deno.serve(async (req) => {
             ...((() => { const mm = contract?.contract_data?.vertrag?.mitmieter; const e = mm && mm.vorname && String(mm.email || "").trim(); return (e && e.toLowerCase() !== String(contract.mieter_email || "").toLowerCase()) ? { cc: [e] } : {}; })()),
             bcc: ["daan.theijse@dthomes.ch"],
             reply_to: "info@dthomes.ch",
-            subject: contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag"
+            subject: contract.contract_type === "parkplatz"
+              ? (en ? "Your parking space agreement is confirmed" : "Dein Parkplatzvertrag ist best\u00e4tigt")
+              : contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag"
               ? (en ? "Your extension is confirmed" : "Deine Verl\u00e4ngerung ist best\u00e4tigt")
               : (en ? "Welcome to D&T Homes: contract signed" : "Willkommen bei D&T Homes: Vertrag unterzeichnet"),
             html: confirmationEmailToTenant(contract, downloadLinks, sprache, logoSrc),
