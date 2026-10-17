@@ -342,6 +342,8 @@ tr:hover td{background:var(--beige-soft)}
 .fi.bewerber-search{font-size:11px !important;padding:7px 10px !important}
 .fi:focus{border-color:var(--gold)}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.frow.pp3{grid-template-columns:1fr 1fr 1fr}
+@media (max-width:560px){.frow.pp3{grid-template-columns:1fr 1fr}}
 .ma{display:flex;gap:12px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
 
 .tabs{display:flex;margin-bottom:22px;border-bottom:1px solid var(--line);gap:4px}
@@ -2725,6 +2727,12 @@ function useSupabaseData() {
 
   // ─── PARTNER (Verwaltungen & Eigentümer) ──────────────────────
   const [partners, setPartners] = useState([]);
+  const [parkplaetze, setParkplaetze] = useState([]);
+  async function loadParkplaetze() {
+    const {data, error} = await supabase.from("parkplaetze").select("*").order("adresse").order("bezeichnung");
+    if (error) { console.warn("Parkplätze:", error.message); return; }
+    setParkplaetze(data || []);
+  }
   async function loadPartners() {
     try {
       const {data, error} = await supabase.from("partners").select("*").order("name", {ascending:true});
@@ -2763,6 +2771,7 @@ function useSupabaseData() {
     setPartners(p => p.filter(x => x.id !== id));
   }
   useEffect(() => { loadPartners(); }, []);
+  useEffect(() => { loadParkplaetze(); }, []);
 
   // ─── TO-DOS (Kanban) ──────────────────────────────────────────
   const [todos, setTodos] = useState([]);
@@ -2928,7 +2937,7 @@ function useSupabaseData() {
   useEffect(() => { loadHandoverProtocols(); }, []);
   // Runterziehen in der App: Daten still im Hintergrund neu laden (ohne Startbildschirm)
   useEffect(() => {
-    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle()]);
+    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle(), loadParkplaetze()]);
     return () => { delete window.__ibNeuLaden; };
   }, []);
   // Live: Verträge und Übergaben kommen per Realtime-Push. Neue Unterschrift = Hinweis.
@@ -3308,7 +3317,7 @@ function useSupabaseData() {
     setTimeApprovals(p => p.filter(a=>!(a.employeeId===employeeId&&a.jahr===jahr&&a.monat===monat)));
   }
 
-  return {apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, deleteRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
+  return {parkplaetze, loadParkplaetze, apts, rooms, tenants, bewerber, smoobuBookings, documents, protokolle, payments, partners, loadPartners, insertPartner, updatePartner, deletePartner, todos, loadTodos, insertTodo, updateTodo, deleteTodo, todoDismissals, loadTodoDismissals, dismissAutoTodo, loading, loadAll, updateApt, insertApt, deleteApt, updateTenant, insertTenant, renameTenantId, deleteTenant, restoreTenant, purgeTenant, deletedTenants, loadDeleted, updateRoom, insertRoom, insertRooms, deleteRoom, updateBewerber, deleteBewerber, uploadDocument, getDocumentUrl, deleteDocument, migrateDocumentsToTenant, convertTenantToBewerber, insertProtokoll, updateProtokoll, deleteProtokoll, upsertPayment, deletePayment, sendMahnung, contracts, loadContracts, withdrawContract, deleteContract, handoverProtocols, loadHandoverProtocols, startHandoverProtocol, cancelHandoverProtocol, acceptHandoverProtocol, extendHandoverDeadline, deleteHandoverProtocol, employees, timeEntries, insertEmployee, updateEmployee, deleteEmployee, insertTimeEntry, updateTimeEntry, deleteTimeEntry, timeApprovals, approveMonth, revokeMonth};
 }
 
 // ─── DOCUMENTS MANAGER ───────────────────────────────────────────────────────
@@ -5025,7 +5034,7 @@ function stromVonZimmer(r, t, apts){
   }
   return 25;
 }
-function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
+function Dashboard({parkplaetze=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
   const heute=new Date();
   heute.setHours(0,0,0,0);
 
@@ -5151,7 +5160,10 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
   const pipelineAuslastung = pipelineRooms.length ? Math.round(pipelineOcc/pipelineRooms.length*100) : 0;
   
   // Total
-  const totalAusgaben = wgAusgaben + abAusgaben;
+  const pk = parkFinHeute(parkplaetze);
+  const pkMax = (parkplaetze||[]).reduce((s,p)=>s+(+p.miete_verkauf||0),0) - pk.kosten;
+  const margeHeute = wgMargeIst + pk.marge, margeMax = wgMargeMax + pkMax;
+  const totalAusgaben = wgAusgaben + abAusgaben + pk.kosten;
   const totalEinnahmenIst = wgEinnahmenIst; // Airbnb income not tracked
   const totalMargeIst = totalEinnahmenIst - totalAusgaben;
 
@@ -5215,19 +5227,27 @@ function Dashboard({apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRo
         <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Total Ausgaben / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:300,color:"#1a1814",lineHeight:1,marginBottom:6}}>{chf(totalAusgaben)}</div>
-          <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.filter(a=>aptKat(a)==="WG").length} WG · {wgApts.filter(a=>aptKat(a)==="Wohnung").length} Wohnungen · {airbnbApts.length} Airbnb</div>
+          <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.filter(a=>aptKat(a)==="WG").length} WG · {wgApts.filter(a=>aptKat(a)==="Wohnung").length} Wohnungen · {airbnbApts.length} Airbnb{pk.anzahl>0?` · ${pk.anzahl} Parkpl.`:""}</div>
         </div>
-        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:wgMargeIst>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${wgMargeIst>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:margeHeute>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${margeHeute>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Marge aktuell / Mt.</div>
-          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:wgMargeIst>=0?"#3d4f2f":"#9b4a3e",lineHeight:1,marginBottom:6}}>{wgMargeIst>=0?"+":""}{chf(wgMargeIst)}</div>
-          <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WGs + Wohnungen, ohne Airbnb</div>
+          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:margeHeute>=0?"#3d4f2f":"#9b4a3e",lineHeight:1,marginBottom:6}}>{margeHeute>=0?"+":""}{chf(margeHeute)}</div>
+          <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WGs + Wohnungen{pk.anzahl>0?" + Parkplätze":""}, ohne Airbnb</div>
         </div>
         <div onClick={()=>navigateTo&&navigateTo("zimmer",null)} style={{background:"#1a1814",borderRadius:8,padding:"24px 26px",color:"#fefcf7",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.2)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
           <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Marge maximal / Mt.</div>
-          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:"#fefcf7",lineHeight:1,marginBottom:6}}>+{chf(wgMargeMax)}</div>
+          <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:"#fefcf7",lineHeight:1,marginBottom:6}}>+{chf(margeMax)}</div>
           <div style={{fontSize:11,color:"#b8af9f",letterSpacing:".05em"}}>Bei 100% Belegung</div>
         </div>
       </div>
+
+      {(parkplaetze||[]).length>0 && (()=>{ const frei=(parkplaetze||[]).filter(p=>!ppVermietet(p)).length; return (
+        <div onClick={()=>navigateTo&&navigateTo("parkplaetze",null)} style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"8px 22px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 20px",marginBottom:24,cursor:"pointer",fontSize:12.5}}>
+          <span style={{fontWeight:600}}>🅿️ Parkplätze</span>
+          <span>{parkplaetze.length-frei}/{parkplaetze.length} vermietet{frei>0?<span style={{color:"#b8843e"}}> · {frei} frei</span>:null}</span>
+          <span style={{color:"#8a8174"}}>Einnahmen {chf(pk.einnahmen)} · Kosten {chf(pk.kosten)}</span>
+          <span style={{marginLeft:"auto",fontWeight:600,color:pk.marge>=0?"#3d4f2f":"#9b4a3e"}}>Marge {pk.marge>=0?"+":""}{chf(pk.marge)} / Mt.</span>
+        </div>); })()}
 
       <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WGs und Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
@@ -9181,7 +9201,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
   );
 }
 
-function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom:updateRoomDb,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
+function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,insertRoom,insertRooms,deleteRoom,updateRoom:updateRoomDb,documents,uploadDocument,getDocumentUrl,deleteDocument,navigateTo,navTarget,istAdmin=true}){
   const [sel,setSel]=useState(null);const [tab,setTab]=useState("info");const [editing,setEditing]=useState(false);const [form,setForm]=useState({});
   
   // Auto-select target apartment when navigated from another tab
@@ -9512,6 +9532,7 @@ function Wohnungen({apts,rooms,tenants,partners,updateApt,insertApt,deleteApt,in
                   ["Kautionstyp",apt.kautionType||apt.kaution_type],
                   ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"-"],
                   ["Referenz-Nr.",apt.refnr||"-"],
+                  (()=>{ const l=(parkplaetze||[]).filter(p=>p.apt_id===apt.id); return l.length>0 && ["Parkplätze", <span style={{cursor:"pointer",textDecoration:"underline dotted"}} onClick={()=>navigateTo&&navigateTo("parkplaetze",null)}>{l.map(p=>p.bezeichnung).join(", ")}</span>]; })(),
                   ["Mietbeginn",apt.mietbeginn],
                   ["Mietende",apt.mietende||"-"],
                   istAdmin && ["Verwaltung",apt.verwaltung],
@@ -10204,7 +10225,7 @@ function MieterSchluessel({tenant, updateTenant}) {
   );
 }
 
-function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,restoreTenant,purgeTenant,deletedTenants,loadDeleted,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
+function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,restoreTenant,purgeTenant,deletedTenants,loadDeleted,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,istAdmin=true}){
   const [search,setSearch]=useState("");
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -10991,6 +11012,7 @@ function Mieter({tenants,rooms,apts,partners,contracts,loadContracts,withdrawCon
                 ["Einzug",tenant.einzug||"-"],
                 ["Auszug",tenant.auszug||"-"],
                 istAdmin && ["Kaution-Variante",tenant.kautionOpt==="0x"?"Keine Kaution":tenant.kautionOpt==="1x"?"1× Miete":tenant.kautionOpt==="2x"?"2× Miete":tenant.kautionOpt==="3x"?"3× Miete":(tenant.kautionMonate?`${tenant.kautionMonate}× Miete`:"-")],
+                (()=>{ const l=(parkplaetze||[]).filter(p=>p.tenant_id===tenant.id); return l.length>0 && ["Parkplatz", <span style={{cursor:"pointer",textDecoration:"underline dotted"}} onClick={()=>navigateTo&&navigateTo("parkplaetze",null)}>{l.map(p=>`${p.bezeichnung}${p.miete_verkauf!=null?` · ${chf(+p.miete_verkauf)}/Mt.`:""}`).join(", ")}</span>]; })(),
                 istAdmin && ["Kautionsbetrag",tenant.kautionBetrag?`CHF ${(+tenant.kautionBetrag).toLocaleString('de-CH')}`:"-"],
                 istAdmin && ["Servicegebühr/Mt.",tenant.kautionAufschlag?`CHF ${tenant.kautionAufschlag}`:"CHF 0"],
                 istAdmin && ["Möbliert",tenant.moebliert?"Ja"+(tenant.moeblierungPauschale?` (CHF ${tenant.moeblierungPauschale}${tenant.moeblierungModus==="monatlich"?"/Mt.":" einmalig"})`:""):"Nein"],
@@ -12911,7 +12933,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
 }
 
 // ─── FINANZEN (Monats-KPIs) ──────────────────────────────────────────────────
-function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
+function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] }){
   const [openTbl, setOpenTbl] = useState({});
   const curMonthRef = useRef({});
   // Wiederverwendbare Callback-Ref: zentriert den aktuellen Monat horizontal
@@ -13116,16 +13138,17 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       const wgF=monthFin(s,e,fut); const abF=airbnbFin(s,e,eNext);
       const wgZF=monthFin(s,e,fut,"WG"); const wgWF=monthFin(s,e,fut,"Wohnung");
       const wg=floorFut(wgF.marge, fut); const ab=floorFut(abF.marge, fut);
-      const umsatz=wgF.einnahmen+abF.umsatz; const mietausgaben=wgF.ausgaben+abF.miete;
+      const pkF=parkFin(parkplaetze,s,e);
+      const umsatz=wgF.einnahmen+abF.umsatz+pkF.einnahmen; const mietausgaben=wgF.ausgaben+abF.miete;
       const uebrige=abF.kommission+abF.putzen+abF.waesche+abF.moeblierung;
-      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, marge:wg+ab, umsatz, umsatzWg:wgF.einnahmen, umsatzWgZ:wgZF.einnahmen, umsatzWohn:wgWF.einnahmen, umsatzAb:abF.umsatz, mietausgaben, uebrige,
+      combinedMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), y:cy, wg, ab, pkU:pkF.einnahmen, pkK:pkF.kosten, marge:wg+ab+pkF.marge, umsatz, umsatzWg:wgF.einnahmen, umsatzWgZ:wgZF.einnahmen, umsatzWohn:wgWF.einnahmen, umsatzAb:abF.umsatz, mietausgaben, uebrige,
         future: fut, current: cy===now.getFullYear()&&cm===now.getMonth() });
       cm++; if(cm>11){cm=0;cy++;}
     }
   }
   const combinedYears = [];
   for (let y=2025; y<=now.getFullYear()+2; y++){
-    let wgY=0, abY=0, umsatzY=0, umsatzWgY=0, umsatzWgZY=0, umsatzWohnY=0, umsatzAbY=0, mietausgabenY=0, uebrigeY=0;
+    let pkUY=0, pkKY=0, wgY=0, abY=0, umsatzY=0, umsatzWgY=0, umsatzWgZY=0, umsatzWohnY=0, umsatzAbY=0, mietausgabenY=0, uebrigeY=0;
     for (let mo=0; mo<12; mo++){
       const s=new Date(y,mo,1), e=new Date(y,mo+1,0,23,59,59,999), eNext=new Date(y,mo+1,1);
       const fut = new Date(y,mo,1) > new Date(now.getFullYear(),now.getMonth(),1);
@@ -13134,9 +13157,10 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
       umsatzY += wgF.einnahmen + abF.umsatz; umsatzWgY += wgF.einnahmen; umsatzAbY += abF.umsatz;
       umsatzWgZY += monthFin(s,e,fut,"WG").einnahmen; umsatzWohnY += monthFin(s,e,fut,"Wohnung").einnahmen;
       mietausgabenY += wgF.ausgaben + abF.miete;
+      const pkF=parkFin(parkplaetze,s,e); pkUY+=pkF.einnahmen; pkKY+=pkF.kosten; umsatzY+=pkF.einnahmen;
       uebrigeY += abF.kommission + abF.putzen + abF.waesche + abF.moeblierung;
     }
-    combinedYears.push({ y, wg:wgY, ab:abY, marge:wgY+abY, umsatz:umsatzY, umsatzWg:umsatzWgY, umsatzWgZ:umsatzWgZY, umsatzWohn:umsatzWohnY, umsatzAb:umsatzAbY, mietausgaben:mietausgabenY, uebrige:uebrigeY });
+    combinedYears.push({ y, wg:wgY, ab:abY, pkU:pkUY, pkK:pkKY, marge:wgY+abY+pkUY-pkKY, umsatz:umsatzY, umsatzWg:umsatzWgY, umsatzWgZ:umsatzWgZY, umsatzWohn:umsatzWohnY, umsatzAb:umsatzAbY, mietausgaben:mietausgabenY, uebrige:uebrigeY });
   }
   const cur = months.find(m=>m.current) || months[0];
   const maxAbs = Math.max(1, ...months.map(m=>Math.abs(m.marge)));
@@ -13183,8 +13207,10 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             <SubRow label="WGs" value={chf(Math.round(m.umsatzWgZ))} />
             <SubRow label="Wohnungen" value={chf(Math.round(m.umsatzWohn))} />
             <SubRow label="Airbnb" value={chf(Math.round(m.umsatzAb))} />
-            <GrpRow label="Kosten" value={chf(Math.round(m.mietausgaben+m.uebrige))} />
+            {(m.pkU||m.pkK)>0 && <SubRow label="Parkplätze" value={chf(Math.round(m.pkU))} />}
+            <GrpRow label="Kosten" value={chf(Math.round(m.mietausgaben+m.uebrige+(m.pkK||0)))} />
             <SubRow label="Mietausgaben" value={chf(Math.round(m.mietausgaben))} />
+            {(m.pkU||m.pkK)>0 && <SubRow label="Parkplätze" value={chf(Math.round(m.pkK))} />}
             <SubRow label="Übrige Kosten" value={chf(Math.round(m.uebrige))} />
             <CardFoot marge={m.marge} />
           </div>
@@ -13201,8 +13227,10 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings }){
             <SubRow label="WGs" value={chf(Math.round(yr.umsatzWgZ))} />
             <SubRow label="Wohnungen" value={chf(Math.round(yr.umsatzWohn))} />
             <SubRow label="Airbnb" value={chf(Math.round(yr.umsatzAb))} />
-            <GrpRow label="Kosten" value={chf(Math.round(yr.mietausgaben+yr.uebrige))} />
+            {(yr.pkU||yr.pkK)>0 && <SubRow label="Parkplätze" value={chf(Math.round(yr.pkU))} />}
+            <GrpRow label="Kosten" value={chf(Math.round(yr.mietausgaben+yr.uebrige+(yr.pkK||0)))} />
             <SubRow label="Mietausgaben" value={chf(Math.round(yr.mietausgaben))} />
+            {(yr.pkU||yr.pkK)>0 && <SubRow label="Parkplätze" value={chf(Math.round(yr.pkK))} />}
             <SubRow label="Übrige Kosten" value={chf(Math.round(yr.uebrige))} />
             <CardFoot marge={yr.marge} />
           </div>
@@ -15022,12 +15050,167 @@ function PasswoerterPage(){
   </>);
 }
 
+// ─── PARKPLÄTZE ──────────────────────────────────────────────────────────────
+// Ein Parkplatz kostet uns (Einkauf) und bringt Miete (Verkauf). Beides gilt im
+// jeweiligen Zeitraum; ohne Datum gilt es unbefristet.
+function ppAktiv(ab, bis, s, e){ const a=parseDMY(ab), b=parseDMY(bis); return (!a||isNaN(a)||a<=e) && (!b||isNaN(b)||b>=s); }
+function ppVermietet(p){ return !!(p.tenant_id || (p.mieter_extern||"").trim()); }
+function parkFin(pps, s, e){
+  let kosten=0, einnahmen=0, anzahl=0, vermietet=0;
+  (pps||[]).forEach(p=>{
+    if (ppAktiv(p.einkauf_ab, p.einkauf_bis, s, e)) { kosten += (+p.miete_einkauf||0); anzahl++; }
+    if (ppVermietet(p) && ppAktiv(p.vermietet_ab, p.vermietet_bis, s, e)) { einnahmen += (+p.miete_verkauf||0); vermietet++; }
+  });
+  return {kosten, einnahmen, marge: einnahmen-kosten, anzahl, vermietet};
+}
+function parkFinHeute(pps){ const n=new Date(); const s=new Date(n.getFullYear(),n.getMonth(),1); const e=new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999); return parkFin(pps,s,e); }
+function ppMieterName(p, tenants){ if(p.tenant_id){ const t=(tenants||[]).find(x=>x.id===p.tenant_id); if(t) return `${t.vorname||""} ${t.nachname||""}`.trim(); } return (p.mieter_extern||"").trim(); }
+
+function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
+  const neu = !pp.id;
+  const [f, setF] = useState({anzahl:1, ...pp, mieterArt: pp.tenant_id ? "mieter" : ((pp.mieter_extern||"").trim() ? "extern" : "frei")});
+  const [busy, setBusy] = useState(false);
+  const set = (k)=>(e)=>setF(x=>({...x,[k]:e.target.value}));
+  const adressen = [...new Set((apts||[]).map(a=>a.adresse).filter(Boolean))].sort();
+  const aktiveMieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv").sort((a,b)=>`${a.vorname} ${a.nachname}`.localeCompare(`${b.vorname} ${b.nachname}`));
+  const marge = (+f.miete_verkauf||0) - (+f.miete_einkauf||0);
+  async function speichern(){
+    if(!(f.bezeichnung||"").trim()){ toast("Bitte eine Bezeichnung angeben","error"); return; }
+    setBusy(true);
+    const row = {
+      bezeichnung:(f.bezeichnung||"").trim(), adresse:(f.adresse||"").trim()||null, apt_id:f.apt_id||null,
+      tenant_id: f.mieterArt==="mieter" ? (f.tenant_id||null) : null,
+      mieter_extern: f.mieterArt==="extern" ? ((f.mieter_extern||"").trim()||null) : null,
+      miete_einkauf: f.miete_einkauf===""||f.miete_einkauf==null ? null : +f.miete_einkauf,
+      miete_verkauf: f.miete_verkauf===""||f.miete_verkauf==null ? null : +f.miete_verkauf,
+      einkauf_ab:(f.einkauf_ab||"").trim()||null, einkauf_bis:(f.einkauf_bis||"").trim()||null,
+      vermietet_ab: f.mieterArt==="frei" ? null : ((f.vermietet_ab||"").trim()||null),
+      vermietet_bis: f.mieterArt==="frei" ? null : ((f.vermietet_bis||"").trim()||null),
+      notiz:(f.notiz||"").trim()||null, updated_at:new Date().toISOString(),
+    };
+    let error=null;
+    if(neu){
+      const n=Math.max(1, Math.min(50, parseInt(f.anzahl)||1));
+      const rows = n===1 ? [row] : Array.from({length:n},(_,i)=>({...row, bezeichnung:`${row.bezeichnung} ${i+1}`}));
+      ({error} = await supabase.from("parkplaetze").insert(rows));
+    } else {
+      ({error} = await supabase.from("parkplaetze").update(row).eq("id", pp.id));
+    }
+    setBusy(false);
+    if(error){ toast("Speichern fehlgeschlagen","error"); return; }
+    toast(neu && (parseInt(f.anzahl)||1)>1 ? `${parseInt(f.anzahl)} Parkplätze angelegt` : "Gespeichert");
+    onSaved();
+  }
+  async function loeschen(){
+    if(!confirm(`Parkplatz «${pp.bezeichnung}» löschen?`)) return;
+    setBusy(true); const {error}=await supabase.from("parkplaetze").delete().eq("id", pp.id); setBusy(false);
+    if(error){ toast("Löschen fehlgeschlagen","error"); return; }
+    toast("Parkplatz gelöscht"); onSaved();
+  }
+  const sek = (t)=> <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:16,marginBottom:8,fontWeight:500}}>{t}</div>;
+  return (
+    <div className="ov" onClick={e=>e.target===e.currentTarget&&!busy&&onClose()}>
+      <div className="modal" style={{width:560}}>
+        <div className="mt">{neu?"Neuer Parkplatz":"Parkplatz bearbeiten"}</div>
+        <div className="frow">
+          <div className="fg"><label className="fl">Bezeichnung</label><input className="fi" value={f.bezeichnung||""} onChange={set("bezeichnung")} placeholder="z.B. Tiefgarage Nr. 12"/></div>
+          {neu && <div className="fg" style={{maxWidth:130}}><label className="fl">Anzahl</label><input className="fi" type="number" min="1" max="50" value={f.anzahl} onChange={set("anzahl")}/></div>}
+        </div>
+        {neu && (parseInt(f.anzahl)||1)>1 && <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:8}}>Es werden {parseInt(f.anzahl)} Parkplätze angelegt: «{(f.bezeichnung||"Parkplatz").trim()} 1», «… 2» usw.</div>}
+        <div className="frow">
+          <div className="fg"><label className="fl">Gebäude / Adresse</label><input className="fi" list="pp-adressen" value={f.adresse||""} onChange={set("adresse")} placeholder="z.B. Josefstrasse 200"/>
+            <datalist id="pp-adressen">{adressen.map(a=><option key={a} value={a}/>)}</datalist></div>
+          <div className="fg"><label className="fl">Zu Wohnung (optional)</label><select className="fi" value={f.apt_id||""} onChange={set("apt_id")}>
+            <option value="">-</option>{(apts||[]).filter(a=>!f.adresse||a.adresse===f.adresse).map(a=><option key={a.id} value={a.id}>{a.id} · {a.adresse}{a.stockwerk?`, ${a.stockwerk}`:""}</option>)}</select></div>
+        </div>
+        {sek("Einkauf (was wir bezahlen)")}
+        <div className="frow pp3">
+          <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_einkauf??""} onChange={set("miete_einkauf")}/></div>
+          <div className="fg"><label className="fl">Ab</label><input className="fi" value={f.einkauf_ab||""} onChange={set("einkauf_ab")} placeholder="TT.MM.JJJJ"/></div>
+          <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.einkauf_bis||""} onChange={set("einkauf_bis")} placeholder="TT.MM.JJJJ"/></div>
+        </div>
+        {sek("Vermietung")}
+        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+          {[["frei","Frei"],["mieter","An Mieter"],["extern","An Externe"]].map(([k,l])=>(
+            <button key={k} type="button" className={`btn btn-sm ${f.mieterArt===k?"btn-p":"btn-g"}`} style={{width:"auto"}} onClick={()=>setF(x=>({...x,mieterArt:k}))}>{l}</button>
+          ))}
+        </div>
+        {f.mieterArt==="mieter" && <div className="fg"><label className="fl">Mieter</label><select className="fi" value={f.tenant_id||""} onChange={set("tenant_id")}>
+          <option value="">Bitte wählen…</option>{aktiveMieter.map(t=><option key={t.id} value={t.id}>{t.vorname} {t.nachname}</option>)}</select></div>}
+        {f.mieterArt==="extern" && <div className="fg"><label className="fl">Name</label><input className="fi" value={f.mieter_extern||""} onChange={set("mieter_extern")} placeholder="Name der Person oder Firma"/></div>}
+        {f.mieterArt!=="frei" && <div className="frow pp3">
+          <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div>
+          <div className="fg"><label className="fl">Ab</label><input className="fi" value={f.vermietet_ab||""} onChange={set("vermietet_ab")} placeholder="TT.MM.JJJJ"/></div>
+          <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.vermietet_bis||""} onChange={set("vermietet_bis")} placeholder="TT.MM.JJJJ"/></div>
+        </div>}
+        {f.mieterArt==="frei" && <div className="frow"><div className="fg"><label className="fl">Angebotspreis CHF / Mt. (für die Marge)</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div></div>}
+        <div style={{fontSize:12.5,marginTop:4,color:marge>=0?"#3d4f2f":"#9b4a3e"}}>Marge: {marge>=0?"+":""}{chf(marge)} / Mt.{f.mieterArt==="frei"?" (sobald vermietet)":""}</div>
+        <div className="fg" style={{marginTop:10}}><label className="fl">Notiz</label><input className="fi" value={f.notiz||""} onChange={set("notiz")} placeholder="optional"/></div>
+        <div className="ma">
+          {!neu && <button className="btn btn-g" style={{color:"#9b4a3e",marginRight:"auto"}} disabled={busy} onClick={loeschen}>Löschen</button>}
+          <button className="btn btn-g" disabled={busy} onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-p" disabled={busy} onClick={speichern}>{busy?"Speichert…":"✓ Speichern"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ParkplaetzePage({parkplaetze, loadParkplaetze, apts, tenants, istAdmin=true}){
+  const [edit, setEdit] = useState(null);
+  const pps = parkplaetze||[];
+  const fin = parkFinHeute(pps);
+  const gruppen = {};
+  pps.forEach(p=>{ const k=(p.adresse||"Ohne Adresse"); (gruppen[k]=gruppen[k]||[]).push(p); });
+  const td={padding:"9px 10px",borderTop:"1px solid #efe8da",fontSize:12.5,verticalAlign:"middle"};
+  const frei = pps.filter(p=>!ppVermietet(p)).length;
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}><div><div className="pt">Parkplätze</div><div className="ps">{pps.length} Parkplätze · {pps.length-frei} vermietet · {frei} frei</div></div>
+        {istAdmin && <button className="btn btn-p" style={{width:"auto"}} onClick={()=>setEdit({bezeichnung:"Parkplatz", adresse:"", anzahl:1})}>+ Parkplatz</button>}</div>
+      <div className="sg" style={{marginBottom:18}}>
+        <div className="sc"><div className="sl">Einnahmen</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(fin.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
+        <div className="sc"><div className="sl">Kosten</div><div className="sv" style={{fontSize:24}}>{chf(fin.kosten).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
+        <div className="sc"><div className="sl">Marge</div><div className="sv" style={{fontSize:24,color:fin.marge>=0?"#3d4f2f":"#9b4a3e"}}>{fin.marge>=0?"+":""}{chf(fin.marge).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
+        <div className="sc"><div className="sl">Frei</div><div className="sv" style={{fontSize:24,color:frei>0?"#b8843e":"#5a6e4a"}}>{frei}</div><div className="sn" style={{color:"#8a8174"}}>von {pps.length}</div></div>
+      </div>
+      {pps.length===0 && <div className="empty">Noch keine Parkplätze erfasst.</div>}
+      {Object.keys(gruppen).sort().map(adr=>{
+        const liste=gruppen[adr]; const gf=parkFinHeute(liste);
+        return (
+          <div key={adr} className="card" style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,flexWrap:"wrap",marginBottom:8}}>
+              <div className="ct" style={{margin:0}}>{adr}</div>
+              <div style={{fontSize:11.5,color:"#8a8174"}}>{liste.filter(ppVermietet).length}/{liste.length} vermietet · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span> / Mt.</div>
+            </div>
+            <div style={{overflowX:"auto"}}><table className="pp-tbl" style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}>
+                <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th></th>}</tr></thead>
+              <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); return (
+                <tr key={p.id}>
+                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{apt && <div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>zu {apt.id}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div>}</td>
+                  <td data-label="Mieter" style={td}>{name ? <>{name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
+                  <td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>
+                  <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
+                  <td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>
+                  {istAdmin && <td style={{...td,textAlign:"right"}}><button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setEdit(p)}>✏</button></td>}
+                </tr>);})}</tbody>
+            </table></div>
+          </div>
+        );
+      })}
+      {edit && <ParkplatzModal pp={edit} apts={apts} tenants={tenants} onClose={()=>setEdit(null)} onSaved={()=>{ setEdit(null); loadParkplaetze&&loadParkplaetze(); }}/>}
+    </div>
+  );
+}
+
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
   {id:"nachvermietung",icon:"🔄",label:"Nachvermietung"},
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
+  {id:"parkplaetze",icon:"🅿️",label:"Parkplätze"},
   {id:"mieter",icon:"👤",label:"Mieter"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
@@ -15514,7 +15697,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,parkplaetze:ParkplaetzePage,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
