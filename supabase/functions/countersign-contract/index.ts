@@ -61,7 +61,7 @@ function attachmentFilenameFor(pdfInfo, idx) {
 
 // Dateinamen fuer die Dokumente-Sektion bereinigen (wie in der Admin-App)
 function sanitizeDoc(str) {
-  return (str || "")
+  return (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, (m) => (m === "\u0308" ? "e" : ""))
     .replace(/[äÄ]/g, "ae").replace(/[öÖ]/g, "oe").replace(/[üÜ]/g, "ue").replace(/[ß]/g, "ss")
     .replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
 }
@@ -437,7 +437,9 @@ Deno.serve(async (req) => {
           else if (isUmv) category = "Untermietvertrag (unterzeichnet)";
           else if (isAmz) category = "Anfangsmietzinsformular (unterzeichnet)";
           else if (u.name) category = u.name;
-          const docFilename = `${sanitizeDoc(contract.mieter_nachname)}_${sanitizeDoc(contract.mieter_vorname)}_${sanitizeDoc(category)}_signiert.pdf`;
+          // Zimmer im Dateinamen, damit z.B. bei einem Zimmerwechsel beide Vertraege unterscheidbar sind
+          const zimmerTeil = contract.room_id ? `Zimmer_${sanitizeDoc(contract.room_id)}_` : "";
+          const docFilename = `${sanitizeDoc(contract.mieter_nachname)}_${sanitizeDoc(contract.mieter_vorname)}_${zimmerTeil}${sanitizeDoc(category)}_signiert.pdf`;
           const docPath = `${entityType}/${entityId}/${Date.now()}_${docFilename}`;
           const { error: docUpErr } = await supabase.storage.from("documents").upload(docPath, countersignedBytes, { contentType: "application/pdf", upsert: true });
           if (docUpErr) {

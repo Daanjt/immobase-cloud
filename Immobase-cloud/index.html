@@ -2946,7 +2946,7 @@ function useSupabaseData() {
   useEffect(() => { loadHandoverProtocols(); }, []);
   // Runterziehen in der App: Daten still im Hintergrund neu laden (ohne Startbildschirm)
   useEffect(() => {
-    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle(), loadParkplaetze(), loadParkVertraege()]);
+    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle(), loadParkplaetze(), loadParkVertraege(), loadDocuments()]);
     return () => { delete window.__ibNeuLaden; };
   }, []);
   // Live: Verträge und Übergaben kommen per Realtime-Push. Neue Unterschrift = Hinweis.
@@ -3257,6 +3257,7 @@ function useSupabaseData() {
   }
 
   useEffect(() => { if (apts.length > 0) loadDocuments(); }, [apts.length]);
+  useEffect(() => { window.__ibDokNeu = loadDocuments; return () => { delete window.__ibDokNeu; }; }, []);
 
   async function insertEmployee(e) {
     const row = {vorname:e.vorname||"", nachname:e.nachname||"", email:e.email||null, phone:e.phone||null, funktion:e.funktion||null, stundenlohn:(e.stundenlohn===""||e.stundenlohn==null)?null:+e.stundenlohn, pensum:(e.pensum===""||e.pensum==null)?null:+e.pensum, aktiv:e.aktiv!==false, notiz:e.notiz||null};
@@ -7276,6 +7277,7 @@ function CountersignButton({contract, onDone, onSigned, light}){
       if (data && data.error) throw new Error(data.error);
       closePreview();
       if (onDone) await onDone();
+      try { window.__ibDokNeu && await window.__ibDokNeu(); } catch (_) {}
       const zusatz = andere.length ? `\n\n${andere.length === 1 ? "Der offene Vertrag" : "Die " + andere.length + " offenen Verträge"} für ${c.roomId} wurde${andere.length === 1 ? "" : "n"} automatisch zurückgezogen: ${andere.map(x => `${x.mieterVorname||""} ${x.mieterNachname||""}`.trim()).join(", ")}.` : "";
       if (data && data.mail_error) alert("Vertrag gegengezeichnet.\n\nAchtung: " + data.mail_error + " Bitte dem Mieter den Vertrag manuell senden." + zusatz);
       else alert("Vertrag gegengezeichnet. Die Bestätigung wurde an den Mieter gesendet." + zusatz);
