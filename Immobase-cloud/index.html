@@ -2025,13 +2025,23 @@ function useSupabaseData() {
       supabase.from("tenants").select("*").is("deleted_at",null).order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
     ]);
-    supabase.from("smoobu_bookings").select("*").then(({data})=>{
-      setSmoobuBookings((data||[]).map(x=>({
-        id:x.id, channelName:x.channel_name, apartmentId:x.apartment_id, apartmentName:x.apartment_name,
-        arrival:x.arrival, departure:x.departure, nights:x.nights, price:+x.price||0, commission:+x.commission||0,
+    // Kurzzeitvermietung: Buchungen + Sperrzeiten aus Elev8 (Abgleich per Edge Function elev8-sync)
+    Promise.all([
+      supabase.from("elev8_bookings").select("*"),
+      supabase.from("elev8_blocks").select("*"),
+      supabase.from("elev8_sync_status").select("*").maybeSingle(),
+    ]).then(([b, bl, st])=>{
+      const KANAL={AIRBNB:"Airbnb",BOOKING_COM:"Booking.com",DIRECT:"Direct booking"};
+      const sperren=(bl.data||[]).map(x=>({ id:"block-"+x.listing_name+"-"+x.start_date, channelName:"Blockiert", apartmentId:x.listing_name, apartmentName:x.listing_name,
+        arrival:x.start_date, departure:x.end_exclusive, nights:0, price:0, commission:0, adults:0, children:0, guestName:"", isBlocked:true, cancelled:false }));
+      const buchungen=(b.data||[]).map(x=>({
+        id:x.id, channelName:KANAL[x.channel]||x.channel, apartmentId:x.listing_name, apartmentName:x.listing_name,
+        arrival:x.arrival, departure:x.departure, nights:x.nights, price:+x.price||0, commission:+x.commission||0, commissionGeschaetzt:!!x.commission_geschaetzt,
         adults:+x.adults||0, children:+x.children||0, guestName:x.guest_name||"",
-        isBlocked:!!x.is_blocked, cancelled:!!x.cancelled
-      })));
+        isBlocked:false, cancelled:!!x.cancelled
+      }));
+      const arr=[...sperren, ...buchungen]; arr.syncStatus=st.data||null;
+      setSmoobuBookings(arr);
     });
     supabase.from("employees").select("*").order("nachname").then(({data})=>{
       setEmployees((data||[]).map(x=>({...x})));
@@ -12961,7 +12971,11 @@ function AirbnbKalender({ bookings }){
   return (
     <div style={{marginBottom:22}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-        <div style={{fontSize:10.5,color:"var(--muted)",fontWeight:600}}>Belegungskalender</div>
+        <div>
+          <div style={{fontSize:10.5,color:"var(--muted)",fontWeight:600}}>Belegungskalender</div>
+          {bookings && bookings.syncStatus && (()=>{ const s=bookings.syncStatus; const ok=s.last_ok?new Date(s.last_ok):null; const alt=!ok||(Date.now()-ok)>3600000;
+            return <div style={{fontSize:10,color:alt?"#9b4a3e":"var(--muted)",marginTop:2}}>Elev8, Stand {ok?ok.toLocaleString("de-CH",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"-"}{alt&&s.last_error?` · ${s.last_error}`:""}</div>; })()}
+        </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <button style={btn} onClick={()=>nav(-1)} aria-label="Vorheriger Monat">‹</button>
           <span style={{fontSize:13,fontWeight:600,minWidth:120,textAlign:"center",textTransform:"capitalize"}}>{titel}</span>
@@ -13381,7 +13395,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
       {hasAb && (
         <>
           <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
-          <SectionHead title="Airbnb" sub="Serviced Apartments, live aus Smoobu, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine), Hauptmiete, Möbelmiete Myotaku Feldeggstrasse (bis Juli 2026 CHF 900, ab August CHF 819.83 pro Monat inkl. MWST), Reinigung (CHF 100 pro Buchung, ab Oktober 2026 CHF 120) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
+          <SectionHead title="Airbnb" sub="Serviced Apartments, aus Elev8, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine; für neue Buchungen geschätzt: Airbnb 16.76%, Booking.com 15%), Hauptmiete, Möbelmiete Myotaku Feldeggstrasse (bis Juli 2026 CHF 900, ab August CHF 819.83 pro Monat inkl. MWST), Reinigung (CHF 100 pro Buchung, ab Oktober 2026 CHF 120) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
