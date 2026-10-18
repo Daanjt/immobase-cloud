@@ -8410,6 +8410,7 @@ www.dthomes.ch`;
               {[
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
                 ["Empfohlen von", b.empfohlen_von ? <strong style={{color:"#8a6a2e"}}>{b.empfohlen_von}</strong> : "-"],
+                ["Parkplatz", b.parkplatz_wunsch ? <strong style={{color:"#2c4a6e"}}>🅿️ gewünscht</strong> : "-"],
                 ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> <a href={`https://wa.me/${(b.phone||"").replace(/\D/g,"").replace(/^00/,"").replace(/^0/,"41")}?text=${encodeURIComponent((()=>{ const _r=(rooms||[]).find(r=>r.id===(b.zugeteiltes_zimmer||b.zimmerWunsch)); const _a=_r?(apts||[]).find(a=>a.id===_r.aptId):null; return aptIstWohnung(_a) ? ("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Auf https://www.dthomes.ch/wohnungen findest du unsere Wohnungen mit mehr Bildern und 3D-Rundgang. Die Besichtigung läuft bei uns über den 3D-Rundgang, und wenn dir eine Wohnung gefällt, kannst du dich dort direkt bewerben. Liebe Grüsse, Daan") : ("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Wir haben aktuell mehrere Zimmer frei. Auf https://www.dthomes.ch/zimmer findest du Bilder und kannst dich direkt bewerben, wenn du Interesse hast. Liebe Grüsse, Daan"); })())}`} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>WhatsApp</a></span>:"-"],
                 ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
                 ["Geschlecht",b.gender||"-"],
@@ -15388,6 +15389,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       mieter_telefon: f.mieterArt==="extern" ? ((f.mieter_telefon||"").trim()||null) : null,
       mieter_adresse: f.mieterArt==="extern" ? ((f.mieter_adresse||"").trim()||null) : null,
       sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
+      ausschreiben: !!f.ausschreiben, frei_ab: (f.frei_ab||"").trim()||null,
     };
     let error=null;
     if(neu){
@@ -15460,6 +15462,16 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
         </div>}
         {f.mieterArt==="frei" && <div className="frow"><div className="fg"><label className="fl">Angebotspreis CHF / Mt. (für die Marge)</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div></div>}
         <div style={{fontSize:12.5,marginTop:4,color:marge>=0?"#3d4f2f":"#9b4a3e"}}>Marge: {marge>=0?"+":""}{chf(marge)} / Mt.{f.mieterArt==="frei"?" (sobald vermietet)":""}</div>
+        {sek("Website")}
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer"}}>
+          <input type="checkbox" checked={!!f.ausschreiben} onChange={e=>setF(x=>({...x,ausschreiben:e.target.checked}))}/>
+          Auf dthomes.ch ausschreiben (Seite Parkplätze und bei Wohnungen an dieser Adresse)
+        </label>
+        {f.ausschreiben && <div className="frow" style={{marginTop:8}}>
+          <div className="fg"><label className="fl">Frei ab</label><input className="fi" value={f.frei_ab||""} onChange={set("frei_ab")} placeholder="TT.MM.JJJJ, leer = sofort"/></div>
+          <div className="fg"><label className="fl">Preis auf der Website</label><div style={{fontSize:13,padding:"9px 0"}}>{f.miete_verkauf!=null&&f.miete_verkauf!==""?`${chf(+f.miete_verkauf)} / Mt.`:<span style={{color:"#9b4a3e"}}>Angebotspreis fehlt</span>}</div></div>
+        </div>}
+        {f.ausschreiben && f.mieterArt!=="frei" && <div style={{fontSize:11.5,color:"#8a6d3b",marginTop:4}}>Der Platz ist noch vermietet. Ausschreiben nur, wenn er bald frei wird, und "Frei ab" angeben.</div>}
         <div className="fg" style={{marginTop:10}}><label className="fl">Notiz</label><input className="fi" value={f.notiz||""} onChange={set("notiz")} placeholder="optional"/></div>
         <div className="ma">
           {!neu && <button className="btn btn-g" style={{color:"#9b4a3e",marginRight:"auto"}} disabled={busy} onClick={loeschen}>Löschen</button>}
@@ -15555,6 +15567,12 @@ function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChang
 function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadParkVertraege, apts, tenants, rooms, istAdmin=true}){
   const [edit, setEdit] = useState(null);
   const [vertragFuer, setVertragFuer] = useState(null);
+  const [anfragen, setAnfragen] = useState([]);
+  const [zuteilen, setZuteilen] = useState(null); // {anfrage, pp}
+  const [alleAnfragen, setAlleAnfragen] = useState(false);
+  const ladeAnfragen = async()=>{ const {data} = await supabase.from("parkplatz_anfragen").select("*").order("created_at",{ascending:false}); setAnfragen(data||[]); };
+  useEffect(()=>{ if(istAdmin) ladeAnfragen(); },[istAdmin]);
+  const anfrageStatus = async(a, status)=>{ const {error}=await supabase.from("parkplatz_anfragen").update({status}).eq("id",a.id); if(error){ toast("Speichern fehlgeschlagen","error"); return; } ladeAnfragen(); };
   const pps = parkplaetze||[];
   const fin = parkFinHeute(pps);
   const gruppen = {};
@@ -15571,6 +15589,36 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
         <div className="sc"><div className="sl">Marge</div><div className="sv" style={{fontSize:24,color:fin.marge>=0?"#3d4f2f":"#9b4a3e"}}>{fin.marge>=0?"+":""}{chf(fin.marge).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
         <div className="sc"><div className="sl">Frei</div><div className="sv" style={{fontSize:24,color:frei>0?"#b8843e":"#5a6e4a"}}>{frei}</div><div className="sn" style={{color:"#8a8174"}}>von {pps.length}</div></div>
       </div>
+      {istAdmin && anfragen.length>0 && (()=>{
+        const AST={neu:["Neu","#8a6d3b","#f6eedb"],kontaktiert:["Kontaktiert","#2c4a6e","#e3ebf4"],zugeteilt:["Zugeteilt","#3d4f2f","#e8eadb"],abgelehnt:["Abgelehnt","#8a8174","#efeae1"]};
+        const offen=anfragen.filter(a=>["neu","kontaktiert"].includes(a.status));
+        const liste=alleAnfragen?anfragen:offen;
+        return (
+          <div className="card" style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,flexWrap:"wrap",marginBottom:8}}>
+              <div className="ct" style={{margin:0}}>Anfragen von der Website{offen.length>0?` (${offen.length} offen)`:""}</div>
+              <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setAlleAnfragen(v=>!v)}>{alleAnfragen?"Nur offene":"Alle anzeigen"}</button>
+            </div>
+            {liste.length===0 && <div style={{fontSize:12.5,color:"#8a8174"}}>Keine offenen Anfragen.</div>}
+            {liste.map(a=>{ const [l,col,bg]=AST[a.status]||[a.status,"#8a8174","#efeae1"]; const freiHier=pps.filter(p=>p.adresse===a.adresse && !ppVermietet(p));
+              return (
+              <div key={a.id} style={{borderTop:"1px solid #efe8da",padding:"10px 0",display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"flex-start"}}>
+                <div style={{fontSize:12.5,lineHeight:1.55,minWidth:220,flex:1}}>
+                  <div><strong>{a.name}</strong> <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:8,color:col,background:bg,marginLeft:4}}>{l}</span></div>
+                  <div style={{color:"#8a8174"}}>{a.adresse||"-"} · eingegangen {new Date(a.created_at).toLocaleDateString("de-CH")}{a.ab_wann?` · ab ${a.ab_wann}`:""}{a.kennzeichen?` · ${a.kennzeichen}`:""}</div>
+                  <div><a href={`mailto:${a.email}`}>{a.email}</a>{a.telefon && <> · <a href={`tel:${a.telefon}`}>{a.telefon}</a></>}{a.wohnadresse?` · ${a.wohnadresse}`:""}</div>
+                  {a.bemerkung && <div style={{color:"#5a5448",marginTop:2,whiteSpace:"pre-wrap"}}>{a.bemerkung}</div>}
+                </div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {a.status!=="zugeteilt" && <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={!freiHier.length} title={freiHier.length?"":"An dieser Adresse ist kein Platz frei"} onClick={()=>setZuteilen({anfrage:a, pp:{...freiHier[0], mieterArt:"extern", mieter_extern:a.name, mieter_email:a.email, mieter_telefon:a.telefon||"", mieter_adresse:a.wohnadresse||"", kennzeichen:a.kennzeichen||"", vermietet_ab:a.ab_wann&&/\d/.test(a.ab_wann)?a.ab_wann:"", sprache:a.sprache==="en"?"en":"de", ausschreiben:false}})}>Platz zuteilen</button>}
+                  <select className="fi" style={{width:"auto",padding:"4px 8px",fontSize:12}} value={a.status} onChange={e=>anfrageStatus(a,e.target.value)}>
+                    {Object.entries(AST).map(([k,[lab]])=><option key={k} value={k}>{lab}</option>)}
+                  </select>
+                </div>
+              </div>); })}
+          </div>
+        );
+      })()}
       {pps.length===0 && <div className="empty">Noch keine Parkplätze erfasst.</div>}
       {Object.keys(gruppen).sort().map(adr=>{
         const liste=gruppen[adr]; const gf=parkFinHeute(liste);
@@ -15585,7 +15633,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
                 <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th style={{padding:"6px 10px"}}>Vertrag</th>}{istAdmin&&<th></th>}</tr></thead>
               <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); return (
                 <tr key={p.id}>
-                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{apt && <div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>zu {apt.id}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div>}</td>
+                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{p.ausschreiben && <span title={`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}`} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>}{apt &&<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>zu {apt.id}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div>}</td>
                   <td data-label="Mieter" style={td}>{name ? <>{name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
                   <td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
@@ -15602,6 +15650,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
       })}
       {vertragFuer && <ParkVertragModal pp={(pps.find(x=>x.id===vertragFuer.id))||vertragFuer} apts={apts} tenants={tenants} rooms={rooms} vertraege={parkVertraege} onClose={()=>setVertragFuer(null)} onChanged={()=>loadParkVertraege&&loadParkVertraege()} onEdit={()=>{ const p=vertragFuer; setVertragFuer(null); setEdit(p); }}/>}
       {edit && <ParkplatzModal pp={edit} apts={apts} tenants={tenants} onClose={()=>setEdit(null)} onSaved={()=>{ setEdit(null); loadParkplaetze&&loadParkplaetze(); }}/>}
+      {zuteilen && <ParkplatzModal pp={zuteilen.pp} apts={apts} tenants={tenants} onClose={()=>setZuteilen(null)} onSaved={async()=>{ const a=zuteilen.anfrage; setZuteilen(null); await supabase.from("parkplatz_anfragen").update({status:"zugeteilt", parkplatz_id:zuteilen.pp.id}).eq("id",a.id); ladeAnfragen(); loadParkplaetze&&loadParkplaetze(); }}/>}
     </div>
   );
 }
