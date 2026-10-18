@@ -14764,7 +14764,9 @@ function Bauradar(){
 // Geschaeftskarte: Ausgaben von Daan und Martijn mit der Geschaeftskreditkarte
 function AuslagenPage(){
   const PERS=["Daan","Martijn"];
-  const KATS=["Essen","Bahn / ÖV","Auto / Parking","Material","Software","Übernachtung","Sonstiges"];
+  const KATS_BASIS=["Essen","Bahn / ÖV","Auto / Parking","Material","Software","Übernachtung","Zahlung Mieter","Sonstiges"];
+  const [eigeneKats,setEigeneKats]=useState([]);
+  const [neuKat,setNeuKat]=useState(null);
   const fmt=(n)=>"CHF "+(+n||0).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
   const heute=()=>{ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
   const dDE=(s)=>{ if(!s) return ""; const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${m[3]}.${m[2]}.${m[1]}`:s; };
@@ -14775,7 +14777,18 @@ function AuslagenPage(){
   const [zeit,setZeit]=useState("jahr");
   const [wer,setWer]=useState("alle");
   const [saving,setSaving]=useState(false);
+  const ladeKats=()=>supabase.from("partner_auslagen_kategorien").select("name").order("created_at").then(({data,error})=>{ if(error) console.error(error); setEigeneKats((data||[]).map(k=>k.name)); });
+  const KATS=[...KATS_BASIS.slice(0,-1),...eigeneKats.filter(k=>!KATS_BASIS.includes(k)),...[...new Set(rows.map(r=>r.kategorie).filter(Boolean))].filter(k=>!KATS_BASIS.includes(k)&&!eigeneKats.includes(k)),"Sonstiges"];
+  const speichereKat=async()=>{
+    const n=String(neuKat||"").trim().replace(/\s+/g," ");
+    if(!n){ setNeuKat(null); return; }
+    if(n.length>40){ alert("Bitte höchstens 40 Zeichen."); return; }
+    const vorhanden=KATS.find(k=>k.toLowerCase()===n.toLowerCase());
+    if(!vorhanden){ const {error}=await supabase.from("partner_auslagen_kategorien").insert({name:n}); if(error){ alert("Kategorie konnte nicht gespeichert werden: "+error.message); return; } await ladeKats(); }
+    setF(p=>({...p,kategorie:vorhanden||n})); setNeuKat(null);
+  };
   const lade=()=>supabase.from("partner_auslagen").select("*").order("datum",{ascending:false}).order("created_at",{ascending:false}).then(({data,error})=>{ if(error) console.error(error); setRows(data||[]); setLoading(false); });
+  useEffect(()=>{ ladeKats(); },[]);
   useEffect(()=>{ lade(); const ch=supabase.channel("partner_auslagen_page").on("postgres_changes",{event:"*",schema:"public",table:"partner_auslagen"},lade).subscribe(); return ()=>{ supabase.removeChannel(ch); }; },[]);
   const now=new Date(), jj=String(now.getFullYear()), mm=jj+"-"+String(now.getMonth()+1).padStart(2,"0");
   const imZeitraum=(r)=>{ const d=String(r.datum||""); return zeit==="monat"?d.startsWith(mm):zeit==="jahr"?d.startsWith(jj):true; };
@@ -14818,11 +14831,14 @@ function AuslagenPage(){
         </div>
       </div>
       <div className="card" style={{padding:20}}>
-        <div style={{display:"grid",gridTemplateColumns:"150px 160px 200px auto",gap:10,alignItems:"end",justifyContent:"start"}} className="auslagen-form">
+        <div style={{display:"grid",gridTemplateColumns:"150px 160px 240px auto",gap:10,alignItems:"end",justifyContent:"start"}} className="auslagen-form">
           <div><label className="fl">Wer</label>
             <div style={{display:"flex",gap:6}}>{PERS.map(p=><button key={p} type="button" className={`btn btn-sm ${f.person===p?"btn-p":"btn-g"}`} onClick={()=>setF({...f,person:p})}>{p}</button>)}</div></div>
           <div><label className="fl">Betrag (CHF)</label><input className="fi" inputMode="decimal" placeholder="0.00" value={f.betrag} onChange={e=>setF({...f,betrag:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") add(); }}/></div>
-          <div><label className="fl">Kategorie</label><select className="fi" value={f.kategorie} onChange={e=>setF({...f,kategorie:e.target.value})}>{KATS.map(k=><option key={k}>{k}</option>)}</select></div>
+          <div><label className="fl">Kategorie</label>
+            {neuKat!==null
+              ? <div style={{display:"flex",gap:6}}><input className="fi" autoFocus placeholder="Neue Kategorie" value={neuKat} onChange={e=>setNeuKat(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") speichereKat(); if(e.key==="Escape") setNeuKat(null); }}/><button type="button" className="btn btn-p btn-sm" onClick={speichereKat} title="Kategorie speichern">✓</button><button type="button" className="btn btn-g btn-sm" onClick={()=>setNeuKat(null)} title="Abbrechen">✕</button></div>
+              : <select className="fi" value={f.kategorie} onChange={e=>{ if(e.target.value==="__neu") setNeuKat(""); else setF({...f,kategorie:e.target.value}); }}>{KATS.map(k=><option key={k} value={k}>{k}</option>)}<option value="__neu">＋ Neue Kategorie…</option></select>}</div>
           <div><button className="btn btn-p" disabled={saving} onClick={add}>{saving?"Speichern…":"Hinzufügen"}</button></div>
         </div>
       </div>
