@@ -9,9 +9,10 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 class Mcp {
   sid = ""; id = 0;
-  constructor(private key: string) {}
+  constructor(private key: string, private mode: "xapikey" | "bearer" = "xapikey") {}
   async rpc(method: string, params: unknown, notify = false) {
-    const h: Record<string, string> = { "Content-Type": "application/json", "Accept": "application/json, text/event-stream", "X-API-Key": this.key };
+    const h: Record<string, string> = { "Content-Type": "application/json", "Accept": "application/json, text/event-stream", };
+    if (this.mode === "bearer") h["Authorization"] = "Bearer " + this.key; else h["X-API-Key"] = this.key;
     if (this.sid) h["Mcp-Session-Id"] = this.sid;
     const body: Record<string, unknown> = { jsonrpc: "2.0", method, params };
     if (!notify) body.id = ++this.id;
@@ -43,14 +44,22 @@ class Mcp {
 
 Deno.serve(async () => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const key = Deno.env.get("ELEV8_MCP_KEY") || "";
+  // Alle Secrets mit ELEV8 im Namen durchprobieren (ELEV8_MCP_KEY zuerst), je mit X-API-Key und Bearer
+  const env = Deno.env.toObject();
+  const namen = Object.keys(env).filter((k) => /ELEV8/i.test(k) && env[k]).sort((a, b) => (a === "ELEV8_MCP_KEY" ? -1 : b === "ELEV8_MCP_KEY" ? 1 : 0));
   const now = new Date();
-  if (!key) {
-    await sb.from("elev8_sync_status").update({ last_run: now.toISOString(), last_error: "Kein Elev8-Schluessel (Secret ELEV8_MCP_KEY) hinterlegt" }).eq("id", 1);
+  if (!namen.length) {
+    await sb.from("elev8_sync_status").update({ last_run: now.toISOString(), last_error: "Kein Elev8-Schluessel hinterlegt" }).eq("id", 1);
     return json({ ok: false, skipped: "kein Schluessel" });
   }
   try {
-    const m = new Mcp(key); await m.init();
+    let m: Mcp | null = null; const versuche: string[] = [];
+    for (const n of namen) for (const mode of ["xapikey", "bearer"] as const) {
+      if (m) break;
+      const c = new Mcp(env[n].trim(), mode);
+      try { await c.init(); m = c; } catch (e) { versuche.push(`${n}/${mode} (Laenge ${env[n].trim().length}): ${String((e as Error).message).slice(0, 80)}`); }
+    }
+    if (!m) throw new Error("Elev8 lehnt alle Schluessel ab: " + versuche.join(" | "));
     const von = new Date(now); von.setDate(von.getDate() - 60);
     const bis = new Date(now); bis.setDate(bis.getDate() + 540);
     const r = await m.tool("get_reservations_by_period", { from_date: iso(von), to_date: iso(bis), date_field: "check_in" });
