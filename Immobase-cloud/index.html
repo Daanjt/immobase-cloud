@@ -6122,8 +6122,17 @@ function buildContractHTML(b, v, fullName, fmtDate){
     const mo = (en - be) / (1000*60*60*24*30.44);
     return mo > 0 && (mo < 12 || W || !!(v.apt && v.apt.immer_befristet));
   })();
-  const ZN = (n) => "9." + (BEF && n >= 4 ? n - 1 : n);
-  // Hinweis bei eingeschraenkter Kuendigung: Nachmieter (9.5) und Untervermietung (6.3) bleiben moeglich
+  // Kurz befristet (unter 12 Monaten): ordentliche Kuendigung durch den Untermieter ausgeschlossen
+  const KURZ = (() => {
+    if (!BEF) return false;
+    const pd = (x) => { if(!x) return null; const t=String(x).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(t)){const d=new Date(t);return isNaN(d)?null:d;} const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d)?null:d;} const d=new Date(t); return isNaN(d)?null:d; };
+    const be = pd(v.einzug), en = pd(v.mietende || (v.apt && v.apt.mietende));
+    if (!be || !en) return false;
+    return ((en - be) / (1000*60*60*24*30.44)) < 12;
+  })();
+  // Ziffer 9: 9.1 = die fuer diesen Vertrag geltende Kuendigungsregel, danach 9.2 fristlos, 9.3 Nachmieter, 9.4 schwere Vertragsverletzung
+  const ZN = (n) => "9." + (n - 2);
+  // Hinweis bei eingeschraenkter Kuendigung: Nachmieter (9.3) und Untervermietung (6.3) bleiben moeglich
   const AUSWEG = " Auch in diesem Fall kann der Untermieter vorzeitig ausziehen, indem er einen geeigneten Nachmieter stellt (Ziffer " + ZN(5) + "); eine Untervermietung ist mit vorgängiger schriftlicher Zustimmung des Hauptmieters möglich (Ziffer 6.3).";
   const mmName = MM ? `${MM.vorname||""} ${MM.nachname||""}`.trim() : "";
   return `<!DOCTYPE html>
@@ -6503,19 +6512,19 @@ ${W
 <div class="miet-wrap avoid-break">
   <table class="miet-table">
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
-    <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Nebenkosten (pauschal) in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
     <tr><td>${W?`Stromkosten pauschal (${pers} × CHF ${chf2(stromPP)}) in CHF`:"Stromkosten in CHF"}</td><td class="amt">${chf2(v.strom)}</td></tr>
     <tr class="total"><td>Totaler Mietzins in CHF</td><td class="amt">${chf2((+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0))}</td></tr>
   </table>
 </div>
 <p>Im Mietpreis sind die Kosten für administrative und koordinative Leistungen, Kundenservice und persönliche Betreuung bereits inbegriffen.</p>
-<p>Die Nebenkosten umfassen Heizung, ${W?"":"Internet, "}Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren.</p>
+<p>Die Nebenkosten umfassen Heizung, ${W?"":"Internet, "}Wasser, Gebäudewartung, allgemeinen Stromverbrauch im Gebäude, Gebäudeversicherung sowie Abwassergebühren. Sie werden pauschal erhoben; eine Nebenkostenabrechnung erfolgt nicht.</p>
 ${W
-  ? `<p>Die Nebenkosten betragen CHF ${chf2(v.nebenkosten)} pro Monat für die Wohnung.</p>
+  ? `<p>Die Nebenkosten betragen pauschal CHF ${chf2(v.nebenkosten)} pro Monat für die Wohnung.</p>
 <p>Die Stromkosten werden pauschal mit CHF ${chf2(stromPP)} pro Person und Monat erhoben und gelten mit der Pauschale als abgegolten.</p>
 <p>Eine Änderung der Personenzahl ist dem Hauptmieter vorgängig schriftlich mitzuteilen; die Strompauschale wird ab dem Folgemonat entsprechend angepasst.</p>`
   : `<p>Die Stromkosten werden pauschal mit CHF ${chf2(v.strom)} pro Monat verrechnet.</p>`}
-<p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Hauptmieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet.</p>
+${W?`<p>Mit der Strompauschale ist der übliche Stromverbrauch abgegolten. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet. Werden solche Geräte ohne Zustimmung betrieben, kann der Hauptmieter den dadurch entstehenden Mehrverbrauch nachverrechnen.</p>`:`<p>Überschreitet der Stromverbrauch den Durchschnitt einer vergleichbaren Wohnung um mehr als 10 %, kann der Hauptmieter eine Überprüfung verlangen und eine Nachzahlung geltend machen. Der Betrieb von Geräten mit überdurchschnittlich hohem Energieverbrauch (z. B. Mining-Rigs, Klimaanlagen) ist nur mit schriftlicher Zustimmung des Hauptmieters gestattet.</p>`}
 ${W?"":`<p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>`}
 <p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
 <div class="bank-block avoid-break">
@@ -6582,7 +6591,7 @@ ${v.moebliert ? `<p class="clause"><span class="clause-num">5.1</span>Für eine 
 <div class="section allow-break">
 <h2>6. Gebrauch und Pflichten des Untermieters</h2>
 ${W
-  ? `<p class="clause"><span class="clause-num">6.1</span>Der Untermieter verpflichtet sich, die Wohnung${W?"":" sowie das Inventar"} sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. ${W?"Die Wohnung ist":"Wohnung und Inventar sind"} in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
+  ? `<p class="clause"><span class="clause-num">6.1</span>Der Untermieter verpflichtet sich, die Wohnung${W?"":" sowie das Inventar"} sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden.</p>
 <p class="clause"><span class="clause-num">6.2</span>Der Untermieter ist für die regelmässige Reinigung der Wohnung sowie für die ordnungsgemässe Entsorgung von Abfällen verantwortlich.</p>
 <p class="clause"><span class="clause-num">6.3</span>Eine Untervermietung oder Weitergabe der Wohnung an Dritte ist ohne ausdrückliche schriftliche Zustimmung des Hauptmieters nicht gestattet.</p>
 <p class="clause"><span class="clause-num">6.4</span>Bauliche Veränderungen an der Wohnung oder das Streichen von Wänden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig.</p>
@@ -6597,7 +6606,7 @@ ${W
 <p class="clause"><span class="clause-num">6.13</span>Die Wohnung ist ausschliesslich für Wohnzwecke des Untermieters und der vereinbarten Anzahl von ${persTxt} bestimmt. Eine Belegung durch weitere Personen ist ohne vorgängige schriftliche Zustimmung des Hauptmieters unzulässig.</p>
 <p class="clause"><span class="clause-num">6.14</span>Sofern zur Wohnung ein Garten gehört, darf der Untermieter diesen nutzen. Er verpflichtet sich, den Garten selbständig und ordentlich zu pflegen und in gepflegtem Zustand zu halten (insbesondere Rasen- und Grünpflege) sowie im Winter den Schnee auf den zum Mietobjekt gehörenden Wegen und Flächen zu räumen.</p>
 `
-  : `<p class="clause"><span class="clause-num">6.1</span>Der Untermieter verpflichtet sich, die Wohnung${W?"":" sowie das Inventar"} sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden. ${W?"Die Wohnung ist":"Wohnung und Inventar sind"} in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
+  : `<p class="clause"><span class="clause-num">6.1</span>Der Untermieter verpflichtet sich, die Wohnung${W?"":" sowie das Inventar"} sorgfältig zu behandeln und Schäden oder Mängel dem Hauptmieter unverzüglich zu melden.</p>
 <p class="clause"><span class="clause-num">6.2</span>Der Untermieter ist für die regelmässige Reinigung der Wohnung sowie für die ordnungsgemässe Entsorgung von Abfällen verantwortlich.</p>
 <p class="clause"><span class="clause-num">6.3</span>Eine Untervermietung oder Weitergabe der Wohnung an Dritte ist ohne ausdrückliche schriftliche Zustimmung des Hauptmieters nicht gestattet.</p>
 <p class="clause"><span class="clause-num">6.4</span>Bauliche Veränderungen an der Wohnung oder das Streichen von Wänden sind nur mit vorgängiger schriftlicher Zustimmung des Hauptmieters zulässig.</p>
@@ -6625,16 +6634,16 @@ ${W
 <!-- §8 HAFTUNG -->
 <div class="section">
 <h2>8. Haftung und Versicherung</h2>
-<p>Der Untermieter haftet für Schäden oder Verluste an ${W?"der Wohnung":"Wohnung oder Inventar"}, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung zu erbringen.</p>
+<p>Der Untermieter haftet für Schäden oder Verluste an ${W?"der Wohnung":"Wohnung oder Inventar"}, die durch fahrlässiges Verhalten oder unsachgemässe Nutzung verursacht werden (einschliesslich durch Besucher). Der Untermieter hat den Nachweis einer gültigen Privathaftpflichtversicherung spätestens vor dem Einzug zu erbringen.</p>
 ${W?"":`<p>Für Schäden in gemeinsam genutzten Bereichen haften die Bewohner anteilig (Solidarhaftung), sofern kein Verursacher festgestellt werden kann.</p>`}
 </div>
 
 <!-- §9 KUENDIGUNG -->
 <div class="section allow-break">
 <h2>9. Kündigung</h2>
-<p>Beide Parteien können den Mietvertrag vor Ablauf der vereinbarten Mietdauer ordentlich kündigen. Die Kündigungsfrist beträgt ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs"};return w[n]||String(n);})(v.kuendigungsfrist||3)} ${(v.kuendigungsfrist===1?"Monat":"Monate")} auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
-<p class="clause"><span class="clause-num">9.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter das Zimmer vorzeitig verlässt.${AUSWEG}</p>
-${W ? (() => {
+<p>Soweit eine ordentliche Kündigung zulässig ist, beträgt die Kündigungsfrist ${(function(n){const w={1:"einen",2:"zwei",3:"drei",4:"vier",5:"fünf",6:"sechs"};return w[n]||String(n);})(v.kuendigungsfrist||3)} ${(v.kuendigungsfrist===1?"Monat":"Monate")} auf das Ende eines Monats, ausser auf Ende Dezember. Die Kündigung hat schriftlich per Einschreiben oder als elektronisch signiertes PDF zu erfolgen.</p>
+${KURZ ? `<p class="clause"><span class="clause-num">9.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von weniger als zwölf (12) Monaten ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, ${W?"die Wohnung":"das Zimmer"} für die gesamte vereinbarte Mietdauer zu mieten und die entsprechenden Mietzinsen bis zum Vertragsende vollständig zu entrichten. Dies gilt auch dann, wenn der Untermieter ${W?"die Wohnung":"das Zimmer"} vorzeitig verlässt.${AUSWEG}</p>` : ""}
+${(BEF && !KURZ) ? (W ? (() => {
   const _pd = (x) => { if(!x) return null; const t=String(x).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(t)){const d=new Date(t);return isNaN(d)?null:d;} const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d)?null:d;} const d=new Date(t); return isNaN(d)?null:d; };
   const _f = (d) => ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear();
   const _end = _pd(v.mietende || (v.apt && v.apt.mietende));
@@ -6653,9 +6662,9 @@ ${W ? (() => {
       bsp = ` Für dieses Mietverhältnis (Vertragsende ${_f(_end)}) ist der letztmögliche Kündigungstermin somit der ${_f(lt)}; die Kündigung muss spätestens am ${_f(kz)} beim Hauptmieter eingetroffen sein.`;
     }
   }
-  return `<p class="clause"><span class="clause-num">9.2</span>Bei befristeten Untermietverhältnissen über eine ganze Wohnung kann der Untermieter das Mietverhältnis nur auf einen Termin ordentlich kündigen, der mindestens zwölf (12) Monate vor dem vereinbarten Vertragsende liegt. Eine Kündigung auf einen späteren Termin ist ausgeschlossen; der Untermieter bleibt in diesem Fall bis zum Vertragsende zur Zahlung des Mietzinses verpflichtet, vorbehältlich Ziffer ${ZN(5)}.${bsp} Damit soll sichergestellt werden, dass die Wohnung bei einem vorzeitigen Auszug für eine angemessene Restlaufzeit weitervermietet werden kann.${AUSWEG}</p>`;
-})() : `<p class="clause"><span class="clause-num">9.2</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr kann der Untermieter das Mietverhältnis nur auf einen Termin ordentlich kündigen, der mindestens sechs (6) Monate vor dem vereinbarten Vertragsende liegt. Eine Kündigung auf einen späteren Termin ist ausgeschlossen; der Untermieter bleibt in diesem Fall bis zum Vertragsende zur Zahlung des Mietzinses verpflichtet. Dies stellt sicher, dass das Zimmer oder die Wohnung bei einem vorzeitigen Auszug für eine angemessene Restlaufzeit weitervermietet werden kann. Beispielsweise, wenn der Mietvertrag am 31. März endet, ist der letztmögliche Kündigungstermin der 30. September des Vorjahres; bei einer Kündigungsfrist von drei Monaten muss die Kündigung somit spätestens am 30. Juni des Vorjahres beim Hauptmieter eingetroffen sein.${AUSWEG}</p>`}
-${BEF ? "" : `<p class="clause"><span class="clause-num">9.3</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.${AUSWEG}</p>
+  return `<p class="clause"><span class="clause-num">9.1</span>Bei befristeten Untermietverhältnissen über eine ganze Wohnung kann der Untermieter das Mietverhältnis nur auf einen Termin ordentlich kündigen, der mindestens zwölf (12) Monate vor dem vereinbarten Vertragsende liegt. Eine Kündigung auf einen späteren Termin ist ausgeschlossen; der Untermieter bleibt in diesem Fall bis zum Vertragsende zur Zahlung des Mietzinses verpflichtet, vorbehältlich Ziffer ${ZN(5)}.${bsp} Damit soll sichergestellt werden, dass die Wohnung bei einem vorzeitigen Auszug für eine angemessene Restlaufzeit weitervermietet werden kann.${AUSWEG}</p>`;
+})() : `<p class="clause"><span class="clause-num">9.1</span>Bei befristeten Untermietverhältnissen mit einer vereinbarten Mietdauer von zwölf (12) Monaten oder mehr kann der Untermieter das Mietverhältnis nur auf einen Termin ordentlich kündigen, der mindestens sechs (6) Monate vor dem vereinbarten Vertragsende liegt. Eine Kündigung auf einen späteren Termin ist ausgeschlossen; der Untermieter bleibt in diesem Fall bis zum Vertragsende zur Zahlung des Mietzinses verpflichtet. Dies stellt sicher, dass das Zimmer oder die Wohnung bei einem vorzeitigen Auszug für eine angemessene Restlaufzeit weitervermietet werden kann. Beispielsweise, wenn der Mietvertrag am 31. März endet, ist der letztmögliche Kündigungstermin der 30. September des Vorjahres; bei einer Kündigungsfrist von drei Monaten muss die Kündigung somit spätestens am 30. Juni des Vorjahres beim Hauptmieter eingetroffen sein.${AUSWEG}</p>`) : ""}
+${BEF ? "" : `<p class="clause"><span class="clause-num">9.1</span>Wird ein zunächst unbefristetes Untermietverhältnis durch den Eigentümer oder die Verwaltung infolge einer geplanten Sanierung, Renovation, Umnutzung oder anderweitiger baulicher Massnahmen gekündigt, so gilt ab dem Zeitpunkt, an dem dem Hauptmieter die Kündigung des Hauptmietverhältnisses mitgeteilt wird, eine analoge Schutzfrist: Eine Kündigung durch den Untermieter ist in den letzten sechs Monaten vor dem festgelegten Räumungstermin ausgeschlossen. Der Untermieter verpflichtet sich, das Zimmer bzw. die Wohnung bis zum vereinbarten Räumungstermin zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten. Der Hauptmieter wird den Untermieter unverzüglich nach Kenntnisnahme der Sanierungs- oder Räumungspläne schriftlich darüber informieren.${AUSWEG}</p>
 <p>Gleiches gilt sinngemäss bei jeder anderen Form der Kündigung des Hauptmietverhältnisses durch den Eigentümer oder die Verwaltung: Auch in diesem Fall ist eine Kündigung durch den Untermieter in den letzten sechs Monaten bis zum Ende des Mietverhältnisses ausgeschlossen.</p>`}
 <p class="clause"><span class="clause-num">${ZN(4)}</span>Bei wiederholter Nichtzahlung der Miete ist der Hauptmieter berechtigt, das Mietverhältnis per Monatsende fristlos zu kündigen.</p>
 <p class="clause"><span class="clause-num">${ZN(5)}</span>Bei vorzeitigem Auszug kann sich der Untermieter durch Stellung eines geeigneten, zahlungsfähigen und zumutbaren Nachmieters, der zu gleichen Konditionen in den Vertrag eintritt, von seinen Pflichten befreien (Art. 264 OR). Andernfalls bleibt er bis zum ordentlichen Vertragsende zur Zahlung des Mietzinses verpflichtet.</p>
@@ -6666,7 +6675,8 @@ ${BEF ? "" : `<p class="clause"><span class="clause-num">9.3</span>Wird ein zun�
 <div class="section allow-break">
 <h2>10. Rückgabe bei Vertragsende</h2>
 <p class="clause"><span class="clause-num">10.1</span>Der Untermieter ist verpflichtet, das Mietobjekt spätestens am vereinbarten Endtermin vollständig geräumt und ordnungsgemäss zurückzugeben. Ihm ist bekannt, dass die Liegenschaft nach Vertragsende dem Eigentümer bzw. der Verwaltung zur weiteren Nutzung, insbesondere zu Umbau- oder Sanierungszwecken, zu übergeben ist und dass eine verspätete Rückgabe dem Hauptmieter erheblichen Schaden verursachen kann, der über den Wert des einzelnen Mietobjekts hinausgeht. Gibt der Untermieter das Mietobjekt nicht rechtzeitig zurück, schuldet er für jeden angefangenen Tag der verspäteten Rückgabe (a) eine Nutzungsentschädigung in Höhe des anteiligen Mietzinses sowie (b) eine pauschalierte Verzugsentschädigung von CHF 300 pro Tag, zur Abgeltung des typischerweise entstehenden Aufwands und Schadens (Koordination, Ersatzunterbringung, Administration). Dem Untermieter bleibt der Nachweis offen, dass kein oder ein geringerer Schaden entstanden ist; bis zu diesem Nachweis gilt der pauschalierte Schaden als ausgewiesen. Die Geltendmachung eines weitergehenden, tatsächlichen Schadens bleibt ausdrücklich vorbehalten, insbesondere für Ansprüche des Eigentümers oder der Verwaltung sowie für Verzugs- und Projektkosten, soweit der Untermieter die verspätete Rückgabe zu vertreten hat. Der Hauptmieter ist berechtigt, diese Beträge mit der Kaution und weiteren Sicherheiten zu verrechnen, und kann bei nicht rechtzeitiger Rückgabe die Ausweisung im Verfahren des Rechtsschutzes in klaren Fällen (Art. 257 ZPO) verlangen.</p>
-<p class="clause"><span class="clause-num">10.2</span>Bei Beendigung des Mietverhältnisses sind sämtliche Schlüssel und Zugangscodes zurückzugeben.</p>
+<p class="clause"><span class="clause-num">10.2</span>${W?"Die Wohnung ist":"Wohnung und Inventar sind"} in dem Zustand zurückzugeben, in dem sie übernommen wurden (normale Abnutzung bleibt vorbehalten). Die Übergabe erfolgt bei Ein- und Auszug mittels schriftlichem Übergabeprotokoll. Die Schlussreinigung erfolgt zu Lasten des Untermieters.</p>
+<p class="clause"><span class="clause-num">10.3</span>Bei Beendigung des Mietverhältnisses sind sämtliche Schlüssel und Zugangscodes zurückzugeben.</p>
 </div>
 
 <!-- §11 RUECKTRITT -->
@@ -6705,7 +6715,7 @@ ${(()=>{ const _mz=(+v.nettomiete||0)+(+v.nebenkosten||0)+(+v.strom||0); const _
 <div class="miet-wrap">
   <table class="miet-table">
     <tr><td>Nettomiete in CHF</td><td class="amt">${chf2(v.nettomiete)}</td></tr>
-    <tr><td>Nebenkosten in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
+    <tr><td>Nebenkosten (pauschal) in CHF</td><td class="amt">${chf2(v.nebenkosten)}</td></tr>
     <tr><td>Stromkosten in CHF</td><td class="amt">${chf2(v.strom)}</td></tr>
     ${_moeb?`<tr><td>Möblierung (monatlich) in CHF</td><td class="amt">${chf2(_moeb)}</td></tr>`:""}
     ${_sg?`<tr><td>Servicegebühr für Kautionsreduktion in CHF</td><td class="amt">${chf2(_sg)}</td></tr>`:""}
