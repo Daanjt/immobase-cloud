@@ -15603,7 +15603,7 @@ function ReinigungPage(){
     <div>
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:10}}>
-          <div className="ct" style={{margin:0}}>Reinigungs-Anfragen{offen.length>0?` (${offen.length} offen)`:""}</div>
+          <div className="ct" style={{margin:0}}>Reinigungs- und Umzugs-Anfragen{offen.length>0?` (${offen.length} offen)`:""}</div>
           <div style={{display:"flex",gap:6}}>
             <a className="btn btn-g btn-sm" style={{width:"auto"}} href="https://www.dthomes.ch/zimmer#reinigung" target="_blank" rel="noopener noreferrer">Auf der Website ansehen ↗</a>
             <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setAlle(v=>!v)}>{alle?"Nur offene":"Alle anzeigen"}</button>
@@ -15617,10 +15617,10 @@ function ReinigungPage(){
             <div style={{fontSize:12.5,lineHeight:1.55,minWidth:240,flex:1}}>
               <div><strong>{a.name}</strong> <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:8,color:col,background:bg,marginLeft:4}}>{l}</span>{a.dt_mieter && <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:8,color:"#2c4a6e",background:"#e3ebf4",marginLeft:4}}>D&amp;T-Mieter</span>}</div>
               <div style={{color:"#3a352d"}}>{a.art||"-"}{a.groesse?` · ${a.groesse}`:""}{a.termin?` · Wunschtermin ${datum(a.termin)}`:""}</div>
-              <div style={{color:"#8a8174"}}>{a.adresse||"-"} · eingegangen {new Date(a.created_at).toLocaleDateString("de-CH")}{a.sprache==="en"?" · Englisch":""}</div>
+              <div style={{color:"#8a8174"}}>{a.adresse_neu?`Von ${a.adresse||"-"} nach ${a.adresse_neu}`:(a.adresse||"-")} · eingegangen {new Date(a.created_at).toLocaleDateString("de-CH")}{a.sprache==="en"?" · Englisch":""}</div>
               <div><a href={`mailto:${a.email}`}>{a.email}</a>{a.telefon && <> · <a href={`tel:${a.telefon}`}>{a.telefon}</a></>}</div>
               {a.bemerkung && <div style={{color:"#5a5448",marginTop:2,whiteSpace:"pre-wrap"}}>{a.bemerkung}</div>}
-              <input className="fi" placeholder="Interne Notiz (z.B. Offerte CHF, Termin, Reinigungskraft)" defaultValue={a.notiz||""} onBlur={e=>{ const v=e.target.value.trim(); if(v!==(a.notiz||"")) speichern(a,{notiz:v||null}); }} style={{marginTop:6,fontSize:12}}/>
+              <input className="fi" placeholder="Interne Notiz (z.B. Offerte CHF, Termin, Reinigungskraft / Umzugsfirma)" defaultValue={a.notiz||""} onBlur={e=>{ const v=e.target.value.trim(); if(v!==(a.notiz||"")) speichern(a,{notiz:v||null}); }} style={{marginTop:6,fontSize:12}}/>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {["offeriert","gebucht","erledigt","abgelehnt"].filter(st=>st!==(a.status||"neu")).map(st=>(
@@ -15733,7 +15733,7 @@ const PAGES=[
   {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
   {id:"zimmer",icon:"🚪",label:"Zimmer"},
   {id:"parkplaetze",icon:"🅿️",label:"Parkplätze"},
-  {id:"reinigung",icon:"🧽",label:"Reinigung"},
+  {id:"reinigung",icon:"🧽",label:"Reinigung & Umzug"},
   {id:"mieter",icon:"👤",label:"Mieter"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen"},
