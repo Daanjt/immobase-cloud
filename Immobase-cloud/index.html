@@ -10621,7 +10621,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
       kautionAufschlag = newForm.kautionOpt==="0x"?150:newForm.kautionOpt==="1x"?100:newForm.kautionOpt==="2x"?50:0;
       const room = rooms.find(r => r.id === newForm.roomId);
       const bm = room?.miete || 0;
-      kautionBetrag = (bm + 25) * kautionMonate;
+      kautionBetrag = (bm + 25 * Math.max(1, +newForm.personen || 1)) * kautionMonate; // Strom CHF 25 pro Person
     }
     
     const newTenant = {
@@ -11253,7 +11253,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
           let room = form.roomId ? rooms.find(r=>r.id===form.roomId) : null;
           if (!room && form.id) room = rooms.find(r=>r.tenantId===form.id);
           const bm = +room?.miete || 0;
-          const strom = 25;
+          const strom = 25 * Math.max(1, +form.personen || 1); // Strom CHF 25 pro Person
           // If no room mietzins available, don't overwrite kautionBetrag (keep user-entered value)
           const betrag = bm > 0 ? (bm + strom) * monate : (form.kautionBetrag || 0);
           setForm(p=>({...p,kautionOpt:opt,kautionMonate:monate,kautionAufschlag:auf,kautionBetrag:betrag}));
@@ -16027,7 +16027,7 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
   const [preview,setPreview]=React.useState(false);
   const [mailText,setMailText]=React.useState("");
   const [neu,setNeu]=React.useState(false);
-  React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung,kaution_betrag,kaution_monate,mietzins").eq("id",tenant.id).single(); const _kb=(data&&data.kaution_betrag!=null&&data.kaution_betrag!=="")?+data.kaution_betrag:((data&&+data.kaution_monate>0&&data.mietzins)?(+data.kaution_monate*(+data.mietzins+25)):null); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):(_kb!=null?String(_kb):"")); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); setErledigt(k.erledigt_am||null); } else if(_kb!=null){ setBetrag(String(_kb)); } }catch(_e){} })();},[tenant.id]);
+  React.useEffect(()=>{(async()=>{ try{ const {data}=await supabase.from("tenants").select("kaution_abrechnung,kaution_betrag,kaution_monate,mietzins,personen").eq("id",tenant.id).single(); const _kb=(data&&data.kaution_betrag!=null&&data.kaution_betrag!=="")?+data.kaution_betrag:((data&&+data.kaution_monate>0&&data.mietzins)?(+data.kaution_monate*(+data.mietzins+25*Math.max(1,+data.personen||1))):null); const k=data&&data.kaution_abrechnung; if(k){ setBetrag(k.betrag!=null?String(k.betrag):(_kb!=null?String(_kb):"")); setAbzuege((k.abzuege||[]).map(a=>({grund:a.grund||"",betrag:a.betrag!=null?String(a.betrag):""}))); setSent(k.gesendet_am||null); setErledigt(k.erledigt_am||null); } else if(_kb!=null){ setBetrag(String(_kb)); } }catch(_e){} })();},[tenant.id]);
   const summe=abzuege.reduce((s,a)=>s+(+a.betrag||0),0);
   const rueck=Math.max(0,(+betrag||0)-summe);
   const addZeile=(grund)=>setAbzuege(p=>[...p,{grund:grund||"",betrag:""}]);
