@@ -5774,6 +5774,11 @@ function mitmieterZeile(mm){
   const det = [mm.email, mm.phone, mm.geburt ? fmtDateDE(mm.geburt) : "", mm.nat, mm.job, mm.arbeitgeber, mm.einkommen ? `CHF ${mm.einkommen}` : ""].filter(Boolean).join(" · ");
   return <span>{name}{mm.aktiv===false?<span style={{color:"#8a8174"}}> (zieht mit ein, nicht im Vertrag)</span>:<span style={{color:"#5a6e4a",fontWeight:600}}> · solidarisch</span>}{det?<span style={{display:"block",fontSize:11.5,color:"#8a8174"}}>{det}</span>:null}</span>;
 }
+// Weitere mitziehende Personen (ab 3. Person): nur Info, nicht Vertragspartei
+function weiterePersonenZeile(wp){
+  if (!Array.isArray(wp) || !wp.length) return null;
+  return <span>{wp.map((p,i)=>{ const det=[p.geburt?fmtDateDE(p.geburt):"", p.nat, p.job, p.email, p.phone].filter(Boolean).join(" · "); return <span key={i} style={{display:"block",marginBottom:4}}>{`${p.vorname||""} ${p.nachname||""}`.trim()}<span style={{color:"#8a8174"}}> (zieht mit ein, nicht im Vertrag)</span>{det?<span style={{display:"block",fontSize:11,color:"#8a8174"}}>{det}</span>:null}</span>; })}</span>;
+}
 function MitmieterEditor({ value, draft, onChange }){
   const aktiv = !!value;
   const d = value || draft || {};
@@ -7712,6 +7717,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       owner: b.owner || "",
       personen: b.personen != null && b.personen !== "" ? +b.personen : null,
       mitmieter: (b.mitmieter && b.mitmieter.aktiv !== false && b.mitmieter.vorname) ? { ...b.mitmieter, aktiv: true } : null,
+      // Mitziehende Personen, die nicht Vertragspartei sind (2. Person ohne Haekchen + ab 3. Person), als Info behalten
+      weitere_personen: (() => { const l = [ ...((b.mitmieter && b.mitmieter.aktiv === false && b.mitmieter.vorname) ? [b.mitmieter] : []), ...(Array.isArray(b.weitere_personen) ? b.weitere_personen : []) ].map(({aktiv, ...r}) => r); return l.length ? l : null; })(),
     };
     await insertTenant(newTenant);
     if (!istNachmieter) { await updateRoom(selZimmer,{occupied:true,tenantId:newId}); }
@@ -8435,6 +8442,7 @@ www.dthomes.ch`;
                 ["Arbeitgeber",b.arbeitgeber||"-"],
                 ["Gewünschter Einzug",b.einzug?new Date(b.einzug).toLocaleDateString("de-CH"):"-"],
                 ...(b.mitmieter && b.mitmieter.vorname ? [["Mitmieter*in", mitmieterZeile(b.mitmieter)]] : []),
+                ...(Array.isArray(b.weitere_personen) && b.weitere_personen.length ? [["Weitere Personen", weiterePersonenZeile(b.weitere_personen)]] : []),
                 ["Keine offenen Betreibungen",b.noDebt?<span style={{color:"#5a6e4a",fontWeight:600}}>✓ Bestätigt</span>:<span style={{color:"#8a8174"}}>- Nicht bestätigt</span>],
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}
             </div>
@@ -11031,6 +11039,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 ["Nationalität",tenant.nat||"-"],
                 ["Vorherige Adresse",tenant.adresse?[tenant.adresse,[tenant.plz,tenant.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"-"],
                 ...(tenant.mitmieter && tenant.mitmieter.vorname ? [["Mitmieter*in", mitmieterZeile(tenant.mitmieter)]] : []),
+                ...(Array.isArray(tenant.weitere_personen) && tenant.weitere_personen.length ? [["Weitere Personen", weiterePersonenZeile(tenant.weitere_personen)]] : []),
               ].map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
               
               <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:8,fontWeight:500}}>Beruf & Einkommen</div>
