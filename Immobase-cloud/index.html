@@ -6483,15 +6483,11 @@ ${W
     // Schwelle: Unter 12 Monaten befristet, ab 12 Monaten unbefristet, unabhaengig davon
     // ob das Enddatum manuell gesetzt oder aus der Wohnung abgeleitet wurde.
     if (months > 0 && (months < 12 || W || !!(v.apt && v.apt.immer_befristet))) {
-      let grundSatz = "";
-      let erstreckungSatz = "";
-      if (v.befristungsgrund) {
-        grundSatz = ` Die Befristung erfolgt aufgrund ${v.befristungsgrund} (Art. 272a Abs. 1 lit. d OR).`;
-        erstreckungSatz = ` Der Untermieter nimmt zur Kenntnis, dass eine Erstreckung des Mietverhältnisses ausgeschlossen ist.`;
-      } else if (!istManuell) {
-        grundSatz = ` Die Befristung erfolgt im Hinblick auf einen geplanten Umbau bzw. eine geplante Sanierung der Liegenschaft (Art. 272a Abs. 1 lit. d OR).`;
-        erstreckungSatz = ` Der Untermieter nimmt zur Kenntnis, dass eine Erstreckung des Mietverhältnisses ausgeschlossen ist.`;
-      }
+      // Befristete Vertraege sind immer wegen Umbau/Sanierung befristet: Erstreckung stets ausgeschlossen.
+      const grundSatz = v.befristungsgrund
+        ? ` Die Befristung erfolgt aufgrund ${v.befristungsgrund} (Art. 272a Abs. 1 lit. d OR).`
+        : ` Die Befristung erfolgt im Hinblick auf einen geplanten Umbau bzw. eine geplante Sanierung der Liegenschaft (Art. 272a Abs. 1 lit. d OR).`;
+      const erstreckungSatz = ` Eine Erstreckung des Mietverhältnisses ist daher ausgeschlossen. Zudem kann ein Untermietverhältnis nicht über die Dauer des Hauptmietverhältnisses hinaus erstreckt werden (Art. 273b Abs. 1 OR). Der Untermieter verpflichtet sich, das Mietobjekt bei Vertragsende fristgerecht, vollständig geräumt und gereinigt zurückzugeben. Verlässt er das Mietobjekt nicht fristgerecht, haftet er für sämtliche daraus entstehenden Kosten und Schäden, insbesondere für Forderungen des Eigentümers.`;
       const zwischenSatz = W ? ` Dem Untermieter ist bekannt, dass es sich um eine Zwischennutzung handelt und die Wohnung nach Ablauf der Mietdauer dem Eigentümer bzw. der Verwaltung zurückzugeben ist.` : "";
       const kuendigungSatz = months < 12
         ? ` Da die vereinbarte Mietdauer weniger als zwölf (12) Monate beträgt, ist eine ordentliche Kündigung durch den Untermieter ausgeschlossen. Der Untermieter verpflichtet sich, die gesamte Mietdauer zu mieten und die entsprechenden Mietzinsen vollständig zu entrichten (siehe Ziffer 11.1).${AUSWEG}`
