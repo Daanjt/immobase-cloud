@@ -15411,6 +15411,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       mieter_adresse: f.mieterArt==="extern" ? ((f.mieter_adresse||"").trim()||null) : null,
       sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
       ausschreiben: !!f.ausschreiben, frei_ab: (f.frei_ab||"").trim()||null,
+      art: f.art||"einstellplatz",
     };
     let error=null;
     if(neu){
@@ -15438,6 +15439,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
         <div className="mt">{neu?"Neuer Parkplatz":"Parkplatz bearbeiten"}</div>
         <div className="frow">
           <div className="fg"><label className="fl">Bezeichnung</label><input className="fi" value={f.bezeichnung||""} onChange={set("bezeichnung")} placeholder="z.B. Tiefgarage Nr. 12"/></div>
+          <div className="fg" style={{maxWidth:190}}><label className="fl">Art</label><select className="fi" value={f.art||"einstellplatz"} onChange={set("art")}>{Object.entries(PP_ART).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></div>
           {neu && <div className="fg" style={{maxWidth:130}}><label className="fl">Anzahl</label><input className="fi" type="number" min="1" max="50" value={f.anzahl} onChange={set("anzahl")}/></div>}
         </div>
         {neu && (parseInt(f.anzahl)||1)>1 && <div style={{fontSize:11,color:"#8a8174",marginTop:-4,marginBottom:8}}>Es werden {parseInt(f.anzahl)} Parkplätze angelegt: «{(f.bezeichnung||"Parkplatz").trim()} 1», «… 2» usw.</div>}
@@ -15631,6 +15633,7 @@ function ReinigungPage(){
   );
 }
 
+const PP_ART={einstellplatz:"Tiefgarage",aussen:"Aussenparkplatz",motorrad:"Motorradplatz"};
 function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadParkVertraege, apts, tenants, rooms, istAdmin=true}){
   const [edit, setEdit] = useState(null);
   const [vertragFuer, setVertragFuer] = useState(null);
@@ -15639,6 +15642,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
   const [alleAnfragen, setAlleAnfragen] = useState(false);
   const ladeAnfragen = async()=>{ const {data} = await supabase.from("parkplatz_anfragen").select("*").order("created_at",{ascending:false}); setAnfragen(data||[]); };
   useEffect(()=>{ if(istAdmin) ladeAnfragen(); },[istAdmin]);
+  const toggleOnline = async(p)=>{ const {error}=await supabase.from("parkplaetze").update({ausschreiben:!p.ausschreiben, updated_at:new Date().toISOString()}).eq("id",p.id); if(error){ toast("Speichern fehlgeschlagen","error"); return; } toast(!p.ausschreiben?"Auf der Website ausgeschrieben":"Von der Website genommen"); loadParkplaetze&&loadParkplaetze(); };
   const anfrageStatus = async(a, status)=>{ const {error}=await supabase.from("parkplatz_anfragen").update({status}).eq("id",a.id); if(error){ toast("Speichern fehlgeschlagen","error"); return; } ladeAnfragen(); };
   const pps = parkplaetze||[];
   const fin = parkFinHeute(pps);
@@ -15672,7 +15676,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
               <div key={a.id} style={{borderTop:"1px solid #efe8da",padding:"10px 0",display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"flex-start"}}>
                 <div style={{fontSize:12.5,lineHeight:1.55,minWidth:220,flex:1}}>
                   <div><strong>{a.name}</strong> <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:8,color:col,background:bg,marginLeft:4}}>{l}</span></div>
-                  <div style={{color:"#8a8174"}}>{a.adresse||"-"} · eingegangen {new Date(a.created_at).toLocaleDateString("de-CH")}{a.ab_wann?` · ab ${a.ab_wann}`:""}{a.kennzeichen?` · ${a.kennzeichen}`:""}</div>
+                  <div style={{color:"#8a8174"}}>{a.adresse||"-"}{a.art?` · ${PP_ART[a.art]||a.art}`:""} · eingegangen {new Date(a.created_at).toLocaleDateString("de-CH")}{a.ab_wann?` · ab ${a.ab_wann}`:""}{a.kennzeichen?` · ${a.kennzeichen}`:""}</div>
                   <div><a href={`mailto:${a.email}`}>{a.email}</a>{a.telefon && <> · <a href={`tel:${a.telefon}`}>{a.telefon}</a></>}{a.wohnadresse?` · ${a.wohnadresse}`:""}</div>
                   {a.bemerkung && <div style={{color:"#5a5448",marginTop:2,whiteSpace:"pre-wrap"}}>{a.bemerkung}</div>}
                 </div>
@@ -15693,14 +15697,14 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
           <div key={adr} className="card" style={{marginBottom:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,flexWrap:"wrap",marginBottom:8}}>
               <div className="ct" style={{margin:0}}>{adr}</div>
-              <div style={{fontSize:11.5,color:"#8a8174"}}>{liste.filter(ppVermietet).length}/{liste.length} vermietet · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span> / Mt.</div>
+              <div style={{fontSize:11.5,color:"#8a8174"}}>{liste.filter(ppVermietet).length}/{liste.length} vermietet · {liste.filter(x=>!ppVermietet(x)).length} frei · {liste.filter(x=>x.ausschreiben).length} online · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span> / Mt.</div>
             </div>
             <div style={{overflowX:"auto"}}><table className="pp-tbl" style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}>
                 <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th style={{padding:"6px 10px"}}>Vertrag</th>}{istAdmin&&<th></th>}</tr></thead>
               <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); return (
                 <tr key={p.id}>
-                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{p.ausschreiben && <span title={`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}`} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>}{apt &&<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>zu {apt.id}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div>}</td>
+                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{istAdmin && !name ? <span onClick={()=>toggleOnline(p)} title={p.ausschreiben?`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}. Klicken zum Ausblenden.`:"Nicht auf der Website. Klicken zum Ausschreiben."} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,cursor:"pointer",background:p.ausschreiben?"#e3ebf4":"#f0ebe1",color:p.ausschreiben?"#2c4a6e":"#8a8174"}}>{p.ausschreiben?"online":"offline"}</span> : (p.ausschreiben && <span style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>)}<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>{PP_ART[p.art||"einstellplatz"]||p.art}{apt?` · zu ${apt.id}${apt.stockwerk?` · ${apt.stockwerk}`:""}`:""}{!name&&p.frei_ab?` · frei ab ${p.frei_ab}`:""}</div></td>
                   <td data-label="Mieter" style={td}>{name ? <>{name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
                   <td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
