@@ -8461,7 +8461,7 @@ www.dthomes.ch`;
                       "abgelaufen": {bg:"#fbeae6",color:"#8a3a2e",border:"#e8c5be",label:"⌛ Abgelaufen"},
                     };
                     const sc = statusColors[c.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:c.status||"?"};
-                    const isWithdrawable = ["gesendet","geoeffnet","geoeffnet_ungelesen"].includes(c.status);
+                    const isWithdrawable = ["gesendet","geoeffnet","geoeffnet_ungelesen","mieter_signiert"].includes(c.status);
                     const contractTypeLabel = c.contractType === "untermietvertrag" ? "Untermietvertrag" 
                       : c.contractType === "anfangsmietzins" ? "Anfangsmietzins" 
                       : "UMV + AMZ";
@@ -8489,7 +8489,7 @@ www.dthomes.ch`;
                           <CountersignButton contract={c} onDone={loadContracts} />
                           {isWithdrawable && (
                             <button onClick={async()=>{
-                              if (!confirm(`Vertrag zurueckziehen?\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Kann nicht rueckgaengig gemacht werden.`)) return;
+                              if (!confirm(`Vertrag zurueckziehen?${c.status==="mieter_signiert"?"\n\nACHTUNG: Der Mieter hat bereits unterschrieben. Der Vertrag wird nicht gegengezeichnet und ist damit hinfaellig.":""}\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Kann nicht rueckgaengig gemacht werden.`)) return;
                               try { await withdrawContract(c.id); } catch(e){}
                             }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
                               ✕ Zurückziehen
@@ -8683,7 +8683,7 @@ www.dthomes.ch`;
                       "abgelaufen": {bg:"#fbeae6",color:"#8a3a2e",border:"#e8c5be",label:"⌛ Abgelaufen"},
                     };
                     const sc = statusColors[c.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:c.status||"?"};
-                    const isActive = ["gesendet","geoeffnet","geoeffnet_ungelesen"].includes(c.status);
+                    const isActive = ["gesendet","geoeffnet","geoeffnet_ungelesen","mieter_signiert"].includes(c.status);
                     const contractTypeLabel = c.contractType === "untermietvertrag" ? "UMV" : c.contractType === "anfangsmietzins" ? "AMZ" : "UMV + AMZ";
                     return (
                       <div key={c.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<allContracts.length-1?8:0}}>
@@ -8701,7 +8701,7 @@ www.dthomes.ch`;
                         {isActive && (
                           <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
                             <button type="button" onClick={async()=>{
-                              if (!confirm(`Vertrag zurueckziehen?\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Danach kannst du unten einen neuen Vertrag mit angepassten Konditionen erstellen.`)) return;
+                              if (!confirm(`Vertrag zurueckziehen?${c.status==="mieter_signiert"?"\n\nACHTUNG: Der Mieter hat bereits unterschrieben. Der Vertrag wird nicht gegengezeichnet und ist damit hinfaellig.":""}\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Danach kannst du unten einen neuen Vertrag mit angepassten Konditionen erstellen.`)) return;
                               try { await withdrawContract(c.id); } catch(e){}
                             }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
                               ✕ Zurückziehen
@@ -11521,7 +11521,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                       "abgelaufen": {bg:"#fbeae6",color:"#8a3a2e",border:"#e8c5be",label:"⌛ Abgelaufen"},
                     };
                     const sc = statusColors[c.status] || {bg:"#f0ebe1",color:"#5a5249",border:"#d8d0c0",label:c.status||"?"};
-                    const isActive = ["gesendet","geoeffnet","geoeffnet_ungelesen"].includes(c.status);
+                    const isActive = ["gesendet","geoeffnet","geoeffnet_ungelesen","mieter_signiert"].includes(c.status);
                     const contractTypeLabel = c.contractType === "untermietvertrag" ? "UMV" : c.contractType === "anfangsmietzins" ? "AMZ" : "UMV + AMZ";
                     return (
                       <div key={c.id} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"10px 12px",marginBottom:idx<allContracts.length-1?8:0}}>
@@ -11539,7 +11539,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                         {isActive && (
                           <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
                             <button type="button" onClick={async()=>{
-                              if (!confirm(`Vertrag zurueckziehen?\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Danach kannst du unten einen neuen Vertrag mit angepassten Konditionen erstellen.`)) return;
+                              if (!confirm(`Vertrag zurueckziehen?${c.status==="mieter_signiert"?"\n\nACHTUNG: Der Mieter hat bereits unterschrieben. Der Vertrag wird nicht gegengezeichnet und ist damit hinfaellig.":""}\n\n${contractTypeLabel}\nGesendet: ${c.sentAt ? new Date(c.sentAt).toLocaleDateString("de-CH") : "-"}\n\nDer Link wird ungueltig. Danach kannst du unten einen neuen Vertrag mit angepassten Konditionen erstellen.`)) return;
                               try { await withdrawContract(c.id); } catch(e){}
                             }} style={{fontSize:10.5,padding:"4px 10px",background:"#fbeae6",color:"#8a3a2e",border:"1px solid #e8c5be",borderRadius:4,cursor:"pointer"}}>
                               ✕ Zurückziehen
