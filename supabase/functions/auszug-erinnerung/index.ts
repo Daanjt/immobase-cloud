@@ -34,7 +34,7 @@ function text(art: "erinnerung" | "angebot", en: boolean, vorname: string, datum
   const r = en ? "https://www.dthomes.ch/en/#reinigung" : "https://www.dthomes.ch/#reinigung";
   const u = en ? "https://www.dthomes.ch/en/#umzug" : "https://www.dthomes.ch/#umzug";
   if (en) {
-    const sig = "Best regards\nDaan Theijse\nCo-Founder | D&T Homes";
+    const sig = "Best regards\nYour D&T Homes Team";
     if (art === "erinnerung") return {
       betreff: `Your move-out on ${datum}`,
       text: `Hi ${vorname},\n\nJust a quick reminder: your move-out is on ${datum}, one month from now.\n\nYou can also book your final cleaning and your move with us, so you don't have to worry about a thing:\n\nCleaning: ${r}\nMoving: ${u}\n\nYou'll receive a non-binding quote, or simply reply to this email.\n\n${sig}`,
@@ -44,7 +44,7 @@ function text(art: "erinnerung" | "angebot", en: boolean, vorname: string, datum
       text: `Hi ${vorname},\n\nYour move-out is in two weeks. Do you still need help with the final cleaning or your move? We're happy to organise it for you.\n\nCleaning: ${r}\nMoving: ${u}\n\n${sig}`,
     };
   }
-  const sig = "Liebe Grüsse\nDaan Theijse\nCo-Founder | D&T Homes";
+  const sig = "Liebe Grüsse\nDein D&T Homes Team";
   if (art === "erinnerung") return {
     betreff: `Dein Auszug am ${datum}`,
     text: `Hallo ${vorname},\n\neine kurze Erinnerung: Dein Auszug ist am ${datum}, also in einem Monat.\n\nÜbrigens kannst du bei uns auch die Endreinigung und den Umzug buchen. So musst du dich um nichts mehr kümmern:\n\nReinigung: ${r}\nUmzug: ${u}\n\nDu erhältst eine unverbindliche Offerte, oder antworte einfach auf diese Mail.\n\n${sig}`,
