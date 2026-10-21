@@ -973,7 +973,7 @@ async function loadFreieZimmer() {
     const {data: rooms, error: rErr} = await sbForm.from('rooms').select('*').eq('occupied', false);
     if (rErr) throw rErr;
     // Get apartments to enrich with address info
-    const {data: apts, error: aErr} = await sbForm.from('apartments').select('*').eq('type', 'WG');
+    const {data: apts, error: aErr} = await sbForm.from('apartments').select('id,type,adresse,plz,ort,zimmer,stockwerk,etage,flaeche,merkmale,photos,beschreibung,beschreibung_en,matterport_url,mietbeginn,mietende,immer_befristet,ausschreiben,nicht_ausschreiben,vermietungsart').eq('type', 'WG');
     if (aErr) throw aErr;
     
     const aptMap = {};
