@@ -16577,6 +16577,8 @@ function KommunikationTab({empfaenger, zielgruppe}) {
       )}
       <textarea className="fi" value={text} onChange={e=>setText(e.target.value)} rows={11} placeholder="Text der Nachricht…" style={{width:"100%",marginBottom:16,fontSize:11.5,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
 
+      {msg && <div ref={el=>{ if(el) try{ el.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(_){} }} style={{fontSize:12.5,marginBottom:12,lineHeight:1.5,padding:"10px 12px",borderRadius:8,background:msg.t==="ok"?"#e8eadb":"#f6e3dd",border:"1px solid "+(msg.t==="ok"?"#c5cda8":"#e0bcb0"),color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.t==="ok"?"✓ ":"⚠ "}{msg.m}</div>}
+      {!empfaenger.email && <div style={{fontSize:12,marginBottom:10,color:"#9b4a3e"}}>Für diesen Kontakt ist keine E-Mail-Adresse hinterlegt, darum ist «Per E-Mail senden» ausgegraut.</div>}
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <button className="btn btn-p" onClick={sendeEmail} disabled={sending||!empfaenger.email} style={{flex:1,minWidth:150,justifyContent:"center"}}>
           {sending ? "Sende…" : "✉ Per E-Mail senden"}
@@ -16592,7 +16594,6 @@ function KommunikationTab({empfaenger, zielgruppe}) {
       <div style={{fontSize:10.5,color:"var(--muted-light)",marginTop:10,lineHeight:1.5}}>
         WhatsApp öffnet die App mit vorbereitetem Text, gesendet wird erst mit deinem Tippen dort.
       </div>
-      {msg && <div style={{fontSize:12,marginTop:12,lineHeight:1.5,color:msg.t==="ok"?"#3d4f2f":"#9b4a3e"}}>{msg.m}</div>}
     </div>
   );
 }
