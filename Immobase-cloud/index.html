@@ -245,6 +245,11 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;font-family:'Manro
 .nb.on::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:2px;background:var(--gold)}
 .ni{font-size:13px;width:18px;text-align:center;color:var(--muted-light)}
 .nb.on .ni{color:var(--gold)}
+.nav-gruppe{margin-top:6px}
+.nb-gruppe{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-light)}
+.nb-gruppe.aktiv{color:var(--ink)}
+.nb-pfeil{font-size:15px;line-height:1;color:var(--muted-light);transition:transform .15s;width:12px;text-align:center}
+.nb-sub{padding-left:28px}
 .user-info{position:relative;padding:12px 16px;border-top:1px solid var(--line-soft)}
 .acct-btn{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;border-radius:9px;padding:9px 10px;cursor:pointer;font-family:'Manrope', sans-serif;text-align:left;transition:background .18s}
 .acct-btn:hover,.acct-btn.on{background:var(--beige-soft)}
@@ -15753,27 +15758,34 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
 const PAGES=[
   {id:"dashboard",icon:"⊞",label:"Dashboard"},
   {id:"bewerber",icon:"📋",label:"Bewerber"},
-  {id:"nachvermietung",icon:"🔄",label:"Nachvermietung"},
-  {id:"wohnungen",icon:"🏠",label:"Wohnungen"},
-  {id:"zimmer",icon:"🚪",label:"Zimmer"},
-  {id:"parkplaetze",icon:"🅿️",label:"Parkplätze"},
-  {id:"reinigung",icon:"🧽",label:"Reinigung & Umzug"},
   {id:"mieter",icon:"👤",label:"Mieter"},
-  {id:"uebergaben",icon:"🔑",label:"Übergaben"},
-  {id:"zahlungen",icon:"💰",label:"Zahlungen"},
-  {id:"partner",icon:"🏢",label:"Partner"},
   {id:"todos",icon:"✅",label:"To-dos"},
-  {id:"finanzen",icon:"📊",label:"Finanzen"},
-  {id:"auslagen",icon:"💳",label:"Geschäftskarte"},
-  {id:"passwoerter",icon:"🔐",label:"Passwörter"},
-  {id:"zeit",icon:"⏱",label:"Zeiterfassung"},
-  {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch"},
-  {id:"marktradar",icon:"🔭",label:"Marktradar"},
-  {id:"bauradar",icon:"🏗️",label:"Bauradar"},
-  {id:"pipeline",icon:"📇",label:"Pipeline"},
-  {id:"kontakte",icon:"👥",label:"Kontakte"},
-  {id:"werbung",icon:"📣",label:"Werbung"},
-  {id:"dokumente",icon:"📁",label:"Dokumente"},
+  {id:"wohnungen",icon:"🏠",label:"Wohnungen",group:"vermietung"},
+  {id:"zimmer",icon:"🚪",label:"Zimmer",group:"vermietung"},
+  {id:"nachvermietung",icon:"🔄",label:"Nachvermietung",group:"vermietung"},
+  {id:"uebergaben",icon:"🔑",label:"Übergaben",group:"vermietung"},
+  {id:"parkplaetze",icon:"🅿️",label:"Parkplätze",group:"vermietung"},
+  {id:"reinigung",icon:"🧽",label:"Reinigung & Umzug",group:"vermietung"},
+  {id:"zahlungen",icon:"💰",label:"Zahlungen",group:"finanzen"},
+  {id:"finanzen",icon:"📊",label:"Finanzen",group:"finanzen"},
+  {id:"auslagen",icon:"💳",label:"Geschäftskarte",group:"finanzen"},
+  {id:"pipeline",icon:"📇",label:"Pipeline",group:"akquise"},
+  {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch",group:"akquise"},
+  {id:"marktradar",icon:"🔭",label:"Marktradar",group:"akquise"},
+  {id:"bauradar",icon:"🏗️",label:"Bauradar",group:"akquise"},
+  {id:"kontakte",icon:"👥",label:"Kontakte",group:"akquise"},
+  {id:"partner",icon:"🏢",label:"Partner",group:"akquise"},
+  {id:"werbung",icon:"📣",label:"Werbung",group:"akquise"},
+  {id:"dokumente",icon:"📁",label:"Dokumente",group:"verwaltung"},
+  {id:"passwoerter",icon:"🔐",label:"Passwörter",group:"verwaltung"},
+  {id:"zeit",icon:"⏱",label:"Zeiterfassung",group:"verwaltung"},
+];
+// Gruppen der Seitenleiste (aufklappbar)
+const NAV_GRUPPEN=[
+  {id:"vermietung",icon:"🏘️",label:"Vermietung"},
+  {id:"finanzen",icon:"💼",label:"Finanzen"},
+  {id:"akquise",icon:"🧭",label:"Akquise"},
+  {id:"verwaltung",icon:"🗂️",label:"Verwaltung"},
 ];
 
 // Welche Seiten eine Rolle sehen darf. null bedeutet: alle Seiten.
@@ -16186,6 +16198,7 @@ function KautionsAbrechnung({tenant,onDone,updateTenant}){
 
 function MainApp({rolle}) {
   const sichtbareSeiten = seitenFuerRolle(rolle);
+  const [navOffen, setNavOffen] = useState(() => { try { return JSON.parse(localStorage.getItem("immobase_nav_offen")||"{}")||{}; } catch(_) { return {}; } });
   const [page, setPage] = useState(() => { try { const s = localStorage.getItem("immobase_page"); if (s && sichtbareSeiten.some(x=>x.id===s)) return s; } catch(e){} return sichtbareSeiten[0]?.id || "dashboard"; });
   const [navTarget, setNavTarget] = useState(null);
   useEffect(() => { try { localStorage.setItem("immobase_page", page); } catch(e){} }, [page]);
@@ -16355,17 +16368,32 @@ function MainApp({rolle}) {
           <button onClick={()=>setSidebarOpen(false)} style={{display:"none",background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",padding:"0 4px"}} className="sidebar-close" aria-label="Menü schliessen">✕</button>
         </div>
         <div className="nav">
-          {sichtbareSeiten.map(p=>(<button key={p.id} className={`nb${page===p.id?" on":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);setSidebarOpen(false);}}>
-            <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>
-            {p.id==="bewerber"&&neueBewerber>0&&<span style={{background:"#f5efe4",color:"#a08864",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{neueBewerber}</span>}
-            {p.id==="nachvermietung"&&nachvermietungOffen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{nachvermietungOffen}</span>}
-            {p.id==="portfoliowatch"&&portfolioWatchOffen>0&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{portfolioWatchOffen}</span>}
-            {p.id==="marktradar"&&marktRadarOffen>0&&<span style={{background:"#e7e0d3",color:"#7c6a4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{marktRadarOffen}</span>}
-            {p.id==="pipeline"&&pipelineOffen>0&&<span style={{background:"#d9e0d0",color:"#5f6b4e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{pipelineOffen}</span>}
-            {p.id==="zimmer"&&freeCount>0&&<span style={{background:"#f6ecd8",color:"#c89653",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{freeCount}</span>}
-            {p.id==="zahlungen"&&offeneZahlungen>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneZahlungen}</span>}
-            {p.id==="uebergaben"&&(offeneUebergaben+offeneAuszuege)>0&&<span style={{background:"#fbeae6",color:"#8a3a2e",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{offeneUebergaben+offeneAuszuege}</span>}
-          </button>))}
+          {(()=>{
+            const badges={bewerber:[neueBewerber,"#f5efe4","#a08864"],nachvermietung:[nachvermietungOffen,"#fbeae6","#8a3a2e"],portfoliowatch:[portfolioWatchOffen,"#eae3d6","#7c6a4e"],marktradar:[marktRadarOffen,"#e7e0d3","#7c6a4e"],pipeline:[pipelineOffen,"#d9e0d0","#5f6b4e"],zimmer:[freeCount,"#f6ecd8","#c89653"],zahlungen:[offeneZahlungen,"#fbeae6","#8a3a2e"],uebergaben:[(offeneUebergaben||0)+(offeneAuszuege||0),"#fbeae6","#8a3a2e"]};
+            const badge=(id)=>{ const b=badges[id]; return (b&&b[0]>0)?<span style={{background:b[1],color:b[2],fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{b[0]}</span>:null; };
+            const knopf=(p,sub)=>(<button key={p.id} className={`nb${page===p.id?" on":""}${sub?" nb-sub":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);setSidebarOpen(false);}}>
+              <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>{badge(p.id)}
+            </button>);
+            const oben=sichtbareSeiten.filter(p=>!p.group);
+            return (<>
+              {oben.map(p=>knopf(p,false))}
+              {NAV_GRUPPEN.map(g=>{
+                const seiten=sichtbareSeiten.filter(p=>p.group===g.id);
+                if(!seiten.length) return null;
+                const aktiv=seiten.some(p=>p.id===page);
+                const offen=aktiv||!!navOffen[g.id];
+                const summe=seiten.reduce((n,p)=>{ const b=badges[p.id]; return n+((b&&b[0]>0)?b[0]:0); },0);
+                return (<div key={g.id} className="nav-gruppe">
+                  <button className={`nb nb-gruppe${aktiv?" aktiv":""}`} aria-expanded={offen} onClick={()=>{ if(aktiv) return; setNavOffen(o=>{ const n={...o,[g.id]:!o[g.id]}; try{localStorage.setItem("immobase_nav_offen",JSON.stringify(n));}catch(_){} return n; }); }}>
+                    <span className="ni">{g.icon}</span><span style={{flex:1}}>{g.label}</span>
+                    {!offen&&summe>0&&<span style={{background:"#f0ebe1",color:"#8a8174",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{summe}</span>}
+                    <span className="nb-pfeil" style={{transform:offen?"rotate(90deg)":"none"}}>›</span>
+                  </button>
+                  {offen && seiten.map(p=>knopf(p,true))}
+                </div>);
+              })}
+            </>);
+          })()}
         </div>
         <div className="user-info" ref={acctRef}>
           {acctOpen && (
