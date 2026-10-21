@@ -37,21 +37,21 @@ function text(art: "erinnerung" | "angebot", en: boolean, vorname: string, datum
     const sig = "Best regards\nYour D&T Homes Team";
     if (art === "erinnerung") return {
       betreff: `Your move-out on ${datum}`,
-      text: `Hi ${vorname},\n\nJust a quick reminder: your move-out is on ${datum}, one month from now.\n\nYou can also book your final cleaning and your move with us, so you don't have to worry about a thing:\n\nCleaning: ${r}\nMoving: ${u}\n\nYou'll receive a non-binding quote, or simply reply to this email.\n\n${sig}`,
+      text: `Hi ${vorname},\n\nWe hope you've had a great time with us so far! We just wanted to send you a friendly reminder that your move-out is coming up on ${datum}, one month from now.\n\nTo make your move as relaxed as possible, you can also book your final cleaning and your move with us, so you don't have to worry about a thing:\n\nCleaning: ${r}\nMoving: ${u}\n\nYou'll receive a non-binding quote, or simply reply to this email. We're happy to help!\n\n${sig}`,
     };
     return {
       betreff: "Final cleaning or moving help for your move-out?",
-      text: `Hi ${vorname},\n\nYour move-out is in two weeks. Do you still need help with the final cleaning or your move? We're happy to organise it for you.\n\nCleaning: ${r}\nMoving: ${u}\n\n${sig}`,
+      text: `Hi ${vorname},\n\nIn two weeks it's time: your move-out is just around the corner. If you'd still like some help with the final cleaning or your move, we're happy to take care of it for you.\n\nCleaning: ${r}\nMoving: ${u}\n\nWe already wish you a great start in your new home!\n\n${sig}`,
     };
   }
   const sig = "Liebe Grüsse\nDein D&T Homes Team";
   if (art === "erinnerung") return {
     betreff: `Dein Auszug am ${datum}`,
-    text: `Hallo ${vorname},\n\neine kurze Erinnerung: Dein Auszug ist am ${datum}, also in einem Monat.\n\nÜbrigens kannst du bei uns auch die Endreinigung und den Umzug buchen. So musst du dich um nichts mehr kümmern:\n\nReinigung: ${r}\nUmzug: ${u}\n\nDu erhältst eine unverbindliche Offerte, oder antworte einfach auf diese Mail.\n\n${sig}`,
+    text: `Hallo ${vorname},\n\nwir hoffen, du hattest bisher eine schöne Zeit bei uns! Wir wollten dich ganz freundlich daran erinnern, dass dein Auszug am ${datum} ansteht, also in einem Monat.\n\nDamit dein Auszug möglichst entspannt wird, kannst du bei uns auch die Endreinigung und den Umzug buchen. So musst du dich um nichts mehr kümmern:\n\nReinigung: ${r}\nUmzug: ${u}\n\nDu erhältst eine unverbindliche Offerte, oder antworte einfach auf diese Mail. Wir helfen dir gerne!\n\n${sig}`,
   };
   return {
     betreff: "Endreinigung oder Umzug für deinen Auszug?",
-    text: `Hallo ${vorname},\n\nin zwei Wochen ist dein Auszug. Brauchst du noch Hilfe bei der Endreinigung oder beim Umzug? Wir organisieren das gerne für dich.\n\nReinigung: ${r}\nUmzug: ${u}\n\n${sig}`,
+    text: `Hallo ${vorname},\n\nin zwei Wochen ist es so weit: Dein Auszug steht vor der Tür. Falls du noch Unterstützung bei der Endreinigung oder beim Umzug möchtest, kümmern wir uns gerne darum.\n\nReinigung: ${r}\nUmzug: ${u}\n\nWir wünschen dir schon jetzt einen guten Start im neuen Zuhause!\n\n${sig}`,
   };
 }
 
