@@ -6,6 +6,9 @@
 // nur von Verwaltungen / professionellen Eigentuemern (agency mit
 // Namen), Region Kanton ZH + Nachbarkantone. Eigener Cursor,
 // schreibt in public.markt_radar. ?backfill=1 scannt den Bestand.
+// Bereinigung: bei jedem (taeglichen) Lauf werden bis zu 400 Flatfox-
+// Eintraege nachgeschaut (zuerst die am laengsten ungeprueften); ist ein Inserat nicht mehr
+// aktiv, wird es aus dem Marktradar entfernt. ?bereinigen=1 prueft alle.
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -48,6 +51,11 @@ Deno.serve(async (req) => {
   const backfill = new URL(req.url).searchParams.get("backfill") === "1";
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+
+  const alleBereinigen = new URL(req.url).searchParams.get("bereinigen") === "1";
+  const nurBereinigen = alleBereinigen && new URL(req.url).searchParams.get("scan") !== "1";
+  const bereinigung = await bereinige(supabase, alleBereinigen ? 1000 : 400);
+  if (nurBereinigen) return json({ bereinigung });
 
   const { data: stt } = await supabase
     .from("flatfox_watch_state").select("markt_last_created").eq("id", 1).single();
@@ -111,8 +119,41 @@ Deno.serve(async (req) => {
     markt_last_run: new Date().toISOString(),
   }).eq("id", 1);
 
-  return json({ total, scanned, matched: rows.length, inserted, backfill });
+  return json({ total, scanned, matched: rows.length, inserted, backfill, bereinigung });
 });
+
+// Prueft Flatfox-Eintraege (nicht Seitzmeir/Homegate) und entfernt die, die auf
+// Flatfox nicht mehr aktiv sind. Entfernt wird nur bei einer sauberen Antwort
+// (HTTP 200 und 0 Treffer); bei Fehlern bleibt der Eintrag stehen.
+async function bereinige(supabase, limit) {
+  const { data: liste, error } = await supabase.from("markt_radar")
+    .select("id, flatfox_pk, raw->>source")
+    .is("raw->>source", null)
+    .order("geprueft_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) return { fehler: error.message };
+  const weg = [], aktiv = [];
+  let fehler = 0;
+  const queue = [...(liste ?? [])];
+  async function arbeiter() {
+    while (queue.length) {
+      const x = queue.shift();
+      try {
+        const r = await fetch(`${FLATFOX}?pk=${encodeURIComponent(x.flatfox_pk)}&limit=1`,
+          { headers: { "User-Agent": "Mozilla/5.0 (DTHomes ImmoBase MarktRadar)" } });
+        if (!r.ok) { fehler++; continue; }
+        const d = await r.json();
+        const treffer = (d.results ?? []).some((y) => String(y.pk) === String(x.flatfox_pk));
+        if (d.count === 0 || (!treffer && (d.results ?? []).length === 0)) weg.push(x.id); else if (treffer) aktiv.push(x.id); else fehler++;
+      } catch (_e) { fehler++; }
+    }
+  }
+  await Promise.all(Array.from({ length: 6 }, arbeiter));
+  const jetzt = new Date().toISOString();
+  for (let i = 0; i < aktiv.length; i += 200) await supabase.from("markt_radar").update({ geprueft_at: jetzt }).in("id", aktiv.slice(i, i + 200));
+  for (let i = 0; i < weg.length; i += 200) await supabase.from("markt_radar").delete().in("id", weg.slice(i, i + 200));
+  return { geprueft: (liste ?? []).length, entfernt: weg.length, noch_aktiv: aktiv.length, fehler };
+}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body, null, 2),
