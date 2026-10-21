@@ -1,0 +1,42 @@
+{
+ "send-handover-pdf": {
+  "version": 8,
+  "verify_jwt": false,
+  "ezbr_sha256": "a196305ccafceb977e7c2a8c8bfadb093fc0e816ca86eb299032a86ed1a3f660"
+ },
+ "send-protocol-email": {
+  "version": 6,
+  "verify_jwt": true,
+  "ezbr_sha256": "a39bcaefe009f727861a560bbeda006d3ed8c14f4d4309cb5d24aab27fbd2772"
+ },
+ "send-handover-invite": {
+  "version": 11,
+  "verify_jwt": false,
+  "ezbr_sha256": "37f0067eef20435428c56c4eec9eebddd2ab843694ef2eb78e6fcc841d95e15a"
+ },
+ "contact-message": {
+  "version": 4,
+  "verify_jwt": false,
+  "ezbr_sha256": "4cbbfaf66ae760b5976d48930b3559702c62a30183a29b03873ebbc367cf541a"
+ },
+ "bright-responder": {
+  "version": 20,
+  "verify_jwt": false,
+  "ezbr_sha256": "6b2f58ac72610f6ca7625c2e208c8f3a9bed9ebc4db83ffbb70ec90b922a5ab2"
+ },
+ "import-listing-images": {
+  "version": 6,
+  "verify_jwt": true,
+  "ezbr_sha256": "c53a56eb40a5de36dcf61ca787742dc8cc8ad3174c4b4af294c4b0027ed6c9dd"
+ },
+ "seitzmeir-watch": {
+  "version": 8,
+  "verify_jwt": true,
+  "ezbr_sha256": "4f1840d2d2c22273f9a48803a5feb310243d07715c06f1a347b86ff698f97603"
+ },
+ "elev8-probe": {
+  "version": 4,
+  "verify_jwt": true,
+  "ezbr_sha256": "74a9465cf63ae7fa93b596c85d64a4146cf17643b5de87f78b0bfa4545d7df3c"
+ }
+}

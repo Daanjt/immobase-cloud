@@ -1,7 +1,10 @@
 name: Datenbank-Backup (nachts, verschluesselt)
 # Exportiert alle Tabellen (public + Login-Konten) als JSON ueber die Supabase
-# Management API, packt und verschluesselt sie und legt sie als privates Artefakt
-# fuer 30 Tage ab. Verschluesselung: zufaelliger AES-256-Schluessel pro Backup,
+# Management API, dazu die Datenbank-Struktur (schema.sql), die Liste der Server-Funktionen,
+# die Namen der Server-Secrets und ein Verzeichnis aller gespeicherten Dateien
+# (die Dateien selbst sichert backup-files.yml einmal pro Woche). Alles wird gepackt,
+# verschluesselt und als privates Artefakt
+# fuer 30 Tage abgelegt. Verschluesselung: zufaelliger AES-256-Schluessel pro Backup,
 # dieser wird mit dem oeffentlichen RSA-Schluessel unten verschluesselt. Nur wer
 # den privaten Schluessel (bei Daan) hat, kann das Backup oeffnen:
 #   openssl pkeyutl -decrypt -inkey ImmoBase_Backup_Schluessel_PRIVAT.pem -in key.bin.enc -out key.bin
@@ -18,6 +21,7 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_ID: aohcqrxpsqronlcwssrk
     steps:
+      - uses: actions/checkout@v4
       - name: Export
         run: |
           set -e
@@ -41,6 +45,7 @@ jobs:
           json.dump({"zeit": datetime.datetime.utcnow().isoformat()+"Z", "tabellen": stats}, open("dump/_info.json", "w"), indent=1)
           print(f"{len(tabellen)} Tabellen, {sum(stats.values())} Zeilen")
           PY
+          python3 backup/scripts/export_extra.py dump
           tar czf backup.tar.gz dump
           cat > pub.pem <<'KEY'
             -----BEGIN PUBLIC KEY-----

@@ -1,0 +1,60 @@
+name: Datei-Backup (woechentlich, verschluesselt)
+# Sichert jeden Sonntag alle Dateien aus dem Supabase-Speicher (Vertraege, Dokumente,
+# Uebergabefotos, Inseratbilder). Gleiche Verschluesselung wie das Datenbank-Backup:
+# nur mit dem privaten Backup-Schluessel (bei Daan) lesbar. Ablage als privater GitHub
+# Release (Tag files-JJJJ-MM-TT), die letzten 6 Wochen bleiben erhalten.
+# Entschluesseln:
+#   openssl pkeyutl -decrypt -inkey ImmoBase_Backup_Schluessel_PRIVAT.pem -in key.bin.enc -out key.bin
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in dateien.tar.enc -out dateien.tar -pass file:key.bin
+#   tar xf dateien.tar
+on:
+  schedule:
+    - cron: "15 2 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: aohcqrxpsqronlcwssrk
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dateien herunterladen
+        run: python3 backup/scripts/download_files.py dateien
+      - name: Packen und verschluesseln
+        run: |
+          set -e
+          tar cf dateien.tar dateien
+          cat > pub.pem <<'KEY'
+            -----BEGIN PUBLIC KEY-----
+            MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvjaWl0lAiE+O7cDcRc2P
+            2cE9Q1alYBsb8+bBCBBTXjuQd0cD3DXq/fnDqQe+Vuw/SYc1ybKG7UM8r/m9pnJb
+            NFJ0DCrldzniqIAoxGYql5Zkwj/vAt/29xpT15V1naTOw6VlZOVr8S8jJgfgcrbO
+            69WaejFYXZQ6b8esrY+VCZgk4RQIhvWAalpvnYKfnDgvB4x8l52AvVTOqS5p7scT
+            tUaPeStWLzQ/vtF8Of/BXi2ibdQwimMkVGn7a3gQM1AwosroSPYwmo58CvMD0Ya0
+            avb5pjc/GLMhVqV8zwpdZFLU08RiIv+aS8Ij5FmjATAwRt2pWWO6UGRPfrt4Bla3
+            hXNmGIrEOuvY0bwgMU8XEtSha3BXNeZQX8QrkDay+piDb/JceX/yAr3A81ufU9UD
+            IOyy1vNqs9PmQUdv47wePchSInEnCOoLBT1hJeHQ2+EfyaPbDvi//5M5V6horGXq
+            q1Dv2VQMm+1r5FEG6UDJ94S5upoDFxdthTn066OnCyrEIxtlaTQcEy4P+iGbZBOV
+            PLnKPqnYvyNKQ+iJ4A7j76rbuy6jqc3iH0g+Wg4Hz1vWNvit2rX//XqCBhFIYwbc
+            1GUF/MeJUbV2gBZx65vsbOZZsso+AZlPU+5JfX6QDY5NqKWsMm6LzXdGwBUKZJxI
+            mtVZiZK0uZQASZ0vLzNp5fMCAwEAAQ==
+            -----END PUBLIC KEY-----
+          KEY
+          sed -i 's/^ *//' pub.pem
+          openssl rand -hex 32 > key.bin
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in dateien.tar -out dateien.tar.enc -pass file:key.bin
+          openssl pkeyutl -encrypt -pubin -inkey pub.pem -in key.bin -out key.bin.enc
+          rm -rf dateien dateien.tar key.bin
+          ls -la dateien.tar.enc key.bin.enc
+      - name: Als privaten Release ablegen, alte entfernen
+        run: |
+          set -e
+          TAG="files-$(date -u +%Y-%m-%d)"
+          gh release delete "$TAG" --cleanup-tag -y 2>/dev/null || true
+          gh release create "$TAG" dateien.tar.enc key.bin.enc --title "Datei-Backup $(date -u +%d.%m.%Y)" --notes "Verschluesseltes Datei-Backup. Nur mit dem privaten Backup-Schluessel lesbar."
+          gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^files-' | sort -r | tail -n +7 | while read t; do gh release delete "$t" --cleanup-tag -y; done
