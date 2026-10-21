@@ -192,6 +192,20 @@ Deno.serve(async (req: Request) => {
     const p = rows[0];
     if (!skipEmail && !preview && (!p.mieter_email || !p.mieter_email.includes("@"))) return new Response(JSON.stringify({ error: "Invalid email address" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
 
+    // Fotos liegen im privaten Speicher: fuer das PDF kurzlebige signierte Links einsetzen
+    if (Array.isArray(p.photos)) {
+      p.photos = await Promise.all(p.photos.map(async (f: any) => {
+        try {
+          const m = /\/handover-photos\/([^?#]+)/.exec(String((f && (f.url || "")) || ""));
+          const path = (f && f.path) || (m ? decodeURIComponent(m[1]) : null);
+          if (!path) return f;
+          const r = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/handover-photos/${path}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 3600 }) });
+          const j = await r.json().catch(() => ({}));
+          const su = j.signedURL || j.signedUrl;
+          return su ? { ...f, url: `${SUPABASE_URL}/storage/v1${su}` } : f;
+        } catch (_) { return f; }
+      }));
+    }
     const html = buildSubmittedHtml(p);
     const pdfBase64 = await renderPdf(html);
     if (!pdfBase64) throw new Error("PDF generation failed");

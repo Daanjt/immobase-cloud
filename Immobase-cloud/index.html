@@ -1390,6 +1390,30 @@ const SUPABASE_URL = "https://aohcqrxpsqronlcwssrk.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvaGNxcnhwc3Fyb25sY3dzc3JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODM0MjEsImV4cCI6MjA5MzU1OTQyMX0.izqvV2CPiOyVXoCsFTq_k8KRzBgfomp8LXwwAx22XP4";
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { experimental: { passkey: true } } });
+
+    // Uebergabefotos liegen im privaten Speicher: Anzeige ueber kurzlebige signierte Links
+    const __hoCache = {};
+    function hoPath(u){ const m = /\/handover-photos\/([^?#]+)/.exec(String(u || "")); return m ? decodeURIComponent(m[1]) : null; }
+    function useHoUrl(u){
+      const p0 = hoPath(u);
+      const [s, setS] = React.useState(p0 ? (__hoCache[p0] || null) : (u || null));
+      React.useEffect(() => {
+        const p = hoPath(u);
+        if (!p) { setS(u || null); return; }
+        if (__hoCache[p]) { setS(__hoCache[p]); return; }
+        let alive = true;
+        supabase.storage.from("handover-photos").createSignedUrl(p, 3600).then(({ data }) => {
+          if (data && data.signedUrl) { __hoCache[p] = data.signedUrl; if (alive) setS(data.signedUrl); }
+        }).catch(() => {});
+        return () => { alive = false; };
+      }, [u]);
+      return s;
+    }
+    function HoImg({ url, ...rest }){
+      const s = useHoUrl(url);
+      return s ? <img src={s} {...rest}/> : <span style={{ display:"block", background:"#eee", ...(rest.style || {}) }}/>;
+    }
+    function HoLink({ url, children, ...rest }){ const s = useHoUrl(url); return <a href={s || "#"} {...rest}>{children}</a>; }
 // Face ID / Passkeys: nur anbieten, wo das Geraet es kann
 const PASSKEY_MOEGLICH = typeof window !== "undefined" && !!window.PublicKeyCredential && !!(supabase.auth && supabase.auth.signInWithPasskey);
 function passkeyName(){ const ua=navigator.userAgent||""; if(/iPhone|iPad/i.test(ua)) return "Face ID"; if(/Mac/i.test(ua)) return "Touch ID"; if(/Android/i.test(ua)) return "Fingerabdruck"; if(/Windows/i.test(ua)) return "Windows Hello"; return "Passkey"; }
@@ -4494,10 +4518,10 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
                   {(h.photos||[]).length>0 ? (
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:8}}>
                       {(h.photos||[]).map((ph,pi)=>(
-                        <a key={pi} href={ph.url} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-                          <img src={ph.url} alt={ph.raum||""} loading="lazy" style={{width:"100%",height:90,objectFit:"cover",borderRadius:5,border:"1px solid #e1d8c5",display:"block"}} />
+                        <HoLink key={pi} url={ph.url} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
+                          <HoImg url={ph.url} alt={ph.raum||""} loading="lazy" style={{width:"100%",height:90,objectFit:"cover",borderRadius:5,border:"1px solid #e1d8c5",display:"block"}} />
                           <div style={{fontSize:9.5,color:"#8a8478",marginTop:2,lineHeight:1.3}}>{ph.raum?ph.raum.charAt(0).toUpperCase()+ph.raum.slice(1):""}{ph.beschreibung?": "+ph.beschreibung:""}</div>
-                        </a>
+                        </HoLink>
                       ))}
                     </div>
                   ) : <div style={{fontSize:11,color:"#8a8478"}}>Keine Fotos eingereicht.</div>}
