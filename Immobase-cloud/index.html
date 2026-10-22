@@ -9597,7 +9597,6 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
                   ["Typ",<TypeBadge type={apt.vermietungsart==="wohnung"?"Wohnung":apt.type}/>],
                   isWG && ["Vermietung", apt.vermietungsart==="wohnung" ? "Wohnung (unmöbliert)" : "Einzelne Zimmer"],
                   ["Früherer Mietzins", apt.frueherer_mietzins ? `CHF ${apt.frueherer_mietzins} netto${apt.frueherer_nk?` + CHF ${apt.frueherer_nk} NK`:""}` : "-"],
-                  istAdmin && apt.vergleichsmietzins!=null && apt.vergleichsmietzins!=="" && ["Vergleichsmietzins (intern)", `CHF ${apt.vergleichsmietzins} brutto`],
                   ["Zimmer",apt.zimmer+" Zi."],
                   ["Stockwerk",apt.stockwerk||"-"],
                   istAdmin && ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],
@@ -9611,6 +9610,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
                   istAdmin && ["Verwaltung",apt.verwaltung],
                   istAdmin && ["Eigentümer",apt.eigentuemer]
                 ].filter(Boolean).map(([l,v])=>(<div key={l} className="ig"><label>{l}</label><span>{v}</span></div>))}</div>
+                {istAdmin && apt.vermietungsart==="wohnung" && <MietzinsVergleich apt={apt} rooms={aptRooms}/>}
                 
                 {isWG && istAdmin && (
                   <div style={{marginTop:18,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"16px 18px"}}>
@@ -9853,7 +9853,6 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Grunddaten</div>
         <div className="fg"><label className="fl">Adresse</label><input className="fi" value={form.adresse||""} onChange={F("adresse")}/></div>
         <div className="fg"><label className="fl">Merkmale fürs Inserat</label><MerkmalePicker wohnung={(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"} value={form.merkmale} onChange={v=>setForm(p=>({...p,merkmale:v}))}/></div>
-        <div className="fg"><label className="fl">Etage / Bezeichnung</label><input className="fi" value={form.etage||""} onChange={F("etage")} placeholder="z.B. 2. OG oder Wohnung rechts"/></div>
         <div className="frow">
           <div className="fg"><label className="fl">PLZ</label><input className="fi" value={form.plz||""} onChange={F("plz")}/></div>
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={form.ort||""} onChange={F("ort")}/></div>
@@ -15417,6 +15416,43 @@ function parkFin(pps, s, e){
 }
 function parkFinHeute(pps){ const n=new Date(); const s=new Date(n.getFullYear(),n.getMonth(),1); const e=new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999); return parkFin(pps,s,e); }
 function ppMieterName(p, tenants){ if(p.tenant_id){ const t=(tenants||[]).find(x=>x.id===p.tenant_id); if(t) return `${t.vorname||""} ${t.nachname||""}`.trim(); } return (p.mieter_extern||"").trim(); }
+
+// Mietzins-Vergleich bei ganzen Wohnungen (nur intern): frueherer Mietzins laut Mieterspiegel,
+// Vergleichsmietzins (hoechster gleicher Typ im selben Haus und Geschoss, falls eigener <= 1900) und unser Mietzins.
+function MietzinsVergleich({apt, rooms}){
+  const [ms,setMs]=useState(null);
+  useEffect(()=>{ let ab=false; (async()=>{
+    if(!apt.refnr){ setMs({}); return; }
+    const {data:o}=await supabase.from("mieterspiegel_objekte").select("*").eq("objekt",String(apt.refnr)).maybeSingle();
+    if(!o){ if(!ab) setMs({}); return; }
+    const {data:l}=await supabase.from("mieterspiegel_objekte").select("*").eq("haus",o.haus).eq("geschoss",o.geschoss).eq("typ",o.typ);
+    if(!ab) setMs({o, l:l||[]});
+  })(); return ()=>{ab=true;}; },[apt.refnr]);
+  const n=v=>`CHF ${Number(v||0).toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const o=ms&&ms.o;
+  let v=null;
+  if(o){ v = (+o.brutto>1900) ? o : (ms.l||[]).reduce((m,x)=>(!m||+x.brutto>+m.brutto)?x:m, null); }
+  const fN = o ? +o.nettomiete : +apt.frueherer_mietzins||0, fK = o ? +o.nk : +apt.frueherer_nk||0;
+  const room=(rooms||[])[0]; const uB=+(room&&room.miete)||0; const uK=nkWohnung(apt);
+  const vertragB=(+apt.frueherer_mietzins||0)+(+apt.frueherer_nk||0);
+  const box=(titel,sub,netto,nk,brutto,farbe,fuss)=>(<div style={{background:"#fff",border:"1px solid #e8e3d8",borderRadius:6,padding:"12px 14px"}}>
+    <div style={{fontSize:10,color:"#8a8174",textTransform:"uppercase",letterSpacing:".15em",fontWeight:500}}>{titel}</div>
+    <div style={{fontSize:11,color:"#a39b8c",marginBottom:8,minHeight:15}}>{sub}</div>
+    {[["Nettomiete",netto],["Nebenkosten",nk]].map(([l,x])=>(<div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"#5a5448",padding:"2px 0"}}><span>{l}</span><span>{x==null?"-":n(x)}</span></div>))}
+    <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,fontWeight:600,color:farbe,borderTop:"1px solid #f0eadd",marginTop:6,paddingTop:6}}><span>Brutto</span><span>{brutto==null?"-":n(brutto)}</span></div>
+    {fuss && <div style={{fontSize:10.5,color:"#8a8174",marginTop:6}}>{fuss}</div>}
+  </div>);
+  if(ms===null) return null;
+  return (<div style={{marginTop:18,background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"16px 18px"}}>
+    <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:12,fontWeight:500}}>Mietzins-Vergleich (intern)</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+      {box("Früherer Mietzins", o?`Mieterspiegel, Objekt ${o.objekt}`:"aus den Wohnungsdaten", fN||null, fN?fK:null, fN?fN+fK:null, "#1a1814",
+        (o && apt.frueherer_mietzins && Math.abs(vertragB-(fN+fK))>0.01) ? `Im Vertrag hinterlegt: ${n(vertragB)}` : null)}
+      {box("Vergleichsmietzins", v?(v.objekt===o.objekt?"eigener Wert (über 1'900)":`Objekt ${v.objekt}, gleicher Stock`):"keine Objekt-Nr. hinterlegt", v?+v.nettomiete:null, v?+v.nk:null, v?+v.brutto:(apt.vergleichsmietzins?+apt.vergleichsmietzins:null), "#1a1814", "Nur intern, nicht im Vertrag")}
+      {box("Unser Mietzins", room?"was wir verlangen":"kein Preis hinterlegt", uB?uB-uK:null, uB?uK:null, uB||null, "#5a6e4a", uB?"zzgl. Strom pro Person":null)}
+    </div>
+  </div>);
+}
 
 function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
   const neu = !pp.id;
