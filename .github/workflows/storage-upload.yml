@@ -1,0 +1,21 @@
+name: Datei in Storage hochladen
+on:
+  workflow_dispatch:
+    inputs:
+      src:
+        description: Datei im Repo
+        required: true
+      dest:
+        description: Ziel bucket/pfad
+        required: true
+permissions:
+  contents: read
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: aohcqrxpsqronlcwssrk
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 backup/scripts/upload_file.py "${{ inputs.src }}" "${{ inputs.dest }}"
