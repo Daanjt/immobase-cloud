@@ -51,4 +51,6 @@ text=t1|t2|t3
 keep=ink & ~text
 rm=ndimage.binary_dilation(text,iterations=6) & ~ndimage.binary_dilation(keep,iterations=1)
 a[rm]=255
-Image.fromarray(a).save(dst,quality=93)
+l=np.array(Image.fromarray(a).convert('L'))
+a[l>200]=255
+Image.fromarray(a).save(dst,optimize=True) if dst.endswith('.png') else Image.fromarray(a).save(dst,quality=95,subsampling=0)
