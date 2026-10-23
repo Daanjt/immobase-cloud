@@ -35,3 +35,9 @@ verify_jwt = true
 
 [functions.auszug-erinnerung]
 verify_jwt = true
+
+[functions.mieter-dokumente]
+verify_jwt = false
+
+[functions.dokumente-erinnerung]
+verify_jwt = true
