@@ -1,10 +1,12 @@
 // mieter-dokumente: Mieter/Bewerber laden nach der Vertragsunterschrift
-// Betreibungsregister-Auszug und Pass/Ausweis hoch (nur ganze Wohnungen).
+// Pass/Ausweis und (Wohnung oder WG mit Kautionsreduktion) Betreibungsregister-Auszug hoch.
+// Welche Dokumente noetig sind: _shared/dokumente.ts
 // Zugang nur mit dem persoenlichen Vertrags-Token. Ablage im privaten Bucket
 // "documents" und in der Tabelle documents beim Bewerber bzw. Mieter.
 //   GET  ?token=...            -> Status
 //   POST multipart: token, art (betreibung|ausweis), file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { benoetigteDokumente, DOK_FELDER } from "../_shared/dokumente.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,16 +26,12 @@ function sanitize(s: string) {
 
 async function ladeVertrag(sb: any, token: string) {
   if (!/^[a-f0-9]{32}$/.test(token || "")) return null;
-  const { data: c } = await sb.from("contracts").select("id, token, status, contract_type, contract_data, apt_id, tenant_id, bewerber_id, mieter_vorname, mieter_nachname")
+  const { data: c } = await sb.from("contracts").select(`id, token, status, tenant_id, bewerber_id, mieter_vorname, mieter_nachname, ${DOK_FELDER}`)
     .eq("token", token).maybeSingle();
   if (!c) return null;
-  let wohnung = (c.contract_data && c.contract_data.vertragsart === "wohnung");
-  if (!wohnung && c.apt_id) {
-    const { data: a } = await sb.from("apartments").select("vermietungsart").eq("id", c.apt_id).maybeSingle();
-    wohnung = !!a && a.vermietungsart === "wohnung";
-  }
+  const bedarf = await benoetigteDokumente(sb, c);
   const entity = c.tenant_id ? { type: "tenant", id: String(c.tenant_id) } : (c.bewerber_id ? { type: "applicant", id: String(c.bewerber_id) } : null);
-  return { c, wohnung, entity };
+  return { c, bedarf, entity };
 }
 
 async function status(sb: any, entity: { type: string; id: string }) {
@@ -54,8 +52,8 @@ Deno.serve(async (req) => {
       const token = new URL(req.url).searchParams.get("token") || "";
       const v = await ladeVertrag(sb, token);
       if (!v) return json({ error: "Ungueltiger Link" }, 404);
-      if (!v.wohnung || !v.entity || ["zurueckgezogen", "storniert"].includes(v.c.status)) return json({ benoetigt: false });
-      return json({ benoetigt: true, vorname: v.c.mieter_vorname || "", ...(await status(sb, v.entity)) });
+      if (!v.bedarf || !v.entity || ["zurueckgezogen", "storniert"].includes(v.c.status)) return json({ benoetigt: false });
+      return json({ benoetigt: true, wohnung: v.bedarf.wohnung, braucht: { betreibung: v.bedarf.betreibung, ausweis: v.bedarf.ausweis }, vorname: v.c.mieter_vorname || "", ...(await status(sb, v.entity)) });
     }
     if (req.method !== "POST") return json({ error: "Methode nicht erlaubt" }, 405);
     const fd = await req.formData();
@@ -64,8 +62,8 @@ Deno.serve(async (req) => {
     const file = fd.get("file");
     const v = await ladeVertrag(sb, token);
     if (!v) return json({ error: "Ungueltiger Link" }, 404);
-    if (!v.wohnung || !v.entity || ["zurueckgezogen", "storniert"].includes(v.c.status)) return json({ error: "Fuer diesen Vertrag sind keine Dokumente noetig." }, 400);
-    if (!(art in KAT)) return json({ error: "Unbekannte Dokumentart" }, 400);
+    if (!v.bedarf || !v.entity || ["zurueckgezogen", "storniert"].includes(v.c.status)) return json({ error: "Fuer diesen Vertrag sind keine Dokumente noetig." }, 400);
+    if (!(art in KAT) || !v.bedarf[art]) return json({ error: "Unbekannte Dokumentart" }, 400);
     if (!(file instanceof File)) return json({ error: "Keine Datei" }, 400);
     if (file.size > MAX) return json({ error: "Datei zu gross (max. 15 MB)" }, 400);
     const typ = (file.type || "").toLowerCase();

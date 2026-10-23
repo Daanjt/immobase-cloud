@@ -7294,6 +7294,84 @@ function CountersignButton({contract, onDone, onSigned, light}){
   const c = contract;
   if (!c || c.status !== "mieter_signiert") return null;
 
+  // Dokumentstatus fuer die Vorschau. Gleiche Regel wie supabase/functions/_shared/dokumente.ts:
+  // Wohnung: Betreibungsauszug + Pass/Ausweis. Zimmer: Pass/Ausweis, Betreibungsauszug nur bei Kautionsreduktion.
+  async function ladeDok(){
+    setDok(null);
+    try {
+      if (["verlaengerung","nachtrag","parkplatz"].includes(c.contractType)) return;
+      const apt = (((window.__IB_DATA||{}).apts)||[]).find(a => a.id === c.aptId);
+      const ent = c.tenantId ? ["tenant", String(c.tenantId)] : (c.bewerberId ? ["applicant", String(c.bewerberId)] : null);
+      if (!ent) return;
+      const { data: cd } = await supabase.from("contracts").select("vertragsart:contract_data->>vertragsart, km:contract_data->vertrag->>kautionMonate, auf:contract_data->vertrag->>aufschlag").eq("id", c.id).maybeSingle();
+      const wohnung = (cd && cd.vertragsart === "wohnung") || (apt && apt.vermietungsart === "wohnung");
+      const km = (!cd || cd.km == null || cd.km === "") ? 3 : +cd.km;
+      const braucht = wohnung ? ["Betreibungsregister-Auszug","Pass / Ausweis"]
+        : ((km < 3 || (+(cd && cd.auf) || 0) > 0) ? ["Pass / Ausweis","Betreibungsregister-Auszug"] : ["Pass / Ausweis"]);
+      const { data: docs } = await supabase.from("documents").select("category").eq("entity_type", ent[0]).eq("entity_id", ent[1]).in("category", braucht);
+      setDok(braucht.map(n => [n, (docs||[]).some(d => d.category === n)]));
+    } catch (_) {}
+  }
+
+  async function openPreview(){
+    setBusy(true);
+    ladeDok();
+    try {
+      const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id, preview: true } });
+      if (error) throw error;
+      if (!data || data.error || !data.pdfBase64) throw new Error((data&&data.error)||"Keine Vorschau erhalten");
+      const bin = atob(data.pdfBase64); const bytes = new Uint8Array(bin.length);
+      for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+      setPreviewUrl(url);
+    } catch(e){ console.error("handover preview:", e); alert("Vorschau fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(false); }
+  }
+  function closePreview(){ if(previewUrl){ try{URL.revokeObjectURL(previewUrl);}catch(_){} } setPreviewUrl(null); }
+  async function confirmSend(){
+    if (p.status !== "submitted") { alert("Dieses Protokoll wurde noch nicht eingereicht und kann darum nicht bestätigt werden."); return; }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id } });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      closePreview();
+      if (onDone) await onDone();
+      alert("Protokoll bestätigt. Die Bestätigung mit PDF wurde an den Mieter gesendet und im Dokumente-Ordner gespeichert.");
+    } catch(e){ console.error("handover confirm:", e); alert("Bestätigen fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(false); }
+  }
+  return (<>
+    <button onClick={openPreview} disabled={busy} style={{fontSize:10.5,padding:"4px 10px",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy&&!previewUrl?"lädt…":"👁 Vorschau & bestätigen"}</button>
+    {previewUrl && (
+      <div className="ov-x" onClick={()=>{ if(!busy) closePreview(); }} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
+        <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:10,maxWidth:820,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 10px 40px rgba(0,0,0,.3)",overflow:"hidden"}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid #e8e3d8"}}>
+            <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Übernahmeprotokoll · Vorschau</div>
+            <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Fertiges Protokoll mit beiden Unterschriften. Mit Bestätigen geht die Bestätigung samt PDF an den Mieter und wird im Dokumente-Ordner gespeichert.</div>
+          </div>
+          <div style={{flex:1,overflow:"auto",padding:16,background:"#efe9dd",minHeight:0}}>
+            {(typeof window!=="undefined" && window.innerWidth < 640)
+              ? <button onClick={()=>window.open(previewUrl,"_blank")} style={{width:"100%",padding:"22px 16px",background:"#fff",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer",fontSize:13,color:"#3a5230",fontWeight:600}}>📄 PDF öffnen</button>
+              : <iframe src={previewUrl} title="Vorschau" style={{width:"100%",height:"60vh",border:"1px solid #d8d0c0",borderRadius:6,background:"#fff"}}/>}
+          </div>
+          <div style={{padding:"12px 20px",borderTop:"1px solid #e8e3d8",display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <button onClick={closePreview} disabled={busy} style={{fontSize:12,padding:"8px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:6,cursor:"pointer"}}>Abbrechen</button>
+            <button onClick={confirmSend} disabled={busy} style={{fontSize:12,padding:"8px 16px",background:"#3a5230",color:"#fff",border:"1px solid #2e4426",borderRadius:6,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"sende…":"✓ Bestätigen & senden"}</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
+}
+function CountersignButton({contract, onDone, onSigned, light}){
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [dok, setDok] = useState(null);
+  const c = contract;
+  if (!c || c.status !== "mieter_signiert") return null;
+
   // Ganze Wohnungen: Status Betreibungsauszug und Pass/Ausweis fuer die Anzeige in der Vorschau
   async function ladeDok(){
     setDok(null);
@@ -7374,7 +7452,7 @@ function CountersignButton({contract, onDone, onSigned, light}){
             <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Final unterzeichnetes Dokument mit beiden Unterschriften. Mit Bestaetigen wird der Vertrag gültig und die Bestaetigung geht an den Mieter.</div>
             {dok && (
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
-                {[["Betreibungsregister-Auszug",dok.betreibung],["Pass / Ausweis",dok.ausweis]].map(([n,ok])=>(
+                {dok.map(([n,ok])=>(
                   <span key={n} style={{fontSize:11.5,fontWeight:600,padding:"4px 10px",borderRadius:99,background:ok?"#e6eedc":"#f6e3df",color:ok?"#3a5230":"#9b4a3e",border:"1px solid "+(ok?"#c9d8b8":"#e8c5bd")}}>{ok?"✓ ":"✗ "}{n} {ok?"vorhanden":"fehlt noch"}</span>
                 ))}
               </div>
