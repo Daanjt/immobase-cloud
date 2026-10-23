@@ -7237,6 +7237,7 @@ function HandoverConfirmButton({protocol, onDone}){
   const p = protocol;
   async function openPreview(){
     setBusy(true);
+    ladeDok();
     try {
       const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id, preview: true } });
       if (error) throw error;
@@ -7289,8 +7290,25 @@ function CountersignButton({contract, onDone, onSigned, light}){
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [dok, setDok] = useState(null);
   const c = contract;
   if (!c || c.status !== "mieter_signiert") return null;
+
+  // Ganze Wohnungen: Status Betreibungsauszug und Pass/Ausweis fuer die Anzeige in der Vorschau
+  async function ladeDok(){
+    setDok(null);
+    try {
+      const apt = (((window.__IB_DATA||{}).apts)||[]).find(a => a.id === c.aptId);
+      if (!apt || apt.vermietungsart !== "wohnung" || ["verlaengerung","nachtrag","parkplatz"].includes(c.contractType)) return;
+      const ent = c.tenantId ? ["tenant", String(c.tenantId)] : (c.bewerberId ? ["applicant", String(c.bewerberId)] : null);
+      if (!ent) return;
+      const { data: docs } = await supabase.from("documents").select("category").eq("entity_type", ent[0]).eq("entity_id", ent[1]).in("category", ["Betreibungsregister-Auszug","Pass / Ausweis"]);
+      setDok({
+        betreibung: (docs||[]).some(d => d.category === "Betreibungsregister-Auszug"),
+        ausweis: (docs||[]).some(d => d.category === "Pass / Ausweis"),
+      });
+    } catch (_) {}
+  }
 
   async function openPreview(){
     setBusy(true);
@@ -7320,20 +7338,6 @@ function CountersignButton({contract, onDone, onSigned, light}){
   }
 
   async function confirmSend(){
-    // Ganze Wohnungen: Betreibungsauszug und Ausweis muessen vor der Gegenzeichnung da sein
-    try {
-      const apt = (((window.__IB_DATA||{}).apts)||[]).find(a => a.id === c.aptId);
-      if (apt && apt.vermietungsart === "wohnung" && !["verlaengerung","nachtrag","parkplatz"].includes(c.contractType)) {
-        const ent = c.tenantId ? ["tenant", String(c.tenantId)] : (c.bewerberId ? ["applicant", String(c.bewerberId)] : null);
-        if (ent) {
-          const { data: docs } = await supabase.from("documents").select("category").eq("entity_type", ent[0]).eq("entity_id", ent[1]).in("category", ["Betreibungsregister-Auszug","Pass / Ausweis"]);
-          const fehlt = [];
-          if (!(docs||[]).some(d => d.category === "Betreibungsregister-Auszug")) fehlt.push("Betreibungsregister-Auszug");
-          if (!(docs||[]).some(d => d.category === "Pass / Ausweis")) fehlt.push("Pass / Ausweis");
-          if (fehlt.length && !window.confirm("Achtung: Für diese Wohnung fehlt noch:\n• " + fehlt.join("\n• ") + "\n\nDer Mieter hat einen Upload-Link per Mail erhalten. Trotzdem jetzt gegenzeichnen?")) return;
-        }
-      }
-    } catch (_) { /* bei Fehler normal weiter */ }
     setBusy(true);
     try {
       // Offene Vertraege anderer Personen fuer dasselbe Zimmer zieht die Datenbank beim Gegenzeichnen zurueck
@@ -7368,6 +7372,13 @@ function CountersignButton({contract, onDone, onSigned, light}){
           <div style={{padding:"16px 20px",borderBottom:"1px solid #e8e3d8"}}>
             <div style={{fontSize:14,color:"#3a352d",fontWeight:600}}>Gegenzeichnung · Vorschau</div>
             <div style={{fontSize:11.5,color:"#8a8478",marginTop:3,lineHeight:1.5}}>Final unterzeichnetes Dokument mit beiden Unterschriften. Mit Bestaetigen wird der Vertrag gültig und die Bestaetigung geht an den Mieter.</div>
+            {dok && (
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
+                {[["Betreibungsregister-Auszug",dok.betreibung],["Pass / Ausweis",dok.ausweis]].map(([n,ok])=>(
+                  <span key={n} style={{fontSize:11.5,fontWeight:600,padding:"4px 10px",borderRadius:99,background:ok?"#e6eedc":"#f6e3df",color:ok?"#3a5230":"#9b4a3e",border:"1px solid "+(ok?"#c9d8b8":"#e8c5bd")}}>{ok?"✓ ":"✗ "}{n} {ok?"vorhanden":"fehlt noch"}</span>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column",background:"#efe9dd"}}>
             {(typeof window!=="undefined" && window.innerWidth < 640) ? (
