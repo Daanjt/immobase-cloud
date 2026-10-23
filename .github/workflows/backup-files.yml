@@ -1,4 +1,4 @@
-name: Datei-Backup (woechentlich, verschluesselt)
+name: Datei-Backup (monatlich, verschluesselt)
 # Sichert jeden Sonntag alle Dateien aus dem Supabase-Speicher (Vertraege, Dokumente,
 # Uebergabefotos, Inseratbilder). Gleiche Verschluesselung wie das Datenbank-Backup:
 # nur mit dem privaten Backup-Schluessel (bei Daan) lesbar. Ablage als privater GitHub
@@ -9,7 +9,7 @@ name: Datei-Backup (woechentlich, verschluesselt)
 #   tar xf dateien.tar
 on:
   schedule:
-    - cron: "15 2 * * 0"
+    - cron: "15 2 1 * *"
   workflow_dispatch:
 permissions:
   contents: write
@@ -57,4 +57,4 @@ jobs:
           TAG="files-$(date -u +%Y-%m-%d)"
           gh release delete "$TAG" --cleanup-tag -y 2>/dev/null || true
           gh release create "$TAG" dateien.tar.enc key.bin.enc --title "Datei-Backup $(date -u +%d.%m.%Y)" --notes "Verschluesseltes Datei-Backup. Nur mit dem privaten Backup-Schluessel lesbar."
-          gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^files-' | sort -r | tail -n +7 | while read t; do gh release delete "$t" --cleanup-tag -y; done
+          gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^files-' | sort -r | tail -n +4 | while read t; do gh release delete "$t" --cleanup-tag -y; done
