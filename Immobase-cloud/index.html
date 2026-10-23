@@ -15424,7 +15424,7 @@ function ppVertragsDaten(p, apts, tenants, rooms){
     sprache: t ? (t.sprache||"de") : (p.sprache||"de"),
     bezeichnung: p.bezeichnung, objektAdresse: p.adresse || (apt&&apt.adresse) || "",
     plzOrt: apt ? [apt.plz, apt.ort].filter(Boolean).join(" ") : "",
-    kennzeichen: p.kennzeichen||"", ab: p.vermietet_ab||"", bis: p.vermietet_bis||"",
+    kennzeichen: p.kennzeichen||"", ab: p.vermietet_ab||"", bis: p.vermietet_bis||ppBefristetBis(p.adresse || (apt&&apt.adresse), apts),
     miete: p.miete_verkauf, kuendigungsfrist: p.kuendigungsfrist||1,
   };
   const fehlt=[];
@@ -15468,6 +15468,19 @@ async function ppVertragSenden(p, apts, tenants, rooms){
 // ─── PARKPLÄTZE ──────────────────────────────────────────────────────────────
 // Ein Parkplatz kostet uns (Einkauf) und bringt Miete (Verkauf). Beides gilt im
 // jeweiligen Zeitraum; ohne Datum gilt es unbefristet.
+// Parkplaetze bei befristeten Liegenschaften (z.B. Josefstrasse, Rahmenvertrag Ziff. 8.3) enden mit den Wohnungen.
+// Liefert das Mietende der befristeten Wohnungen an derselben Strasse, sonst "".
+function ppBefristetBis(adresse, apts){
+  const str = String(adresse||"").toLowerCase().replace(/\s*\d.*$/,"").trim();
+  if(!str) return "";
+  let best=null, bestS="";
+  (apts||[]).forEach(a=>{
+    if(!a.immer_befristet || !a.mietende) return;
+    if(String(a.adresse||"").toLowerCase().replace(/\s*\d.*$/,"").trim()!==str) return;
+    const d=parseDMY(a.mietende); if(d && !isNaN(d) && (!best||d>best)){ best=d; bestS=a.mietende; }
+  });
+  return bestS;
+}
 function ppAktiv(ab, bis, s, e){ const a=parseDMY(ab), b=parseDMY(bis); return (!a||isNaN(a)||a<=e) && (!b||isNaN(b)||b>=s); }
 function ppVermietet(p){ return !!(p.tenant_id || (p.mieter_extern||"").trim()); }
 function parkFin(pps, s, e){
@@ -15527,6 +15540,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
   const adressen = [...new Set((apts||[]).map(a=>a.adresse).filter(Boolean))].sort();
   const aktiveMieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv").sort((a,b)=>`${a.vorname} ${a.nachname}`.localeCompare(`${b.vorname} ${b.nachname}`));
   const marge = (+f.miete_verkauf||0) - (+f.miete_einkauf||0);
+  const befristetBis = ppBefristetBis(f.adresse, apts);
   async function speichern(){
     if(!(f.bezeichnung||"").trim()){ toast("Bitte eine Bezeichnung angeben","error"); return; }
     setBusy(true);
@@ -15536,9 +15550,9 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       mieter_extern: f.mieterArt==="extern" ? ((f.mieter_extern||"").trim()||null) : null,
       miete_einkauf: f.miete_einkauf===""||f.miete_einkauf==null ? null : +f.miete_einkauf,
       miete_verkauf: f.miete_verkauf===""||f.miete_verkauf==null ? null : +f.miete_verkauf,
-      einkauf_ab:(f.einkauf_ab||"").trim()||null, einkauf_bis:(f.einkauf_bis||"").trim()||null,
+      einkauf_ab:(f.einkauf_ab||"").trim()||null, einkauf_bis:(f.einkauf_bis||"").trim()||befristetBis||null,
       vermietet_ab: f.mieterArt==="frei" ? null : ((f.vermietet_ab||"").trim()||null),
-      vermietet_bis: f.mieterArt==="frei" ? null : ((f.vermietet_bis||"").trim()||null),
+      vermietet_bis: f.mieterArt==="frei" ? null : ((f.vermietet_bis||"").trim()||befristetBis||null),
       notiz:(f.notiz||"").trim()||null, updated_at:new Date().toISOString(),
       kennzeichen:(f.kennzeichen||"").trim()||null, kuendigungsfrist: parseInt(f.kuendigungsfrist)||1,
       mieter_email: f.mieterArt==="extern" ? ((f.mieter_email||"").trim()||null) : null,
@@ -15588,7 +15602,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
         <div className="frow pp3">
           <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_einkauf??""} onChange={set("miete_einkauf")}/></div>
           <div className="fg"><label className="fl">Ab</label><input className="fi" value={f.einkauf_ab||""} onChange={set("einkauf_ab")} placeholder="TT.MM.JJJJ"/></div>
-          <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.einkauf_bis||""} onChange={set("einkauf_bis")} placeholder="TT.MM.JJJJ"/></div>
+          <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.einkauf_bis||""} onChange={set("einkauf_bis")} placeholder={befristetBis||"TT.MM.JJJJ"}/></div>
         </div>
         {sek("Vermietung")}
         <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
@@ -15612,7 +15626,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
         {f.mieterArt!=="frei" && <div className="frow pp3">
           <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div>
           <div className="fg"><label className="fl">Ab</label><input className="fi" value={f.vermietet_ab||""} onChange={set("vermietet_ab")} placeholder="TT.MM.JJJJ"/></div>
-          <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.vermietet_bis||""} onChange={set("vermietet_bis")} placeholder="TT.MM.JJJJ"/></div>
+          <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.vermietet_bis||""} onChange={set("vermietet_bis")} placeholder={befristetBis||"TT.MM.JJJJ"}/></div>
         </div>}
         {f.mieterArt!=="frei" && <div className="frow">
           <div className="fg"><label className="fl">Kennzeichen (optional)</label><input className="fi" value={f.kennzeichen||""} onChange={set("kennzeichen")} placeholder="z.B. ZH 123456"/></div>
