@@ -414,6 +414,7 @@ function KuendigungenPage({ tenants, apts, bewerber, updateTenant, navigateTo })
                 </div>
                 {k.art === "nachmieter" && <div><a href={`mailto:${k.nachmieter_email}`}>{k.nachmieter_email}</a>{k.nachmieter_telefon ? <> · <a href={`tel:${k.nachmieter_telefon}`}>{k.nachmieter_telefon}</a></> : null}{hatBeworben(k.nachmieter_email) ? <span style={{ color: "#3d4f2f", marginLeft: 6 }}>✓ hat sich beworben</span> : <span style={{ color: "#8a8174", marginLeft: 6 }}>noch keine Bewerbung</span>}</div>}
                 {k.grund && <div style={{ color: "#5a5448", whiteSpace: "pre-wrap" }}>Grund: {k.grund}</div>}
+                {k.art === "kuendigung" && t?.nachfolge_token && (() => { const nb = (bewerber || []).filter((b) => b.nachfolge_token === t.nachfolge_token); return nb.length ? <div style={{ color: "#5a3e8a" }}>↻ Bewerbungen über den Nachfolge-Link: {nb.map((b) => `${b.vorname} ${b.nachname}`).join(", ")}</div> : null; })()}
                 {k.antwort && k.status === "abgelehnt" && <div style={{ color: "#8a8174", whiteSpace: "pre-wrap" }}>Antwort: {k.antwort}</div>}
               </div>
               {k.status === "eingereicht" && (
