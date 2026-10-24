@@ -231,39 +231,92 @@ async function pkReg(t: any, b: any, req: Request) {
 
 
 // ── Kündigung ─────────────────────────────────────────────────────────────
-// Regeln (wie auf der Webseite): 3 Monate Frist auf Monatsende.
-// Befristete Wohnungen: nur auf einen Termin, der mindestens 12 Monate vor dem Vertragsende liegt,
-// danach ist der Vertrag fest und nur ein Nachmieter ist möglich.
-const KUENDIGUNGSFRIST_MONATE = 3;
+// Gleiche Regeln wie im Untermietvertrag (ImmoBase 06-vertraege.jsx, Ziffer 2 und 9) und im Nachtrag:
+//  - Frist laut Vertrag (Standard 3 Monate) auf ein Monatsende, ausser auf Ende Dezember
+//  - befristet = Vertragsende gesetzt UND (Dauer < 12 Monate ODER Wohnung ODER Liegenschaft immer befristet)
+//  - befristet < 12 Monate: ordentliche Kündigung ausgeschlossen (nur Nachmieter)
+//  - befristete Wohnung: nur auf einen Termin mind. 12 Monate vor Vertragsende
+//  - befristetes Zimmer >= 12 Monate: nur auf einen Termin mind. 6 Monate vor Vertragsende
+//  - unbefristet: frühestens nach der Mindestmietdauer (Standard 6 Monate)
+//  - unterschriebene Verlängerung: während der Verlängerungsdauer keine Kündigung
+const MONAT = TAG * 30.44;
 function monatsende(y: number, m: number) { return new Date(Date.UTC(y, m + 1, 0)); }
 function fmt(d: Date) { return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`; }
-function kuendigungsInfo(t: any, apt: any) {
+const istDez = (d: Date) => d.getUTCMonth() === 11;
+// letztmöglicher Termin: Monatsende mind. n Monate vor dem Vertragsende, nicht Ende Dezember
+function letzterTermin(ende: Date, n: number) {
+  let lt = monatsende(ende.getUTCFullYear(), ende.getUTCMonth() - n);
+  const grenze = new Date(Date.UTC(ende.getUTCFullYear(), ende.getUTCMonth() - n, ende.getUTCDate()));
+  if (lt.getTime() > grenze.getTime()) lt = monatsende(ende.getUTCFullYear(), ende.getUTCMonth() - n - 1);
+  if (istDez(lt)) lt = monatsende(lt.getUTCFullYear(), 10);
+  return lt;
+}
+async function vertragVon(t: any) {
+  const ors = [`tenant_id.eq.${t.id}`]; if (t.bewerber_id) ors.push(`bewerber_id.eq.${t.bewerber_id}`);
+  const { data } = await sb.from("contracts").select("contract_type, status, signed_at, contract_data").or(ors.join(","))
+    .in("contract_type", ["untermietvertrag_und_anfangsmietzins", "verlaengerung"]).in("status", ["signiert", "mieter_signiert"])
+    .order("signed_at", { ascending: false });
+  const liste = data || [];
+  return {
+    haupt: liste.find((c: any) => c.contract_type === "untermietvertrag_und_anfangsmietzins")?.contract_data?.vertrag || null,
+    verl: liste.find((c: any) => c.contract_type === "verlaengerung")?.contract_data?.vertrag || null,
+  };
+}
+async function kuendigungsInfo(t: any, apt: any) {
   const h = new Date();
-  const frueh = monatsende(h.getUTCFullYear(), h.getUTCMonth() + KUENDIGUNGSFRIST_MONATE);
-  const wohnung = apt?.vermietungsart === "wohnung";
-  const vertragsende = apt?.immer_befristet ? parseDatum(apt?.mietende) : null;
-  const auszug = parseDatum(t.auszug);
-  let grenze: Date | null = null, nurNachmieter = false, hinweis = "";
-  if (wohnung && vertragsende) {
-    grenze = monatsende(vertragsende.getUTCFullYear(), vertragsende.getUTCMonth() - 12);
-    if (frueh.getTime() > grenze.getTime()) { nurNachmieter = true; hinweis = "fest"; }
+  const { haupt: v, verl } = await vertragVon(t);
+  const wohnung = v ? !!(v.vertragsart === "wohnung" || v.apt?.vermietungsart === "wohnung") : apt?.vermietungsart === "wohnung";
+  const frist = Math.max(1, +(v?.kuendigungsfrist) || 3);
+  let frueh = monatsende(h.getUTCFullYear(), h.getUTCMonth() + frist);
+  const basis = { frist, termine: [] as string[], nurNachmieter: false, hinweis: "", vertragsende: "", letzterTermin: "", spaetestens: "", minBis: "", wohnung, quelle: v ? "vertrag" : "wohnung" };
+
+  // 1) Laufende Verlängerung: Kündigung ausgeschlossen
+  const verlEnde = verl ? parseDatum(verl.mietende) : null;
+  if (verlEnde && verlEnde.getTime() > h.getTime()) return { ...basis, nurNachmieter: true, hinweis: "verlaengerung", vertragsende: fmt(verlEnde) };
+
+  const beginn = parseDatum(v?.einzug);
+  const ende = parseDatum(v ? (v.mietende || v.apt?.mietende) : (apt?.immer_befristet ? apt?.mietende : null));
+  const monate = beginn && ende && ende > beginn ? (ende.getTime() - beginn.getTime()) / MONAT : 0;
+  const befristet = v ? (monate > 0 && (monate < 12 || wohnung || !!v.apt?.immer_befristet)) : !!ende;
+  let bis: Date | null = null;
+  if (befristet && ende) {
+    basis.vertragsende = fmt(ende);
+    if (v && monate < 12) return { ...basis, nurNachmieter: true, hinweis: "kurz" };
+    bis = letzterTermin(ende, wohnung ? 12 : 6);
+    if (beginn && monatsende(bis.getUTCFullYear(), bis.getUTCMonth() - frist).getTime() < beginn.getTime()) return { ...basis, nurNachmieter: true, hinweis: "fest" };
+    basis.letzterTermin = fmt(bis);
+    basis.spaetestens = fmt(monatsende(bis.getUTCFullYear(), bis.getUTCMonth() - frist));
+  } else if (beginn) {
+    // unbefristet: Mindestmietdauer
+    const min = Math.max(0, +(v?.minMietdauer) || 6);
+    const minEnde = new Date(Date.UTC(beginn.getUTCFullYear(), beginn.getUTCMonth() + min, beginn.getUTCDate()) - TAG);
+    if (frueh.getTime() < minEnde.getTime()) { frueh = monatsende(minEnde.getUTCFullYear(), minEnde.getUTCMonth()); basis.minBis = fmt(minEnde); }
   }
-  if (auszug && (!grenze || auszug.getTime() < grenze.getTime())) grenze = new Date(auszug.getTime() - TAG);
-  if (auszug && frueh.getTime() >= auszug.getTime()) { nurNachmieter = true; hinweis = "endet"; }
-  const termine: string[] = [];
-  if (!nurNachmieter) {
-    for (let i = 0; i < 18; i++) {
-      const d = monatsende(frueh.getUTCFullYear(), frueh.getUTCMonth() + i);
-      if (grenze && d.getTime() > grenze.getTime()) break;
-      termine.push(fmt(d));
-    }
-    if (!termine.length) nurNachmieter = true;
+  // Endet das Hauptmietverhältnis der Liegenschaft, sind spätere Termine sinnlos
+  const hausEnde = parseDatum(apt?.mietende);
+  if (!bis && hausEnde) {
+    if (frueh.getTime() >= hausEnde.getTime()) return { ...basis, nurNachmieter: true, hinweis: "endet", vertragsende: fmt(hausEnde) };
+    bis = new Date(hausEnde.getTime() - TAG);
   }
-  return { frist: KUENDIGUNGSFRIST_MONATE, termine, nurNachmieter, hinweis, vertragsende: vertragsende ? fmt(vertragsende) : "", auszug: auszug ? fmt(auszug) : "", wohnung };
+  for (let i = 0; i < 24 && basis.termine.length < 12; i++) {
+    const d = monatsende(frueh.getUTCFullYear(), frueh.getUTCMonth() + i);
+    if (bis && d.getTime() > bis.getTime()) break;
+    if (!istDez(d)) basis.termine.push(fmt(d));
+  }
+  if (!basis.termine.length) return { ...basis, nurNachmieter: true, hinweis: bis ? "fest" : "keine" };
+  return basis;
+}
+// Zimmermieter haben oft nur room_id: dann die Wohnung über das Zimmer bestimmen
+async function aptIdVon(t: any) {
+  if (t.apt_id) return t.apt_id as string;
+  if (!t.room_id) return null;
+  const { data } = await sb.from("rooms").select("apt_id").eq("id", t.room_id).maybeSingle();
+  return (data?.apt_id as string) || null;
 }
 async function ladeApt(t: any) {
-  if (!t.apt_id) return null;
-  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet").eq("id", t.apt_id).maybeSingle();
+  const id = await aptIdVon(t);
+  if (!id) return null;
+  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet").eq("id", id).maybeSingle();
   return data;
 }
 
@@ -342,7 +395,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     sitzungen: (sitz || []).map((s: any) => ({ ...s, aktuell: s.id === sitzungId })),
     passkey: (pk || 0) > 0,
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
-    kuendigung: { ...kuendigungsInfo(t, apt), eintraege: kd || [] },
+    kuendigung: { ...(await kuendigungsInfo(t, apt)), eintraege: kd || [] },
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t) },
   });
 }
@@ -386,7 +439,7 @@ async function schadenMelden(t: any, fd: FormData) {
     if (!BILDTYPEN.includes((f.type || "").toLowerCase())) return fehler("Bitte nur Fotos hochladen (JPG, PNG, HEIC).");
   }
   const { data: row, error } = await sb.from("schadenmeldungen").insert({
-    tenant_id: t.id, apt_id: t.apt_id, room_id: t.room_id, titel,
+    tenant_id: t.id, apt_id: await aptIdVon(t), room_id: t.room_id, titel,
     beschreibung: String(fd.get("beschreibung") || "").trim().slice(0, 4000) || null,
     ort_im_objekt: String(fd.get("ort") || "").trim().slice(0, 140) || null,
     dringlichkeit: ["normal", "dringend", "notfall"].includes(dr) ? dr : "normal",
@@ -407,7 +460,7 @@ async function schadenMelden(t: any, fd: FormData) {
 
 async function kuendigen(t: any, b: any) {
   const apt = await ladeApt(t);
-  const info = kuendigungsInfo(t, apt);
+  const info = await kuendigungsInfo(t, apt);
   if (info.nurNachmieter) return fehler("Eine Kündigung ist für dich nicht mehr möglich. Du kannst aber einen Nachmieter vorschlagen.");
   const datum = String(b.datum || "");
   if (!info.termine.includes(datum)) return fehler("Bitte wähle einen gültigen Termin.");
