@@ -824,6 +824,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
         const rid = navTarget.id.roomId || bz.zimmerWunsch || null;
         if (rid) setSelZimmer(rid);
         if (bz.einzug) { const _d = _pdZ(bz.einzug); if (_d) setEinzugDate(_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0")); }
+        einzugAusVertrag(bz.id);
         setZuteilModal(true);
       } else if (bz) { setSel(bz.id); }
     } else if (navTarget && navTarget.type === "bewerber" && typeof navTarget.id === "string") {
@@ -839,6 +840,29 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const freeRooms=rooms.filter(r=>!r.occupied);
   const _pdZ=(s)=>{ if(!s) return null; const t=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(t)){const d=new Date(t);return isNaN(d.getTime())?null:d;} const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(m){const d=new Date(+m[3],+m[2]-1,+m[1]);return isNaN(d.getTime())?null:d;} const d=new Date(t);return isNaN(d.getTime())?null:d; };
   const _heuteZ=new Date(); _heuteZ.setHours(0,0,0,0);
+  const _isoZ=(d)=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  // Ab wann ist das Zimmer frei? Tag nach dem Auszug des aktuellen Mieters, sonst Mietbeginn einer neuen Wohnung.
+  // Ist es schon frei (oder unklar), gibt es kein Datum: dann wird der Einzug von Hand gesetzt.
+  function raumFreiAb(roomId){
+    const r=roomId?rooms.find(x=>x.id===roomId):null; if(!r) return null;
+    const apt=apts.find(a=>a.id===r.aptId);
+    const bewohner=(tenants||[]).filter(x=>x&&(x.id===r.tenantId||x.roomId===r.id)&&x.status!=="archiviert");
+    const auszuege=bewohner.map(x=>_pdZ(x.auszug)).filter(Boolean);
+    if(r.occupied&&bewohner.length&&auszuege.length<bewohner.length) return null; // jemand wohnt ohne Auszug drin
+    let aus=auszuege.sort((x,y)=>y-x)[0]||(r.occupied?_pdZ(r.mieter_auszug):null);
+    if(aus){ const d=new Date(aus.getTime()); d.setDate(d.getDate()+1); if(d>_heuteZ) return {datum:_isoZ(d), grund:"Tag nach dem Auszug des aktuellen Mieters"}; }
+    const mb=_pdZ(apt&&apt.mietbeginn);
+    if(mb&&mb>_heuteZ) return {datum:_isoZ(mb), grund:"Mietbeginn der Wohnung"};
+    return null;
+  }
+  // Einzug aus dem unterschriebenen Vertrag (statt Wunschdatum) fuer die Zimmerzuteilung
+  async function einzugAusVertrag(bid){
+    if(!bid) return;
+    try{
+      const {data}=await supabase.from("contracts").select("einzug:contract_data->vertrag->>einzug, signed_at").eq("bewerber_id",bid).eq("contract_type","untermietvertrag_und_anfangsmietzins").in("status",["mieter_signiert","signiert"]).order("signed_at",{ascending:false}).limit(1);
+      const d=_pdZ(data&&data[0]&&data[0].einzug); if(d) setEinzugDate(_isoZ(d));
+    }catch(e){}
+  }
   const nachRooms=rooms.filter(r=>{
     if(!r.occupied) return false;
     const tn=r.tenantId?tenants.find(x=>x.id===r.tenantId):null;
@@ -1273,7 +1297,7 @@ www.dthomes.ch`;
       moebliert: b.moebliert === "ja" || b.moebliert === true,
       moeblierungModus: b.moeblierungModus || "einmalig",
       moeblierungPauschale: +b.moeblierungPauschale || (b.moeblierungModus==="monatlich" ? 150 : 990),
-      einzug: (over&&over.einzug) || b.einzug || "",
+      einzug: (over&&over.einzug) || (raumFreiAb(targetRoomId)||{}).datum || "",
       auszug: b.auszug || "",
       mietende: "",
       fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (bruttomiete + strom) : "",
@@ -2046,7 +2070,7 @@ www.dthomes.ch`;
                         )}
                         {c.status === "mieter_signiert" && (
                           <div style={{display:"flex",justifyContent:"flex-end",gap:5}}>
-                            <CountersignButton contract={c} onDone={loadContracts} onSigned={(rid)=>{ if(rid) setSelZimmer(rid); if(b&&b.einzug){ var _d=_pdZ(b.einzug); if(_d){ setEinzugDate(_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0")); } } setZuteilModal(true); }} />
+                            <CountersignButton contract={c} onDone={loadContracts} onSigned={(rid)=>{ if(rid) setSelZimmer(rid); if(b&&b.einzug){ var _d=_pdZ(b.einzug); if(_d){ setEinzugDate(_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0")); } } if(b) einzugAusVertrag(b.id); setZuteilModal(true); }} />
                           </div>
                         )}
                       </div>
@@ -2076,6 +2100,7 @@ www.dthomes.ch`;
                     plz: apt?.plz || p.plz,
                     ort: apt?.ort || p.ort,
                     bruttomiete, nettomiete, kautionBetrag, total,
+                    einzug: (raumFreiAb(newId)||{}).datum || p.einzug,
                   };
                   if (apt && apt.vermietungsart === "wohnung") return wohnungVertragswerte(neu, apt, room, p.personen || 1);
                   if (p.vertragsart === "wohnung") { const { vertragsart, ...rest } = neu; return { ...rest, nebenkosten: 100, nettomiete: bruttomiete - 100, strom: 25, total: bruttomiete + 25 + (p.aufschlag||0), kautionBetrag: (bruttomiete + 25) * (p.kautionMonate||0) }; }
@@ -2115,6 +2140,19 @@ www.dthomes.ch`;
             <div className="fg" style={{marginBottom:8}}>
               <label className="fl">Einzugsdatum</label>
               <input className="fi" type="date" value={vertragData.einzug?vertragData.einzug.split("T")[0]:""} onChange={e=>setVertragData(p=>({...p,einzug:e.target.value}))}/>
+              {(() => {
+                const fr = raumFreiAb(vertragData.zimmerId);
+                const wd = _pdZ(b && b.einzug);
+                const setz = (iso) => setVertragData(p => ({ ...p, einzug: iso }));
+                const lk = { background:"none", border:"none", padding:0, color:"#5a7c5e", textDecoration:"underline", cursor:"pointer", fontSize:10.5 };
+                return (
+                  <div style={{fontSize:10.5,color:"#8a8174",marginTop:4,lineHeight:1.6}}>
+                    {fr ? <div>Zimmer frei ab {_pdZ(fr.datum).toLocaleDateString("de-CH")} ({fr.grund}){vertragData.einzug!==fr.datum && <> · <button type="button" style={lk} onClick={()=>setz(fr.datum)}>übernehmen</button></>}</div>
+                        : <div>Zimmer ist frei oder Datum unbekannt: Einzug bitte von Hand setzen.</div>}
+                    {wd && <div>Wunsch des Bewerbers: {wd.toLocaleDateString("de-CH")}{vertragData.einzug!==_isoZ(wd) && <> · <button type="button" style={lk} onClick={()=>setz(_isoZ(wd))}>übernehmen</button></>}</div>}
+                  </div>
+                );
+              })()}
             </div>
             <div className="fg" style={{marginBottom:8}}>
               <label className="fl">Enddatum · optional, macht den Vertrag befristet</label>
