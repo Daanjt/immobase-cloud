@@ -317,7 +317,7 @@ async function aptIdVon(t: any) {
 async function ladeApt(t: any) {
   const id = await aptIdVon(t);
   if (!id) return null;
-  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet").eq("id", id).maybeSingle();
+  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet, zimmer, flaeche").eq("id", id).maybeSingle();
   return data;
 }
 
@@ -361,7 +361,7 @@ async function nachfolgeInfo(b: any) {
 async function uebersicht(t: any, sitzungId: string, req: Request) {
   const [apt, { data: room }] = await Promise.all([
     ladeApt(t),
-    t.room_id ? sb.from("rooms").select("id, miete").eq("id", t.room_id).maybeSingle() : Promise.resolve({ data: null }),
+    t.room_id ? sb.from("rooms").select("id, miete, qm, groesse, balkon").eq("id", t.room_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const { data: lg } = apt?.adresse ? await sb.from("liegenschaften").select("hausinfos, hausinfos_en").eq("adresse", apt.adresse).maybeSingle() : { data: null };
   const { data: ho } = await sb.from("handover_protocols").select("token, type, status, started_at, deadline, schluessel_data, schluessel_info, submitted_at, closed_at, auto_accepted_at").eq("tenant_id", t.id).neq("status", "cancelled").order("started_at", { ascending: false }).limit(3);
@@ -386,6 +386,9 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
       wohnung, objekt: wohnung ? null : (room?.id || t.room_id || null),
       adresse: apt ? [apt.adresse, [apt.plz, apt.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "",
       stockwerk: apt?.stockwerk || "",
+      zimmer: apt?.zimmer ? String(apt.zimmer) : "",
+      flaeche: wohnung ? (apt?.flaeche ? String(apt.flaeche).replace(/\s*m²?$/i, "") : "") : (room?.qm ? String(room.qm) : String(room?.groesse || "").replace(/\s*m²?$/i, "")),
+      balkon: !wohnung && !!room?.balkon,
       mietzins: t.mietzins != null && t.mietzins !== "" ? +t.mietzins : (room?.miete != null ? +room.miete : null),
       strom: t.strom != null && t.strom !== "" ? +t.strom : (wohnung ? (Math.max(1, +t.personen || 1) * 25) : 25),
       einzug: t.einzug || "", auszug: t.auszug || "", mietende: apt?.immer_befristet ? (apt?.mietende || "") : "",
