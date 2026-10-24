@@ -1188,10 +1188,49 @@ www.dthomes.ch`;
     };
   }
 
-  function openVertragModal(){
+  // Nachfolge: Bewerber übernimmt das Zimmer/die Wohnung eines bestehenden Mieters
+  const [uebernahme,setUebernahme]=useState(null); // { einzug: "YYYY-MM-DD", auszug: "YYYY-MM-DD", busy }
+  const vormieterVon = (bb)=> bb && bb.nachfolge_token ? (tenants||[]).find(x=>x.nachfolge_token===bb.nachfolge_token) : null;
+  const isoZuCh = (iso)=>{ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||""); return m?`${m[3]}.${m[2]}.${m[1]}`:""; };
+  const chZuIso = (ch)=>{ const m=/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(ch||"").trim()); return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:""; };
+  function uebernahmeStarten(){
+    const vm = vormieterVon(b); if(!vm) return;
+    const ein = (b.einzug||"").slice(0,10);
+    let aus = "";
+    if(ein){ const d=new Date(ein+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-1); aus=d.toISOString().slice(0,10); }
+    else if(vm.auszug) aus = chZuIso(vm.auszug);
+    setUebernahme({ einzug: ein, auszug: aus, busy:false });
+  }
+  async function uebernahmeBestaetigen(){
+    const vm = vormieterVon(b); const u = uebernahme; if(!vm||!u) return;
+    if(!u.einzug||!u.auszug){ alert("Bitte Einzug des Nachmieters und Auszug des Vormieters angeben."); return; }
+    if(u.auszug >= u.einzug && !confirm("Der Auszug des Vormieters ist nicht vor dem Einzug des Nachmieters. Trotzdem fortfahren?")) return;
+    setUebernahme(x=>({...x,busy:true}));
+    try{
+      const auszugCh = isoZuCh(u.auszug), jetzt=new Date().toISOString();
+      // 1. Auszug beim Vormieter
+      { const {error}=await supabase.from("tenants").update({auszug:auszugCh, updated_at:jetzt}).eq("id",vm.id); if(error) throw error; }
+      // 2. Kündigung beim Vormieter erfassen bzw. anpassen (per Nachmieter, bestätigt)
+      const nmName = `${b.vorname||""} ${b.nachname||""}`.trim();
+      const {data:kd} = await supabase.from("kuendigungen").select("id").eq("tenant_id",vm.id).eq("art","kuendigung").in("status",["eingereicht","bestaetigt"]).limit(1);
+      if(kd&&kd.length){ const {error}=await supabase.from("kuendigungen").update({datum:auszugCh,status:"bestaetigt",nachmieter_name:nmName,nachmieter_email:b.email||null,bearbeitet_at:jetzt,updated_at:jetzt}).eq("id",kd[0].id); if(error) throw error; }
+      else { const {error}=await supabase.from("kuendigungen").insert({tenant_id:vm.id,art:"kuendigung",datum:auszugCh,status:"bestaetigt",quelle:"nachmieter",grund:"Nachmieter übernimmt",nachmieter_name:nmName,nachmieter_email:b.email||null,bearbeitet_at:jetzt}); if(error) throw error; }
+      // 3. Bewerbung als übernommen markieren, Zimmer und Einzug setzen
+      const zimmer = vm.roomId || vm.room_id || b.zimmerWunsch || "";
+      { const {error}=await supabase.from("applicants").update({nachfolge_angenommen_at:jetzt, einzug:u.einzug, ...(zimmer?{zimmer_wunsch:zimmer}:{})}).eq("id",b.id); if(error) throw error; }
+      try{ window.__ibNeuLaden && window.__ibNeuLaden(); }catch(_){}
+      setUebernahme(null);
+      toast(`Übernommen · Auszug ${vm.vorname||""} per ${auszugCh}`);
+      // 4. Vertrag für den Nachmieter gleich öffnen
+      openVertragModal({ zimmer, einzug: u.einzug });
+    }catch(e){ setUebernahme(x=>({...x,busy:false})); alert("Fehler: "+(e.message||e)); }
+  }
+
+  function openVertragModal(over){
     if(!b) return;
+    if(over && over.nativeEvent) over = null;
     // Determine the room: assigned > wish > first free
-    const targetRoomId = b.zugeteiltes_zimmer || b.zimmerWunsch;
+    const targetRoomId = (over&&over.zimmer) || b.zugeteiltes_zimmer || b.zimmerWunsch;
     const room = targetRoomId ? rooms.find(r=>r.id===targetRoomId) : null;
     const apt = room ? apts.find(a=>a.id===room.aptId) : null;
     const bruttomiete = room ? +room.miete : 1000;
@@ -1232,7 +1271,7 @@ www.dthomes.ch`;
       moebliert: b.moebliert === "ja" || b.moebliert === true,
       moeblierungModus: b.moeblierungModus || "einmalig",
       moeblierungPauschale: +b.moeblierungPauschale || (b.moeblierungModus==="monatlich" ? 150 : 990),
-      einzug: b.einzug || "",
+      einzug: (over&&over.einzug) || b.einzug || "",
       auszug: b.auszug || "",
       mietende: "",
       fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (bruttomiete + strom) : "",
@@ -1633,6 +1672,7 @@ www.dthomes.ch`;
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp-Nachricht senden" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
+                {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#5a3e8a",color:"#fff",borderColor:"#5a3e8a"}}>↻ Als Nachmieter übernehmen</button>}
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
@@ -1674,6 +1714,7 @@ www.dthomes.ch`;
               {[
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
                 ["Empfohlen von", b.empfohlen_von ? <strong style={{color:"#8a6a2e"}}>{b.empfohlen_von}</strong> : "-"],
+                ...(b.nachfolge_angenommen_at ? [["Nachfolge", <strong style={{color:"#3a5230"}}>✓ übernommen am {new Date(b.nachfolge_angenommen_at).toLocaleDateString("de-CH")}</strong>]] : []),
                 ...(b.nachfolge_token ? [["Nachfolge von", (()=>{ const t=(tenants||[]).find(x=>x.nachfolge_token===b.nachfolge_token); return t ? <strong style={{color:"#5a3e8a"}}>{t.vorname} {t.nachname}{t.auszug?` (Auszug ${t.auszug})`:""}</strong> : "unbekannter Link"; })()]] : []),
                 ["Parkplatz", b.parkplatz_wunsch ? <strong style={{color:"#2c4a6e"}}>🅿️ gewünscht</strong> : "-"],
                 ["Reinigung", b.reinigung_wunsch ? <strong style={{color:"#2c4a6e"}}>🧽 Offerte gewünscht</strong> : "-"],
@@ -1912,6 +1953,30 @@ www.dthomes.ch`;
         </div>
       )}
 
+      {uebernahme&&b&&vormieterVon(b)&&(()=>{ const vm=vormieterVon(b); return (
+        <div className="ov" onClick={()=>!uebernahme.busy&&setUebernahme(null)}>
+          <div className="modal" style={{width:560,padding:"26px 28px"}} onClick={e=>e.stopPropagation()}>
+            <div className="ct" style={{marginTop:0}}>Als Nachmieter übernehmen</div>
+            <div style={{fontSize:13,lineHeight:1.6,marginBottom:12}}>
+              <b>{b.vorname} {b.nachname}</b> übernimmt {vm.roomId||vm.room_id ? <>das Zimmer <b>{vm.roomId||vm.room_id}</b></> : "die Wohnung"} von <b>{vm.vorname} {vm.nachname}</b>.
+            </div>
+            <div className="frow">
+              <div className="fg"><label className="fl">Einzug Nachmieter</label><input className="fi" type="date" value={uebernahme.einzug} onChange={e=>{ const v=e.target.value; let aus=uebernahme.auszug; if(v){ const d=new Date(v+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-1); aus=d.toISOString().slice(0,10);} setUebernahme(x=>({...x,einzug:v,auszug:aus})); }}/></div>
+              <div className="fg"><label className="fl">Auszug Vormieter (letzter Tag)</label><input className="fi" type="date" value={uebernahme.auszug} onChange={e=>setUebernahme(x=>({...x,auszug:e.target.value}))}/></div>
+            </div>
+            <div style={{fontSize:12,color:"#5a5448",lineHeight:1.6,background:"#f5f2ec",borderRadius:8,padding:"10px 12px"}}>
+              Das passiert:<br/>
+              1. Beim Vormieter wird der Auszug eingetragen und eine bestätigte Kündigung „per Nachmieter“ erfasst. Er sieht das im Mieterportal.<br/>
+              2. Die Bewerbung wird als übernommen markiert.<br/>
+              3. Der Vertrag für den Nachmieter öffnet sich mit Zimmer und Einzug.<br/>
+              4. Sobald du den Vertrag gegenzeichnest, bekommt der Vormieter automatisch eine Mail, dass sein Mietverhältnis endet.
+            </div>
+            <div className="ma">
+              <button className="btn btn-g" disabled={uebernahme.busy} onClick={()=>setUebernahme(null)}>Abbrechen</button>
+              <button className="btn btn-p" disabled={uebernahme.busy} onClick={uebernahmeBestaetigen}>{uebernahme.busy?"Speichert…":"Übernehmen & Vertrag öffnen"}</button>
+            </div>
+          </div>
+        </div>); })()}
       {vertragModal&&b&&vertragData&&(
         <div className="ov" onClick={e=>e.target===e.currentTarget&&setVertragModal(false)}>
           <div className="modal" style={{width:600}}>

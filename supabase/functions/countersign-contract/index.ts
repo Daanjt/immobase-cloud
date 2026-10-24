@@ -595,6 +595,9 @@ Deno.serve(async (req) => {
       mailFehler = "E-Mail-Versand nicht konfiguriert.";
     }
 
+    // Nachfolge: der Vormieter erfährt, dass sein Nachmieter unterschrieben hat und wann sein Mietverhältnis endet
+    try { await vormieterInformieren(supabase, contract); } catch (e) { console.error("Vormieter-Info fehlgeschlagen:", e); }
+
     return jsonResponse({
       success: true,
       message: "Vertrag erfolgreich gegengezeichnet",
@@ -609,3 +612,27 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Server error: " + e.message }, 500);
   }
 });
+
+async function vormieterInformieren(supabase: any, contract: any) {
+  if (!contract?.bewerber_id) return;
+  const { data: ap } = await supabase.from("applicants").select("id, vorname, nachfolge_token, nachfolge_vormieter_informiert_at").eq("id", contract.bewerber_id).maybeSingle();
+  if (!ap?.nachfolge_token || ap.nachfolge_vormieter_informiert_at) return;
+  const { data: vm } = await supabase.from("tenants").select("id, vorname, email, sprache, auszug, apt_id, room_id, portal_token").eq("nachfolge_token", ap.nachfolge_token).maybeSingle();
+  if (!vm?.email) return;
+  let wohnung = false;
+  const aptId = vm.apt_id || (vm.room_id ? String(vm.room_id).split("-")[0] : null);
+  if (aptId) { const { data: a } = await supabase.from("apartments").select("vermietungsart, adresse").eq("id", aptId).maybeSingle(); wohnung = a?.vermietungsart === "wohnung"; }
+  const en = vm.sprache === "en";
+  const portal = vm.portal_token ? `https://mieter.dthomes.ch/p/${vm.portal_token}` : "";
+  const ende = vm.auszug ? (en ? ` on ${vm.auszug}` : ` am ${vm.auszug}`) : "";
+  const text = en
+    ? `Hi ${vm.vorname || ""},\n\ngood news: your successor${ap.vorname ? `, ${ap.vorname},` : ""} has signed the rental agreement for your ${wohnung ? "apartment" : "room"}.\n\nYour tenancy therefore ends${ende}. We will contact you in good time to arrange the handover.\n\nIf you would like us to organise the final cleaning or your move, you can request this in the tenant portal under "Cleaning & moving".${portal ? `\n\nTenant portal: ${portal}` : ""}\n\nThank you for the good time with us and all the best for your next step!\n\nBest regards\nYour D&T Homes Team`
+    : `Hallo ${vm.vorname || ""},\n\ngute Nachrichten: Dein Nachmieter${ap.vorname ? ` ${ap.vorname}` : ""} hat den Mietvertrag für ${wohnung ? "deine Wohnung" : "dein Zimmer"} unterschrieben.\n\nDein Mietverhältnis endet damit${ende}. Wir melden uns rechtzeitig bei dir, um die Übergabe zu vereinbaren.\n\nFalls wir die Endreinigung oder deinen Umzug organisieren sollen, kannst du das im Mieterportal unter "Reinigung & Umzug" anfragen.${portal ? `\n\nMieterportal: ${portal}` : ""}\n\nDanke für die schöne Zeit bei uns und alles Gute für deinen nächsten Schritt!\n\nLiebe Grüsse\nDein D&T Homes Team`;
+  const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-message`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ to: vm.email, betreff: en ? "Your successor has signed" : "Dein Nachmieter hat unterschrieben", text, sprache: en ? "en" : "de" }),
+  });
+  if (r.ok) await supabase.from("applicants").update({ nachfolge_vormieter_informiert_at: new Date().toISOString() }).eq("id", ap.id);
+  else console.error("Vormieter-Mail abgelehnt:", r.status, (await r.text()).slice(0, 200));
+}

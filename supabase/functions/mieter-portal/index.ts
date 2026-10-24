@@ -358,6 +358,21 @@ async function nachfolgeInfo(b: any) {
 }
 
 // ── Aktionen mit Sitzung ──────────────────────────────────────────────────
+// Stand der Nachmieter-Suche für den Vormieter (nur Vorname des Nachmieters, keine weiteren Daten)
+async function nachfolgeStand(t: any) {
+  if (!t.nachfolge_token) return null;
+  const { data: aps } = await sb.from("applicants").select("id, vorname, status, einzug, nachfolge_angenommen_at").eq("nachfolge_token", t.nachfolge_token);
+  const liste = (aps || []).filter((a: any) => a.status !== "Abgelehnt");
+  if (!liste.length) return null;
+  const ids = liste.map((a: any) => a.id);
+  const { data: cs } = await sb.from("contracts").select("bewerber_id, status").in("bewerber_id", ids).in("status", ["mieter_signiert", "signiert"]);
+  const signiert = new Set((cs || []).map((c: any) => String(c.bewerber_id)));
+  const rang = (a: any) => signiert.has(String(a.id)) ? 3 : a.nachfolge_angenommen_at ? 2 : 1;
+  const best = liste.slice().sort((x: any, y: any) => rang(y) - rang(x))[0];
+  const r = rang(best);
+  return { stufe: r === 3 ? "unterschrieben" : r === 2 ? "angenommen" : "beworben", vorname: r >= 2 ? (best.vorname || "") : "", anzahl: liste.length, einzug: r >= 2 && best.einzug ? fmt(new Date(String(best.einzug).slice(0, 10) + "T00:00:00Z")) : "" };
+}
+
 async function uebersicht(t: any, sitzungId: string, req: Request) {
   const [apt, { data: room }] = await Promise.all([
     ladeApt(t),
@@ -418,7 +433,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     })),
     uebergabe_start: uebergabeStartInfo(t, ho || []),
     ...(await kostenUndZahlung(t, apt, room)),
-    nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t) },
+    nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t), stand: await nachfolgeStand(t) },
   });
 }
 
