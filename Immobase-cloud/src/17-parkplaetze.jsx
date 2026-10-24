@@ -592,6 +592,8 @@ const PAGES=[
   {id:"bewerber",icon:"📋",label:"Bewerber"},
   {id:"mieter",icon:"👤",label:"Mieter"},
   {id:"todos",icon:"✅",label:"To-dos"},
+  {id:"schaeden",icon:"🔧",label:"Schäden"},
+  {id:"kuendigungen",icon:"📤",label:"Kündigungen"},
   {id:"wohnungen",icon:"🏠",label:"Wohnungen",group:"vermietung"},
   {id:"zimmer",icon:"🚪",label:"Zimmer",group:"vermietung"},
   {id:"nachvermietung",icon:"🔄",label:"Nachvermietung",group:"vermietung"},
@@ -625,7 +627,7 @@ const NAV_GRUPPEN=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit","schaeden"],
   mitarbeiter: ["zeit"],
 };
 

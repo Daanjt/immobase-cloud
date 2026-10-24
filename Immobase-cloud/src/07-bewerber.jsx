@@ -651,6 +651,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   const badge = (bg,c,txt)=><span style={{fontSize:9,padding:"1px 7px",borderRadius:99,background:bg,color:c,whiteSpace:"nowrap"}}>{txt}</span>;
   const nameOf = (b)=> `${b.vorname||""} ${b.nachname||""}`.trim() || "Ohne Name";
 
+  const nachfolgeVon = (b)=>{ const t=(tenants||[]).find(x=>x.nachfolge_token && x.nachfolge_token===b.nachfolge_token); return t?`${t.vorname} ${t.nachname}`.trim():"unbekannt"; };
   const BewRow = ({b, context})=>{
     const cs = (contracts||[]).filter(c=>c.bewerberId===b.id && !["zurueckgezogen","abgelaufen","withdrawn","expired","storniert"].includes(c.status));
     const signed = cs.some(c=>c.status==="signiert");
@@ -659,6 +660,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}><span style={{textDecoration:"underline",textDecorationColor:"var(--line)"}}>{nameOf(b)}</span>{context?<span style={{color:"var(--muted)",fontSize:10}}> · {context}</span>:null}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={(e)=>waShortcut(b,e)} title="Erste WhatsApp-Nachricht senden" style={{border:"none",background:"none",cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>💬</button>
+          {b.nachfolge_token && <span title={`Nachfolge von ${nachfolgeVon(b)}`} style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#ece6f6",color:"#5a3e8a",whiteSpace:"nowrap"}}>↻ Nachfolge</span>}
           {b.sprache==="en" && <span title="Bewirbt sich auf Englisch" style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#e6eef6",color:"#2c4a6e"}}>EN</span>}
           {b.owner && <span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:3,background:b.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:b.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em",whiteSpace:"nowrap"}}>👤 {b.owner}</span>}
           {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag ausgestellt"))}
@@ -1672,6 +1674,7 @@ www.dthomes.ch`;
               {[
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
                 ["Empfohlen von", b.empfohlen_von ? <strong style={{color:"#8a6a2e"}}>{b.empfohlen_von}</strong> : "-"],
+                ...(b.nachfolge_token ? [["Nachfolge von", (()=>{ const t=(tenants||[]).find(x=>x.nachfolge_token===b.nachfolge_token); return t ? <strong style={{color:"#5a3e8a"}}>{t.vorname} {t.nachname}{t.auszug?` (Auszug ${t.auszug})`:""}</strong> : "unbekannter Link"; })()]] : []),
                 ["Parkplatz", b.parkplatz_wunsch ? <strong style={{color:"#2c4a6e"}}>🅿️ gewünscht</strong> : "-"],
                 ["Reinigung", b.reinigung_wunsch ? <strong style={{color:"#2c4a6e"}}>🧽 Offerte gewünscht</strong> : "-"],
                 ["Umzug", b.umzug_wunsch ? <strong style={{color:"#2c4a6e"}}>📦 Offerte gewünscht</strong> : "-"],

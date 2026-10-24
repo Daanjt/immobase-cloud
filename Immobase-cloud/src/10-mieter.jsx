@@ -781,7 +781,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
               };
               return <button className="btn btn-p btn-sm" onClick={doBexio} style={{marginTop:10}}>Bexio: QR-Rechnung erstellen (Entwurf)</button>;
             })()}
-            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["schluessel","🔑\u00a0Schlüssel"],["drittmeldung","Drittmeldepflicht"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
+            <div className="tabs">{[["info","Profil"],["docs","Dokumente"],["komm","Kommunikation"],["uebergabe","Übergabe"],["schluessel","🔑\u00a0Schlüssel"],["drittmeldung","Drittmeldepflicht"],["portal","Portal"]].map(([k,l])=>(<button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>))}</div>
             {tab==="info"&&<div>
               {(() => {
                 const ezDocs = (documents||[]).filter(d => d.entity_type==="tenant" && d.entity_id===tenant.id && d.category==="Drittmeldebestätigung (Einzug)");
@@ -986,6 +986,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 </>
               );
             })()}
+            {tab==="portal"&&<MieterPortalTab key={"mp"+tenant.id} tenant={tenant}/>}
             {tab==="drittmeldung"&&<DrittmeldungTab tenant={tenant} updateTenant={updateTenant} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
         ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
