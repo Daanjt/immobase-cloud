@@ -35,7 +35,7 @@ function SchadenKarte({ s, tenantName, onTenant, onGeaendert, onWeiterleiten }) 
     <div style={{ border: "1px solid var(--line-soft,#e8e3d8)", borderRadius: 10, padding: "12px 14px", marginBottom: 10, background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>{s.titel}</div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{s.titel}{s.kontakt_freigabe ? <span title="Mieter ist einverstanden, dass seine Kontaktdaten für die Terminvereinbarung weitergegeben werden" style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 99, background: "#e6eedc", color: "#3a5230", verticalAlign: "middle" }}>✓ Kontakt freigegeben</span> : null}</div>
           <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 2 }}>
             {fmtZeitP(s.created_at)}{s.ort_im_objekt ? ` · ${s.ort_im_objekt}` : ""}{tenantName ? <> · <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onTenant}>{tenantName}</span></> : null}{s.room_id ? ` · ${s.room_id}` : (s.apt_id ? ` · ${s.apt_id}` : "")}
           </div>
@@ -165,10 +165,18 @@ function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet 
     s.ort_im_objekt ? `Ort: ${s.ort_im_objekt}${apt?.stockwerk ? ` (${apt.stockwerk})` : ""}` : (apt?.stockwerk ? `Stockwerk: ${apt.stockwerk}` : null),
     s.dringlichkeit && s.dringlichkeit !== "normal" ? `Dringlichkeit: ${DRINGLICHKEIT[s.dringlichkeit][0]}` : null,
     s.beschreibung ? `Beschreibung: ${s.beschreibung}` : null,
-    mieterName ? `Bewohner/in: ${mieterName}${tenant?.phone ? `, ${tenant.phone}` : ""}` : null,
     "",
+    ...(s.kontakt_freigabe && mieterName ? [
+      "Kontakt für die Terminvereinbarung:",
+      `Name: ${mieterName}`,
+      tenant?.phone ? `Telefon: ${tenant.phone}` : null,
+      tenant?.email ? `E-Mail: ${tenant.email}` : null,
+      "",
+    ] : []),
     (s.fotos || []).length ? `Die Fotos findest du im Anhang.` : null,
-    "Wäre es möglich, dass ihr das anschaut und einen Handwerker organisiert? Für den Zugang zur Wohnung kann sich der Handwerker gerne direkt bei der Bewohnerin bzw. dem Bewohner oder bei uns melden.", "",
+    s.kontakt_freigabe
+      ? "Wäre es möglich, dass ihr das anschaut und einen Handwerker organisiert? Die Bewohnerin bzw. der Bewohner ist einverstanden, dass ihr oder der Handwerker sich direkt für einen Termin meldet."
+      : "Wäre es möglich, dass ihr das anschaut und einen Handwerker organisiert? Für den Zugang zur Wohnung meldet euch gerne bei uns.", "",
     "Danke dir im Voraus!", "",
     "Liebe Grüsse", "Daan Theijse", "Co-Founder | D&T Homes",
   ].filter((z) => z !== null);

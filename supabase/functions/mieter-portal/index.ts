@@ -447,7 +447,7 @@ async function dokumentUrl(t: any, b: any) {
   const { data: d } = await sb.from("documents").select("id, category, entity_type, entity_id, storage_path, filename").eq("id", b.id).maybeSingle();
   const eigen = d && ((d.entity_type === "tenant" && d.entity_id === String(t.id)) || (d.entity_type === "applicant" && t.bewerber_id && d.entity_id === String(t.bewerber_id)));
   if (!eigen || !DOWNLOAD.includes(d.category)) return fehler("Dokument nicht gefunden.", 404);
-  const { data: u } = await sb.storage.from("documents").createSignedUrl(d.storage_path, 120, { download: d.filename });
+  const { data: u } = await sb.storage.from("documents").createSignedUrl(d.storage_path, 120, b.ansehen ? undefined : { download: d.filename });
   if (!u?.signedUrl) return fehler("Dokument konnte nicht geladen werden.", 500);
   return json({ url: u.signedUrl });
 }
@@ -474,6 +474,7 @@ async function hochladen(t: any, fd: FormData) {
 async function schadenMelden(t: any, fd: FormData) {
   const titel = String(fd.get("titel") || "").trim().slice(0, 140);
   if (!titel) return fehler("Bitte kurz beschreiben, was kaputt ist.");
+  if (String(fd.get("freigabe") || "") !== "1") return fehler("Bitte bestätige, dass wir deine Meldung und Kontaktdaten für die Terminvereinbarung weiterleiten dürfen.");
   const dr = String(fd.get("dringlichkeit") || "normal");
   const fotos = fd.getAll("fotos").filter((f) => f instanceof File) as File[];
   if (fotos.length > 6) return fehler("Maximal 6 Fotos.");
@@ -486,6 +487,7 @@ async function schadenMelden(t: any, fd: FormData) {
     beschreibung: String(fd.get("beschreibung") || "").trim().slice(0, 4000) || null,
     ort_im_objekt: String(fd.get("ort") || "").trim().slice(0, 140) || null,
     dringlichkeit: ["normal", "dringend", "notfall"].includes(dr) ? dr : "normal",
+    kontakt_freigabe: true,
   }).select("id").single();
   if (error || !row) return fehler("Meldung konnte nicht gespeichert werden.", 500);
   const pfade: string[] = [];
