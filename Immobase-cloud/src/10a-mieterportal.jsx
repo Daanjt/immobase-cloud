@@ -267,7 +267,7 @@ function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet 
     const { data, error } = await supabase.functions.invoke("schaden-weiterleiten", { body: { id: s.id, an, cc, betreff, text, fotos } });
     setBusy(false);
     if (error || data?.error) { toast(data?.error || "Versand fehlgeschlagen", "error"); return; }
-    toast(`Weitergeleitet${data.fotos ? ` mit ${data.fotos} Foto(s)` : ""}${data.ausgelassen ? ` (${data.ausgelassen} Foto(s) zu gross)` : ""}`);
+    toast(`Weitergeleitet${data.fotos ? ` mit ${data.fotos} Foto(s)` : ""}${data.ausgelassen ? ` (${data.ausgelassen} Foto(s) zu gross)` : ""}${data.weg === "outlook" ? " · aus deinem Outlook" : " · von daan.theijse@dthomes.ch (Kopie an dich)"}`);
     onGesendet && onGesendet(); onClose();
   }
   return (
@@ -285,7 +285,7 @@ function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet 
         <div className="fg"><label className="fl">Text</label><textarea className="fi" rows={14} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: "inherit", lineHeight: 1.5 }} /></div>
         </>}
         {(s.fotos || []).length > 0 && <label style={{ fontSize: 12.5, display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={fotos} onChange={(e) => setFotos(e.target.checked)} /> {s.fotos.length} Foto(s) als Anhang mitschicken</label>}
-        <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 8 }}>Absender noreply@dthomes.ch, Antworten gehen an info@dthomes.ch, Daan in BCC. Status wechselt auf „In Arbeit“.</div>
+        <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 8 }}>Geht persönlich von daan.theijse@dthomes.ch raus, ohne D&amp;T-Design. Antworten kommen direkt zu Daan. Status wechselt auf „In Arbeit“.</div>
         <div className="ma">
           <button className="btn btn-g" disabled={busy} onClick={onClose}>Abbrechen</button>
           <button className="btn btn-g" disabled={busy} onClick={() => setBearbeiten((b) => !b)}>{bearbeiten ? "Zur Vorschau" : "✏ Bearbeiten"}</button>
