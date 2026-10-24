@@ -85,7 +85,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean) {
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, sprache, status, deleted_at, portal_gesperrt, portal_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 function zugangOk(t: any) {
@@ -229,12 +229,52 @@ async function pkReg(t: any, b: any, req: Request) {
   return json({ ok: true });
 }
 
+
+// ── Kündigung ─────────────────────────────────────────────────────────────
+// Regeln (wie auf der Webseite): 3 Monate Frist auf Monatsende.
+// Befristete Wohnungen: nur auf einen Termin, der mindestens 12 Monate vor dem Vertragsende liegt,
+// danach ist der Vertrag fest und nur ein Nachmieter ist möglich.
+const KUENDIGUNGSFRIST_MONATE = 3;
+function monatsende(y: number, m: number) { return new Date(Date.UTC(y, m + 1, 0)); }
+function fmt(d: Date) { return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`; }
+function kuendigungsInfo(t: any, apt: any) {
+  const h = new Date();
+  const frueh = monatsende(h.getUTCFullYear(), h.getUTCMonth() + KUENDIGUNGSFRIST_MONATE);
+  const wohnung = apt?.vermietungsart === "wohnung";
+  const vertragsende = apt?.immer_befristet ? parseDatum(apt?.mietende) : null;
+  const auszug = parseDatum(t.auszug);
+  let grenze: Date | null = null, nurNachmieter = false, hinweis = "";
+  if (wohnung && vertragsende) {
+    grenze = monatsende(vertragsende.getUTCFullYear(), vertragsende.getUTCMonth() - 12);
+    if (frueh.getTime() > grenze.getTime()) { nurNachmieter = true; hinweis = "fest"; }
+  }
+  if (auszug && (!grenze || auszug.getTime() < grenze.getTime())) grenze = new Date(auszug.getTime() - TAG);
+  if (auszug && frueh.getTime() >= auszug.getTime()) { nurNachmieter = true; hinweis = "endet"; }
+  const termine: string[] = [];
+  if (!nurNachmieter) {
+    for (let i = 0; i < 18; i++) {
+      const d = monatsende(frueh.getUTCFullYear(), frueh.getUTCMonth() + i);
+      if (grenze && d.getTime() > grenze.getTime()) break;
+      termine.push(fmt(d));
+    }
+    if (!termine.length) nurNachmieter = true;
+  }
+  return { frist: KUENDIGUNGSFRIST_MONATE, termine, nurNachmieter, hinweis, vertragsende: vertragsende ? fmt(vertragsende) : "", auszug: auszug ? fmt(auszug) : "", wohnung };
+}
+async function ladeApt(t: any) {
+  if (!t.apt_id) return null;
+  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet").eq("id", t.apt_id).maybeSingle();
+  return data;
+}
+
 // ── Aktionen mit Sitzung ──────────────────────────────────────────────────
 async function uebersicht(t: any, sitzungId: string, req: Request) {
-  const [{ data: apt }, { data: room }] = await Promise.all([
-    t.apt_id ? sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet").eq("id", t.apt_id).maybeSingle() : Promise.resolve({ data: null }),
+  const [apt, { data: room }] = await Promise.all([
+    ladeApt(t),
     t.room_id ? sb.from("rooms").select("id, miete").eq("id", t.room_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const { data: lg } = apt?.adresse ? await sb.from("liegenschaften").select("hausinfos, hausinfos_en").eq("adresse", apt.adresse).maybeSingle() : { data: null };
+  const { data: kd } = await sb.from("kuendigungen").select("id, art, datum, status, antwort, nachmieter_name, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(10);
   const ent: [string, string][] = [["tenant", String(t.id)]];
   if (t.bewerber_id) ent.push(["applicant", String(t.bewerber_id)]);
   const docs: any[] = [];
@@ -265,6 +305,8 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     schaeden: (sch || []).map((s: any) => ({ ...s, fotos: (s.fotos || []).length })),
     sitzungen: (sitz || []).map((s: any) => ({ ...s, aktuell: s.id === sitzungId })),
     passkey: (pk || 0) > 0,
+    hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
+    kuendigung: { ...kuendigungsInfo(t, apt), eintraege: kd || [] },
   });
 }
 
@@ -325,6 +367,68 @@ async function schadenMelden(t: any, fd: FormData) {
   return json({ ok: true, id: row.id });
 }
 
+
+async function kuendigen(t: any, b: any) {
+  const apt = await ladeApt(t);
+  const info = kuendigungsInfo(t, apt);
+  if (info.nurNachmieter) return fehler("Eine Kündigung ist für dich nicht mehr möglich. Du kannst aber einen Nachmieter vorschlagen.");
+  const datum = String(b.datum || "");
+  if (!info.termine.includes(datum)) return fehler("Bitte wähle einen gültigen Termin.");
+  if (!b.bestaetigt) return fehler("Bitte bestätige die Kündigung.");
+  const { data: offen } = await sb.from("kuendigungen").select("id").eq("tenant_id", t.id).eq("art", "kuendigung").in("status", ["eingereicht", "bestaetigt"]).limit(1);
+  if (offen && offen.length) return fehler("Du hast bereits gekündigt. Bei Fragen melde dich bitte bei uns.");
+  const { error } = await sb.from("kuendigungen").insert({ tenant_id: t.id, art: "kuendigung", datum, grund: String(b.grund || "").trim().slice(0, 1000) || null, status: "eingereicht" });
+  if (error) return fehler("Kündigung konnte nicht gespeichert werden.", 500);
+  const en = t.sprache === "en";
+  if (t.email) await mail(t.email, en ? "We have received your notice" : "Wir haben deine Kündigung erhalten",
+    en ? `Hi ${t.vorname || ""},\n\nwe have received your notice of termination effective ${datum}.\n\nWe will check it and send you a confirmation shortly. We will then get in touch with you about the handover.\n\nBest regards\nYour D&T Homes Team`
+       : `Hallo ${t.vorname || ""},\n\nwir haben deine Kündigung per ${datum} erhalten.\n\nWir prüfen sie und schicken dir in Kürze eine Bestätigung. Für die Übergabe melden wir uns dann bei dir.\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
+  return json({ ok: true });
+}
+
+async function nachmieter(t: any, b: any) {
+  const name = String(b.name || "").trim().slice(0, 120);
+  const email = String(b.email || "").trim().toLowerCase().slice(0, 160);
+  const telefon = String(b.telefon || "").trim().slice(0, 40);
+  if (!name) return fehler("Bitte den Namen angeben.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fehler("Bitte eine gültige E-Mail-Adresse angeben.");
+  const seit = new Date(Date.now() - TAG).toISOString();
+  const { count } = await sb.from("kuendigungen").select("id", { count: "exact", head: true }).eq("tenant_id", t.id).eq("art", "nachmieter").gte("created_at", seit);
+  if ((count || 0) >= 5) return fehler("Du hast heute schon mehrere Nachmieter vorgeschlagen. Bitte versuche es morgen wieder.", 429);
+  const { error } = await sb.from("kuendigungen").insert({ tenant_id: t.id, art: "nachmieter", nachmieter_name: name, nachmieter_email: email, nachmieter_telefon: telefon || null, status: "eingereicht" });
+  if (error) return fehler("Konnte nicht gespeichert werden.", 500);
+  const apt = await ladeApt(t);
+  const wohnung = apt?.vermietungsart === "wohnung";
+  const wer = `${t.vorname || ""} ${t.nachname || ""}`.trim();
+  const de = `https://www.dthomes.ch/${wohnung ? "wohnungen" : "zimmer"}.html`;
+  const enL = `https://www.dthomes.ch/en/${wohnung ? "wohnungen" : "zimmer"}.html`;
+  await mail(email, "Bewerbung als Nachmieter / Apply as successor tenant",
+    `Hallo ${name},\n\n${wer} hat dich bei uns als Nachmieter${wohnung ? " für die Wohnung" : " für das Zimmer"} an der ${apt?.adresse || ""} vorgeschlagen.\n\nBitte bewirb dich direkt auf unserer Webseite und gib im Formular an, dass du Nachmieter von ${wer} bist:\n${de}\n\nWir melden uns nach Eingang deiner Bewerbung bei dir.\n\nLiebe Grüsse\nDein D&T Homes Team\n\n---\n\nHi ${name},\n\n${wer} has suggested you as the next tenant for ${wohnung ? "the apartment" : "the room"} at ${apt?.adresse || ""}.\n\nPlease apply directly on our website and mention in the form that you are taking over from ${wer}:\n${enL}\n\nWe will get back to you once we have received your application.\n\nBest regards\nYour D&T Homes Team`, false);
+  return json({ ok: true });
+}
+
+async function serviceAnfrage(t: any, b: any) {
+  const apt = await ladeApt(t);
+  const wohnung = apt?.vermietungsart === "wohnung";
+  const ARTEN: Record<string, string> = { reinigung: wohnung ? "Endreinigung Wohnung" : "Endreinigung Zimmer", umzug: "Umzug", umzug_reinigung: "Umzug mit Endreinigung" };
+  const art = ARTEN[String(b.art || "")];
+  if (!art) return fehler("Unbekannter Service.");
+  const termin = String(b.termin || "").trim();
+  if (termin && !/^\d{4}-\d{2}-\d{2}$/.test(termin)) return fehler("Bitte ein gültiges Datum wählen.");
+  const seit = new Date(Date.now() - TAG).toISOString();
+  const { count } = await sb.from("reinigung_anfragen").select("id", { count: "exact", head: true }).eq("email", t.email || "-").gte("created_at", seit);
+  if ((count || 0) >= 3) return fehler("Du hast heute schon Anfragen gesendet. Wir melden uns bei dir.", 429);
+  const { error } = await sb.from("reinigung_anfragen").insert({
+    art, name: `${t.vorname || ""} ${t.nachname || ""}`.trim(), email: t.email || null, telefon: t.phone || null,
+    adresse: apt ? [apt.adresse, [apt.plz, apt.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") : null,
+    termin: termin || null, bemerkung: String(b.bemerkung || "").trim().slice(0, 2000) || null,
+    adresse_neu: art.startsWith("Umzug") ? (String(b.adresse_neu || "").trim().slice(0, 200) || null) : null,
+    dt_mieter: true, sprache: t.sprache === "en" ? "en" : "de", status: "neu",
+  });
+  if (error) return fehler("Anfrage konnte nicht gesendet werden.", 500);
+  return json({ ok: true });
+}
+
 async function geraetAbmelden(t: any, b: any) {
   await sb.from("portal_sitzungen").update({ widerrufen: true }).eq("tenant_id", t.id).eq("id", b.id);
   return json({ ok: true });
@@ -359,6 +463,9 @@ Deno.serve(async (req) => {
       case "geraet_abmelden": return await geraetAbmelden(s.t, b);
       case "pk_reg_optionen": return await pkRegOptionen(s.t, req);
       case "pk_reg": return await pkReg(s.t, b, req);
+      case "kuendigen": return await kuendigen(s.t, b);
+      case "nachmieter": return await nachmieter(s.t, b);
+      case "service": return await serviceAnfrage(s.t, b);
     }
     return fehler("Unbekannte Aktion.");
   } catch (e) {
