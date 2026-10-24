@@ -611,6 +611,7 @@ const PAGES=[
   {id:"partner",icon:"🏢",label:"Partner",group:"akquise"},
   {id:"werbung",icon:"📣",label:"Werbung",group:"akquise"},
   {id:"dokumente",icon:"📁",label:"Dokumente",group:"verwaltung"},
+  {id:"datencheck",icon:"🩺",label:"Datencheck",group:"verwaltung"},
   {id:"passwoerter",icon:"🔐",label:"Passwörter",group:"verwaltung"},
   {id:"zeit",icon:"⏱",label:"Zeiterfassung",group:"verwaltung"},
 ];

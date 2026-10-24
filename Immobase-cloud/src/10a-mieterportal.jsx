@@ -657,3 +657,78 @@ function KuendigungenPage({ tenants, apts, bewerber, updateTenant, navigateTo })
     </div>
   );
 }
+
+// ── Datencheck: Widersprüche zwischen Verträgen und ImmoBase laufend anzeigen ──
+// Die Prüfungen laufen in der Datenbank (Funktion datencheck). "Ist korrekt" blendet einen Punkt dauerhaft aus.
+function DatencheckPage({ navigateTo }) {
+  const [liste, setListe] = useState(null);
+  const [fehler, setFehler] = useState("");
+  const [ausn, setAusn] = useState([]);
+  const [zeigAusn, setZeigAusn] = useState(false);
+  async function laden() {
+    setFehler("");
+    const [r, a] = await Promise.all([supabase.rpc("datencheck"), supabase.from("datencheck_ausnahmen").select("*").order("created_at", { ascending: false })]);
+    if (r.error) { setFehler(r.error.message); setListe([]); } else setListe(r.data || []);
+    setAusn(a.data || []);
+  }
+  useEffect(() => { laden(); }, []);
+  async function okMarkieren(x) {
+    const notiz = prompt(`"${x.art}" bei ${x.name || x.tenant_id} als korrekt markieren?\n\nKurz notieren, warum (optional):`, "");
+    if (notiz === null) return;
+    const { error } = await supabase.from("datencheck_ausnahmen").insert({ tenant_id: x.tenant_id, art: x.art, notiz: notiz.trim() || null });
+    if (error) toast("Speichern fehlgeschlagen", "error"); else { toast("Ausgeblendet"); laden(); }
+  }
+  async function wiederEinblenden(a) {
+    const { error } = await supabase.from("datencheck_ausnahmen").delete().eq("id", a.id);
+    if (error) toast("Speichern fehlgeschlagen", "error"); else laden();
+  }
+  const STUFEN = [
+    { id: "fehler", label: "Fehler", farbe: "#a33a2b", bg: "#fbeae6" },
+    { id: "warnung", label: "Prüfen", farbe: "#8a6420", bg: "#fbf3e6" },
+    { id: "info", label: "Hinweis", farbe: "#5f5a50", bg: "#f3efe7" },
+  ];
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div><div className="pt">Datencheck</div><div className="ps">Widersprüche zwischen unterschriebenen Verträgen und den Daten in ImmoBase (aktive Mieter)</div></div>
+        <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => { setListe(null); laden(); }}>↻ Neu prüfen</button>
+      </div>
+      {fehler && <div className="card" style={{ marginTop: 14, color: "#a33a2b" }}>Datencheck konnte nicht geladen werden: {fehler}</div>}
+      {liste === null ? <div className="card" style={{ marginTop: 14 }}>Wird geprüft…</div>
+        : liste.length === 0 && !fehler ? <div className="card" style={{ marginTop: 14 }}>✓ Keine Widersprüche gefunden.</div>
+        : STUFEN.map((s) => {
+          const teil = liste.filter((x) => x.schwere === s.id);
+          if (!teil.length) return null;
+          return (
+            <div key={s.id} style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".12em", color: s.farbe, fontWeight: 600, marginBottom: 8 }}>{s.label} ({teil.length})</div>
+              {teil.map((x, i) => (
+                <div key={i} className="card" style={{ marginBottom: 8, padding: "12px 16px", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", borderLeft: `3px solid ${s.farbe}` }}>
+                  <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{x.art}</div>
+                    <div style={{ fontSize: 12.5, color: "#4a4439", marginTop: 2 }}>
+                      {x.name ? <a href="#" onClick={(e) => { e.preventDefault(); navigateTo && navigateTo("mieter", x.tenant_id); }} style={{ color: "#1a1814" }}>{x.name}</a> : x.tenant_id}
+                      {x.objekt ? ` · ${x.objekt}` : ""}
+                    </div>
+                    {x.detail && <div style={{ fontSize: 12, color: "#8a8174", marginTop: 2 }}>{x.detail}</div>}
+                  </div>
+                  <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => okMarkieren(x)}>Ist korrekt</button>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      {ausn.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => setZeigAusn((v) => !v)}>{zeigAusn ? "Ausgeblendete verbergen" : `Ausgeblendete anzeigen (${ausn.length})`}</button>
+          {zeigAusn && ausn.map((a) => (
+            <div key={a.id} className="card" style={{ marginTop: 8, padding: "10px 16px", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ fontSize: 12.5 }}><b>{a.art}</b> · {a.tenant_id}{a.notiz ? ` · ${a.notiz}` : ""}<div style={{ fontSize: 11, color: "#8a8174" }}>{new Date(a.created_at).toLocaleDateString("de-CH")}{a.created_by ? ` · ${a.created_by}` : ""}</div></div>
+              <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => wiederEinblenden(a)}>Wieder anzeigen</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
