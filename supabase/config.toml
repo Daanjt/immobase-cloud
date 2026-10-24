@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.dokumente-erinnerung]
 verify_jwt = true
+
+[functions.mieter-portal]
+verify_jwt = false

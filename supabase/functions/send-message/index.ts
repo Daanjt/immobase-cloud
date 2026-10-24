@@ -53,7 +53,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (!(await istAdminOderServer(req))) return verweigert(CORS);
   try {
-    const { to, betreff, text, sprache, cc } = await req.json().catch(() => ({}));
+    const { to, betreff, text, sprache, cc, ohneBcc } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "Keine E-Mail-Adresse." }, 400);
     if (!String(text || "").trim()) return json({ error: "Der Text ist leer." }, 400);
     const en = sprache === "en";
@@ -65,7 +65,7 @@ serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: FROM_EMAIL, to: toList, ...(ccList.length ? { cc: ccList } : {}), bcc: [BCC], reply_to: REPLY_TO,
+        from: FROM_EMAIL, to: toList, ...(ccList.length ? { cc: ccList } : {}), ...(ohneBcc ? {} : { bcc: [BCC] }), reply_to: REPLY_TO,
         subject: betreff || (en ? "Message from D&T Homes" : "Mitteilung von D&T Homes"), html, text,
         attachments: logoB64 ? [{ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [],
       }),
