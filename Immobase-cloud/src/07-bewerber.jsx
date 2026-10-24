@@ -1216,8 +1216,10 @@ www.dthomes.ch`;
       if(kd&&kd.length){ const {error}=await supabase.from("kuendigungen").update({datum:auszugCh,status:"bestaetigt",nachmieter_name:nmName,nachmieter_email:b.email||null,bearbeitet_at:jetzt,updated_at:jetzt}).eq("id",kd[0].id); if(error) throw error; }
       else { const {error}=await supabase.from("kuendigungen").insert({tenant_id:vm.id,art:"kuendigung",datum:auszugCh,status:"bestaetigt",quelle:"nachmieter",grund:"Nachmieter übernimmt",nachmieter_name:nmName,nachmieter_email:b.email||null,bearbeitet_at:jetzt}); if(error) throw error; }
       // 3. Bewerbung als übernommen markieren, Zimmer und Einzug setzen
-      const zimmer = vm.roomId || vm.room_id || b.zimmerWunsch || "";
-      { const {error}=await supabase.from("applicants").update({nachfolge_angenommen_at:jetzt, einzug:u.einzug, ...(zimmer?{zimmer_wunsch:zimmer}:{})}).eq("id",b.id); if(error) throw error; }
+      const zimmer = ((rooms||[]).find(r=>r.tenantId===vm.id)||{}).id || vm.roomId || vm.room_id || b.zimmerWunsch || "";
+      // Zimmer vormerken: so weiss auch die Nachvermietung, dass der Nachmieter feststeht.
+      // Der Status bleibt, damit nach der Unterschrift wie gewohnt "Zimmer zuteilen" den Mieter anlegt.
+      { const {error}=await supabase.from("applicants").update({nachfolge_angenommen_at:jetzt, einzug:u.einzug, ...(zimmer?{zimmer_wunsch:zimmer, zugeteiltes_zimmer:zimmer}:{})}).eq("id",b.id); if(error) throw error; }
       try{ window.__ibNeuLaden && window.__ibNeuLaden(); }catch(_){}
       setUebernahme(null);
       toast(`Übernommen · Auszug ${vm.vorname||""} per ${auszugCh}`);
@@ -1969,7 +1971,8 @@ www.dthomes.ch`;
               1. Beim Vormieter wird der Auszug eingetragen und eine bestätigte Kündigung „per Nachmieter“ erfasst. Er sieht das im Mieterportal.<br/>
               2. Die Bewerbung wird als übernommen markiert.<br/>
               3. Der Vertrag für den Nachmieter öffnet sich mit Zimmer und Einzug.<br/>
-              4. Sobald du den Vertrag gegenzeichnest, bekommt der Vormieter automatisch eine Mail, dass sein Mietverhältnis endet.
+              4. Sobald du den Vertrag gegenzeichnest, bekommt der Vormieter automatisch eine Mail, dass sein Mietverhältnis endet.<br/>
+              5. Danach wie gewohnt „Zimmer zuteilen“. In der Nacht nach dem Auszug wechselt das Zimmer automatisch zum Nachmieter.
             </div>
             <div className="ma">
               <button className="btn btn-g" disabled={uebernahme.busy} onClick={()=>setUebernahme(null)}>Abbrechen</button>
