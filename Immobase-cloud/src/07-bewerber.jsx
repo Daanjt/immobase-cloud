@@ -660,7 +660,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}><span style={{textDecoration:"underline",textDecorationColor:"var(--line)"}}>{nameOf(b)}</span>{context?<span style={{color:"var(--muted)",fontSize:10}}> · {context}</span>:null}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={(e)=>waShortcut(b,e)} title="Erste WhatsApp-Nachricht senden" style={{border:"none",background:"none",cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>💬</button>
-          {b.nachfolge_token && <span title={`Nachfolge von ${nachfolgeVon(b)}`} style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#ece6f6",color:"#5a3e8a",whiteSpace:"nowrap"}}>↻ Nachfolge</span>}
+          {b.nachfolge_token && <span title={`Nachfolge von ${nachfolgeVon(b)}`} style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#efebe3",color:"#5a5448",whiteSpace:"nowrap"}}>↻ Nachfolge</span>}
           {b.sprache==="en" && <span title="Bewirbt sich auf Englisch" style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#e6eef6",color:"#2c4a6e"}}>EN</span>}
           {b.owner && <span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:3,background:b.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:b.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em",whiteSpace:"nowrap"}}>👤 {b.owner}</span>}
           {cs.length===0 ? badge("#f0ece3","#8a8478","kein Vertrag") : (signed ? badge("#e8efde","#3a5230","✓ signiert") : badge("#fdf2e0","#7a5c3c","📄 Vertrag ausgestellt"))}
@@ -1674,7 +1674,7 @@ www.dthomes.ch`;
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp-Nachricht senden" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
-                {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#5a3e8a",color:"#fff",borderColor:"#5a3e8a"}}>↻ Als Nachmieter übernehmen</button>}
+                {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#f0ebe1",color:"#3a352d",borderColor:"#d8d0c0"}}>↻ Als Nachmieter übernehmen</button>}
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
@@ -1717,7 +1717,7 @@ www.dthomes.ch`;
                 ["E-Mail",b.email?<a href={`mailto:${b.email}`}>{b.email}</a>:"-"],
                 ["Empfohlen von", b.empfohlen_von ? <strong style={{color:"#8a6a2e"}}>{b.empfohlen_von}</strong> : "-"],
                 ...(b.nachfolge_angenommen_at ? [["Nachfolge", <strong style={{color:"#3a5230"}}>✓ übernommen am {new Date(b.nachfolge_angenommen_at).toLocaleDateString("de-CH")}</strong>]] : []),
-                ...(b.nachfolge_token ? [["Nachfolge von", (()=>{ const t=(tenants||[]).find(x=>x.nachfolge_token===b.nachfolge_token); return t ? <strong style={{color:"#5a3e8a"}}>{t.vorname} {t.nachname}{t.auszug?` (Auszug ${t.auszug})`:""}</strong> : "unbekannter Link"; })()]] : []),
+                ...(b.nachfolge_token ? [["Nachfolge von", (()=>{ const t=(tenants||[]).find(x=>x.nachfolge_token===b.nachfolge_token); return t ? <strong style={{color:"#5a5448"}}>{t.vorname} {t.nachname}{t.auszug?` (Auszug ${t.auszug})`:""}</strong> : "unbekannter Link"; })()]] : []),
                 ["Parkplatz", b.parkplatz_wunsch ? <strong style={{color:"#2c4a6e"}}>🅿️ gewünscht</strong> : "-"],
                 ["Reinigung", b.reinigung_wunsch ? <strong style={{color:"#2c4a6e"}}>🧽 Offerte gewünscht</strong> : "-"],
                 ["Umzug", b.umzug_wunsch ? <strong style={{color:"#2c4a6e"}}>📦 Offerte gewünscht</strong> : "-"],
