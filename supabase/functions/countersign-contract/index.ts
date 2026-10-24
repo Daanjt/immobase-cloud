@@ -9,6 +9,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { qrInhalt, qrPng, b64 as qrB64 } from "../_shared/qrrechnung.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
@@ -101,7 +102,18 @@ function notificationEmailToDaan(contract, downloadLinks, ip) {
 }
 
 // Willkommens- bzw. Verlaengerungsmail an den Mieter (DE/EN), gleiches Design wie die uebrigen D&T-Mails.
-function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logoSrc = "https://mieter.dthomes.ch/dt-logo.png") {
+// Betrag und Referenz der Mietzahlung (gleich in Mail und QR-Rechnung)
+function zahlInfo(contract, en) {
+  const vertrag = (contract.contract_data || {}).vertrag || contract.contract_data || {};
+  const apt = vertrag.apt || {};
+  const fullName = `${contract.mieter_vorname || ""} ${contract.mieter_nachname || ""}`.trim();
+  const sg = +vertrag.aufschlag || 0;
+  const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
+  const referenz = `${en ? "Rent" : "Miete"} ${apt.adresse || ""} & ${fullName}`;
+  return { total, referenz };
+}
+
+function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logoSrc = "https://mieter.dthomes.ch/dt-logo.png", qrSrc = "https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png", portalLink = "") {
   const en = sprache === "en";
   const T = (de, e) => (en ? e : de);
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -207,7 +219,7 @@ ${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartmen
     : T("Bei deiner Variante ist <strong>keine Kaution</strong> nötig. Dafür ist die monatliche Servicegebühr im Mietzins enthalten.", "With your option <strong>no deposit</strong> is required. Instead, the monthly service fee is included in your rent.");
   const bankZeile = (l, v, mono = false) => `<div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">${l}</span><br><span style="color:#1a1814;font-weight:600;${mono ? "font-family:Menlo,Monaco,monospace;" : ""}">${v}</span></div>`;
   const zahlung = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f3" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;margin:10px 0 0;width:100%;table-layout:fixed;">
-<tr><td style="padding:16px 16px 4px;"><img src="https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png" alt="QR" width="120" height="120" style="display:block;width:120px;height:120px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
+<tr><td style="padding:16px 16px 4px;"><img src="${qrSrc}" alt="QR" width="120" height="120" style="display:block;width:120px;height:120px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
 <tr><td style="font-size:12.5px;line-height:1.6;padding:8px 16px 14px;">
 ${bankZeile("Bank", "Graub&uuml;ndner Kantonalbank")}${bankZeile("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bankZeile("BIC/SWIFT", "GRKBCH2270A", true)}${bankZeile(T("Betrag", "Amount"), mietzinsStr)}${bankZeile(T("Referenz", "Reference"), esc(referenz))}${bankZeile(T("Erste Zahlung", "First payment"), T(`bis ${ersteBelastungStr}`, `by ${ersteBelastungStr}`))}
 </td></tr></table>`;
@@ -223,6 +235,7 @@ ${box(T("Deine Konditionen", "Your terms"), konditionen)}
 <div style="font-size:15px;font-weight:600;margin:6px 0 0;">${T("Die nächsten Schritte", "Next steps")}</div>
 ${schritt(1, km > 0 ? T("Kaution einrichten", "Set up your deposit") : T("Kaution", "Deposit"), kautionText)}
 ${schritt(2, T("Mietzahlung einrichten", "Set up your rent payment"), T("Bitte richte einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats:", "Please set up a standing order, due by the 25th of the previous month:") + zahlung)}
+${portalLink ? schritt(3, T("Dein Mieterportal", "Your tenant portal"), T("Im Mieterportal findest du alles zu deiner Miete an einem Ort: deinen Vertrag und deine Dokumente, die Zahlungsangaben mit QR-Code, das Übergabeprotokoll und die Hausinfos. Dort meldest du auch Schäden, und später kannst du dort kündigen oder einen Nachmieter vorschlagen. Beim ersten Öffnen auf einem Gerät schicken wir dir kurz einen Code per E-Mail.", "In the tenant portal you will find everything about your rental in one place: your contract and documents, the payment details with QR code, the handover report and the house information. You can also report damage there, and later give notice or suggest a successor tenant. When you open it for the first time on a device, we send you a short code by email.") + `<div style="margin:12px 0 0;"><a href="${portalLink}" style="display:inline-block;background:#1a1814;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;">${T("Zum Mieterportal", "Open tenant portal")}</a></div>`) : ""}
 <p style="font-size:14px;margin:22px 0 0;">${T("Wir freuen uns auf eine angenehme Zeit mit dir!", "We look forward to having you with us!")}</p>`;
   return shell(T("Vertrag unterzeichnet", "Contract signed"), inhalt);
 }
@@ -528,6 +541,24 @@ Deno.serve(async (req) => {
       } catch (_) { /* ohne Logo */ }
       const logoSrc = logoB64 ? "cid:dt-logo" : "https://mieter.dthomes.ch/dt-logo.png";
       if (logoB64) pdfAttachments.push({ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" });
+      // QR-Rechnung pro Vertrag (Betrag und Referenz dieses Mieters) statt des festen Bildes
+      let qrSrc = undefined;
+      if (contract.contract_type !== "parkplatz" && contract.contract_type !== "verlaengerung" && contract.contract_type !== "nachtrag") {
+        try {
+          const zi = zahlInfo(contract, en);
+          pdfAttachments.push({ filename: "qr-rechnung.png", content: qrB64(await qrPng(qrInhalt(zi.total || null, zi.referenz), 6)), content_type: "image/png", content_id: "dt-qr", disposition: "inline" });
+          qrSrc = "cid:dt-qr";
+        } catch (e) { console.error("QR-Rechnung fehlgeschlagen:", e?.message); }
+      }
+      // Link zum Mieterportal (nur im Willkommens-Mail nach dem Untermietvertrag, also nur fuer neue Mieter)
+      let portalLink = "";
+      if (contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
+        try {
+          let tq = supabase.from("tenants").select("portal_token, portal_gesperrt").limit(1);
+          tq = contract.tenant_id ? tq.eq("id", contract.tenant_id) : (contract.bewerber_id ? tq.eq("bewerber_id", contract.bewerber_id) : null);
+          if (tq) { const { data: tt } = await tq; if (tt && tt[0]?.portal_token && !tt[0].portal_gesperrt) portalLink = `https://mieter.dthomes.ch/p/${tt[0].portal_token}`; }
+        } catch (_) { /* ohne Portal-Link */ }
+      }
       try {
         const mailResp = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -543,7 +574,7 @@ Deno.serve(async (req) => {
               : contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag"
               ? (en ? "Your extension is confirmed" : "Deine Verl\u00e4ngerung ist best\u00e4tigt")
               : (en ? "Welcome to D&T Homes: contract signed" : "Willkommen bei D&T Homes: Vertrag unterzeichnet"),
-            html: confirmationEmailToTenant(contract, downloadLinks, sprache, logoSrc),
+            html: confirmationEmailToTenant(contract, downloadLinks, sprache, logoSrc, qrSrc, portalLink),
             attachments: pdfAttachments,
           }),
         });
