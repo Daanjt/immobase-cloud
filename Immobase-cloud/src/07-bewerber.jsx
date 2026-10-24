@@ -952,7 +952,20 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     } else {
       zutKautionMonate = 3; zutKautionAufschlag = 0;
     }
-    const zutKautionBetrag = (Number(room?.miete||0) + 25) * zutKautionMonate;
+    // Massgebend ist der unterschriebene Vertrag: Miete, Strom und Kaution von dort uebernehmen
+    let vtg = null;
+    try {
+      const {data:vc}=await supabase.from("contracts").select("vertrag:contract_data->vertrag, signed_at").eq("bewerber_id",b.id).eq("contract_type","untermietvertrag_und_anfangsmietzins").in("status",["mieter_signiert","signiert"]).order("signed_at",{ascending:false}).limit(1);
+      vtg = (vc && vc[0] && vc[0].vertrag) || null;
+    } catch(e) {}
+    const _zahl = (x) => (x == null || x === "" || isNaN(+x)) ? null : +x;
+    if (vtg && _zahl(vtg.kautionMonate) != null) zutKautionMonate = _zahl(vtg.kautionMonate);
+    if (vtg && _zahl(vtg.aufschlag) != null) zutKautionAufschlag = _zahl(vtg.aufschlag);
+    const zutMiete = _zahl(vtg && vtg.bruttomiete) ?? _zahl(room && room.miete);
+    const zutApt = room ? apts.find(a => a.id === room.aptId) : null;
+    const zutStrom = _zahl(vtg && vtg.strom) ?? (zutApt && zutApt.vermietungsart === "wohnung" ? 25 * (Math.max(1, +b.personen || 1)) : 25);
+    // Kaution = (Bruttomiete + Strom) x Monate
+    const zutKautionBetrag = _zahl(vtg && vtg.kautionBetrag) ?? ((zutMiete || 0) + zutStrom) * zutKautionMonate;
     // Sequenzielle ID: T01, T02, ... (nicht random!)
     // Finde höchste existierende T-Nummer und nehme +1 (auch wenn alte IDs gelöscht wurden)
     let n = 1;
@@ -977,6 +990,8 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       kautionMonate:zutKautionMonate,
       kautionAufschlag:zutKautionAufschlag,
       kautionBetrag:zutKautionBetrag,
+      mietzins: zutMiete,
+      strom: zutStrom,
       moeblierungPauschale:(b.moeblierungPauschale===""||b.moeblierungPauschale==null)?null:b.moeblierungPauschale,
       deposit:false,
       schluessel:false,furnished:b.moebliert==="ja",moebliert:b.moebliert==="ja",betreibung:false,
