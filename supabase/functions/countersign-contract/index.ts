@@ -134,7 +134,8 @@ function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logo
   const zimmerNr = istWohnung ? "" : ((room.id || vertrag.zimmerId || "").split("-")[1] || "");
   const wohnungParts = [];
   if (apt.adresse) wohnungParts.push(apt.adresse);
-  if (zimmerNr) wohnungParts.push(T(`Zimmer ${zimmerNr}`, `Room ${zimmerNr}`));
+  // Interne Zimmernummer nicht an Mieter geben
+  if (zimmerNr) wohnungParts.push(T("WG-Zimmer", "Room in a shared flat"));
   if (apt.plz || apt.ort) wohnungParts.push(`${apt.plz || ""} ${apt.ort || ""}`.trim());
   const wohnung = wohnungParts.join(", ");
   const MDE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
