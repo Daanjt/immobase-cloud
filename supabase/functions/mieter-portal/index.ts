@@ -102,10 +102,22 @@ function zugangOk(t: any) {
   if (bis && Date.now() >= bis.getTime() + TAG) return false;   // letzter Tag gilt noch
   return true;
 }
+// Viele Zimmermieter sind nur über rooms.tenant_id mit ihrem Zimmer verknüpft (tenants.room_id leer):
+// dann Zimmer und Wohnung von dort übernehmen, damit Portal und Nachmieter-Link das richtige Objekt zeigen.
+async function mitRaum(t: any) {
+  if (!t || t.room_id) return t;
+  const { data } = await sb.from("rooms").select("id, apt_id").eq("tenant_id", t.id).order("id").limit(1);
+  if (data && data[0]) { t.room_id = data[0].id; if (!t.apt_id) t.apt_id = data[0].apt_id; return t; }
+  // Nach dem Auszug ist das Zimmer schon weitergegeben: dann gilt das Zimmer aus dem unterschriebenen Vertrag
+  const { haupt } = await vertragVon(t);
+  const z = haupt?.zimmerId || haupt?.room?.id;
+  if (z) { t.room_id = String(z); if (!t.apt_id) t.apt_id = haupt?.apt?.id || haupt?.room?.apt_id || null; }
+  return t;
+}
 async function mieterPerToken(token: string) {
   if (!/^[a-f0-9]{32}$/.test(token || "")) return null;
   const { data } = await sb.from("tenants").select(MIETER_FELDER).eq("portal_token", token).maybeSingle();
-  return zugangOk(data) ? data : null;
+  return zugangOk(data) ? await mitRaum(data) : null;
 }
 async function mieterPerSitzung(req: Request) {
   const s = req.headers.get("x-portal-sitzung") || "";
@@ -114,6 +126,7 @@ async function mieterPerSitzung(req: Request) {
   if (!z || z.widerrufen || new Date(z.ablauf).getTime() < Date.now()) return null;
   const { data: t } = await sb.from("tenants").select(MIETER_FELDER).eq("id", z.tenant_id).maybeSingle();
   if (!zugangOk(t)) return null;
+  await mitRaum(t);
   if (Date.now() - new Date(z.zuletzt).getTime() > 5 * 60000) await sb.from("portal_sitzungen").update({ zuletzt: new Date().toISOString() }).eq("id", z.id);
   return { t, sitzungId: z.id as string };
 }
@@ -365,6 +378,7 @@ async function nachfolgeInfo(b: any) {
   if (!/^[a-f0-9]{24}$/.test(tok)) return fehler("Link ungültig.", 404);
   const { data: t } = await sb.from("tenants").select(MIETER_FELDER).eq("nachfolge_token", tok).maybeSingle();
   if (!zugangOk(t)) return fehler("Link ungültig.", 404);
+  await mitRaum(t);
   const apt = await ladeApt(t);
   const room = await nachfolgeRaum(t, apt);
   if (!apt || !room) return fehler("Link ungültig.", 404);
