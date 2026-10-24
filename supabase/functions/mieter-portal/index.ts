@@ -396,7 +396,11 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     schaeden: (sch || []).map((s: any) => ({ ...s, fotos: (s.fotos || []).length })),
     sitzungen: (sitz || []).map((s: any) => ({ ...s, aktuell: s.id === sitzungId })),
     passkey: (pk || 0) > 0,
+    // WLAN in allen WG-Zimmern gleich (wie in der Uebernahme-Mail); ganze Wohnungen haben eigenes Internet
+    wlan: wohnung ? null : { name: "D&T Homes", passwort: "Welcome!" },
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
+    hausinfos_de: lg?.hausinfos || lg?.hausinfos_en || "",
+    hausinfos_en: lg?.hausinfos_en || lg?.hausinfos || "",
     kuendigung: { ...(await kuendigungsInfo(t, apt)), eintraege: kd || [] },
     uebergabe: (ho || []).map((h: any) => ({
       typ: h.type || "einzug", status: h.status, frist: h.deadline,
