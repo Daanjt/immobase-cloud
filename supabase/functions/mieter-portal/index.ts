@@ -410,7 +410,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
 }
 
 
-// Mietkosten aus dem unterschriebenen Vertrag (Fallback: Werte beim Mieter) und Zahlungsangaben mit neutralem QR (nur Konto, wie im Vertrag)
+// Mietkosten aus dem unterschriebenen Vertrag (Fallback: Werte beim Mieter) und Zahlungsangaben mit QR-Rechnung pro Mieter (ohne Betrag: neutral)
 async function kostenUndZahlung(t: any, apt: any, room: any) {
   const { haupt: v } = await vertragVon(t);
   const zahl = (x: unknown) => (x == null || x === "" || isNaN(+x!)) ? null : +x!;
@@ -424,7 +424,7 @@ async function kostenUndZahlung(t: any, apt: any, room: any) {
   const name = `${t.vorname || ""} ${t.nachname || ""}`.trim();
   const referenz = `Miete ${apt?.adresse || ""} & ${name}`.replace(/\s+/g, " ").trim();
   let qr: string | null = null;
-  try { qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(null, ""), 6)); } catch (e) { console.error("qr", e); }
+  try { qr = "data:image/png;base64," + b64Png(await qrPng(total > 0 ? qrInhalt(total, referenz) : qrInhalt(null, ""), 6)); } catch (e) { console.error("qr", e); }
   const km = v?.kautionMonate == null ? (t.kaution_monate == null ? null : +t.kaution_monate) : +v.kautionMonate;
   return {
     kosten: { netto, nebenkosten: nk, brutto, strom, service, total, personen: wohnung ? Math.max(1, +(v?.personen || t.personen) || 1) : null },
