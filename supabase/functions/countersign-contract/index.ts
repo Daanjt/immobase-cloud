@@ -557,7 +557,7 @@ Deno.serve(async (req) => {
       }
       // Link zum Mieterportal (nur im Willkommens-Mail nach dem Untermietvertrag, also nur fuer neue Mieter)
       let portalLink = "";
-      if (contract.contract_type === "untermietvertrag_und_anfangsmietzins" && Deno.env.get("PORTAL_AKTIV") === "1") {
+      if (contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
         try {
           let tq = supabase.from("tenants").select("portal_token, portal_gesperrt").limit(1);
           tq = contract.tenant_id ? tq.eq("id", contract.tenant_id) : (contract.bewerber_id ? tq.eq("bewerber_id", contract.bewerber_id) : null);
