@@ -85,7 +85,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean) {
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, extra_schluessel, archived_at";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, extra_schluessel, archived_at";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 // Zugang bleibt bis 3 Monate nach dem Auszug (bzw. nach der Archivierung, falls kein Auszug eingetragen ist)
@@ -473,7 +473,8 @@ async function kostenUndZahlung(t: any, apt: any, room: any) {
   const zahl = (x: unknown) => (x == null || x === "" || isNaN(+x!)) ? null : +x!;
   const wohnung = apt?.vermietungsart === "wohnung";
   let netto = zahl(v?.nettomiete), nk = zahl(v?.nebenkosten), brutto = zahl(v?.bruttomiete), strom = zahl(v?.strom);
-  const service = zahl(v?.aufschlag) || 0;
+  // Servicegebuehr (Kautionsreduktion): aus dem Vertrag, sonst wie in ImmoBase beim Mieter hinterlegt
+  const service = (v ? zahl(v.aufschlag) : zahl(t.kaution_aufschlag)) || 0;
   if (brutto == null) brutto = zahl(t.mietzins) ?? zahl(room?.miete);
   if (brutto != null && netto == null && nk != null) netto = brutto - nk;
   if (strom == null) strom = zahl(t.strom) ?? (wohnung ? Math.max(1, +t.personen || 1) * 25 : 25);
