@@ -26,7 +26,31 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
     return aus;
   }
   function startNew(){ setF({typ:"Eigentümer",kontakte:[]}); setPersonen([]); setEditing({}); }
-  function startEdit(p){ setF({...p}); setPersonen(personenVon(p).map(x=>({...x}))); setEditing(p); }
+  function startEdit(p){ setF({...p}); setPersonen([]); setEditing(p); setPersonOffen(null); }
+  // Einzelne Person direkt in der Detailansicht ansehen und bearbeiten
+  const [personOffen, setPersonOffen] = useState(null);   // Index in personenVon(...) oder "neu"
+  const [pf, setPf] = useState(null);                      // Formularwerte, null = Ansicht
+  async function personSpeichern(partner){
+    const x = pf || {};
+    const row={ name:String(x.name||"").trim()||null, rolle:String(x.rolle||"").trim()||null, email:String(x.email||"").trim().toLowerCase()||null, phone:String(x.phone||"").trim()||null, updated_at:new Date().toISOString() };
+    if(!row.name && !row.email){ alert("Bitte Name oder E-Mail angeben."); return; }
+    setBusy(true);
+    try{
+      let id = x.id || null;
+      if(!id && row.email){ const {data:da}=await supabase.from("kontakte").select("id").ilike("email",row.email).limit(1); if(da&&da.length) id=da[0].id; }
+      const {error} = id ? await supabase.from("kontakte").update({...row, organisation:partner.name}).eq("id",id)
+        : await supabase.from("kontakte").insert({...row, organisation:partner.name, org_type:(partner.typ||"Eigentümer")==="Eigentümer"?"eigentuemer":"verwaltung"});
+      if(error) throw error;
+      await kontakteNeu(); await ladeLgs(); setPf(null); setPersonOffen(null); toast("Gespeichert");
+    }catch(e){ toast("Speichern fehlgeschlagen: "+(e.message||e),"error"); }
+    setBusy(false);
+  }
+  async function personLoesen(partner, k){
+    if(!k.id){ setPersonOffen(null); setPf(null); return; }
+    if(!confirm(`${k.name||k.email} von ${partner.name} lösen? Der Kontakt selbst bleibt bei den Kontakten erhalten.`)) return;
+    await supabase.from("kontakte").update({organisation:null,updated_at:new Date().toISOString()}).eq("id",k.id);
+    await kontakteNeu(); setPf(null); setPersonOffen(null);
+  }
   const addK = ()=>setPersonen(l=>[...l,{id:null,name:"",rolle:"",email:"",phone:""}]);
   const updK = (i,key,val)=>setPersonen(l=>l.map((x,j)=>j===i?{...x,[key]:val}:x));
   const rmK = (i)=>setPersonen(l=>l.map((x,j)=>j===i?{...x,_weg:true}:x).filter(x=>x.id||!x._weg));
@@ -35,13 +59,14 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
     if(!name){ alert("Name ist erforderlich."); return; }
     setBusy(true);
     try {
+      const neu = !(editing && editing.id);
       const aktiv = personen.filter(x=>!x._weg && (String(x.name||"").trim()||String(x.email||"").trim()));
-      const daten = {...f, name, kontakte: aktiv.map(x=>({name:x.name||"",funktion:x.rolle||"",email:x.email||"",telefon:x.phone||""}))};
+      const daten = neu ? {...f, name, kontakte: aktiv.map(x=>({name:x.name||"",funktion:x.rolle||"",email:x.email||"",telefon:x.phone||""}))} : {...f, name};
       const alt = editing && editing.id ? editing.name : null;
       if(editing && editing.id) await updatePartner(editing.id, daten);
       else await insertPartner(daten);
       const orgType = (f.typ||"Eigentümer")==="Eigentümer" ? "eigentuemer" : "verwaltung";
-      for(const x of personen){
+      for(const x of (neu ? personen : [])){
         const row={ name:String(x.name||"").trim()||null, rolle:String(x.rolle||"").trim()||null, email:String(x.email||"").trim().toLowerCase()||null, phone:String(x.phone||"").trim()||null, updated_at:new Date().toISOString() };
         if(x._weg){ if(x.id) await supabase.from("kontakte").update({organisation:null,updated_at:row.updated_at}).eq("id",x.id); continue; }
         if(!row.name && !row.email) continue;
@@ -117,7 +142,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
             <div className="fg"><label className="fl">PLZ</label><input className="fi" value={f.plz||""} onChange={F("plz")}/></div>
             <div className="fg" style={{flex:2}}><label className="fl">Ort</label><input className="fi" value={f.ort||""} onChange={F("ort")}/></div>
           </div>
-          <div style={{marginTop:6,marginBottom:6}}>
+          {!editing.id && <div style={{marginTop:6,marginBottom:6}}>
             <label className="fl">Personen</label>
             <div style={{display:"grid",gap:8}}>
             {personen.map((k,i)=>k._weg?null:(
@@ -131,8 +156,8 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
             ))}
             </div>
             <button className="btn btn-g btn-sm" onClick={addK} style={{marginTop:4}}>＋ Person</button>
-            <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Die Personen werden auch bei den Kontakten gespeichert. Entfernen löst sie nur von diesem Partner, der Kontakt bleibt erhalten.</div>
-          </div>
+            <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Die Personen werden auch bei den Kontakten gespeichert. Später bearbeitest du sie einzeln in der Ansicht des Partners.</div>
+          </div>}
           <div className="frow">
             <div className="fg" style={{flex:1}}><label className="fl">Notizen</label><textarea className="fi" rows={2} value={f.notizen||""} onChange={F("notizen")}/></div>
           </div>
@@ -166,7 +191,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
             <div style={{display:"grid",gap:2}}>
               {items.length===0 && <div style={{fontSize:12.5,color:"var(--muted-light)",padding:"10px 2px"}}>Noch keine erfasst</div>}
               {items.map(p=>(
-                <button key={p.id} onClick={()=>setSelected(p.id)} className={`pcard${selected===p.id?" sel":""}`}>
+                <button key={p.id} onClick={()=>{setSelected(p.id);setPersonOffen(null);setPf(null);}} className={`pcard${selected===p.id?" sel":""}`}>
                   <Av name={p.name} size={34}/>
                   <div style={{minWidth:0,flex:1}}>
                     <div style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
@@ -203,18 +228,41 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
               <div className="psec">Adresse</div>
               <div style={{fontSize:13.5,color:"var(--text)",lineHeight:1.55}}>{addrOf(selPartner)||<span style={{color:"var(--muted-light)"}}>keine Adresse hinterlegt</span>}</div>
 
-              <div className="psec" style={{marginTop:22}}>Personen · {personenVon(selPartner).length}</div>
-              {personenVon(selPartner).length>0
-                ? <div style={{display:"grid",gap:12}}>{personenVon(selPartner).map((k,i)=>{ const zust=lgVonPerson(k.id); return (
-                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                      <Av name={k.name||"?"} size={30}/>
-                      <div style={{minWidth:0}}>
-                        <div style={{fontSize:13,color:"var(--ink)",fontWeight:500}}>{k.name||"-"}{k.rolle&&<span style={{color:"var(--muted)",fontWeight:400}}> · {k.rolle}</span>}</div>
-                        {(k.email||k.phone)&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:1}}>{k.email&&<a href={"mailto:"+k.email} style={{color:"inherit"}}>{k.email}</a>}{k.email&&k.phone?" · ":""}{k.phone&&<a href={"tel:"+k.phone.replace(/\s/g,"")} style={{color:"inherit"}}>{k.phone}</a>}</div>}
-                        {zust.length>0&&<div style={{fontSize:11,color:"#3d4f2f",marginTop:2}}>Ansprechperson für {zust.join(", ")}</div>}
+              <div className="psec" style={{marginTop:22,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>Personen · {personenVon(selPartner).length}</span>
+                <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>{setPersonOffen("neu");setPf({id:null,name:"",rolle:"",email:"",phone:""});}}>＋ Person</button></div>
+              {(()=>{
+                const liste = personenVon(selPartner);
+                const feld = (key,ph)=><input className="fi" placeholder={ph} value={(pf&&pf[key])||""} onChange={e=>setPf(v=>({...v,[key]:e.target.value}))}/>;
+                const formP = (k)=>(<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(170px,100%),1fr))",gap:6,marginTop:8}}>
+                  {feld("name","Name")}{feld("rolle","Funktion")}{feld("email","E-Mail")}{feld("phone","Telefon")}
+                  <div style={{display:"flex",gap:6,gridColumn:"1 / -1",marginTop:2,flexWrap:"wrap"}}>
+                    <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>personSpeichern(selPartner)}>{busy?"Speichert…":"Speichern"}</button>
+                    <button className="btn btn-sm" style={{width:"auto"}} onClick={()=>{ setPf(null); if(personOffen==="neu") setPersonOffen(null); }}>Abbrechen</button>
+                    {k&&k.id&&<button className="btn btn-sm" style={{width:"auto",marginLeft:"auto",color:"#9b4a3e",borderColor:"#e0bcb0"}} onClick={()=>personLoesen(selPartner,k)}>Von {selPartner.name} lösen</button>}
+                  </div>
+                </div>);
+                return (<div style={{display:"grid",gap:8}}>
+                  {personOffen==="neu" && <div style={{border:"1px solid var(--line)",borderRadius:10,padding:"10px 12px",background:"var(--surface)"}}><div style={{fontSize:12.5,fontWeight:600}}>Neue Person</div>{formP(null)}</div>}
+                  {liste.length===0 && personOffen!=="neu" && <div style={{fontSize:12.5,color:"var(--muted-light)"}}>keine erfasst</div>}
+                  {liste.map((k,i)=>{ const zust=lgVonPerson(k.id); const offen=personOffen===i; return (
+                    <div key={(k.id||"x")+":"+i} style={{border:"1px solid "+(offen?"var(--line)":"transparent"),borderRadius:10,padding:offen?"10px 12px":"4px 2px",background:offen?"var(--surface)":"transparent"}}>
+                      <div onClick={()=>{ if(!offen){ setPersonOffen(i); setPf(null); } }} style={{display:"flex",alignItems:"flex-start",gap:10,cursor:offen?"default":"pointer"}}>
+                        <Av name={k.name||"?"} size={30}/>
+                        <div style={{minWidth:0,flex:1}}>
+                          <div style={{fontSize:13,color:"var(--ink)",fontWeight:500}}>{k.name||"-"}{k.rolle&&<span style={{color:"var(--muted)",fontWeight:400}}> · {k.rolle}</span>}</div>
+                          {(k.email||k.phone)&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:1}}>{k.email&&<a href={"mailto:"+k.email} onClick={e=>e.stopPropagation()} style={{color:"inherit"}}>{k.email}</a>}{k.email&&k.phone?" · ":""}{k.phone&&<a href={"tel:"+k.phone.replace(/\s/g,"")} onClick={e=>e.stopPropagation()} style={{color:"inherit"}}>{k.phone}</a>}</div>}
+                          {zust.length>0&&<div style={{fontSize:11,color:"#3d4f2f",marginTop:2}}>Ansprechperson für {zust.join(", ")}</div>}
+                        </div>
+                        {offen && !pf && <div style={{display:"flex",gap:6}}>
+                          <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setPf({...k})}>Bearbeiten</button>
+                          <button className="btn btn-sm" style={{width:"auto"}} onClick={()=>setPersonOffen(null)} title="Schliessen">✕</button>
+                        </div>}
+                        {!offen && <span style={{color:"var(--muted-light)",fontSize:16,lineHeight:1}}>›</span>}
                       </div>
-                    </div>); })}</div>
-                : <div style={{fontSize:12.5,color:"var(--muted-light)"}}>keine erfasst</div>}
+                      {offen && pf && formP(k)}
+                    </div>); })}
+                </div>);
+              })()}
 
               {selPartner.notizen&&<><div className="psec" style={{marginTop:22}}>Notizen</div><div style={{fontSize:13,color:"var(--text)",lineHeight:1.55}}>{selPartner.notizen}</div></>}
             </div>
