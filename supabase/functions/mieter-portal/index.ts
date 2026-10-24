@@ -86,7 +86,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean) {
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, extra_schluessel";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 function zugangOk(t: any) {
@@ -364,7 +364,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     t.room_id ? sb.from("rooms").select("id, miete").eq("id", t.room_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const { data: lg } = apt?.adresse ? await sb.from("liegenschaften").select("hausinfos, hausinfos_en").eq("adresse", apt.adresse).maybeSingle() : { data: null };
-  const { data: ho } = await sb.from("handover_protocols").select("token, type, status, started_at, deadline, submitted_at, closed_at, auto_accepted_at").eq("tenant_id", t.id).neq("status", "cancelled").order("started_at", { ascending: false }).limit(3);
+  const { data: ho } = await sb.from("handover_protocols").select("token, type, status, started_at, deadline, schluessel_data, schluessel_info, submitted_at, closed_at, auto_accepted_at").eq("tenant_id", t.id).neq("status", "cancelled").order("started_at", { ascending: false }).limit(3);
   const { data: kd } = await sb.from("kuendigungen").select("id, art, datum, status, antwort, nachmieter_name, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(10);
   const ent: [string, string][] = [["tenant", String(t.id)]];
   if (t.bewerber_id) ent.push(["applicant", String(t.bewerber_id)]);
@@ -404,6 +404,11 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     kuendigung: { ...(await kuendigungsInfo(t, apt)), eintraege: kd || [] },
     uebergabe: (ho || []).map((h: any) => ({
       typ: h.type || "einzug", status: h.status, frist: h.deadline, gestartet: h.started_at,
+      schluessel: h.schluessel_data ? {
+        anzahl: Array.isArray(h.schluessel_data.normal) ? h.schluessel_data.normal.length : 0,
+        nummern: Array.isArray(h.schluessel_data.normal) ? h.schluessel_data.normal.map((k: any) => String(k?.nr || "").trim()) : [],
+        extra: h.schluessel_data.extraText || "", wg: h.schluessel_data.wgText || "",
+      } : (h.schluessel_info ? { info: h.schluessel_info } : null),
       offen: ["sent", "in_progress"].includes(h.status),
       link: ["sent", "in_progress"].includes(h.status) && h.token ? `${portalBasis(req)}/uebernahme/${h.token}` : null,
       fertig: h.closed_at || h.auto_accepted_at || h.submitted_at || null,
@@ -573,16 +578,25 @@ function uebergabeStartInfo(t: any, ho: any[]) {
   const vorhanden = ho.some((h: any) => (h.type || "einzug") === "einzug");
   const ein = datumVon(t.einzug);
   const heute = new Date(); heute.setUTCHours(0, 0, 0, 0);
-  return { moeglich: !vorhanden && !!t.email && (!ein || ein.getTime() <= heute.getTime()), ab: !vorhanden && ein && ein.getTime() > heute.getTime() ? fmt(ein) : null, vorhanden };
+  return { moeglich: !vorhanden && !!t.email && (!ein || ein.getTime() <= heute.getTime()), ab: !vorhanden && ein && ein.getTime() > heute.getTime() ? fmt(ein) : null, vorhanden, extra_vorschlag: String(t.extra_schluessel || "") };
 }
-async function uebergabeStarten(t: any, req: Request) {
+async function uebergabeStarten(t: any, req: Request, b: any) {
   const { data: ho } = await sb.from("handover_protocols").select("type").eq("tenant_id", t.id).neq("status", "cancelled");
   const info = uebergabeStartInfo(t, ho || []);
   if (info.vorhanden) return fehler("Das Übergabeprotokoll ist bereits gestartet.");
   if (!info.moeglich) return fehler(info.ab ? `Du kannst das Protokoll ab deinem Einzug (${info.ab}) starten.` : "Das Protokoll kann gerade nicht gestartet werden. Bitte melde dich bei uns.");
   const apt = await ladeApt(t);
   const jetzt = new Date();
+  // Schlüssel wie beim Start in ImmoBase: Anzahl Wohnungs-/Zimmerschlüssel (Nummern trägt der Mieter im Protokoll ein), weitere Schlüssel, gemeinsame WG-Schlüssel
+  const k = b?.schluessel || {};
+  const anzahl = Math.max(0, Math.min(10, parseInt(String(k.anzahl ?? ""), 10) || 0));
+  const extra = String(k.extra || "").trim().slice(0, 200);
+  const wg = apt?.vermietungsart === "wohnung" ? "" : String(k.wg || "").trim().slice(0, 200);
+  const schluesselInfo = [anzahl > 0 && `${anzahl}x Wohnungsschlüssel`, extra && `Extra: ${extra}`, wg && `Gemeinsam (WG): ${wg}`].filter(Boolean).join("\n");
   const { data, error } = await sb.from("handover_protocols").insert({
+    schluessel_info: schluesselInfo || null,
+    schluessel_data: { normal: Array.from({ length: anzahl }, () => ({ nr: "" })), extraText: extra, wgText: wg },
+    schluessel_uebergeben_am: anzahl || extra || wg ? jetzt.toISOString() : null,
     tenant_id: t.id, bewerber_id: t.bewerber_id || null, apt_id: apt?.id || null, room_id: t.room_id || null,
     mieter_email: t.email, mieter_vorname: t.vorname || null, mieter_nachname: t.nachname || null, mieter_telefon: t.phone || null,
     apt_adresse: apt?.adresse || null, apt_plz: apt?.plz || null, apt_ort: apt?.ort || null, room_label: t.room_id || null,
@@ -632,7 +646,7 @@ Deno.serve(async (req) => {
       case "kuendigen": return await kuendigen(s.t, b);
       case "nachmieter": return await nachmieter(s.t, b);
       case "service": return await serviceAnfrage(s.t, b);
-      case "uebergabe_starten": return await uebergabeStarten(s.t, req);
+      case "uebergabe_starten": return await uebergabeStarten(s.t, req, b);
     }
     return fehler("Unbekannte Aktion.");
   } catch (e) {
