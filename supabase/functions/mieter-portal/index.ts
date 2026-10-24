@@ -31,7 +31,6 @@ const fehler = (m: string, s = 400) => json({ error: m }, s);
 
 const TAG = 86400000;
 const SITZUNG_TAGE = 90;
-const NACH_AUSZUG_TAGE = 90;
 const KAT_AUSWEIS = "Pass / Ausweis", KAT_BETR = "Betreibungsregister-Auszug";
 // Diese Dokumente darf der Mieter herunterladen
 const DOWNLOAD = ["Untermietvertrag (unterzeichnet)", "Anfangsmietzinsformular (unterzeichnet)", "Verlängerung (unterzeichnet)", "Übergabeprotokoll", "Kautionsbestätigung"];
@@ -86,13 +85,21 @@ async function mail(to: string, betreff: string, text: string, en: boolean) {
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, extra_schluessel";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, extra_schluessel, archived_at";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
+// Zugang bleibt bis 3 Monate nach dem Auszug (bzw. nach der Archivierung, falls kein Auszug eingetragen ist)
+function zugangBis(t: any): Date | null {
+  let basis = parseDatum(t?.auszug);
+  if (!basis && t?.status === "archiviert" && t?.archived_at) basis = new Date(String(t.archived_at));
+  if (!basis || isNaN(basis.getTime())) return null;
+  const d = new Date(Date.UTC(basis.getUTCFullYear(), basis.getUTCMonth() + 3, basis.getUTCDate()));
+  return d;
+}
 function zugangOk(t: any) {
   if (!t || t.deleted_at || t.portal_gesperrt) return false;
-  const aus = parseDatum(t.auszug);
-  if (aus && Date.now() > aus.getTime() + NACH_AUSZUG_TAGE * TAG) return false;
+  const bis = zugangBis(t);
+  if (bis && Date.now() >= bis.getTime() + TAG) return false;   // letzter Tag gilt noch
   return true;
 }
 async function mieterPerToken(token: string) {
@@ -119,7 +126,14 @@ async function neueSitzung(tenantId: string, geraet: string, art: string) {
 // ── Aktionen ohne Sitzung ─────────────────────────────────────────────────
 async function start(b: any, req: Request) {
   const t = await mieterPerToken(b.token);
-  if (!t) return fehler("Dieser Link ist ungültig oder nicht mehr aktiv.", 404);
+  if (!t) {
+    if (/^[a-f0-9]{32}$/.test(b.token || "")) {
+      const { data: alt } = await sb.from("tenants").select("auszug, status, archived_at, deleted_at, portal_gesperrt").eq("portal_token", b.token).maybeSingle();
+      const bis = alt && !alt.deleted_at && !alt.portal_gesperrt ? zugangBis(alt) : null;
+      if (bis) return fehler(`Dein Zugang zum Mieterportal ist am ${fmt(bis)} abgelaufen (3 Monate nach dem Auszug). Bei Fragen erreichst du uns unter info@dthomes.ch. / Your access to the tenant portal expired on ${fmt(bis)} (3 months after moving out).`, 410);
+    }
+    return fehler("Dieser Link ist ungültig oder nicht mehr aktiv.", 404);
+  }
   const { count } = await sb.from("portal_passkeys").select("id", { count: "exact", head: true }).eq("tenant_id", t.id).eq("rp_id", rp(req).rpID);
   return json({ vorname: t.vorname || "", email: maskiere(t.email), sprache: t.sprache === "en" ? "en" : "de", passkey: (count || 0) > 0, hatEmail: !!t.email });
 }
@@ -432,6 +446,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
       fertig: h.closed_at || h.auto_accepted_at || h.submitted_at || null,
     })),
     uebergabe_start: uebergabeStartInfo(t, ho || []),
+    zugang_bis: zugangBis(t) ? fmt(zugangBis(t)!) : null,
     ...(await kostenUndZahlung(t, apt, room)),
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t), stand: await nachfolgeStand(t) },
   });
