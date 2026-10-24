@@ -623,7 +623,7 @@ Deno.serve(async (req) => {
     switch (aktion) {
       case "uebersicht": return await uebersicht(s.t, s.sitzungId, req);
       case "dokument": return await dokumentUrl(s.t, b);
-      case "hochladen": return await hochladen(s.t, fd!);
+      // "hochladen" (ID/Betreibungsauszug) ist im Portal nicht mehr vorgesehen: das laden Mieter vor der Gegenzeichnung hoch
       case "schaden": return await schadenMelden(s.t, fd!);
       case "abmelden": return await geraetAbmelden(s.t, { id: s.sitzungId });
       case "geraet_abmelden": return await geraetAbmelden(s.t, b);
