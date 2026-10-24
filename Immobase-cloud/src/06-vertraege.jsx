@@ -825,7 +825,7 @@ ${W?`<p>Mit der Strompauschale ist der übliche Stromverbrauch abgegolten. Der B
 ${W?"":`<p>Kosten für die Einrichtung werden zusätzlich erhoben, sofern die Möblierungsoption gewählt wurde.</p>`}
 <p>Die Miete ist monatlich im Voraus, spätestens bis zum <strong>25. des Vormonats</strong>, fällig. Die Zahlung erfolgt gemäss QR-Rechnung per Banküberweisung auf folgendes Konto:</p>
 <div class="bank-block avoid-break">
-  <img class="qr-box" src="${DT_QR_DATA_URI}" alt="QR-Rechnung"/>
+  <img class="qr-box" src="${swissQrDataUri(+v.total || ((+v.bruttomiete || 0) + (+v.strom || 0) + (+v.aufschlag || 0)), `Miete ${refStr}`)}" alt="QR-Rechnung"/>
   <div class="bank-info">
     <strong>Graubündner Kantonalbank</strong><br>
     D&amp;T Partners GmbH<br>
