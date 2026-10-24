@@ -424,7 +424,7 @@ async function kostenUndZahlung(t: any, apt: any, room: any) {
   const name = `${t.vorname || ""} ${t.nachname || ""}`.trim();
   const referenz = `Miete ${apt?.adresse || ""} & ${name}`.replace(/\s+/g, " ").trim();
   let qr: string | null = null;
-  try { qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(total || null, referenz), 6)); } catch (e) { console.error("qr", e); }
+  try { qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(total || null, referenz, apt ? { name, adresse: apt.adresse, plz: apt.plz, ort: apt.ort } : null), 6)); } catch (e) { console.error("qr", e); }
   const km = v?.kautionMonate == null ? (t.kaution_monate == null ? null : +t.kaution_monate) : +v.kautionMonate;
   return {
     kosten: { netto, nebenkosten: nk, brutto, strom, service, total, personen: wohnung ? Math.max(1, +(v?.personen || t.personen) || 1) : null },

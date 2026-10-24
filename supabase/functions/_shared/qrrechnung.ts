@@ -10,15 +10,22 @@ export const KREDITOR = {
 
 const kurz = (s: string, n: number) => String(s || "").replace(/[\r\n]+/g, " ").trim().slice(0, n);
 
-export function qrInhalt(betrag: number | null, mitteilung: string) {
+export type Zahler = { name: string; adresse?: string; plz?: string; ort?: string; land?: string };
+// "Engimattstrasse 31" -> ["Engimattstrasse", "31"]
+function strasseNr(a: string) { const m = /^(.*?)\s+(\d+\s*[a-zA-Z]?)$/.exec(String(a || "").trim()); return m ? [m[1], m[2].replace(/\s+/g, "")] : [String(a || "").trim(), ""]; }
+
+export function qrInhalt(betrag: number | null, mitteilung: string, zahler?: Zahler | null) {
   const k = KREDITOR;
   const leer7 = ["", "", "", "", "", "", ""];
+  const z = zahler && zahler.name && zahler.plz && zahler.ort
+    ? (() => { const [str, nr] = strasseNr(zahler.adresse || ""); return ["S", kurz(zahler.name, 70), kurz(str, 70), kurz(nr, 16), kurz(zahler.plz!, 16), kurz(zahler.ort!, 35), zahler.land || "CH"]; })()
+    : leer7;
   return [
     "SPC", "0200", "1", k.iban,
     "S", k.name, k.strasse, k.nr, k.plz, k.ort, k.land,
     ...leer7,                                   // endgültiger Zahlungsempfänger (nicht verwendet)
     betrag != null && betrag > 0 ? betrag.toFixed(2) : "", "CHF",
-    ...leer7,                                   // Zahlungspflichtiger (leer, Bank füllt ein)
+    ...z,                                       // Zahlungspflichtiger (Mieter an der Mietadresse, sonst leer)
     "NON", "", kurz(mitteilung, 140), "EPD",
   ].join("\r\n");
 }
