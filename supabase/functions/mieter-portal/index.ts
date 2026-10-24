@@ -85,7 +85,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean) {
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 function zugangOk(t: any) {
@@ -267,6 +267,42 @@ async function ladeApt(t: any) {
   return data;
 }
 
+
+// ── Nachfolge-Link: der Mieter teilt ihn selbst, der Nachmieter bewirbt sich damit direkt auf dieses Objekt ──
+async function nachfolgeToken(t: any) {
+  if (t.nachfolge_token) return t.nachfolge_token as string;
+  const tok = zufallHex(12);
+  await sb.from("tenants").update({ nachfolge_token: tok }).eq("id", t.id).is("nachfolge_token", null);
+  const { data } = await sb.from("tenants").select("nachfolge_token").eq("id", t.id).maybeSingle();
+  t.nachfolge_token = data?.nachfolge_token || tok;
+  return t.nachfolge_token as string;
+}
+function nachfolgeLink(tok: string, wohnung: boolean, en: boolean) {
+  return `https://www.dthomes.ch${en ? "/en" : ""}/${wohnung ? "wohnungen" : "zimmer"}?nachfolge=${tok}`;
+}
+async function nachfolgeRaum(t: any, apt: any) {
+  if (t.room_id) return t.room_id as string;
+  if (!apt) return null;
+  const { data } = await sb.from("rooms").select("id").eq("apt_id", apt.id).order("id").limit(1);
+  return data && data[0] ? data[0].id as string : null;
+}
+async function freiAb(t: any) {
+  const { data: k } = await sb.from("kuendigungen").select("datum").eq("tenant_id", t.id).eq("art", "kuendigung").in("status", ["eingereicht", "bestaetigt"]).order("created_at", { ascending: false }).limit(1);
+  const d = parseDatum(k && k[0] ? k[0].datum : t.auszug);
+  return d ? fmt(new Date(d.getTime() + TAG)) : "";
+}
+// Oeffentlich: die Webseite fragt mit dem Token, welches Objekt gemeint ist
+async function nachfolgeInfo(b: any) {
+  const tok = String(b.token || "");
+  if (!/^[a-f0-9]{24}$/.test(tok)) return fehler("Link ungültig.", 404);
+  const { data: t } = await sb.from("tenants").select(MIETER_FELDER).eq("nachfolge_token", tok).maybeSingle();
+  if (!zugangOk(t)) return fehler("Link ungültig.", 404);
+  const apt = await ladeApt(t);
+  const room = await nachfolgeRaum(t, apt);
+  if (!apt || !room) return fehler("Link ungültig.", 404);
+  return json({ apt_id: apt.id, room_id: room, wohnung: apt.vermietungsart === "wohnung", frei_ab: await freiAb(t), vorname: t.vorname || "" });
+}
+
 // ── Aktionen mit Sitzung ──────────────────────────────────────────────────
 async function uebersicht(t: any, sitzungId: string, req: Request) {
   const [apt, { data: room }] = await Promise.all([
@@ -307,6 +343,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     passkey: (pk || 0) > 0,
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
     kuendigung: { ...kuendigungsInfo(t, apt), eintraege: kd || [] },
+    nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t) },
   });
 }
 
@@ -400,10 +437,11 @@ async function nachmieter(t: any, b: any) {
   const apt = await ladeApt(t);
   const wohnung = apt?.vermietungsart === "wohnung";
   const wer = `${t.vorname || ""} ${t.nachname || ""}`.trim();
-  const de = `https://www.dthomes.ch/${wohnung ? "wohnungen" : "zimmer"}.html`;
-  const enL = `https://www.dthomes.ch/en/${wohnung ? "wohnungen" : "zimmer"}.html`;
+  const tok = await nachfolgeToken(t);
+  const de = nachfolgeLink(tok, wohnung, false);
+  const enL = nachfolgeLink(tok, wohnung, true);
   await mail(email, "Bewerbung als Nachmieter / Apply as successor tenant",
-    `Hallo ${name},\n\n${wer} hat dich bei uns als Nachmieter${wohnung ? " für die Wohnung" : " für das Zimmer"} an der ${apt?.adresse || ""} vorgeschlagen.\n\nBitte bewirb dich direkt auf unserer Webseite und gib im Formular an, dass du Nachmieter von ${wer} bist:\n${de}\n\nWir melden uns nach Eingang deiner Bewerbung bei dir.\n\nLiebe Grüsse\nDein D&T Homes Team\n\n---\n\nHi ${name},\n\n${wer} has suggested you as the next tenant for ${wohnung ? "the apartment" : "the room"} at ${apt?.adresse || ""}.\n\nPlease apply directly on our website and mention in the form that you are taking over from ${wer}:\n${enL}\n\nWe will get back to you once we have received your application.\n\nBest regards\nYour D&T Homes Team`, false);
+    `Hallo ${name},\n\n${wer} hat dich bei uns als Nachmieter${wohnung ? " für die Wohnung" : " für das Zimmer"} an der ${apt?.adresse || ""} vorgeschlagen.\n\nÜber diesen Link kannst du dich direkt ${wohnung ? "auf die Wohnung" : "auf das Zimmer"} bewerben:\n${de}\n\nWir melden uns nach Eingang deiner Bewerbung bei dir.\n\nLiebe Grüsse\nDein D&T Homes Team\n\n---\n\nHi ${name},\n\n${wer} has suggested you as the next tenant for ${wohnung ? "the apartment" : "the room"} at ${apt?.adresse || ""}.\n\nYou can apply for ${wohnung ? "the apartment" : "the room"} directly via this link:\n${enL}\n\nWe will get back to you once we have received your application.\n\nBest regards\nYour D&T Homes Team`, false);
   return json({ ok: true });
 }
 
@@ -451,6 +489,7 @@ Deno.serve(async (req) => {
       case "link_anfordern": return await linkAnfordern(b, req);
       case "pk_login_optionen": return await pkLoginOptionen(b, req);
       case "pk_login": return await pkLogin(b, req);
+      case "nachfolge_info": return await nachfolgeInfo(b);
     }
     const s = await mieterPerSitzung(req);
     if (!s) return fehler("Bitte melde dich neu an.", 401);
