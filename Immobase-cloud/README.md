@@ -6,7 +6,9 @@ Komplette Web-App mit Supabase-Datenbank, E-Mail-Login und öffentlichem Bewerbu
 
 ## 📦 Was du in diesem Ordner findest
 
-- **`index.html`** — Die Haupt-App mit Login (für euer Team)
+- **`index.html`** — Rahmen der Haupt-App (Styles, Bibliotheken). Der App-Code steht im Platzhalter `/*@@APP_SRC@@*/`
+- **`src/*.jsx`** — Der App-Code, nach Bereichen aufgeteilt (Bewerber, Mieter, Verträge, Finanzen …). `build.cjs` setzt die Dateien alphabetisch zusammen
+- **`check.cjs`** — Code-Prüfung (ESLint), läuft vor jedem Build. Bei Fehlern bricht der Build ab und die alte Version bleibt online. Manuell: `node check.cjs`
 - **`mietbewerbung.html`** — Das öffentliche Bewerbungsformular (für Bewerber)
 - **`README.md`** — Diese Anleitung
 

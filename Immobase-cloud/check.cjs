@@ -1,4 +1,6 @@
 // Code-Pruefung vor jedem Build (laeuft automatisch in build.cjs, also auch bei Vercel).
+// Der App-Code liegt in src/*.jsx (nach Bereichen aufgeteilt). index.html enthaelt nur
+// den Platzhalter /*@@APP_SRC@@*/, den zusammensetzen() mit allen src-Dateien fuellt.
 // Findet Fehler, die sonst erst beim Klicken in der App auffallen:
 //   - doppelt deklarierte Funktionen/Variablen (no-redeclare)
 //   - Namen, die es an der Stelle gar nicht gibt (no-undef), z.B. Funktion aus anderer Komponente
@@ -18,8 +20,35 @@ const REGELN = {
 // Babel-Hilfsfunktion, kein Fehler im eigenen Code
 const IGNORIEREN = (x) => x.ruleId === "no-func-assign" && /'_extends'/.test(x.message);
 
+const PLATZHALTER = "/*@@APP_SRC@@*/";
+
+// Setzt index.html und src/*.jsx (alphabetisch) zusammen. Liefert den HTML-Text und
+// eine Funktion, die eine Zeile im Ergebnis auf "datei:zeile" zurueckfuehrt.
+function zusammensetzen(datei) {
+  const roh = fs.readFileSync(datei, "utf8");
+  const pos = roh.indexOf(PLATZHALTER + "\n");
+  if (pos < 0) return { html: roh, ort: (z) => `${path.basename(datei)}:${z}` };
+  const srcDir = path.join(path.dirname(datei), "src");
+  const teile = fs.readdirSync(srcDir).filter(n => n.endsWith(".jsx")).sort()
+    .map(n => ({ name: "src/" + n, text: fs.readFileSync(path.join(srcDir, n), "utf8") }));
+  for (const t of teile) if (!t.text.endsWith("\n")) t.text += "\n";
+  const vorher = roh.slice(0, pos), nachher = roh.slice(pos + PLATZHALTER.length + 1);
+  const html = vorher + teile.map(t => t.text).join("") + nachher;
+  const p0 = vorher.split("\n").length; // Zeile des Platzhalters (1-basiert)
+  const bereiche = []; let z = p0;
+  for (const t of teile) { const n = t.text.split("\n").length - 1; bereiche.push({ name: t.name, von: z, bis: z + n - 1 }); z += n; }
+  const gesamtSrc = z - p0;
+  const ort = (zeile) => {
+    if (zeile < p0) return `${path.basename(datei)}:${zeile}`;
+    const b = bereiche.find(b => zeile >= b.von && zeile <= b.bis);
+    if (b) return `${b.name}:${zeile - b.von + 1}`;
+    return `${path.basename(datei)}:${zeile - gesamtSrc + 1}`;
+  };
+  return { html, ort };
+}
+
 function pruefeDatei(datei) {
-  const html = fs.readFileSync(datei, "utf8");
+  const { html, ort } = zusammensetzen(datei);
   const re = /<script([^>]*)type="text\/babel"([^>]*)>([\s\S]*?)<\/script>/g;
   const linter = new Linter();
   const g = { ...globals.es2021, ...globals.browser, React: "readonly", ReactDOM: "readonly" };
@@ -37,7 +66,7 @@ function pruefeDatei(datei) {
     }
     for (const x of linter.verify(js, { parserOptions: { ecmaVersion: 2022, sourceType: "script" }, globals: g, rules: REGELN })) {
       if (x.severity < 2 || IGNORIEREN(x)) continue;
-      fehler.push(`${path.basename(datei)}:${startZeile + x.line - 1}  ${x.ruleId}  ${x.message}`);
+      fehler.push(`${ort(startZeile + x.line - 1)}  ${x.ruleId}  ${x.message}`);
     }
   }
   return { anzahl, fehler };
@@ -49,7 +78,7 @@ function pruefe(dateien) {
   return { skripte, fehler: alle };
 }
 
-module.exports = { pruefe };
+module.exports = { pruefe, zusammensetzen };
 
 if (require.main === module) {
   const dateien = process.argv.slice(2).length ? process.argv.slice(2)

@@ -14,7 +14,7 @@ const SRC = __dirname, OUT = path.join(__dirname, "dist");
   }
   console.log(`Code-Pruefung ok (${r.skripte} Skript(e))`);
 }
-const SKIP = new Set(["node_modules", "dist", "build.cjs", "check.cjs", "package.json", "package-lock.json", ".vercel", "vercel.json", "README.md"]);
+const SKIP = new Set(["node_modules", "dist", "src", "build.cjs", "check.cjs", "package.json", "package-lock.json", ".vercel", "vercel.json", "README.md"]);
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 function kopieren(von, nach) {
@@ -27,8 +27,10 @@ function kopieren(von, nach) {
 }
 kopieren(SRC, OUT);
 let total = 0;
+const { zusammensetzen } = require("./check.cjs");
 for (const f of fs.readdirSync(OUT).filter(n => n.endsWith(".html"))) {
-  let h = fs.readFileSync(path.join(OUT, f), "utf8");
+  // App-Code aus src/*.jsx einsetzen (Quelle ist SRC, nicht die Kopie in OUT)
+  let h = zusammensetzen(path.join(SRC, f)).html;
   let anzahl = 0;
   h = h.replace(/<script([^>]*)type="text\/babel"([^>]*)>([\s\S]*?)<\/script>/g, (m, a1, a2, code) => {
     anzahl++;
