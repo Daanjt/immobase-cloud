@@ -597,6 +597,15 @@ function Kontakte(){
   const [acts,setActs]=useState([]);
   const [note,setNote]=useState("");
   const [mergeT,setMergeT]=useState("");
+  // Erst ansehen, dann bearbeiten
+  const [bearb,setBearb]=useState(false);
+  const [cfEdit,setCfEdit]=useState(false);
+  const [lgs,setLgs]=useState([]);
+  const [partnerListe,setPartnerListe]=useState([]);
+  useEffect(()=>{ supabase.from("liegenschaften").select("adresse,kontakt_id").then(({data})=>setLgs(data||[])); supabase.from("partners").select("name,typ,strasse,hausnummer,plz,ort").then(({data})=>setPartnerListe(data||[])); },[]);
+  const partnerVon=(org)=>partnerListe.find(p=>gleicheFirma(p.name,org));
+  const partnerAdr=(p)=>p?[[p.strasse,p.hausnummer].filter(Boolean).join(" "),[p.plz,p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "):"";
+  const lgVon=(id)=>lgs.filter(l=>id&&l.kontakt_id===id).map(l=>l.adresse);
   const ladeK=()=>supabase.from("kontakte").select("*").order("name",{ascending:true}).then(({data})=>{setKs(data||[]);setLoading(false);}).catch(()=>{setKs([]);setLoading(false);});
   const ladeOrgs=()=>supabase.from("org_status").select("*").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[rr.organisation]=rr); setOrgs(m); });
   useEffect(()=>{ ladeK(); ladeOrgs(); const ch=supabase.channel("kontakte_page").on("postgres_changes",{event:"*",schema:"public",table:"kontakte"},ladeK).on("postgres_changes",{event:"*",schema:"public",table:"org_status"},ladeOrgs).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
@@ -608,12 +617,12 @@ function Kontakte(){
   const pass=(org,f)=>{ const t=firmType(org),st=firmStatus(org); if(f==="partner"&&st!=="partner")return false; if(f==="kein_interesse"&&st!=="kein_interesse")return false; if(f==="gespraech"&&st!=="gespraech")return false; if(f==="verwaltung"&&t!=="verwaltung")return false; if(f==="eigentuemer"&&t!=="eigentuemer")return false; return true; };
   const cntTab=(f)=>firmNames.filter(org=>pass(org,f)).length;
   const firmen=firmNames.filter(org=>{ if(!pass(org,tab))return false; if(q){ const persons=firmKontakte(org).map(k=>(k.name||"")+" "+(k.email||"")+" "+(k.rolle||"")).join(" "); const s=(org+" "+persons+" "+((orgs[org]&&orgs[org].email)||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; } return true; }).sort((a,b)=>a.localeCompare(b));
-  const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||"",website:rr.website||""}); setFirm(org); setCf(null); };
-  const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:"",website:""}); setFirm("*neu*"); setCf(null); };
-  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); }); };
+  const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||"",website:rr.website||""}); setFirm(org); setCf(null); setBearb(false); };
+  const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:"",website:""}); setFirm("*neu*"); setCf(null); setBearb(true); };
+  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); setBearb(false); toast("Gespeichert"); }); };
   const mergeFirm=(target)=>{ if(!target||target===fd.organisation)return; if(!confirm('Firma "'+fd.organisation+'" in "'+target+'" zusammenführen? Alle Kontakte werden übernommen.'))return; supabase.from("kontakte").update({organisation:target,updated_at:new Date().toISOString()}).eq("organisation",fd.organisation).then(()=>{ supabase.from("org_status").delete().eq("organisation",fd.organisation).then(()=>{ setFirm(null); setCf(null); setMergeT(""); ladeK(); ladeOrgs(); }); }); };
-  const openContact=(k)=>{ if(k){ setCf({...k}); setNote(""); if(k.id) ladeActs(k.id); else setActs([]); } else { setCf({organisation:firm,org_type:(fd&&fd.typ)||"verwaltung"}); setActs([]); setNote(""); } };
-  const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} setCf(null); ladeK(); }); };
+  const openContact=(k)=>{ if(k){ setCf({...k}); setCfEdit(false); setNote(""); if(k.id) ladeActs(k.id); else setActs([]); } else { setCf({organisation:firm,org_type:(fd&&fd.typ)||"verwaltung"}); setCfEdit(true); setActs([]); setNote(""); } };
+  const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} setCf(null); setCfEdit(false); ladeK(); try{ ladeKontakte(true); }catch(_){} toast("Gespeichert"); }); };
   const delContact=(id)=>{ if(!confirm("Kontakt löschen?"))return; supabase.from("kontakte").delete().eq("id",id).then(()=>{ setCf(null); ladeK(); }); };
   const addNote=()=>{ if(!note.trim()||!cf||!cf.id)return; supabase.from("kontakt_aktivitaet").insert({kontakt_id:cf.id,typ:"notiz",text:note.trim()}).then(({error})=>{ if(!error){ setNote(""); ladeActs(cf.id); } }); };
   const delNote=(aid)=>supabase.from("kontakt_aktivitaet").delete().eq("id",aid).then(()=>ladeActs(cf.id));
@@ -658,6 +667,23 @@ function Kontakte(){
                 : <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>{fd.organisation} {osTag(fd.status)}</div>}
               <button onClick={()=>{setFirm(null);setCf(null);}} style={{background:"none",border:"none",fontSize:20,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
             </div>
+            {!bearb ? (<div>
+              {(()=>{ const z=(l,v)=>v?<div style={{display:"flex",gap:12,padding:"7px 0",borderBottom:"1px solid #f0ebe1",fontSize:12.5}}><span style={{width:90,flexShrink:0,color:"var(--muted)"}}>{l}</span><span style={{color:"var(--ink)",minWidth:0,overflowWrap:"anywhere"}}>{v}</span></div>:null; const web=fd.website?(/^https?:/.test(fd.website)?fd.website:"https://"+fd.website):""; return (<>
+                {z("Typ",typLabel(fd.typ))}
+                {z("Status",(ST.find(x=>x[0]===fd.status)||[])[1])}
+                {z("Adresse",fd.adresse||partnerAdr(partnerVon(fd.organisation)))}
+                {partnerVon(fd.organisation)&&z("Partner",<span style={{color:"#3a5230"}}>✓ Bei uns als {partnerVon(fd.organisation).typ||"Partner"} erfasst</span>)}
+                {z("E-Mail",fd.email&&<a href={"mailto:"+fd.email} style={{color:"inherit"}}>{fd.email}</a>)}
+                {z("Telefon",fd.telefon&&<a href={"tel:"+fd.telefon.replace(/\s/g,"")} style={{color:"inherit"}}>{fd.telefon}</a>)}
+                {z("Website",web&&<a href={web} target="_blank" rel="noopener noreferrer" style={{color:"inherit"}}>{fd.website}</a>)}
+                {fd.status==="kein_interesse"&&z("Grund",fd.grund)}
+                {z("Notizen",fd.notizen&&<span style={{whiteSpace:"pre-wrap"}}>{fd.notizen}</span>)}
+                {!fd.adresse&&!partnerVon(fd.organisation)&&!fd.email&&!fd.telefon&&!fd.website&&!fd.notizen&&<div style={{fontSize:12,color:"#a0968a",padding:"6px 0"}}>Noch keine Firmenangaben erfasst.</div>}
+              </>); })()}
+              <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+                <button onClick={()=>setBearb(true)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>✏ Bearbeiten</button>
+              </div>
+            </div>) : (<>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"9px 10px"}}>
               <div><label style={LBL}>Typ</label><select value={fd.typ} onChange={e=>setFd({...fd,typ:e.target.value})} style={CI}>{TYP.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select></div>
               <div><label style={LBL}>Status</label><select value={fd.status} onChange={e=>setFd({...fd,status:e.target.value})} style={CI}>{ST.map(([v,l])=>(<option key={v} value={v}>{l}</option>))}</select></div>
@@ -669,9 +695,11 @@ function Kontakte(){
               <div style={{gridColumn:"1 / -1"}}><label style={LBL}>Notizen</label><textarea value={fd.notizen||""} onChange={e=>setFd({...fd,notizen:e.target.value})} placeholder="Notizen zur Firma ..." style={{...CI,minHeight:44,resize:"vertical"}} /></div>
             </div>
             <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
+              {!fd.isNew&&<button onClick={()=>{openFirm(fd.organisation);}} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif",marginRight:8}}>Abbrechen</button>}
               <button onClick={saveFirm} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 16px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Firma speichern</button>
             </div>
-            {!fd.isNew&&firmen.length>1&&(
+            </>)}
+            {bearb&&!fd.isNew&&firmen.length>1&&(
               <div style={{marginTop:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",borderTop:"1px solid var(--line)",paddingTop:10}}>
                 <span style={{fontSize:11,color:"var(--muted)"}}>Zusammenführen mit:</span>
                 <select value={mergeT} onChange={e=>setMergeT(e.target.value)} style={{...inp,width:"auto",flex:"1 1 160px"}}><option value="">Firma wählen ...</option>{firmen.filter(o=>o!==fd.organisation).map(o=>(<option key={o} value={o}>{o}</option>))}</select>
@@ -690,20 +718,32 @@ function Kontakte(){
                     <div key={k.id} onClick={()=>openContact(k)} style={{border:"1px solid var(--line)",borderRadius:10,padding:"9px 11px",background:cf&&cf.id===k.id?"#f3efe6":"var(--surface)",cursor:"pointer"}}>
                       <div style={{fontSize:13.5,color:"var(--ink)",fontWeight:600}}>{k.name||"(ohne Name)"}{k.is_partner&&<span style={{marginLeft:8,background:"#e8efde",color:"#3a5230",fontSize:9.5,padding:"1px 7px",borderRadius:8}}>Partner</span>}</div>
                       <div style={{fontSize:11.5,color:"#a0968a",marginTop:2}}>{k.rolle?k.rolle+" · ":""}{k.email||""}{k.phone?" · "+k.phone:""}</div>
+                      {lgVon(k.id).length>0&&<div style={{fontSize:11,color:"#3d4f2f",marginTop:2}}>Ansprechperson für {lgVon(k.id).join(", ")}</div>}
                     </div>
                   ))}
                 </div>
                 {cf&&(
                   <div style={{border:"1px solid var(--line)",borderRadius:10,padding:12,marginTop:10,background:"#faf8f3"}}>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:8}}>{cf.id?"Person bearbeiten":"Neue Person"}</div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{!cf.id?"Neue Person":cfEdit?"Person bearbeiten":(cf.name||"Person")}</div>
+                      {cf.id&&!cfEdit&&<button onClick={()=>setCfEdit(true)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 12px",fontSize:11.5,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>✏ Bearbeiten</button>}
+                    </div>
+                    {cf.id&&!cfEdit&&<div style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.7}}>
+                      {cf.rolle&&<div style={{color:"var(--muted)"}}>{cf.rolle}</div>}
+                      {cf.email&&<div><a href={"mailto:"+cf.email} style={{color:"inherit"}}>{cf.email}</a></div>}
+                      {cf.phone&&<div><a href={"tel:"+cf.phone.replace(/\s/g,"")} style={{color:"inherit"}}>{cf.phone}</a></div>}
+                      {cf.verwaltung&&<div style={{color:"var(--muted)"}}>Zuständige Verwaltung: {cf.verwaltung}</div>}
+                      {lgVon(cf.id).length>0&&<div style={{color:"#3d4f2f"}}>Ansprechperson für {lgVon(cf.id).join(", ")}</div>}
+                      {cf.is_partner&&<div style={{color:"#3a5230"}}>Partner</div>}
+                    </div>}
+                    {(cfEdit||!cf.id)&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                       <input value={cf.name||""} onChange={e=>setCf({...cf,name:e.target.value})} placeholder="Name" style={inp} />
                       <input value={cf.rolle||""} onChange={e=>setCf({...cf,rolle:e.target.value})} placeholder="Rolle" style={inp} />
                       <input value={cf.email||""} onChange={e=>setCf({...cf,email:e.target.value})} placeholder="E-Mail" style={inp} />
                       <input value={cf.phone||""} onChange={e=>setCf({...cf,phone:e.target.value})} placeholder="Telefon" style={inp} />
                       {(fd.typ==="eigentuemer")&&<input value={cf.verwaltung||""} onChange={e=>setCf({...cf,verwaltung:e.target.value})} placeholder="Zuständige Verwaltung" style={{...inp,gridColumn:"1 / -1"}} />}
                       <label style={{fontSize:11.5,color:"var(--muted)",display:"flex",alignItems:"center",gap:6,cursor:"pointer",gridColumn:"1 / -1"}}><input type="checkbox" checked={!!cf.is_partner} onChange={e=>setCf({...cf,is_partner:e.target.checked})} /> Partner</label>
-                    </div>
+                    </div>}
                     {cf.id&&(
                       <div style={{marginTop:10,borderTop:"1px solid var(--line)",paddingTop:8}}>
                         <div style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",marginBottom:6}}>Verlauf</div>
@@ -720,11 +760,11 @@ function Kontakte(){
                         ))}
                       </div>
                     )}
-                    <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+                    {(cfEdit||!cf.id) ? <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
                       {cf.id&&<button onClick={()=>delContact(cf.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11.5,cursor:"pointer",marginRight:"auto"}}>löschen</button>}
-                      <button onClick={()=>setCf(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
+                      <button onClick={()=>{ if(cf.id){ const o=ks.find(x=>x.id===cf.id); setCf(o?{...o}:null); setCfEdit(false); } else setCf(null); }} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
                       <button onClick={saveContact} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Speichern</button>
-                    </div>
+                    </div> : <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}><button onClick={()=>setCf(null)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Schliessen</button></div>}
                   </div>
                 )}
               </div>
