@@ -364,7 +364,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     t.room_id ? sb.from("rooms").select("id, miete").eq("id", t.room_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const { data: lg } = apt?.adresse ? await sb.from("liegenschaften").select("hausinfos, hausinfos_en").eq("adresse", apt.adresse).maybeSingle() : { data: null };
-  const { data: ho } = await sb.from("handover_protocols").select("token, type, status, deadline, submitted_at, closed_at, auto_accepted_at").eq("tenant_id", t.id).neq("status", "cancelled").order("started_at", { ascending: false }).limit(3);
+  const { data: ho } = await sb.from("handover_protocols").select("token, type, status, started_at, deadline, submitted_at, closed_at, auto_accepted_at").eq("tenant_id", t.id).neq("status", "cancelled").order("started_at", { ascending: false }).limit(3);
   const { data: kd } = await sb.from("kuendigungen").select("id, art, datum, status, antwort, nachmieter_name, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(10);
   const ent: [string, string][] = [["tenant", String(t.id)]];
   if (t.bewerber_id) ent.push(["applicant", String(t.bewerber_id)]);
@@ -403,11 +403,12 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     hausinfos_en: lg?.hausinfos_en || lg?.hausinfos || "",
     kuendigung: { ...(await kuendigungsInfo(t, apt)), eintraege: kd || [] },
     uebergabe: (ho || []).map((h: any) => ({
-      typ: h.type || "einzug", status: h.status, frist: h.deadline,
+      typ: h.type || "einzug", status: h.status, frist: h.deadline, gestartet: h.started_at,
       offen: ["sent", "in_progress"].includes(h.status),
       link: ["sent", "in_progress"].includes(h.status) && h.token ? `${portalBasis(req)}/uebernahme/${h.token}` : null,
       fertig: h.closed_at || h.auto_accepted_at || h.submitted_at || null,
     })),
+    uebergabe_start: uebergabeStartInfo(t, ho || []),
     ...(await kostenUndZahlung(t, apt, room)),
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t) },
   });
@@ -559,6 +560,40 @@ async function serviceAnfrage(t: any, b: any) {
   return json({ ok: true });
 }
 
+// Übergabeprotokoll (Einzug): normalerweise starten wir es, der Mieter darf es ab dem Einzugstag aber auch selbst starten
+function datumVon(x: string): Date | null {
+  const s = String(x || "").trim();
+  let m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s);
+  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return null;
+}
+function uebergabeStartInfo(t: any, ho: any[]) {
+  const vorhanden = ho.some((h: any) => (h.type || "einzug") === "einzug");
+  const ein = datumVon(t.einzug);
+  const heute = new Date(); heute.setUTCHours(0, 0, 0, 0);
+  return { moeglich: !vorhanden && !!t.email && (!ein || ein.getTime() <= heute.getTime()), ab: !vorhanden && ein && ein.getTime() > heute.getTime() ? fmt(ein) : null, vorhanden };
+}
+async function uebergabeStarten(t: any, req: Request) {
+  const { data: ho } = await sb.from("handover_protocols").select("type").eq("tenant_id", t.id).neq("status", "cancelled");
+  const info = uebergabeStartInfo(t, ho || []);
+  if (info.vorhanden) return fehler("Das Übergabeprotokoll ist bereits gestartet.");
+  if (!info.moeglich) return fehler(info.ab ? `Du kannst das Protokoll ab deinem Einzug (${info.ab}) starten.` : "Das Protokoll kann gerade nicht gestartet werden. Bitte melde dich bei uns.");
+  const apt = await ladeApt(t);
+  const jetzt = new Date();
+  const { data, error } = await sb.from("handover_protocols").insert({
+    tenant_id: t.id, bewerber_id: t.bewerber_id || null, apt_id: apt?.id || null, room_id: t.room_id || null,
+    mieter_email: t.email, mieter_vorname: t.vorname || null, mieter_nachname: t.nachname || null, mieter_telefon: t.phone || null,
+    apt_adresse: apt?.adresse || null, apt_plz: apt?.plz || null, apt_ort: apt?.ort || null, room_label: t.room_id || null,
+    objekt_typ: apt?.vermietungsart === "wohnung" ? "wohnung" : "wg", einzug_datum: t.einzug || null,
+    type: "einzug", status: "sent", started_at: jetzt.toISOString(), deadline: new Date(jetzt.getTime() + 14 * TAG).toISOString(),
+    bemerkung: "Vom Mieter im Mieterportal gestartet",
+  }).select("token").single();
+  if (error || !data) return fehler("Das Protokoll konnte nicht gestartet werden.", 500);
+  return json({ ok: true, link: `${portalBasis(req)}/uebernahme/${data.token}` });
+}
+
 async function geraetAbmelden(t: any, b: any) {
   await sb.from("portal_sitzungen").update({ widerrufen: true }).eq("tenant_id", t.id).eq("id", b.id);
   return json({ ok: true });
@@ -597,6 +632,7 @@ Deno.serve(async (req) => {
       case "kuendigen": return await kuendigen(s.t, b);
       case "nachmieter": return await nachmieter(s.t, b);
       case "service": return await serviceAnfrage(s.t, b);
+      case "uebergabe_starten": return await uebergabeStarten(s.t, req);
     }
     return fehler("Unbekannte Aktion.");
   } catch (e) {
