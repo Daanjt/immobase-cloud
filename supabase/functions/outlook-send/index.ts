@@ -1,6 +1,7 @@
 // Sendet eine E-Mail aus dem Outlook-Postfach via Microsoft Graph (App-only).
 // Benoetigt in der Entra-App zusaetzlich die Berechtigung Mail.Send.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -10,6 +11,7 @@ const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (!(await istAdminOderServer(req))) return verweigert(cors);
   try {
     const { to, subject, body, cc, attachments, html } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "empfaenger fehlt" }, 400);

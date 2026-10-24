@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istTeamOderServer, verweigert } from "../_shared/auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,7 @@ function j(body: unknown, status = 200) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (!(await istTeamOderServer(req))) return verweigert(cors);
   try {
     const p = await req.json();
     const text = (p.text || "").toString().trim();

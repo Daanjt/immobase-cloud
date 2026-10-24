@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,7 @@ function round2(n: number) { return Math.round(n * 100) / 100; }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (!(await istAdminOderServer(req))) return verweigert(cors);
   try {
     const p = await req.json();
 

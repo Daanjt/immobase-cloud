@@ -2,6 +2,7 @@
 // Outlook-Postfach via Microsoft Graph (App-only, client_credentials).
 // Zugangsdaten liegen in public.app_config (nur per Service-Role lesbar).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +14,7 @@ const json = (o: unknown, s = 200) =>
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (!(await istAdminOderServer(req))) return verweigert(cors);
   try {
     const { email } = await req.json().catch(() => ({}));
     if (!email) return json({ error: "email fehlt" }, 400);
