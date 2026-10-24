@@ -9,7 +9,6 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
-import { qrInhalt, qrPng, b64 as qrB64 } from "../_shared/qrrechnung.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
@@ -543,17 +542,8 @@ Deno.serve(async (req) => {
       } catch (_) { /* ohne Logo */ }
       const logoSrc = logoB64 ? "cid:dt-logo" : "https://mieter.dthomes.ch/dt-logo.png";
       if (logoB64) pdfAttachments.push({ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" });
-      // QR-Rechnung pro Vertrag (Betrag und Referenz dieses Mieters) statt des festen Bildes
-      let qrSrc = undefined;
-      if (contract.contract_type !== "parkplatz" && contract.contract_type !== "verlaengerung" && contract.contract_type !== "nachtrag") {
-        try {
-          const zi = zahlInfo(contract, en);
-          const va = (contract.contract_data?.vertrag || {}).apt || {};
-          const zahler = { name: `${contract.mieter_vorname || ""} ${contract.mieter_nachname || ""}`.trim(), adresse: va.adresse, plz: va.plz, ort: va.ort };
-          pdfAttachments.push({ filename: "qr-rechnung.png", content: qrB64(await qrPng(qrInhalt(zi.total || null, zi.referenz, zahler), 6)), content_type: "image/png", content_id: "dt-qr", disposition: "inline" });
-          qrSrc = "cid:dt-qr";
-        } catch (e) { console.error("QR-Rechnung fehlgeschlagen:", e?.message); }
-      }
+      // Neutraler QR (nur Konto) wie im Vertrag: das oeffentliche Bild email-assets/dt-qr.png
+      const qrSrc = undefined;
       // Link zum Mieterportal (nur im Willkommens-Mail nach dem Untermietvertrag, also nur fuer neue Mieter)
       let portalLink = "";
       if (contract.contract_type === "untermietvertrag_und_anfangsmietzins" && Deno.env.get("PORTAL_AKTIV") === "1") {
