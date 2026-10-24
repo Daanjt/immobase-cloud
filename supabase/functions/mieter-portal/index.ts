@@ -363,6 +363,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     t.room_id ? sb.from("rooms").select("id, miete").eq("id", t.room_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const { data: lg } = apt?.adresse ? await sb.from("liegenschaften").select("hausinfos, hausinfos_en").eq("adresse", apt.adresse).maybeSingle() : { data: null };
+  const { data: ho } = await sb.from("handover_protocols").select("token, type, status, deadline, submitted_at, closed_at, auto_accepted_at").eq("tenant_id", t.id).neq("status", "cancelled").order("started_at", { ascending: false }).limit(3);
   const { data: kd } = await sb.from("kuendigungen").select("id, art, datum, status, antwort, nachmieter_name, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(10);
   const ent: [string, string][] = [["tenant", String(t.id)]];
   if (t.bewerber_id) ent.push(["applicant", String(t.bewerber_id)]);
@@ -396,6 +397,12 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     passkey: (pk || 0) > 0,
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
     kuendigung: { ...(await kuendigungsInfo(t, apt)), eintraege: kd || [] },
+    uebergabe: (ho || []).map((h: any) => ({
+      typ: h.type || "einzug", status: h.status, frist: h.deadline,
+      offen: ["sent", "in_progress"].includes(h.status),
+      link: ["sent", "in_progress"].includes(h.status) && h.token ? `${portalBasis(req)}/uebernahme/${h.token}` : null,
+      fertig: h.closed_at || h.auto_accepted_at || h.submitted_at || null,
+    })),
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t) },
   });
 }
