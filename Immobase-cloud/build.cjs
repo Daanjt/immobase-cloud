@@ -4,7 +4,17 @@
 const fs = require("fs"), path = require("path");
 const B = require("@babel/standalone");
 const SRC = __dirname, OUT = path.join(__dirname, "dist");
-const SKIP = new Set(["node_modules", "dist", "build.cjs", "package.json", "package-lock.json", ".vercel", "vercel.json", "README.md"]);
+// Zuerst den Code pruefen. Bei Fehlern bricht der Build ab, die letzte Version bleibt online.
+{
+  const { pruefe } = require("./check.cjs");
+  const r = pruefe(fs.readdirSync(SRC).filter(n => n.endsWith(".html")).map(n => path.join(SRC, n)));
+  if (r.fehler.length) {
+    r.fehler.forEach(f => console.error("  " + f));
+    throw new Error(`Code-Pruefung: ${r.fehler.length} Fehler gefunden, Build abgebrochen`);
+  }
+  console.log(`Code-Pruefung ok (${r.skripte} Skript(e))`);
+}
+const SKIP = new Set(["node_modules", "dist", "build.cjs", "check.cjs", "package.json", "package-lock.json", ".vercel", "vercel.json", "README.md"]);
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 function kopieren(von, nach) {

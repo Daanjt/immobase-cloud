@@ -1,6 +1,12 @@
 {
   "name": "immobase-admin",
   "private": true,
-  "scripts": { "build": "node build.cjs" },
-  "devDependencies": { "@babel/standalone": "7.18.6" }
+  "scripts": {
+    "build": "node build.cjs"
+  },
+  "devDependencies": {
+    "@babel/standalone": "7.18.6",
+    "eslint": "^8.57.0",
+    "globals": "^13.24.0"
+  }
 }
