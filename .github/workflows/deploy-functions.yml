@@ -9,6 +9,7 @@ on:
       - 'supabase/functions/**'
       - 'supabase/config.toml'
       - '.github/workflows/deploy-functions.yml'
+      - '.github/check/**'
   workflow_dispatch:
 
 jobs:
@@ -19,6 +20,13 @@ jobs:
       PROJECT_ID: aohcqrxpsqronlcwssrk
     steps:
       - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Vor dem Deploy pruefen: Syntax, unbekannte Namen, doppelte Deklarationen, Importe.
+      # Bei Fehlern bricht der Workflow ab, die laufenden Functions bleiben unveraendert.
+      - name: Edge Functions pruefen
+        run: bash .github/check/edge-check.sh
       - uses: supabase/setup-cli@v1
         with:
           version: latest
