@@ -597,6 +597,8 @@ const PAGES=[
   {id:"nachvermietung",icon:"🔄",label:"Nachvermietung",group:"vermietung"},
   {id:"uebergaben",icon:"🔑",label:"Übergaben",group:"vermietung"},
   {id:"parkplaetze",icon:"🅿️",label:"Parkplätze",group:"vermietung"},
+  {id:"schaeden",icon:"🔧",label:"Schäden",group:"vermietung"},
+  {id:"kuendigungen",icon:"📤",label:"Kündigungen",group:"vermietung"},
   {id:"reinigung",icon:"🧽",label:"Reinigung & Umzug",group:"vermietung"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen",group:"finanzen"},
   {id:"finanzen",icon:"📊",label:"Finanzen",group:"finanzen"},
@@ -625,7 +627,7 @@ const NAV_GRUPPEN=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit","schaeden"],
   mitarbeiter: ["zeit"],
 };
 

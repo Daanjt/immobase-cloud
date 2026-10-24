@@ -65,7 +65,6 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
     <div className="ph">
       <div className="pt">To-dos</div>
       <p style={{fontSize:12,color:"var(--muted)",margin:"4px 0 16px"}}>Automatisch erkannte Datenlücken (mit Auto-Markierung, klickbar) und eigene Aufgaben. Eigene To-dos verschiebst du mit den Pfeilen zwischen den Spalten.</p>
-      <OffeneSchadenmeldungen tenants={tenants} navigateTo={navigateTo}/>
 
       {!neuOffen ? (
         <button onClick={()=>setNeuOffen(true)}
