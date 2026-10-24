@@ -543,10 +543,10 @@ Deno.serve(async (req) => {
       } catch (_) { /* ohne Logo */ }
       const logoSrc = logoB64 ? "cid:dt-logo" : "https://mieter.dthomes.ch/dt-logo.png";
       if (logoB64) pdfAttachments.push({ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" });
-      // QR-Rechnung pro Mieter (Betrag und Referenz wie im Text der Mail), erst aktiv mit QR_PRO_MIETER=1.
+      // QR-Rechnung pro Mieter (Betrag und Referenz wie im Text der Mail).
       // Sonst oder bei fehlendem Betrag: neutraler QR (nur Konto) ueber email-assets/dt-qr.png.
       let qrSrc = undefined;
-      if (Deno.env.get("QR_PRO_MIETER") === "1" && contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
+      if (contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
         try {
           const zi = zahlInfo(contract, en);
           if (zi.total > 0) {
