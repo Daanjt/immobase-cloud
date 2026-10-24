@@ -10,6 +10,7 @@
 //
 // Aufrufe: POST JSON {aktion, ...}  oder multipart (aktion=hochladen|schaden).
 // Geschuetzte Aktionen brauchen den Header x-portal-sitzung.
+import { KREDITOR, qrInhalt, qrPng, b64 as b64Png } from "../_shared/qrrechnung.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   generateAuthenticationOptions, generateRegistrationOptions,
@@ -403,8 +404,33 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
       link: ["sent", "in_progress"].includes(h.status) && h.token ? `${portalBasis(req)}/uebernahme/${h.token}` : null,
       fertig: h.closed_at || h.auto_accepted_at || h.submitted_at || null,
     })),
+    ...(await kostenUndZahlung(t, apt, room)),
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t) },
   });
+}
+
+
+// Mietkosten aus dem unterschriebenen Vertrag (Fallback: Werte beim Mieter) und Zahlungsangaben mit QR-Rechnung
+async function kostenUndZahlung(t: any, apt: any, room: any) {
+  const { haupt: v } = await vertragVon(t);
+  const zahl = (x: unknown) => (x == null || x === "" || isNaN(+x!)) ? null : +x!;
+  const wohnung = apt?.vermietungsart === "wohnung";
+  let netto = zahl(v?.nettomiete), nk = zahl(v?.nebenkosten), brutto = zahl(v?.bruttomiete), strom = zahl(v?.strom);
+  const service = zahl(v?.aufschlag) || 0;
+  if (brutto == null) brutto = zahl(t.mietzins) ?? zahl(room?.miete);
+  if (brutto != null && netto == null && nk != null) netto = brutto - nk;
+  if (strom == null) strom = zahl(t.strom) ?? (wohnung ? Math.max(1, +t.personen || 1) * 25 : 25);
+  const total = zahl(v?.total) ?? ((brutto || 0) + (strom || 0) + service);
+  const name = `${t.vorname || ""} ${t.nachname || ""}`.trim();
+  const referenz = `Miete ${apt?.adresse || ""} & ${name}`.replace(/\s+/g, " ").trim();
+  let qr: string | null = null;
+  try { qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(total || null, referenz), 6)); } catch (e) { console.error("qr", e); }
+  const km = v?.kautionMonate == null ? (t.kaution_monate == null ? null : +t.kaution_monate) : +v.kautionMonate;
+  return {
+    kosten: { netto, nebenkosten: nk, brutto, strom, service, total, personen: wohnung ? Math.max(1, +(v?.personen || t.personen) || 1) : null },
+    zahlung: { empfaenger: `${KREDITOR.name}, ${KREDITOR.strasse} ${KREDITOR.nr}, ${KREDITOR.plz} ${KREDITOR.ort}`, bank: KREDITOR.bank, iban: KREDITOR.ibanLesbar, bic: KREDITOR.bic, betrag: total, referenz, qr },
+    kaution: { betrag: zahl(v?.kautionBetrag) ?? zahl(t.kaution_betrag), monate: km, evorest: km == null ? null : km > 0 },
+  };
 }
 
 async function dokumentUrl(t: any, b: any) {
