@@ -477,6 +477,7 @@ async function hochladen(t: any, fd: FormData) {
 async function schadenMelden(t: any, fd: FormData) {
   const titel = String(fd.get("titel") || "").trim().slice(0, 140);
   if (!titel) return fehler("Bitte kurz beschreiben, was kaputt ist.");
+  if (!String(fd.get("beschreibung") || "").trim()) return fehler("Bitte beschreibe den Schaden genauer.");
   if (String(fd.get("freigabe") || "") !== "1") return fehler("Bitte bestätige, dass wir deine Meldung und Kontaktdaten für die Terminvereinbarung weiterleiten dürfen.");
   const dr = String(fd.get("dringlichkeit") || "normal");
   const fotos = fd.getAll("fotos").filter((f) => f instanceof File) as File[];
