@@ -207,6 +207,19 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
   const [filter,setFilter]=useState("alle");
   const [adding,setAdding]=useState(false);
   const [newForm,setNewForm]=useState({type:"WG",ort:"Zürich"});
+  // Ansprechperson der Verwaltung (Liegenschaft) im Formular: null = unverändert
+  const [anspNeu,setAnspNeu]=useState(null);
+  const [anspEdit,setAnspEdit]=useState(null);
+  const [lgAdressen,setLgAdressen]=useState([]);
+  useEffect(()=>{ supabase.from("liegenschaften").select("adresse").then(({data})=>setLgAdressen((data||[]).map(x=>x.adresse))); },[]);
+  const adressVorschlaege=[...new Set([...(apts||[]).map(a=>a.adresse).filter(Boolean),...lgAdressen])].sort((a,b)=>a.localeCompare(b,"de"));
+  async function anspSpeichern(adresse, ansp){
+    if(!ansp||!String(adresse||"").trim()) return;
+    if(!ansp.kontakt_id && !String(ansp.kontakt_name||"").trim() && !String(ansp.kontakt_email||"").trim()) return;
+    try{ await liegenschaftKontaktSpeichern(String(adresse).trim(), ansp); }catch(e){ toast("Ansprechperson konnte nicht gespeichert werden: "+(e.message||e),"error"); }
+  }
+  // Ist für die Adresse schon eine Liegenschaft mit Ansprechperson hinterlegt, Verwaltung vorschlagen
+  function verwaltungVorschlag(setter, aktuell){ return (lg)=>{ if(!lg||aktuell) return; const firma=lg.kontakt_firma; const p=(partners||[]).find(x=>gleicheFirma(x.name,firma)); if(p) setter(prev=>prev.verwaltung?prev:({...prev,verwaltung:p.name})); }; }
   const [roomList,setRoomList]=useState([]);
   const [addRoomsFor,setAddRoomsFor]=useState(null);
   const [addRoomList,setAddRoomList]=useState([]);
@@ -287,6 +300,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
       strom_pro_person: 25,
       flaeche: form.flaeche===""||form.flaeche==null ? null : +form.flaeche,
     });
+    await anspSpeichern(form.adresse, anspEdit); setAnspEdit(null);
     setEditing(false);
   }
   function nextAptId(){
@@ -420,6 +434,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
       } catch(e) { apt.floorplanPath = ""; }
     }
     await insertApt(apt, newForm.type === "WG" ? roomList : null);
+    await anspSpeichern(apt.adresse, anspNeu); setAnspNeu(null);
     setAdding(false);
     setNewForm({type:"WG",ort:"Zürich"});
     setRoomList([]);
@@ -489,7 +504,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:12,flexWrap:"wrap"}}>
               <div style={{minWidth:0,flex:"1 1 auto"}}><div style={{fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:17,color:"#1f1d18",wordBreak:"break-word"}}>{apt.id} - {apt.adresse}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2}}>{apt.plz} {apt.ort}{apt.stockwerk?` · ${apt.stockwerk}`:""}</div></div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setEditing(true);}}>✏ Bearbeiten</button>
+                <button className="btn btn-g btn-sm" onClick={()=>{setForm({...apt});setAnspEdit(null);setEditing(true);}}>✏ Bearbeiten</button>
                 {istAdmin && <button className="btn btn-g btn-sm" onClick={()=>duplicateApt(apt)}>⧉ Duplizieren</button>}
                 <button className="btn btn-r btn-sm" onClick={handleDelete}>🗑 Löschen</button>
               </div>
@@ -645,7 +660,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
           <div className="fg"><label className="fl">ID *</label><input className="fi" value={newForm.id||""} onChange={NF("id")} placeholder="z.B. A9"/></div>
           <div className="fg"><label className="fl">Typ *</label><select className="fi" value={(newForm.type||"WG")==="WG"&&newForm.vermietungsart==="wohnung"?"Wohnung":(newForm.type||"WG")} onChange={e=>{const v=e.target.value; if(v==="Wohnung"){ setNewForm(p=>({...p,type:"WG",vermietungsart:"wohnung",units:1})); setRoomList(prev=>[prev[0]||{miete:"",groesse:"",balkon:false}]); } else { setNewForm(p=>({...p,type:v,vermietungsart:"zimmer"})); }}}><option value="WG">WG (einzelne Zimmer, möbliert)</option><option value="Wohnung">Wohnung (unmöbliert, Zwischennutzung)</option><option value="Airbnb">Airbnb</option></select></div>
         </div>
-        <div className="fg"><label className="fl">Adresse *</label><input className="fi" value={newForm.adresse||""} onChange={NF("adresse")} placeholder="Strasse 12"/></div>
+        <div className="fg"><label className="fl">Adresse *</label><input className="fi" list="ib-adressen" value={newForm.adresse||""} onChange={NF("adresse")} placeholder="Strasse 12"/><datalist id="ib-adressen">{adressVorschlaege.map(a=><option key={a} value={a}/>)}</datalist></div>
         <div className="frow">
           <div className="fg"><label className="fl">PLZ</label><input className="fi" value={newForm.plz||""} onChange={NF("plz")}/></div>
           <div className="fg"><label className="fl">Ort</label><input className="fi" value={newForm.ort||""} onChange={NF("ort")}/></div>
@@ -724,6 +739,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
           <div className="fg"><label className="fl">Verwaltung</label><select className="fi" value={newForm.verwaltung||""} onChange={NF("verwaltung")}><option value="">-</option>{newForm.verwaltung&&!(partners||[]).some(p=>p.name===newForm.verwaltung)&&<option value={newForm.verwaltung}>{newForm.verwaltung} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Verwaltung"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
           <div className="fg"><label className="fl">Eigentümer</label><select className="fi" value={newForm.eigentuemer||""} onChange={NF("eigentuemer")}><option value="">-</option>{newForm.eigentuemer&&!(partners||[]).some(p=>p.name===newForm.eigentuemer)&&<option value={newForm.eigentuemer}>{newForm.eigentuemer} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Eigentümer"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
         </div>
+        <AnsprechpersonFeld adresse={newForm.adresse} verwaltung={newForm.verwaltung} value={anspNeu} onChange={setAnspNeu} onLiegenschaft={verwaltungVorschlag(setNewForm, newForm.verwaltung)} />
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
         </div>
@@ -854,6 +870,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
           <div className="fg"><label className="fl">Verwaltung</label><select className="fi" value={form.verwaltung||""} onChange={F("verwaltung")}><option value="">-</option>{form.verwaltung&&!(partners||[]).some(p=>p.name===form.verwaltung)&&<option value={form.verwaltung}>{form.verwaltung} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Verwaltung"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
           <div className="fg"><label className="fl">Eigentümer</label><select className="fi" value={form.eigentuemer||""} onChange={F("eigentuemer")}><option value="">-</option>{form.eigentuemer&&!(partners||[]).some(p=>p.name===form.eigentuemer)&&<option value={form.eigentuemer}>{form.eigentuemer} (nicht erfasst)</option>}{(partners||[]).filter(p=>!p.typ||p.typ==="Eigentümer"||p.typ==="Beides").map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}</select></div>
         </div>
+        <AnsprechpersonFeld adresse={form.adresse} verwaltung={form.verwaltung} value={anspEdit} onChange={setAnspEdit} />
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
         </div>

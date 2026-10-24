@@ -10,22 +10,58 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
     }
   }, [selected]);
   const F = (k)=>(e)=>setF(p=>({...p,[k]:e.target.value}));
-  function startNew(){ setF({typ:"Eigentümer",kontakte:[]}); setEditing({}); }
-  function startEdit(p){
-    const seeded = (p.kontakte&&p.kontakte.length) ? p.kontakte
-      : ((p.kontaktperson||p.email||p.telefon) ? [{name:p.kontaktperson||"",funktion:"",email:p.email||"",telefon:p.telefon||""}] : []);
-    setF({...p,kontakte:seeded}); setEditing(p);
+  // Personen kommen aus den Kontakten (Firma = Partnername), damit alles verknüpft ist.
+  const [kontakte, kontakteNeu] = useKontakte();
+  const [lgs, setLgs] = useState([]);
+  const ladeLgs = ()=>supabase.from("liegenschaften").select("adresse, kontakt_id, kontakt_name, kontakt_email, kontakt_telefon").then(({data})=>setLgs(data||[]));
+  useEffect(()=>{ ladeLgs(); },[]);
+  const [personen, setPersonen] = useState([]);
+  const [busy, setBusy] = useState(false);
+  // Personen eines Partners: Kontakte dieser Firma plus alte Einträge aus dem Partner, die (noch) nicht bei den Kontakten sind
+  function personenVon(p){
+    if(!p) return [];
+    const aus = (kontakte||[]).filter(k=>gleicheFirma(k.organisation,p.name)).map(k=>({id:k.id,name:k.name||"",rolle:k.rolle||"",email:k.email||"",phone:k.phone||""}));
+    const alt = (p.kontakte&&p.kontakte.length) ? p.kontakte : ((p.kontaktperson||p.email||p.telefon) ? [{name:p.kontaktperson||"",email:p.email||"",telefon:p.telefon||""}] : []);
+    alt.forEach(k=>{ const em=String(k.email||"").toLowerCase(); if(aus.some(x=>(em&&String(x.email).toLowerCase()===em)||(!em&&k.name&&x.name===k.name))) return; aus.push({id:null,name:k.name||"",rolle:k.funktion||"",email:k.email||"",phone:k.telefon||""}); });
+    return aus;
   }
-  const addK = ()=>setF(p=>({...p,kontakte:[...(p.kontakte||[]),{name:"",funktion:"",email:"",telefon:""}]}));
-  const updK = (i,key,val)=>setF(p=>{const k=[...(p.kontakte||[])];k[i]={...k[i],[key]:val};return {...p,kontakte:k};});
-  const rmK = (i)=>setF(p=>({...p,kontakte:(p.kontakte||[]).filter((_,j)=>j!==i)}));
+  function startNew(){ setF({typ:"Eigentümer",kontakte:[]}); setPersonen([]); setEditing({}); }
+  function startEdit(p){ setF({...p}); setPersonen(personenVon(p).map(x=>({...x}))); setEditing(p); }
+  const addK = ()=>setPersonen(l=>[...l,{id:null,name:"",rolle:"",email:"",phone:""}]);
+  const updK = (i,key,val)=>setPersonen(l=>l.map((x,j)=>j===i?{...x,[key]:val}:x));
+  const rmK = (i)=>setPersonen(l=>l.map((x,j)=>j===i?{...x,_weg:true}:x).filter(x=>x.id||!x._weg));
   async function save(){
-    if(!(f.name||"").trim()){ alert("Name ist erforderlich."); return; }
+    const name=(f.name||"").trim();
+    if(!name){ alert("Name ist erforderlich."); return; }
+    setBusy(true);
     try {
-      if(editing && editing.id) await updatePartner(editing.id, f);
-      else await insertPartner(f);
-      setEditing(null); setF({});
-    } catch(e) {}
+      const aktiv = personen.filter(x=>!x._weg && (String(x.name||"").trim()||String(x.email||"").trim()));
+      const daten = {...f, name, kontakte: aktiv.map(x=>({name:x.name||"",funktion:x.rolle||"",email:x.email||"",telefon:x.phone||""}))};
+      const alt = editing && editing.id ? editing.name : null;
+      if(editing && editing.id) await updatePartner(editing.id, daten);
+      else await insertPartner(daten);
+      const orgType = (f.typ||"Eigentümer")==="Eigentümer" ? "eigentuemer" : "verwaltung";
+      for(const x of personen){
+        const row={ name:String(x.name||"").trim()||null, rolle:String(x.rolle||"").trim()||null, email:String(x.email||"").trim().toLowerCase()||null, phone:String(x.phone||"").trim()||null, updated_at:new Date().toISOString() };
+        if(x._weg){ if(x.id) await supabase.from("kontakte").update({organisation:null,updated_at:row.updated_at}).eq("id",x.id); continue; }
+        if(!row.name && !row.email) continue;
+        if(x.id){ await supabase.from("kontakte").update({...row, organisation:name}).eq("id",x.id); continue; }
+        const {data:da} = row.email ? await supabase.from("kontakte").select("id").ilike("email",row.email).limit(1) : {data:[]};
+        if(da&&da.length) await supabase.from("kontakte").update({...row, organisation:name}).eq("id",da[0].id);
+        else await supabase.from("kontakte").insert({...row, organisation:name, org_type:orgType});
+      }
+      // Umbenannt: Kontakte und Wohnungen ziehen mit, damit alles verknüpft bleibt
+      if(alt && alt!==name){
+        await supabase.from("kontakte").update({organisation:name}).eq("organisation",alt);
+        await supabase.from("apartments").update({verwaltung:name}).eq("verwaltung",alt);
+        await supabase.from("apartments").update({eigentuemer:name}).eq("eigentuemer",alt);
+        try{ window.__ibNeuLaden && window.__ibNeuLaden(); }catch(_){}
+      }
+      await kontakteNeu(); await ladeLgs();
+      setEditing(null); setF({}); setPersonen([]);
+      toast("Gespeichert");
+    } catch(e) { toast("Speichern fehlgeschlagen: "+(e.message||e),"error"); }
+    setBusy(false);
   }
   async function remove(p){
     const used = (apts||[]).filter(a=>a.eigentuemer===p.name||a.verwaltung===p.name).length;
@@ -65,16 +101,9 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
   const chfP = (n)=>"CHF " + Math.round(n||0).toLocaleString("de-CH");
 
   const selPartner = selected ? all.find(p=>p.id===selected) : null;
-  return (
-    <div className="ph">
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        <div className="pt">Verwaltungen & Eigentümer</div>
-        <button className="btn btn-p" onClick={startNew}>＋ Neuer Partner</button>
-      </div>
-      <p style={{fontSize:12,color:"#8a8174",margin:"4px 0 16px"}}>Partner, mit denen wir zusammenarbeiten. Die Adresse des Eigentümers wird beim Evorest-Link automatisch verwendet.</p>
-
-      {editing && (
-        <div className="card" style={{marginBottom:16,padding:18}}>
+  function formular(eingebettet){
+    return (
+        <div className={eingebettet?"":"card"} style={eingebettet?{}:{marginBottom:16,padding:18}}>
           <div style={{fontWeight:700,marginBottom:12}}>{editing.id?"Partner bearbeiten":"Neuer Partner"}</div>
           <div className="frow">
             <div className="fg" style={{flex:2}}><label className="fl">Name *</label><input className="fi" value={f.name||""} onChange={F("name")} placeholder="z.B. Bilaya Wohnbau AG"/></div>
@@ -89,27 +118,42 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
             <div className="fg" style={{flex:2}}><label className="fl">Ort</label><input className="fi" value={f.ort||""} onChange={F("ort")}/></div>
           </div>
           <div style={{marginTop:6,marginBottom:6}}>
-            <label className="fl">Kontaktpersonen</label>
-            {(f.kontakte||[]).map((k,i)=>(
-              <div key={i} className="frow" style={{alignItems:"flex-end",gap:6}}>
-                <div className="fg"><input className="fi" placeholder="Name" value={k.name||""} onChange={e=>updK(i,"name",e.target.value)}/></div>
-                <div className="fg"><input className="fi" placeholder="Funktion (z.B. Bewirtschafter)" value={k.funktion||""} onChange={e=>updK(i,"funktion",e.target.value)}/></div>
-                <div className="fg"><input className="fi" placeholder="E-Mail" value={k.email||""} onChange={e=>updK(i,"email",e.target.value)}/></div>
-                <div className="fg"><input className="fi" placeholder="Telefon" value={k.telefon||""} onChange={e=>updK(i,"telefon",e.target.value)}/></div>
-                <button className="btn btn-sm" onClick={()=>rmK(i)} title="Entfernen" style={{color:"#9b4a3e",borderColor:"#e0bcb0",marginBottom:2}}>✕</button>
+            <label className="fl">Personen</label>
+            <div style={{display:"grid",gap:8}}>
+            {personen.map((k,i)=>k._weg?null:(
+              <div key={i} style={{position:"relative",border:"1px solid var(--line-soft)",borderRadius:10,padding:"10px 44px 10px 10px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(180px,100%),1fr))",gap:6}}>
+                <input className="fi" placeholder="Name" value={k.name||""} onChange={e=>updK(i,"name",e.target.value)}/>
+                <input className="fi" placeholder="Funktion (z.B. Bewirtschafterin)" value={k.rolle||""} onChange={e=>updK(i,"rolle",e.target.value)}/>
+                <input className="fi" placeholder="E-Mail" value={k.email||""} onChange={e=>updK(i,"email",e.target.value)}/>
+                <input className="fi" placeholder="Telefon" value={k.phone||""} onChange={e=>updK(i,"phone",e.target.value)}/>
+                <button onClick={()=>rmK(i)} title="Von diesem Partner entfernen" style={{position:"absolute",top:10,right:8,width:28,height:28,border:"1px solid #e0bcb0",borderRadius:7,background:"#fff",color:"#9b4a3e",cursor:"pointer"}}>✕</button>
               </div>
             ))}
-            <button className="btn btn-g btn-sm" onClick={addK} style={{marginTop:4}}>＋ Kontaktperson</button>
+            </div>
+            <button className="btn btn-g btn-sm" onClick={addK} style={{marginTop:4}}>＋ Person</button>
+            <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Die Personen werden auch bei den Kontakten gespeichert. Entfernen löst sie nur von diesem Partner, der Kontakt bleibt erhalten.</div>
           </div>
           <div className="frow">
             <div className="fg" style={{flex:1}}><label className="fl">Notizen</label><textarea className="fi" rows={2} value={f.notizen||""} onChange={F("notizen")}/></div>
           </div>
           <div style={{display:"flex",gap:8,marginTop:8}}>
-            <button className="btn btn-p btn-sm" onClick={save}>Speichern</button>
-            <button className="btn btn-sm" onClick={()=>{setEditing(null);setF({});}}>Abbrechen</button>
+            <button className="btn btn-p btn-sm" onClick={save} disabled={busy}>{busy?"Speichert…":"Speichern"}</button>
+            <button className="btn btn-sm" onClick={()=>{setEditing(null);setF({});setPersonen([]);}}>Abbrechen</button>
           </div>
         </div>
-      )}
+    );
+  }
+  const lgVonPerson = (id)=>lgs.filter(l=>id&&l.kontakt_id===id).map(l=>l.adresse);
+  const lgVonPartner = (p)=>{ const adr=[...new Set(linkedApts(p).map(a=>a.adresse).filter(Boolean))]; return adr.map(a=>lgs.find(l=>l.adresse===a)||{adresse:a}); };
+  return (
+    <div className="ph">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div className="pt">Verwaltungen & Eigentümer</div>
+        <button className="btn btn-p" onClick={startNew}>＋ Neuer Partner</button>
+      </div>
+      <p style={{fontSize:12,color:"#8a8174",margin:"4px 0 16px"}}>Partner, mit denen wir zusammenarbeiten. Die Adresse des Eigentümers wird beim Evorest-Link automatisch verwendet.</p>
+
+      {editing && !editing.id && formular()}
 
       {all.length===0 && !editing && (
         <div style={{padding:"40px 20px",textAlign:"center",color:"#8a8174",fontSize:13}}>Noch keine Partner erfasst. Lege den ersten mit "Neuer Partner" an.</div>
@@ -147,33 +191,42 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
               </div>
             </div>
             <div style={{display:"flex",gap:6}}>
-              <button className="btn btn-g btn-sm" onClick={()=>startEdit(selPartner)}>Bearbeiten</button>
+              {!(editing&&editing.id===selPartner.id) && <button className="btn btn-g btn-sm" onClick={()=>startEdit(selPartner)}>Bearbeiten</button>}
               <button className="btn btn-sm" onClick={()=>{remove(selPartner);setSelected(null);}} style={{color:"var(--error)",borderColor:"var(--error-soft)"}}>Löschen</button>
               <button className="btn btn-sm" onClick={()=>setSelected(null)} title="Schliessen">✕</button>
             </div>
           </div>
           <div style={{height:1,background:"var(--line-soft)",margin:"18px 0"}}/>
+          {editing&&editing.id===selPartner.id ? formular(true) :
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(230px, 100%), 1fr))",gap:28}}>
             <div>
               <div className="psec">Adresse</div>
               <div style={{fontSize:13.5,color:"var(--text)",lineHeight:1.55}}>{addrOf(selPartner)||<span style={{color:"var(--muted-light)"}}>keine Adresse hinterlegt</span>}</div>
 
-              <div className="psec" style={{marginTop:22}}>Kontaktpersonen</div>
-              {(selPartner.kontakte&&selPartner.kontakte.length>0)
-                ? <div style={{display:"grid",gap:11}}>{selPartner.kontakte.map((k,i)=>(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-                      <Av name={k.name||"?"} size={28}/>
+              <div className="psec" style={{marginTop:22}}>Personen · {personenVon(selPartner).length}</div>
+              {personenVon(selPartner).length>0
+                ? <div style={{display:"grid",gap:12}}>{personenVon(selPartner).map((k,i)=>{ const zust=lgVonPerson(k.id); return (
+                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                      <Av name={k.name||"?"} size={30}/>
                       <div style={{minWidth:0}}>
-                        <div style={{fontSize:13,color:"var(--ink)"}}>{k.name||"-"}{k.funktion&&<span style={{color:"var(--muted)"}}> · {k.funktion}</span>}</div>
-                        {(k.email||k.telefon)&&<div style={{fontSize:11,color:"var(--muted)"}}>{[k.email,k.telefon].filter(Boolean).join(" · ")}</div>}
+                        <div style={{fontSize:13,color:"var(--ink)",fontWeight:500}}>{k.name||"-"}{k.rolle&&<span style={{color:"var(--muted)",fontWeight:400}}> · {k.rolle}</span>}</div>
+                        {(k.email||k.phone)&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:1}}>{k.email&&<a href={"mailto:"+k.email} style={{color:"inherit"}}>{k.email}</a>}{k.email&&k.phone?" · ":""}{k.phone&&<a href={"tel:"+k.phone.replace(/\s/g,"")} style={{color:"inherit"}}>{k.phone}</a>}</div>}
+                        {zust.length>0&&<div style={{fontSize:11,color:"#3d4f2f",marginTop:2}}>Ansprechperson für {zust.join(", ")}</div>}
                       </div>
-                    </div>
-                  ))}</div>
+                    </div>); })}</div>
                 : <div style={{fontSize:12.5,color:"var(--muted-light)"}}>keine erfasst</div>}
 
               {selPartner.notizen&&<><div className="psec" style={{marginTop:22}}>Notizen</div><div style={{fontSize:13,color:"var(--text)",lineHeight:1.55}}>{selPartner.notizen}</div></>}
             </div>
             <div>
+              {lgVonPartner(selPartner).length>0 && <>
+                <div className="psec">Liegenschaften · {lgVonPartner(selPartner).length}</div>
+                <div style={{display:"grid",gap:6,marginBottom:22}}>{lgVonPartner(selPartner).map(l=>(
+                  <div key={l.adresse} style={{fontSize:12.5,padding:"8px 11px",border:"1px solid var(--line-soft)",borderRadius:8}}>
+                    <div style={{fontWeight:500,color:"var(--ink)"}}>{l.adresse}</div>
+                    <div style={{fontSize:11,color:l.kontakt_name?"var(--muted)":"#9b4a3e",marginTop:1}}>{l.kontakt_name?`Ansprechperson: ${l.kontakt_name}${l.kontakt_email?" · "+l.kontakt_email:""}`:"Keine Ansprechperson hinterlegt (unter Schäden › Liegenschaften oder bei der Wohnung erfassen)"}</div>
+                  </div>))}</div>
+              </>}
               <div className="psec">Verknüpfte Wohnungen · {linkedApts(selPartner).length}</div>
               <div style={{display:"grid",gap:6}}>
                 {linkedApts(selPartner).length===0 && <div style={{fontSize:12.5,color:"var(--muted-light)"}}>keine</div>}
@@ -192,7 +245,7 @@ function PartnerPage({partners, insertPartner, updatePartner, deletePartner, apt
                 })}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       )}
 

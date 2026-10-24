@@ -218,44 +218,152 @@ function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet 
   );
 }
 
-function LiegenschaftKarte({ adresse, wert, onGespeichert }) {
-  const leer = { kontakt_name: "", kontakt_firma: "", kontakt_email: "", kontakt_telefon: "", hausinfos: "", hausinfos_en: "" };
-  const [f, setF] = useState({ ...leer, ...Object.fromEntries(Object.entries(wert || {}).map(([k, v]) => [k, v ?? ""])) });
+// ── Kontakte (Personen bei Verwaltungen/Eigentümern) ───────────────────────
+// Ein Cache für alle Komponenten, damit die Liste nicht dauernd neu geladen wird
+let __kontakteCache = null;
+async function ladeKontakte(neu) {
+  if (__kontakteCache && !neu) return __kontakteCache;
+  const { data } = await supabase.from("kontakte").select("id, name, email, phone, organisation, org_type, rolle").order("name", { ascending: true });
+  __kontakteCache = data || [];
+  return __kontakteCache;
+}
+function useKontakte() {
+  const [liste, setListe] = useState(__kontakteCache || []);
+  const neuLaden = async () => setListe([...(await ladeKontakte(true))]);
+  useEffect(() => { ladeKontakte().then((l) => setListe([...l])); }, []);
+  return [liste, neuLaden];
+}
+const gleicheFirma = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+
+// Auswahl einer Ansprechperson aus den Kontakten, die Personen der vorgeschlagenen Firma zuerst
+function KontaktWahl({ kontakte, value, firma, onWahl }) {
+  const vorne = (kontakte || []).filter((k) => gleicheFirma(k.organisation, firma));
+  const rest = (kontakte || []).filter((k) => !gleicheFirma(k.organisation, firma));
+  const gruppen = {};
+  rest.forEach((k) => { const g = k.organisation || "Ohne Firma"; (gruppen[g] = gruppen[g] || []).push(k); });
+  const label = (k) => [k.name || k.email, k.rolle].filter(Boolean).join(" · ");
+  return (
+    <select className="fi" value={value ? String(value) : ""} onChange={(e) => { const v = e.target.value; onWahl(v === "neu" ? "neu" : v ? (kontakte || []).find((k) => String(k.id) === v) : null); }}>
+      <option value="">- Person wählen -</option>
+      {vorne.length > 0 && <optgroup label={firma}>{vorne.map((k) => <option key={k.id} value={k.id}>{label(k)}</option>)}</optgroup>}
+      {Object.keys(gruppen).sort((a, b) => a.localeCompare(b, "de")).map((g) => <optgroup key={g} label={g}>{gruppen[g].map((k) => <option key={k.id} value={k.id}>{label(k)}</option>)}</optgroup>)}
+      <option value="neu">＋ Neue Person erfassen…</option>
+    </select>
+  );
+}
+
+// Speichert die Ansprechperson einer Liegenschaft: legt die Person bei Bedarf in den Kontakten an
+// bzw. aktualisiert sie dort (die Liegenschaften werden per Trigger mitgezogen) und verknüpft sie.
+async function liegenschaftKontaktSpeichern(adresse, p, extra) {
+  let id = p.kontakt_id || null;
+  const person = { name: String(p.kontakt_name || "").trim() || null, email: String(p.kontakt_email || "").trim().toLowerCase() || null, phone: String(p.kontakt_telefon || "").trim() || null, organisation: String(p.kontakt_firma || "").trim() || null };
+  if (!id && (person.name || person.email)) {
+    const { data: vorhanden } = person.email ? await supabase.from("kontakte").select("id").ilike("email", person.email).limit(1) : { data: [] };
+    if (vorhanden && vorhanden.length) id = vorhanden[0].id;
+    else {
+      const { data: neu, error } = await supabase.from("kontakte").insert({ ...person, org_type: "verwaltung", rolle: "Bewirtschaftung" }).select("id").single();
+      if (error) throw error;
+      id = neu.id;
+    }
+  }
+  if (id) { const { error } = await supabase.from("kontakte").update({ ...person, updated_at: new Date().toISOString() }).eq("id", id); if (error) throw error; }
+  const row = { adresse, kontakt_id: id, kontakt_name: person.name, kontakt_firma: person.organisation, kontakt_email: person.email, kontakt_telefon: person.phone, updated_at: new Date().toISOString(), ...(extra || {}) };
+  const { error } = await supabase.from("liegenschaften").upsert(row, { onConflict: "adresse" });
+  if (error) throw error;
+  await ladeKontakte(true);
+  return id;
+}
+
+// Ansprechperson der Verwaltung beim Anlegen/Bearbeiten einer Wohnung.
+// Zeigt die hinterlegte Person der Liegenschaft (gleiche Adresse) und lässt eine andere wählen oder neu erfassen.
+// value: null = unverändert, sonst { kontakt_id, kontakt_name, kontakt_email, kontakt_telefon, kontakt_firma, neu }
+function AnsprechpersonFeld({ adresse, verwaltung, value, onChange, onLiegenschaft }) {
+  const [kontakte] = useKontakte();
+  const [lg, setLg] = useState(null);
+  useEffect(() => {
+    const adr = String(adresse || "").trim();
+    if (!adr) { setLg(null); return; }
+    const tm = setTimeout(async () => {
+      const { data } = await supabase.from("liegenschaften").select("adresse, kontakt_id, kontakt_name, kontakt_firma, kontakt_email, kontakt_telefon").eq("adresse", adr).maybeSingle();
+      setLg(data || null); onLiegenschaft && onLiegenschaft(data || null);
+    }, 350);
+    return () => clearTimeout(tm);
+  }, [adresse]);
+  const v = value || (lg ? { kontakt_id: lg.kontakt_id, kontakt_name: lg.kontakt_name || "", kontakt_email: lg.kontakt_email || "", kontakt_telefon: lg.kontakt_telefon || "", kontakt_firma: lg.kontakt_firma || "" } : null);
+  function wahl(k) {
+    if (k === "neu") { onChange({ kontakt_id: null, kontakt_name: "", kontakt_email: "", kontakt_telefon: "", kontakt_firma: verwaltung || "", neu: true }); return; }
+    if (!k) { onChange(null); return; }
+    onChange({ kontakt_id: k.id, kontakt_name: k.name || "", kontakt_email: k.email || "", kontakt_telefon: k.phone || "", kontakt_firma: k.organisation || "" });
+  }
+  const setF = (key) => (e) => onChange({ ...(v || {}), [key]: e.target.value });
+  return (
+    <div className="fg">
+      <label className="fl">Ansprechperson Verwaltung{lg ? " (Liegenschaft " + lg.adresse + ")" : ""}</label>
+      <KontaktWahl kontakte={kontakte} value={value && value.neu ? "neu" : (v && v.kontakt_id) || ""} firma={verwaltung} onWahl={wahl} />
+      {value && value.neu && <div className="frow" style={{ marginTop: 6 }}>
+        <div className="fg"><input className="fi" placeholder="Name" value={value.kontakt_name} onChange={setF("kontakt_name")} /></div>
+        <div className="fg"><input className="fi" placeholder="E-Mail" value={value.kontakt_email} onChange={setF("kontakt_email")} /></div>
+        <div className="fg"><input className="fi" placeholder="Telefon" value={value.kontakt_telefon} onChange={setF("kontakt_telefon")} /></div>
+        <div className="fg"><input className="fi" placeholder="Firma" value={value.kontakt_firma} onChange={setF("kontakt_firma")} /></div>
+      </div>}
+      {v && !(value && value.neu) && v.kontakt_name && <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 4 }}>{[v.kontakt_firma, v.kontakt_email, v.kontakt_telefon].filter(Boolean).join(" · ")}</div>}
+      <div style={{ fontSize: 11, color: "#8a8174", marginTop: 4 }}>Gilt für alle Wohnungen an dieser Adresse (Schadenmeldungen gehen an diese Person).</div>
+    </div>
+  );
+}
+
+function LiegenschaftKarte({ adresse, wert, apts, onGespeichert }) {
+  const leer = { kontakt_id: null, kontakt_name: "", kontakt_firma: "", kontakt_email: "", kontakt_telefon: "", hausinfos: "", hausinfos_en: "" };
+  const [f, setF] = useState({ ...leer, ...Object.fromEntries(Object.entries(wert || {}).map(([k, v]) => [k, v ?? (k === "kontakt_id" ? null : "")])) });
   const [offen, setOffen] = useState(false);
+  const [neuePerson, setNeuePerson] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [kontakte] = useKontakte();
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const verwaltung = ((apts || []).find((a) => a.adresse === adresse && a.verwaltung) || {}).verwaltung || "";
+  function wahl(k) {
+    if (k === "neu") { setNeuePerson(true); setF((x) => ({ ...x, kontakt_id: null, kontakt_name: "", kontakt_email: "", kontakt_telefon: "", kontakt_firma: verwaltung || x.kontakt_firma })); return; }
+    setNeuePerson(false);
+    if (!k) { setF((x) => ({ ...x, kontakt_id: null })); return; }
+    setF((x) => ({ ...x, kontakt_id: k.id, kontakt_name: k.name || "", kontakt_email: k.email || "", kontakt_telefon: k.phone || "", kontakt_firma: k.organisation || "" }));
+  }
   async function speichern() {
     setBusy(true);
-    const row = { adresse, updated_at: new Date().toISOString() };
-    Object.keys(leer).forEach((k) => { row[k] = String(f[k] || "").trim() || null; });
-    const { error } = await supabase.from("liegenschaften").upsert(row, { onConflict: "adresse" });
+    try {
+      await liegenschaftKontaktSpeichern(adresse, f, { hausinfos: String(f.hausinfos || "").trim() || null, hausinfos_en: String(f.hausinfos_en || "").trim() || null });
+      toast("Gespeichert"); setOffen(false); setNeuePerson(false); onGespeichert && onGespeichert();
+    } catch (e) { toast("Speichern fehlgeschlagen: " + (e.message || e), "error"); }
     setBusy(false);
-    if (error) { toast("Speichern fehlgeschlagen", "error"); return; }
-    toast("Gespeichert"); setOffen(false); onGespeichert && onGespeichert();
   }
   const k = wert || {};
   return (
     <div style={{ borderTop: "1px solid #efe8da", padding: "12px 0" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontSize: 13 }}>
-          <b>{adresse}</b>
+          <b>{adresse}</b>{verwaltung ? <span style={{ color: "#8a8174" }}> · Verwaltung: {verwaltung}</span> : null}
           <div style={{ fontSize: 12, color: k.kontakt_email ? "#5a5448" : "#9b4a3e", marginTop: 2 }}>
             {k.kontakt_email ? [k.kontakt_name, k.kontakt_firma, k.kontakt_email, k.kontakt_telefon].filter(Boolean).join(" · ") : "Keine Ansprechperson hinterlegt"}
-            {k.hausinfos ? " · Hausinfos ✓" : ""}
+            {k.kontakt_id ? " · 🔗 verknüpft" : ""}{k.hausinfos ? " · Hausinfos ✓" : ""}
           </div>
         </div>
         <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => setOffen((o) => !o)}>{offen ? "Schliessen" : "Bearbeiten"}</button>
       </div>
       {offen && (
         <div style={{ marginTop: 10 }}>
-          <div className="frow">
-            <div className="fg"><label className="fl">Ansprechperson</label><input className="fi" value={f.kontakt_name} onChange={set("kontakt_name")} placeholder="z.B. Laura Muster" /></div>
-            <div className="fg"><label className="fl">Firma / Verwaltung</label><input className="fi" value={f.kontakt_firma} onChange={set("kontakt_firma")} /></div>
+          <div className="fg"><label className="fl">Ansprechperson der Verwaltung</label>
+            <KontaktWahl kontakte={kontakte} value={neuePerson ? "neu" : f.kontakt_id} firma={verwaltung || f.kontakt_firma} onWahl={wahl} />
           </div>
-          <div className="frow">
-            <div className="fg"><label className="fl">E-Mail (für Schadenmeldungen)</label><input className="fi" value={f.kontakt_email} onChange={set("kontakt_email")} /></div>
-            <div className="fg"><label className="fl">Telefon</label><input className="fi" value={f.kontakt_telefon} onChange={set("kontakt_telefon")} /></div>
-          </div>
+          {(f.kontakt_id || neuePerson) && <>
+            <div className="frow">
+              <div className="fg"><label className="fl">Name</label><input className="fi" value={f.kontakt_name} onChange={set("kontakt_name")} placeholder="z.B. Laura Muster" /></div>
+              <div className="fg"><label className="fl">Firma / Verwaltung</label><input className="fi" value={f.kontakt_firma} onChange={set("kontakt_firma")} /></div>
+            </div>
+            <div className="frow">
+              <div className="fg"><label className="fl">E-Mail (für Schadenmeldungen)</label><input className="fi" value={f.kontakt_email} onChange={set("kontakt_email")} /></div>
+              <div className="fg"><label className="fl">Telefon</label><input className="fi" value={f.kontakt_telefon} onChange={set("kontakt_telefon")} /></div>
+            </div>
+            <div style={{ fontSize: 11.5, color: "#8a8174", marginBottom: 8 }}>{neuePerson ? "Die Person wird auch bei den Kontakten und beim Partner angelegt." : "Änderungen gelten auch bei den Kontakten und allen Liegenschaften dieser Person."}</div>
+          </>}
           <div className="frow">
             <div className="fg"><label className="fl">Hausinfos für Mieter (Deutsch)</label><textarea className="fi" rows={5} value={f.hausinfos} onChange={set("hausinfos")} placeholder={"z.B. Abfall: Dienstag und Freitag, Container im Hof\nWaschküche: Plan hängt im Keller\nWLAN: Name und Passwort"} /></div>
             <div className="fg"><label className="fl">Hausinfos (Englisch)</label><textarea className="fi" rows={5} value={f.hausinfos_en} onChange={set("hausinfos_en")} /></div>
@@ -321,7 +429,7 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
         <div className="card" style={{ marginTop: 14 }}>
           <div className="ct" style={{ marginTop: 0 }}>Ansprechperson pro Liegenschaft</div>
           <div style={{ fontSize: 12, color: "#8a8174", marginBottom: 6 }}>An diese Adresse werden Schäden weitergeleitet. Die Hausinfos erscheinen im Mieterportal.</div>
-          {adressen.map((a) => <LiegenschaftKarte key={a + ":" + (lg[a]?.updated_at || "")} adresse={a} wert={lg[a]} onGespeichert={laden} />)}
+          {adressen.map((a) => <LiegenschaftKarte key={a + ":" + (lg[a]?.updated_at || "")} adresse={a} wert={lg[a]} apts={apts} onGespeichert={laden} />)}
         </div>
       )}
       {fwd && <WeiterleitenDialog s={fwd} tenant={tenantVon(fwd.tenant_id)} apt={fwdApt} liegenschaft={lg[fwdApt?.adresse]} onClose={() => setFwd(null)} onGesendet={laden} />}
