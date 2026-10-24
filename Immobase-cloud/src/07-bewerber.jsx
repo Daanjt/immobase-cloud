@@ -199,6 +199,21 @@ function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConf
   );
   return (window.ReactDOM && ReactDOM.createPortal) ? ReactDOM.createPortal(inhalt, document.body) : inhalt;
 }
+// Abweichungen vom Standard bei Kaution und Servicegebuehr (Sonderkonditionen) erkennen
+function sonderAbweichungen(v) {
+  if (!v) return [];
+  const km = v.kautionMonate == null || v.kautionMonate === "" ? null : +v.kautionMonate;
+  if (km == null) return [];
+  const brutto = +v.bruttomiete || 0, strom = (v.strom != null && v.strom !== "") ? +v.strom : 25;
+  const stdKaution = (brutto + strom) * km;
+  const stdAuf = km === 0 ? 150 : km === 1 ? 100 : km === 2 ? 50 : 0;
+  const out = [];
+  if (km > 0 && Math.round(+v.kautionBetrag || 0) !== Math.round(stdKaution)) out.push(`Kaution CHF ${v.kautionBetrag} statt CHF ${stdKaution}`);
+  if (Math.round(+v.aufschlag || 0) !== stdAuf) out.push(`Servicegebühr CHF ${+v.aufschlag || 0} statt CHF ${stdAuf}`);
+  return out;
+}
+function sonderFehlt(v) { return sonderAbweichungen(v).length > 0 && !String(v.sonderkondition || "").trim(); }
+
 async function sendContractForSigningShared(b, vertragData, onProgress, types, opts) {
   opts = opts || {};
   const progress = onProgress || (() => {});
@@ -992,6 +1007,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
       kautionBetrag:zutKautionBetrag,
       mietzins: zutMiete,
       strom: zutStrom,
+      bemerkung: (vtg && String(vtg.sonderkondition||"").trim()) ? `Sonderkondition: ${String(vtg.sonderkondition).trim()} (${sonderAbweichungen(vtg).join(", ")})` : undefined,
       moeblierungPauschale:(b.moeblierungPauschale===""||b.moeblierungPauschale==null)?null:b.moeblierungPauschale,
       deposit:false,
       schluessel:false,furnished:b.moebliert==="ja",moebliert:b.moebliert==="ja",betreibung:false,
@@ -1339,6 +1355,7 @@ www.dthomes.ch`;
       if (es && as && es > as) { alert(`Das Enddatum (${v.mietende}) darf nicht nach dem Mietende der Wohnung (${v.apt.mietende}) liegen.`); return; }
     }
     if (istWohnungsVertrag(v) && v.mitmieter && mitmieterFehlt(v.mitmieter)) { alert("Mitmieter*in unvollständig: " + mitmieterFehlt(v.mitmieter)); return; }
+    if (sonderFehlt(v)) { alert("Sonderkondition: Bitte kurz begründen, warum Kaution oder Servicegebühr vom Standard abweichen."); return; }
     const fullName = `${b.vorname || ""} ${b.nachname || ""}`.trim();
     setDlBusy("umv");
     try {
@@ -2290,6 +2307,14 @@ www.dthomes.ch`;
               </div>
             </div>
 
+            {sonderAbweichungen(vertragData).length > 0 && (
+              <div style={{background:"#fbf3e6",border:"1px solid #e3c99a",borderRadius:8,padding:"12px 16px",marginBottom:18}}>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#1a1814",marginBottom:4}}>Sonderkondition</div>
+                <div style={{fontSize:11.5,color:"#6e6a62",marginBottom:8}}>{sonderAbweichungen(vertragData).join(" · ")}. Bitte intern festhalten, warum. Die Begründung wird beim Mieter hinterlegt und steht nicht im Vertrag.</div>
+                <input className="fi" placeholder="z. B. Entgegenkommen: nur 1 Monatsmiete Kaution ohne Servicegebühr" value={vertragData.sonderkondition||""} onChange={e=>setVertragData(p=>({...p,sonderkondition:e.target.value}))}/>
+              </div>
+            )}
+
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Vertragsbedingungen</div>
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:18}}>
               <div className="frow" style={{marginBottom:0}}>
@@ -2365,6 +2390,7 @@ www.dthomes.ch`;
                 if (!b || !vertragData) return;
                 if (!b.email) { alert("Bewerber hat keine Email-Adresse."); return; }
                 if (istWohnungsVertrag(vertragData) && vertragData.mitmieter && mitmieterFehlt(vertragData.mitmieter)) { alert("Mitmieter*in unvollständig: " + mitmieterFehlt(vertragData.mitmieter)); return; }
+                if (sonderFehlt(vertragData)) { alert("Sonderkondition: Bitte kurz begründen, warum Kaution oder Servicegebühr vom Standard abweichen."); return; }
                 setSending(true); setSendResult(null); setSendProgress({message:"Vorschau wird erstellt…",pct:0.1});
                 try {
                   const pre = await vertragPdfsErstellen(b, vertragData, ["umv","amz"], (msg,pct)=>setSendProgress({message:msg,pct}));
