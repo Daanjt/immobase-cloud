@@ -471,8 +471,8 @@ async function kuendigen(t: any, b: any) {
   if (error) return fehler("Kündigung konnte nicht gespeichert werden.", 500);
   const en = t.sprache === "en";
   if (t.email) await mail(t.email, en ? "We have received your notice" : "Wir haben deine Kündigung erhalten",
-    en ? `Hi ${t.vorname || ""},\n\nwe have received your notice of termination effective ${datum}.\n\nWe will check it and send you a confirmation shortly. We will then get in touch with you about the handover.\n\nBest regards\nYour D&T Homes Team`
-       : `Hallo ${t.vorname || ""},\n\nwir haben deine Kündigung per ${datum} erhalten.\n\nWir prüfen sie und schicken dir in Kürze eine Bestätigung. Für die Übergabe melden wir uns dann bei dir.\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
+    en ? `Hi ${t.vorname || ""},\n\nwe have received your notice of termination effective ${datum}.\n\nWe will check it and send you a confirmation shortly. We will then get in touch with you about the handover.\n\nIf you would like to move out earlier, you can suggest a successor tenant in the tenant portal.\n\nBest regards\nYour D&T Homes Team`
+       : `Hallo ${t.vorname || ""},\n\nwir haben deine Kündigung per ${datum} erhalten.\n\nWir prüfen sie und schicken dir in Kürze eine Bestätigung. Für die Übergabe melden wir uns dann bei dir.\n\nFalls du früher ausziehen möchtest, kannst du im Mieterportal einen Nachmieter vorschlagen.\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
   return json({ ok: true });
 }
 
