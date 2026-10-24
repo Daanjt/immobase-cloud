@@ -24,7 +24,9 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
       const ft=(tenants||[]).find(x => x.id!==r.tenantId && x.roomId===r.id && (x.status||"aktiv")!=="archiviert");
       if (ft){ nachmieter=ft; nachmieterTyp="mieter"; }
       else {
-        const bw = (bewerber||[]).find(b => b.zugeteiltes_zimmer===r.id && (b.status==="Zugeteilt" || (b.nachfolge_angenommen_at && b.status!=="Abgelehnt")) && (!t || (b.id!==t.bewerberId && (b.email||"").toLowerCase().trim()!==(t.email||"").toLowerCase().trim())));
+        // Bewerber, die schon als Mieter erfasst sind, zählen nicht (alte Zuteilung, Mieter wohnt evtl. in anderem Zimmer)
+        const istMieter = (b)=>(tenants||[]).some(x=>(x.status||"aktiv")!=="archiviert" && (x.bewerberId===b.id || x.bewerber_id===b.id || (b.email && (x.email||"").toLowerCase().trim()===(b.email||"").toLowerCase().trim())));
+        const bw = (bewerber||[]).find(b => b.zugeteiltes_zimmer===r.id && (b.status==="Zugeteilt" || (b.nachfolge_angenommen_at && b.status!=="Abgelehnt")) && !istMieter(b) && (!t || (b.id!==t.bewerberId && (b.email||"").toLowerCase().trim()!==(t.email||"").toLowerCase().trim())));
         if (bw){ nachmieter=bw; nachmieterTyp="bewerber"; }
       }
     }
