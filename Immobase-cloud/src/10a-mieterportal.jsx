@@ -10,7 +10,7 @@ function neuerPortalToken() {
   return Array.from(a).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function SchadenKarte({ s, tenantName, onTenant, onGeaendert, onWeiterleiten }) {
+function SchadenKarte({ s, tenantName, onTenant, onGeaendert, onWeiterleiten, onInformieren }) {
   const [antwort, setAntwort] = useState(s.antwort || "");
   const [notiz, setNotiz] = useState(s.notiz_intern || "");
   const [fotos, setFotos] = useState(null);
@@ -61,7 +61,9 @@ function SchadenKarte({ s, tenantName, onTenant, onGeaendert, onWeiterleiten }) 
         {(antwort !== (s.antwort || "") || notiz !== (s.notiz_intern || "")) &&
           <button className="btn btn-p btn-sm" style={{ width: "auto" }} disabled={busy} onClick={() => speichern({ antwort: antwort.trim() || null, notiz_intern: notiz.trim() || null })}>Speichern</button>}
         {onWeiterleiten && <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => onWeiterleiten(s)}>✉️ {s.weitergeleitet_at ? "Nochmals weiterleiten" : "An Verwaltung weiterleiten"}</button>}
+        {onInformieren && s.weitergeleitet_at && <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => onInformieren(s)}>📨 {s.mieter_informiert_at ? "Mieter nochmals informieren" : "Mieter informieren"}</button>}
         {s.weitergeleitet_at && <span style={{ fontSize: 11.5, color: "#5a6e4a" }}>✓ Weitergeleitet an {s.weitergeleitet_an} am {fmtZeitP(s.weitergeleitet_at)}</span>}
+        {s.mieter_informiert_at && <span style={{ fontSize: 11.5, color: "#5a6e4a" }}>✓ Mieter informiert am {fmtZeitP(s.mieter_informiert_at)}</span>}
       </div>
     </div>
   );
@@ -153,9 +155,81 @@ function MieterPortalTab({ tenant }) {
 // ─── SCHÄDEN (eigene Seite) ───────────────────────────────────────────────
 const aptAdresse = (apts, aptId) => { const a = (apts || []).find((x) => x.id === aptId); return a ? (a.adresse || "") : ""; };
 
+// Zeigt eine E-Mail so, wie sie ankommt (Vorschau vor dem Senden)
+function MailVorschau({ an, cc, betreff, text, anhaenge }) {
+  const zeile = (l, v) => v ? <div style={{ display: "flex", gap: 10, fontSize: 12.5, padding: "3px 0" }}><span style={{ width: 54, color: "#8a8174", flexShrink: 0 }}>{l}</span><span style={{ color: "#1a1814", minWidth: 0, overflowWrap: "anywhere" }}>{v}</span></div> : null;
+  return (
+    <div style={{ border: "1px solid #e1d8c5", borderRadius: 10, background: "#fff", overflow: "hidden" }}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid #efe8da", background: "#faf8f3" }}>
+        {zeile("An", an)}{zeile("CC", cc)}{zeile("Betreff", <b>{betreff}</b>)}
+      </div>
+      <div style={{ padding: "14px 16px", fontFamily: "Calibri,Arial,Helvetica,sans-serif", fontSize: 14, color: "#1a1814", lineHeight: 1.5, maxHeight: 360, overflow: "auto" }}>
+        {String(text || "").split("\n").map((z, i) => z.trim() === "" ? <div key={i}><br /></div> : <div key={i}>{z}</div>)}
+      </div>
+      {anhaenge && anhaenge.length > 0 && <div style={{ padding: "8px 14px", borderTop: "1px solid #efe8da", fontSize: 12, color: "#5a5448", display: "flex", gap: 6, flexWrap: "wrap" }}>{anhaenge.map((a) => <span key={a} style={{ background: "#f3efe6", borderRadius: 6, padding: "3px 8px" }}>📎 {a}</span>)}</div>}
+    </div>
+  );
+}
+
+// Mieter informieren, dass die Meldung weitergeleitet wurde (mit Vorschau, Text änderbar)
+function MieterInformierenDialog({ s, tenant, onClose, onGesendet }) {
+  const en = tenant?.sprache === "en";
+  const vn = tenant?.vorname || "";
+  const textDe = [
+    `Hallo ${vn},`, "",
+    `danke für deine Schadenmeldung „${s.titel}“.`, "",
+    s.kontakt_freigabe
+      ? "Wir haben sie an die zuständige Verwaltung weitergeleitet. Die Verwaltung bzw. der Handwerker meldet sich direkt bei dir, um einen Termin zu vereinbaren."
+      : "Wir haben sie an die zuständige Verwaltung weitergeleitet und melden uns bei dir, sobald wir mehr wissen.",
+    "", "Falls du Fragen hast, melde dich gerne bei uns.", "",
+    "Liebe Grüsse", "Dein D&T Homes Team",
+  ].join("\n");
+  const textEn = [
+    `Hi ${vn},`, "",
+    `thank you for your damage report "${s.titel}".`, "",
+    s.kontakt_freigabe
+      ? "We have forwarded it to the property management. The property management or the tradesperson will contact you directly to arrange an appointment."
+      : "We have forwarded it to the property management and will get back to you as soon as we know more.",
+    "", "If you have any questions, feel free to contact us.", "",
+    "Best regards", "Your D&T Homes Team",
+  ].join("\n");
+  const [betreff, setBetreff] = useState(en ? `Your damage report: ${s.titel}` : `Deine Schadenmeldung: ${s.titel}`);
+  const [text, setText] = useState(en ? textEn : textDe);
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [busy, setBusy] = useState(false);
+  async function senden() {
+    if (!tenant?.email) { toast("Beim Mieter ist keine E-Mail hinterlegt", "error"); return; }
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke("send-message", { body: { to: tenant.email, betreff, text, sprache: en ? "en" : "de" } });
+    if (error || data?.error) { setBusy(false); toast(data?.error || "Versand fehlgeschlagen", "error"); return; }
+    await supabase.from("schadenmeldungen").update({ mieter_informiert_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", s.id);
+    setBusy(false); toast("Mieter informiert");
+    onGesendet && onGesendet(); onClose();
+  }
+  return (
+    <div className="ov" onClick={onClose}>
+      <div className="modal" style={{ width: 640, padding: "26px 28px" }} onClick={(e) => e.stopPropagation()}>
+        <div className="ct" style={{ marginTop: 0 }}>Mieter informieren</div>
+        <div style={{ fontSize: 12, color: "#8a8174", marginBottom: 10 }}>Kurze Mail an {[tenant?.vorname, tenant?.nachname].filter(Boolean).join(" ") || "den Mieter"}, dass die Meldung weitergeleitet wurde{en ? " (auf Englisch, wie im Vertrag)" : ""}.</div>
+        {!bearbeiten ? <MailVorschau an={tenant?.email || "(keine E-Mail hinterlegt)"} betreff={betreff} text={text} />
+          : <>
+            <div className="fg"><label className="fl">Betreff</label><input className="fi" value={betreff} onChange={(e) => setBetreff(e.target.value)} /></div>
+            <div className="fg"><label className="fl">Text</label><textarea className="fi" rows={12} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: "inherit", lineHeight: 1.5 }} /></div>
+          </>}
+        <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 8 }}>Im D&amp;T-Mail-Design, Antworten gehen an info@dthomes.ch.</div>
+        <div className="ma">
+          <button className="btn btn-g" disabled={busy} onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-g" disabled={busy} onClick={() => setBearbeiten((b) => !b)}>{bearbeiten ? "Zur Vorschau" : "✏ Text ändern"}</button>
+          <button className="btn btn-p" disabled={busy || !tenant?.email} onClick={senden}>{busy ? "Sendet…" : "Senden"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet }) {
   const kontakt = liegenschaft || {};
-  const anrede = kontakt.kontakt_name ? `Hallo ${kontakt.kontakt_name}` : "Guten Tag";
+  const anrede = kontakt.kontakt_name ? `Hallo ${String(kontakt.kontakt_name).trim().split(/\s+/)[0]}` : "Guten Tag";
   const wo = [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const mieterName = tenant ? `${tenant.vorname || ""} ${tenant.nachname || ""}`.trim() : "";
   const zeilen = [
@@ -186,8 +260,9 @@ function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet 
   const [text, setText] = useState(zeilen.join("\n"));
   const [fotos, setFotos] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [bearbeiten, setBearbeiten] = useState(!kontakt.kontakt_email);
   async function senden() {
-    if (!an.trim()) { toast("Bitte Empfänger angeben", "error"); return; }
+    if (!an.trim()) { toast("Bitte Empfänger angeben", "error"); setBearbeiten(true); return; }
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("schaden-weiterleiten", { body: { id: s.id, an, cc, betreff, text, fotos } });
     setBusy(false);
@@ -201,16 +276,19 @@ function WeiterleitenDialog({ s, tenant, apt, liegenschaft, onClose, onGesendet 
         <div className="ct" style={{ marginTop: 0 }}>Schaden an Verwaltung weiterleiten</div>
         {!kontakt.kontakt_email && <div style={{ fontSize: 12, color: "#9b4a3e", marginBottom: 10 }}>Für {apt?.adresse || "diese Liegenschaft"} ist noch keine Ansprechperson hinterlegt. Du kannst sie unter „Liegenschaften“ erfassen oder hier eine Adresse eingeben.</div>}
         {kontakt.kontakt_email && <div style={{ fontSize: 12, color: "#8a8174", marginBottom: 10 }}>Ansprechperson: {[kontakt.kontakt_name, kontakt.kontakt_firma].filter(Boolean).join(", ")}{kontakt.kontakt_telefon ? ` · ${kontakt.kontakt_telefon}` : ""}</div>}
+        {!bearbeiten ? <MailVorschau an={an} cc={cc} betreff={betreff} text={text} anhaenge={fotos ? (s.fotos || []).map((_, i) => `Foto_${i + 1}`) : []} /> : <>
         <div className="frow">
           <div className="fg"><label className="fl">An</label><input className="fi" value={an} onChange={(e) => setAn(e.target.value)} placeholder="verwaltung@beispiel.ch" /></div>
           <div className="fg"><label className="fl">CC (optional)</label><input className="fi" value={cc} onChange={(e) => setCc(e.target.value)} /></div>
         </div>
         <div className="fg"><label className="fl">Betreff</label><input className="fi" value={betreff} onChange={(e) => setBetreff(e.target.value)} /></div>
         <div className="fg"><label className="fl">Text</label><textarea className="fi" rows={14} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: "inherit", lineHeight: 1.5 }} /></div>
+        </>}
         {(s.fotos || []).length > 0 && <label style={{ fontSize: 12.5, display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={fotos} onChange={(e) => setFotos(e.target.checked)} /> {s.fotos.length} Foto(s) als Anhang mitschicken</label>}
         <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 8 }}>Absender noreply@dthomes.ch, Antworten gehen an info@dthomes.ch, Daan in BCC. Status wechselt auf „In Arbeit“.</div>
         <div className="ma">
           <button className="btn btn-g" disabled={busy} onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-g" disabled={busy} onClick={() => setBearbeiten((b) => !b)}>{bearbeiten ? "Zur Vorschau" : "✏ Bearbeiten"}</button>
           <button className="btn btn-p" disabled={busy} onClick={senden}>{busy ? "Sendet…" : "Senden"}</button>
         </div>
       </div>
@@ -383,6 +461,7 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
   const [filter, setFilter] = useState("offen");
   const [adr, setAdr] = useState("");
   const [fwd, setFwd] = useState(null);
+  const [info, setInfo] = useState(null);
   async function laden() {
     const [{ data: m }, { data: l }] = await Promise.all([
       supabase.from("schadenmeldungen").select("*").order("created_at", { ascending: false }),
@@ -420,7 +499,7 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
           {zeigen.map((s) => (
             <div key={s.id + ":" + s.updated_at}>
               <div style={{ fontSize: 11, color: "#8a8174", margin: "4px 0 4px 2px" }}>{aptAdresse(apts, s.apt_id) || "–"}</div>
-              <SchadenKarte s={s} tenantName={name(s.tenant_id)} onTenant={() => navigateTo && navigateTo("mieter", s.tenant_id)} onGeaendert={laden} onWeiterleiten={istAdmin ? setFwd : null} />
+              <SchadenKarte s={s} tenantName={name(s.tenant_id)} onTenant={() => navigateTo && navigateTo("mieter", s.tenant_id)} onGeaendert={laden} onWeiterleiten={istAdmin ? setFwd : null} onInformieren={istAdmin ? setInfo : null} />
             </div>
           ))}
         </div>
@@ -432,7 +511,8 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
           {adressen.map((a) => <LiegenschaftKarte key={a + ":" + (lg[a]?.updated_at || "")} adresse={a} wert={lg[a]} apts={apts} onGespeichert={laden} />)}
         </div>
       )}
-      {fwd && <WeiterleitenDialog s={fwd} tenant={tenantVon(fwd.tenant_id)} apt={fwdApt} liegenschaft={lg[fwdApt?.adresse]} onClose={() => setFwd(null)} onGesendet={laden} />}
+      {fwd && <WeiterleitenDialog s={fwd} tenant={tenantVon(fwd.tenant_id)} apt={fwdApt} liegenschaft={lg[fwdApt?.adresse]} onClose={() => setFwd(null)} onGesendet={() => { const x = fwd; laden(); if (x && tenantVon(x.tenant_id)?.email) setInfo(x); }} />}
+      {info && <MieterInformierenDialog s={info} tenant={tenantVon(info.tenant_id)} onClose={() => setInfo(null)} onGesendet={laden} />}
     </div>
   );
 }
