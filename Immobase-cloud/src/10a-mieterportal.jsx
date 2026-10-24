@@ -327,9 +327,10 @@ const KD_STATUS = { eingereicht: ["Neu", "#8a6d3b", "#f6eedb"], bestaetigt: ["Be
 function KuendigungBestaetigen({ k, tenant, apt, updateTenant, onClose, onFertig }) {
   const en = tenant?.sprache === "en";
   const wohnung = apt?.vermietungsart === "wohnung";
+  const portalLink = tenant?.portal_token && !tenant?.portal_gesperrt ? `${PORTAL_BASIS}/p/${tenant.portal_token}` : "";
   const [text, setText] = useState(en
-    ? `Hi ${tenant?.vorname || ""},\n\nwe hereby confirm your notice of termination effective ${k.datum}.\n\nWe will get in touch with you in good time to arrange the handover${wohnung ? " of the apartment" : " of the room"}. If you know someone who would like to take over, they are welcome to apply on our website.\n\nBest regards\nYour D&T Homes Team`
-    : `Hallo ${tenant?.vorname || ""},\n\nhiermit bestätigen wir deine Kündigung per ${k.datum}.\n\nWir melden uns rechtzeitig bei dir, um die Übergabe ${wohnung ? "der Wohnung" : "des Zimmers"} zu vereinbaren. Falls du jemanden kennst, der übernehmen möchte, kann sie oder er sich gerne auf unserer Webseite bewerben.\n\nLiebe Grüsse\nDein D&T Homes Team`);
+    ? `Hi ${tenant?.vorname || ""},\n\nwe hereby confirm your notice of termination effective ${k.datum}.\n\nWe will get in touch with you in good time to arrange the handover${wohnung ? " of the apartment" : " of the room"}. If you would like to move out earlier, you can suggest a successor tenant in the tenant portal. With your successor link they can apply for your ${wohnung ? "apartment" : "room"} directly.${portalLink ? `\n\nTenant portal: ${portalLink}` : ""}\n\nBest regards\nYour D&T Homes Team`
+    : `Hallo ${tenant?.vorname || ""},\n\nhiermit bestätigen wir deine Kündigung per ${k.datum}.\n\nWir melden uns rechtzeitig bei dir, um die Übergabe ${wohnung ? "der Wohnung" : "des Zimmers"} zu vereinbaren. Falls du früher ausziehen möchtest, kannst du im Mieterportal einen Nachmieter vorschlagen. Über deinen Nachfolge-Link kann sich die Person direkt ${wohnung ? "auf deine Wohnung" : "auf dein Zimmer"} bewerben.${portalLink ? `\n\nMieterportal: ${portalLink}` : ""}\n\nLiebe Grüsse\nDein D&T Homes Team`);
   const [auszug, setAuszug] = useState(true);
   const [mail, setMail] = useState(!!tenant?.email);
   const [busy, setBusy] = useState(false);
@@ -350,6 +351,7 @@ function KuendigungBestaetigen({ k, tenant, apt, updateTenant, onClose, onFertig
       <div className="modal" style={{ width: 600, padding: "26px 28px" }} onClick={(e) => e.stopPropagation()}>
         <div className="ct" style={{ marginTop: 0 }}>Kündigung bestätigen</div>
         <div style={{ fontSize: 12.5, marginBottom: 10 }}>{tenant ? `${tenant.vorname} ${tenant.nachname}` : k.tenant_id} · per <b>{k.datum}</b>{tenant?.auszug ? ` · bisher eingetragener Auszug: ${tenant.auszug}` : ""}</div>
+        <div style={{ fontSize: 12, color: k.quelle === "manuell" ? "#9b4a3e" : "#5a6e4a", marginBottom: 10 }}>{k.quelle === "manuell" ? "Manuell erfasst: bitte selbst prüfen, ob der Termin laut Vertrag möglich ist (Frist, Befristung, nicht Ende Dezember)." : "✓ Im Mieterportal eingereicht: der Termin wurde dort nach den Regeln des unterschriebenen Vertrags geprüft."}</div>
         <label style={{ fontSize: 12.5, display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}><input type="checkbox" checked={auszug} onChange={(e) => setAuszug(e.target.checked)} /> Auszug beim Mieter auf {k.datum} setzen</label>
         <label style={{ fontSize: 12.5, display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}><input type="checkbox" checked={mail} disabled={!tenant?.email} onChange={(e) => setMail(e.target.checked)} /> Bestätigung per Mail an {tenant?.email || "–"}</label>
         {mail && <textarea className="fi" rows={11} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: "inherit", lineHeight: 1.5 }} />}
@@ -366,6 +368,7 @@ function KuendigungenPage({ tenants, apts, bewerber, updateTenant, navigateTo })
   const [liste, setListe] = useState(null);
   const [alle, setAlle] = useState(false);
   const [best, setBest] = useState(null);
+  const [erfassen, setErfassen] = useState(null);
   async function laden() { const { data } = await supabase.from("kuendigungen").select("*").order("created_at", { ascending: false }); setListe(data || []); }
   useEffect(() => { laden(); }, []);
   const tenantVon = (id) => (tenants || []).find((x) => x.id === id);
@@ -393,8 +396,34 @@ function KuendigungenPage({ tenants, apts, bewerber, updateTenant, navigateTo })
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div><div className="pt">Kündigungen</div><div className="ps">Kündigungen und Nachmieter-Vorschläge aus dem Mieterportal</div></div>
-        <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => setAlle((v) => !v)}>{alle ? "Nur offene" : "Alle anzeigen"}</button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => setAlle((v) => !v)}>{alle ? "Nur offene" : "Alle anzeigen"}</button>
+          <button className="btn btn-p btn-sm" style={{ width: "auto" }} onClick={() => setErfassen({ tenant_id: "", datum: "", grund: "" })}>+ Kündigung erfassen</button>
+        </div>
       </div>
+      {erfassen && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="ct" style={{ marginTop: 0 }}>Kündigung erfassen (z.B. per Mail oder Brief eingegangen)</div>
+          <div className="frow">
+            <div className="fg"><label className="fl">Mieter</label>
+              <select className="fi" value={erfassen.tenant_id} onChange={(e) => setErfassen({ ...erfassen, tenant_id: e.target.value })}>
+                <option value="">Bitte wählen</option>
+                {(tenants || []).filter((t) => (t.status || "aktiv") !== "archiviert").slice().sort((a, b) => `${a.nachname}`.localeCompare(`${b.nachname}`, "de")).map((t) => <option key={t.id} value={t.id}>{t.nachname} {t.vorname} · {t.roomId || t.aptId || ""}</option>)}
+              </select></div>
+            <div className="fg"><label className="fl">Kündigung per</label><input className="fi" type="date" value={erfassen.datum} onChange={(e) => setErfassen({ ...erfassen, datum: e.target.value })} /></div>
+          </div>
+          <div className="fg"><label className="fl">Bemerkung (optional)</label><input className="fi" value={erfassen.grund} onChange={(e) => setErfassen({ ...erfassen, grund: e.target.value })} /></div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => setErfassen(null)}>Abbrechen</button>
+            <button className="btn btn-p btn-sm" style={{ width: "auto" }} disabled={!erfassen.tenant_id || !erfassen.datum} onClick={async () => {
+              const [y, m, d] = erfassen.datum.split("-");
+              const { error } = await supabase.from("kuendigungen").insert({ tenant_id: erfassen.tenant_id, art: "kuendigung", datum: `${d}.${m}.${y}`, grund: erfassen.grund.trim() || null, status: "eingereicht", quelle: "manuell" });
+              if (error) { toast("Speichern fehlgeschlagen", "error"); return; }
+              toast("Erfasst. Jetzt prüfen und bestätigen."); setErfassen(null); laden();
+            }}>Erfassen</button>
+          </div>
+        </div>
+      )}
       <div className="card" style={{ marginTop: 14 }}>
         {liste === null && <div style={{ fontSize: 12.5, color: "#8a8174" }}>Lädt…</div>}
         {liste !== null && zeigen.length === 0 && <div style={{ fontSize: 12.5, color: "#8a8174" }}>{alle ? "Noch keine Einträge." : "Nichts offen."}</div>}
@@ -405,7 +434,7 @@ function KuendigungenPage({ tenants, apts, bewerber, updateTenant, navigateTo })
             <div key={k.id} style={{ borderTop: "1px solid #efe8da", padding: "12px 0", display: "flex", gap: 12, justifyContent: "space-between", flexWrap: "wrap", alignItems: "flex-start" }}>
               <div style={{ fontSize: 12.5, lineHeight: 1.6, minWidth: 240, flex: 1 }}>
                 <div>
-                  <b>{k.art === "kuendigung" ? `Kündigung per ${k.datum}` : `Nachmieter: ${k.nachmieter_name}`}</b>
+                  <b>{k.art === "kuendigung" ? `Kündigung per ${k.datum}` : `Nachmieter: ${k.nachmieter_name}`}</b>{k.quelle === "manuell" && <span style={{ fontSize: 10.5, color: "#8a8174", marginLeft: 6 }}>manuell erfasst</span>}
                   <span style={{ fontSize: 10.5, padding: "2px 7px", borderRadius: 8, color: col, background: bg, marginLeft: 6 }}>{k.art === "nachmieter" && k.status === "bestaetigt" ? "Erledigt" : l}</span>
                 </div>
                 <div style={{ color: "#5a5448" }}>
