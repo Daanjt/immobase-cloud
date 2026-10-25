@@ -5,7 +5,7 @@
 //    kommt ein 6-stelliger Code an die E-Mail des Mieters. Danach gilt eine Geraete-Sitzung 90 Tage.
 //  - Optional Face ID / Fingerabdruck (Passkey) statt Code.
 //  - Ausweis und Betreibungsauszug werden nie ausgeliefert, nur "vorhanden".
-//  - Link sperrbar (tenants.portal_gesperrt), Zugang endet 90 Tage nach Auszug.
+//  - Link sperrbar (tenants.portal_gesperrt), Zugang endet 3 Monate nach Auszug.
 //  - Alle Daten nur ueber diese Funktion (Service-Role), keine anon-Rechte auf die Tabellen.
 //
 // Aufrufe: POST JSON {aktion, ...}  oder multipart (aktion=hochladen|schaden).
@@ -85,7 +85,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean) {
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, extra_schluessel, archived_at";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, kaution_abrechnung, extra_schluessel, archived_at";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 // Zugang bleibt bis 3 Monate nach dem Auszug (bzw. nach der Archivierung, falls kein Auszug eingetragen ist)
@@ -461,11 +461,64 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     })),
     uebergabe_start: uebergabeStartInfo(t, ho || []),
     zugang_bis: zugangBis(t) ? fmt(zugangBis(t)!) : null,
+    kaution_abrechnung: kautionAbrechnung(t),
+    angebote: await angebote(t, kd || []),
     ...(await kostenUndZahlung(t, apt, room)),
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t), stand: await nachfolgeStand(t) },
   });
 }
 
+
+// Kautionsabrechnung erst zeigen, wenn sie abgeschlossen ist (gesendet oder als erledigt markiert)
+function kautionAbrechnung(t: any) {
+  const k = t?.kaution_abrechnung;
+  if (!k || !(k.gesendet_am || k.erledigt_am)) return null;
+  const betrag = +k.betrag || 0;
+  if (betrag <= 0) return null;
+  const abzuege = (Array.isArray(k.abzuege) ? k.abzuege : []).filter((a: any) => a && (a.grund || +a.betrag)).map((a: any) => ({ grund: String(a.grund || ""), betrag: +a.betrag || 0 }));
+  const rueck = k.rueckzahlung != null ? +k.rueckzahlung : betrag - abzuege.reduce((s: number, a: any) => s + a.betrag, 0);
+  return { betrag, abzuege, rueckzahlung: rueck, datum: fmt(new Date(String(k.gesendet_am || k.erledigt_am))) };
+}
+
+// Wer kündigt oder auszieht, sieht freie Zimmer und Wohnungen von der Webseite (gleiche Regeln wie dort)
+async function angebote(t: any, kd: any[]) {
+  const kuendigt = kd.some((k: any) => k.art === "kuendigung" && k.status !== "abgelehnt");
+  if (!kuendigt && !parseDatum(t.auszug)) return [];
+  const [{ data: rs }, { data: as }] = await Promise.all([
+    sb.from("rooms").select("id, apt_id, occupied, miete, groesse, qm, balkon, ausschreib_override, mieter_auszug, nachmieter_gesetzt"),
+    sb.from("apartments").select("id, type, adresse, plz, ort, zimmer, flaeche, mietende, ausschreiben, nicht_ausschreiben, vermietungsart").eq("type", "WG"),
+  ]);
+  const amap: Record<string, any> = {}; (as || []).forEach((a: any) => { amap[a.id] = a; });
+  const heute = new Date(); heute.setUTCHours(0, 0, 0, 0);
+  const frei = (r: any, a: any) => {
+    if (!a || r.nachmieter_gesetzt) return false;
+    const ov = r.ausschreib_override || "auto";
+    if (ov === "ja") return true; if (ov === "nein") return false;
+    if (a.nicht_ausschreiben) return false;
+    if (!r.occupied) return true;
+    if (a.ausschreiben) return true;
+    const aus = parseDatum(r.mieter_auszug), ende = parseDatum(a.mietende);
+    if (!aus || (ende && aus.getTime() >= ende.getTime())) return false;
+    return heute.getTime() >= aus.getTime() - 45 * TAG;
+  };
+  const gruppen: Record<string, any> = {};
+  for (const r of rs || []) {
+    if (r.id === t.room_id) continue;
+    const a = amap[r.apt_id];
+    if (!frei(r, a)) continue;
+    const g = gruppen[a.id] = gruppen[a.id] || { apt: a, preise: [] as number[], n: 0 };
+    g.n++; if (+r.miete) g.preise.push(+r.miete);
+  }
+  return Object.values(gruppen).map((g: any) => {
+    const a = g.apt, wohnung = a.vermietungsart === "wohnung";
+    return {
+      id: a.id, wohnung, adresse: a.adresse || "", ort: [a.plz, a.ort].filter(Boolean).join(" "),
+      zimmer: a.zimmer ? String(a.zimmer) : "", flaeche: a.flaeche ? String(a.flaeche).replace(/\s*m²?$/i, "") : "",
+      anzahl: g.n, ab: g.preise.length ? Math.min(...g.preise) : null,
+      link: `https://www.dthomes.ch/${wohnung ? "wohnungen" : "zimmer"}?wohnung=${encodeURIComponent(a.id)}`,
+    };
+  }).sort((x: any, y: any) => (x.ab ?? 1e9) - (y.ab ?? 1e9)).slice(0, 6);
+}
 
 // Mietkosten aus dem unterschriebenen Vertrag (Fallback: Werte beim Mieter) und Zahlungsangaben mit QR-Rechnung pro Mieter (ohne Betrag: neutral)
 async function kostenUndZahlung(t: any, apt: any, room: any) {
