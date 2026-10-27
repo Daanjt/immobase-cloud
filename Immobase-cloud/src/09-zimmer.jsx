@@ -214,6 +214,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
           <div className="fg"><label className="fl">Größe</label><input className="fi" value={form.groesse||""} onChange={F("groesse")} placeholder="z.B. 14 (m² wird automatisch ergänzt)"/></div>
           <div className="fg"><label className="fl">Miete CHF/Mt.</label><input className="fi" type="number" value={form.miete||""} onChange={F("miete")}/></div>
         </div>
+        {(() => { const t = form.tenantId ? tenants.find(x => x.id === form.tenantId) : null; if (!t) return null; const mz = (t.mietzins != null && t.mietzins !== "") ? +t.mietzins : null; return <div style={{fontSize:11.5,color:"#6e6a62",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"8px 12px",marginBottom:12}}>Der Preis gilt für den nächsten Mieter (Website und neue Verträge). {t.vorname} {t.nachname} zahlt weiter {mz != null ? `CHF ${mz}` : "den bisherigen Mietzins"}{t.auszug ? ` bis zum Auszug am ${t.auszug}` : ""}.</div>; })()}
         <div className="fg">
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
             <input type="checkbox" checked={!!form.balkon} onChange={FB("balkon")}/>

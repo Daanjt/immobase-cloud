@@ -870,6 +870,18 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     if(mb&&mb>_heuteZ) return {datum:_isoZ(mb), grund:"Mietbeginn der Wohnung"};
     return null;
   }
+  // Früherer Mietzins fürs Anfangsmietzinsformular: was der letzte Mieter im Zimmer wirklich bezahlt (Miete + Strom),
+  // nicht der aktuelle Zimmerpreis (der kann für den Nachmieter erhöht oder gesenkt worden sein)
+  function vormieterMietzins(room){
+    if(!room) return "";
+    const kand=(tenants||[]).filter(x=>x&&(x.id===room.tenantId||x.roomId===room.id)&&x.id!==(b&&b.tenantId));
+    if(!kand.length) return "";
+    const vm=kand.slice().sort((x,y)=>{ const dx=_pdZ(x.einzug), dy=_pdZ(y.einzug); return (dx?dx.getTime():0)-(dy?dy.getTime():0); })
+      .find(x=>x.id===room.tenantId) || kand[0];
+    const mz=(vm&&vm.mietzins!=null&&vm.mietzins!=="")?+vm.mietzins:(+room.miete||0);
+    const st=(vm&&vm.strom!=null&&vm.strom!=="")?+vm.strom:25;
+    return mz?mz+st:"";
+  }
   // Einzug aus dem unterschriebenen Vertrag (statt Wunschdatum) fuer die Zimmerzuteilung
   async function einzugAusVertrag(bid){
     if(!bid) return;
@@ -1331,7 +1343,7 @@ www.dthomes.ch`;
       einzug: (over&&over.einzug) || (raumFreiAb(targetRoomId)||{}).datum || "",
       auszug: b.auszug || "",
       mietende: "",
-      fruehererMietzins: (room && (room.tenantId || (tenants||[]).some(x=>x&&x.roomId===room.id))) ? (bruttomiete + strom) : "",
+      fruehererMietzins: vormieterMietzins(room),
       ortVertrag: "Zürich",
       datumVertrag: new Date().toISOString().split("T")[0],
       minMietdauer: 6,
@@ -2133,6 +2145,7 @@ www.dthomes.ch`;
                     ort: apt?.ort || p.ort,
                     bruttomiete, nettomiete, kautionBetrag, total,
                     einzug: (raumFreiAb(newId)||{}).datum || p.einzug,
+                    fruehererMietzins: vormieterMietzins(room),
                   };
                   if (apt && apt.vermietungsart === "wohnung") return wohnungVertragswerte(neu, apt, room, p.personen || 1);
                   if (p.vertragsart === "wohnung") { const { vertragsart, ...rest } = neu; return { ...rest, nebenkosten: 100, nettomiete: bruttomiete - 100, strom: 25, total: bruttomiete + 25 + (p.aufschlag||0), kautionBetrag: (bruttomiete + 25) * (p.kautionMonate||0) }; }
@@ -2239,7 +2252,8 @@ www.dthomes.ch`;
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"12px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
               <div>
                 <div style={{fontSize:12.5,fontWeight:500}}>Früherer Mietzins (brutto)</div>
-                <div style={{fontSize:10.5,color:"#8a8174",marginTop:2}}>Nur fürs Anfangsmietzinsformular. Leer lassen bei Erstvermietung.</div>
+                <div style={{fontSize:10.5,color:"#8a8174",marginTop:2}}>Nur fürs Anfangsmietzinsformular. Leer lassen bei Erstvermietung. Vorausgefüllt mit Miete + Strom des letzten Mieters.</div>
+                {(() => { const neu = (+vertragData.bruttomiete||0) + (+vertragData.strom||25); const alt = +vertragData.fruehererMietzins||0; const d = neu - alt; return alt && d ? <div style={{fontSize:11.5,fontWeight:600,color:d>0?"#8a6420":"#3d4f2f",marginTop:4}}>{d>0?"Erhöhung":"Senkung"} um CHF {Math.abs(d)} gegenüber Vormieter</div> : null; })()}
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <span style={{color:"#1a1814",fontSize:13}}>CHF</span>
