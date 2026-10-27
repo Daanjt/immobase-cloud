@@ -1171,9 +1171,17 @@ function useSupabaseData() {
   }
   
   async function getDocumentUrl(storagePath) {
-    const {data, error} = await supabase.storage.from("documents").createSignedUrl(storagePath, 3600);
-    if (error) { console.error(error); return null; }
-    return data?.signedUrl || null;
+    // Bei kurzen Netzaussetzern (iPhone: "Load failed") bis zu 2x nachversuchen
+    for (let versuch = 0; versuch < 3; versuch++) {
+      try {
+        const {data, error} = await supabase.storage.from("documents").createSignedUrl(storagePath, 3600);
+        if (!error && data?.signedUrl) return data.signedUrl;
+        if (error && !/load failed|failed to fetch|network/i.test(String(error.message || error))) { console.error(error); return null; }
+      } catch (e) { if (!/load failed|failed to fetch|network/i.test(String(e && e.message || e))) { console.error(e); return null; } }
+      await new Promise(r => setTimeout(r, 700 * (versuch + 1)));
+    }
+    console.error("Dokument-Link: Netzwerkfehler nach 3 Versuchen");
+    return null;
   }
   
   async function deleteDocument(doc) {

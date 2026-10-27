@@ -692,9 +692,11 @@ function DocumentsManager({entityType, entityId, documents, uploadDocument, getD
   }
   
   async function handleView(doc) {
+    // Fenster sofort öffnen (sonst blockiert Safari auf dem iPhone das Popup nach dem Warten)
+    const fenster = window.open("", "_blank");
     const url = await getDocumentUrl(doc.storage_path);
-    if (url) window.open(url, "_blank");
-    else alert("Dokument konnte nicht geöffnet werden.");
+    if (url) { if (fenster) fenster.location.href = url; else window.location.href = url; }
+    else { try { fenster && fenster.close(); } catch (_) {} alert("Dokument konnte nicht geöffnet werden. Bitte prüfe die Internetverbindung und versuche es nochmals."); }
   }
   
   async function handleDownload(doc) {
