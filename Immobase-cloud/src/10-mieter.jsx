@@ -247,6 +247,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
   const [nachModal, setNachModal] = useState(false);
   const [nd, setNd] = useState(null);
   const [nachBusy, setNachBusy] = useState(false);
+  const [vorschauN, setVorschauN] = useState(null);
   const [nachProgress, setNachProgress] = useState(null);
   const [nachResult, setNachResult] = useState(null);
   function openNachtrag(t){
@@ -281,7 +282,23 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
     } catch(e){ alert("PDF konnte nicht erstellt werden: " + (e.message||e)); }
     finally { setNachBusy(false); }
   }
-  async function sendNachtrag(){
+  // Vor dem Versand: genau das PDF zeigen, das der Mieter erhaelt
+  async function vorschauNachtrag(){
+    if(!nd) return;
+    const t = nd._tenant;
+    if(!nd.mietende){ alert("Bitte das neue Enddatum (verlängert bis) angeben."); return; }
+    if(!t.email){ alert("Dieser Mieter hat keine E-Mail-Adresse."); return; }
+    setNachBusy(true); setNachResult(null); setNachProgress({msg:"Vorschau wird erstellt…",p:0.2});
+    try {
+      const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
+      const html = buildNachtragHTML(t, nd, fullName, formatDateLong);
+      const fn = `Verlaengerung_${fullName.replace(/\s+/g,"_")}.pdf`;
+      const blob = await htmlToPdf(html, fn);
+      setVorschauN({ fullName, html, blob, weitere:[{ name:"Verlängerung", kurz:"Verlängerung", blob, fn }] });
+    } catch(e){ alert("Vorschau fehlgeschlagen: " + (e.message||e)); }
+    finally { setNachBusy(false); setNachProgress(null); }
+  }
+  async function sendNachtrag(pre){
     if(!nd) return;
     const t = nd._tenant;
     if(!nd.mietende){ alert("Bitte das neue Enddatum (verlängert bis) angeben."); return; }
@@ -290,18 +307,18 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
     try {
       const fullName = `${t.vorname||""} ${t.nachname||""}`.trim();
       // Neuer Ablauf: ohne D&T-Faksimile verschicken, Mieter zeichnet zuerst.
-      const html = buildNachtragHTML(t, nd, fullName, formatDateLong);
+      const html = (pre && pre.html) || buildNachtragHTML(t, nd, fullName, formatDateLong);
       const cdata = buildContractDataForTenant(t);
       const vFull = cdata ? { ...cdata.v, einzug: nd.mietbeginn || cdata.v.einzug, auszug: nd.mietende, mietende: nd.mietende } : null;
       const res = await sendSingleDocForSigning(t, html, {
         docName:"Verlängerung", docType:"verlaengerung", contractType:"verlaengerung",
-        aptId: nd.aptId, roomId: nd.roomId, tenantId: t.id, vertrag: vFull,
+        aptId: nd.aptId, roomId: nd.roomId, tenantId: t.id, vertrag: vFull, preBlob: pre && pre.blob,
         onProgress:(msg,p)=>setNachProgress({msg,p}),
       });
-      setNachResult({ok:true, ...res});
+      setNachResult({ok:true, ...res}); setVorschauN(null);
       if(updateTenant){ try { await updateTenant(t.id, {auszug: nd.mietende}); } catch(e){} }
       if(loadContracts) await loadContracts();
-    } catch(e){ setNachResult({ok:false, error:e.message||String(e)}); }
+    } catch(e){ setNachResult({ok:false, error:e.message||String(e)}); setVorschauN(null); }
     finally { setNachBusy(false); setNachProgress(null); }
   }
   async function generateUMVForTenant(t) {
@@ -1269,13 +1286,14 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 <button className="btn btn-g btn-sm" disabled={nachBusy} onClick={downloadNachtrag}>{nachBusy?"⏳ …":"📄 Herunterladen"}</button>
                 <div style={{flex:1}}/>
                 <button className="btn btn-g" disabled={nachBusy} onClick={()=>setNachModal(false)}>Abbrechen</button>
-                <button className="btn btn-p" disabled={nachBusy} onClick={sendNachtrag}>{nachBusy?"Wird verschickt…":"Zur Unterschrift senden"}</button>
+                <button className="btn btn-p" disabled={nachBusy} onClick={vorschauNachtrag}>{nachBusy?"⏳ …":"👁 Vorschau und senden"}</button>
               </div>
             </>)}
           </div>
         </div>
         );
       })()}
+      {vorschauN && nd && <VertragVorschauModal vorschau={vorschauN} email={nd._tenant.email} busy={nachBusy} progress={nachProgress && nachProgress.msg} bestaetigenText="✓ Bestätigen und Verlängerung senden" onClose={()=>setVorschauN(null)} onConfirm={()=>sendNachtrag(vorschauN)}/>}
       {tvModal && tvData && (() => { const t = tvData._tenant; return (
         <div className="ov" onClick={e=>e.target===e.currentTarget&&setTvModal(false)}>
           <div className="modal" style={{width:600}}>

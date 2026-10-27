@@ -140,7 +140,7 @@ function useIstHandy() {
   }, []);
   return m;
 }
-function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConfirm }) {
+function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConfirm, bestaetigenText }) {
   const [idx, setIdx] = useState(0);
   const handy = useIstHandy();
   const docs = React.useMemo(() => {
@@ -149,6 +149,7 @@ function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConf
     const d = [];
     if (vorschau.umvBlob) d.push({ name: "Untermietvertrag", kurz: "Vertrag", url: URL.createObjectURL(vorschau.umvBlob), fn: `Untermietvertrag_${n}.pdf` });
     if (vorschau.amzBlob) d.push({ name: "Anfangsmietzinsformular", kurz: "Mietzinsformular", url: URL.createObjectURL(vorschau.amzBlob), fn: `Anfangsmietzinsformular_${n}.pdf` });
+    (vorschau.weitere || []).forEach(x => d.push({ name: x.name, kurz: x.kurz || x.name, url: URL.createObjectURL(x.blob), fn: x.fn }));
     return d;
   }, [vorschau]);
   useEffect(() => () => { docs.forEach(x => { try { URL.revokeObjectURL(x.url); } catch (e) {} }); }, [docs]);
@@ -192,7 +193,7 @@ function VertragVorschauModal({ vorschau, email, busy, progress, onClose, onConf
         {busy && progress && <div style={{padding:"6px 16px",fontSize:11.5,color:"#6e6a62",flexShrink:0}}>⏳ {progress}</div>}
         <div style={{padding:handy?"10px 12px calc(10px + env(safe-area-inset-bottom))":"12px 20px",borderTop:"1px solid #e8e3d8",display:"flex",flexDirection:handy?"column-reverse":"row",justifyContent:"flex-end",gap:8,flexShrink:0,background:"#fefcf7"}}>
           <button onClick={()=>!busy&&onClose()} disabled={busy} style={{fontSize:handy?14:12.5,padding:handy?"12px 16px":"9px 16px",background:"#f0ebe1",color:"#4a4439",border:"1px solid #d8d0c0",borderRadius:6,cursor:busy?"wait":"pointer"}}>Zurück zum Bearbeiten</button>
-          <button onClick={onConfirm} disabled={busy} style={{fontSize:handy?14.5:12.5,padding:handy?"14px 18px":"9px 18px",background:"#3a5230",color:"#fefcf7",border:"1px solid #2f4527",borderRadius:6,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"Wird gesendet…":(handy?"✓ Bestätigen und senden":"✓ Bestätigen und Vertrag digital senden")}</button>
+          <button onClick={onConfirm} disabled={busy} style={{fontSize:handy?14.5:12.5,padding:handy?"14px 18px":"9px 18px",background:"#3a5230",color:"#fefcf7",border:"1px solid #2f4527",borderRadius:6,cursor:busy?"wait":"pointer",fontWeight:600}}>{busy?"Wird gesendet…":(handy?"✓ Bestätigen und senden":(bestaetigenText||"✓ Bestätigen und Vertrag digital senden"))}</button>
         </div>
       </div>
     </div>
@@ -388,7 +389,8 @@ async function sendSingleDocForSigning(person, html, opts) {
   const fullName = `${person.vorname || ""} ${person.nachname || ""}`.trim();
   if (!person.email) throw new Error("Person hat keine Email-Adresse");
   progress("PDF erstellen...", 0.3);
-  const blob = await htmlToPdf(html, `${opts.docName||"Dokument"}_${fullName.replace(/\s+/g,"_")}.pdf`);
+  // Wurde vorher eine Vorschau gezeigt, genau dieses PDF verschicken
+  const blob = opts.preBlob || await htmlToPdf(html, `${opts.docName||"Dokument"}_${fullName.replace(/\s+/g,"_")}.pdf`);
   progress("PDF hochladen...", 0.6);
   const token = generateContractToken();
   const path = `${token}/${opts.docType||"dokument"}.pdf`;
