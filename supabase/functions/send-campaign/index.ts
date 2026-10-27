@@ -34,6 +34,8 @@ function logoAnhang(b64: string | null) {
 function esc(s: string) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
 type Design = { eyebrow?: string; button_text?: string; button_url?: string };
+// Empfaenger kann einen eigenen Button-Link haben (z.B. persoenlicher Mieterportal-Link)
+type Empf = { email: string; vorname: string; button_url?: string };
 
 // Links, Mailadressen und **fett** im bereits escapten Text
 function inline(t: string) {
@@ -56,6 +58,7 @@ function infoBox(rows: [string, string][]) {
   const tr = rows.map(([l, v], i) => { const bt = i ? "border-top:1px solid #efe7d6;" : ""; return `<tr><td colspan="2" style="padding:7px 0;${bt}"><div style="color:#8a8174;font-size:11.5px;margin-bottom:2px;">${inline(l)}</div><div style="color:#1a1814;font-size:13.5px;">${inline(v)}</div></td></tr>`; }).join("");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:2px 0 20px;"><tr><td bgcolor="#faf8f3" style="background:#faf8f3;border-left:3px solid #1a1814;padding:12px 18px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;border-collapse:collapse;">${tr}</table></td></tr></table>`;
 }
+const BTN_MARKE = '<p style="font-size:14px;color:#3a352d;margin:0 0 16px;">[button]</p>';
 const P = (t: string) => `<p style="font-size:14px;color:#3a352d;margin:0 0 16px;">${t}</p>`;
 
 // Freitext aus dem Admin in gestaltetes HTML umwandeln
@@ -102,6 +105,10 @@ function huelle(vorname: string, text: string, logoSrc: string, d: Design = {}) 
   const button = btnUrl && (d.button_text || "").trim()
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:8px 0 22px;"><tr><td align="center"><a href="${esc(btnUrl)}" style="display:inline-block;background:#1a1814;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${esc(d.button_text!.trim())}</a></td></tr></table>`
     : "";
+  // Steht im Text eine Zeile [button], kommt der Button an diese Stelle statt ans Ende
+  let inhalt = body + button;
+  if (button && body.includes(BTN_MARKE)) inhalt = body.replace(BTN_MARKE, button);
+  else if (body.includes(BTN_MARKE)) inhalt = body.replace(BTN_MARKE, "");
   const gruss = hatGruss ? "" : `<p style="font-size:14px;color:#3a352d;margin:6px 0 0;">Liebe Grüsse<br><strong style="color:#1a1814;">Daan</strong><br><span style="color:#8a8174;font-size:12.5px;">D&amp;T Homes</span></p>`;
   return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
@@ -109,7 +116,7 @@ function huelle(vorname: string, text: string, logoSrc: string, d: Design = {}) 
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
 <div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${esc(eyebrow)}</div>
 <p style="font-size:15px;font-weight:600;margin:0 0 14px;">${anrede}</p>
-${body}${button}${gruss}
+${inhalt}${gruss}
 <p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">Bei Fragen: <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> oder per WhatsApp <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
 </div>
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
@@ -129,11 +136,11 @@ serve(async (req) => {
     const sb = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Empfaenger bestimmen
-    let recipients: { email: string; vorname: string }[] = [];
+    let recipients: Empf[] = [];
     if (test_email) {
       recipients = [{ email: String(test_email), vorname: "" }];
     } else if (Array.isArray(inRecip) && inRecip.length) {
-      recipients = inRecip.filter((r: any) => r && r.email && String(r.email).includes("@")).map((r: any) => ({ email: String(r.email).trim(), vorname: String(r.vorname || "").trim() }));
+      recipients = inRecip.filter((r: any) => r && r.email && String(r.email).includes("@")).map((r: any) => ({ email: String(r.email).trim(), vorname: String(r.vorname || "").trim(), ...(r.button_url ? { button_url: String(r.button_url) } : {}) }));
     } else if (group === "mieter") {
       const { data } = await sb.from("tenants").select("vorname,email,status,einzug").not("email", "is", null);
       const heute = Date.now();
@@ -176,7 +183,7 @@ serve(async (req) => {
         const resp = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: FROM_EMAIL, to: [r.email], bcc: [BCC], reply_to: REPLY_TO, subject, html: huelle(r.vorname, text, logoSrc, design), attachments }),
+          body: JSON.stringify({ from: FROM_EMAIL, to: [r.email], bcc: [BCC], reply_to: REPLY_TO, subject, html: huelle(r.vorname, text, logoSrc, r.button_url ? { ...design, button_url: r.button_url } : design), attachments }),
         });
         if (resp.ok) sent++; else { failed.push(r.email); }
         await new Promise(res => setTimeout(res, 120)); // leichte Drosselung
