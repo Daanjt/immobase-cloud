@@ -186,7 +186,15 @@ ${inhalt}
     const inhalt = `<p style="font-size:14.5px;margin:0 0 14px;">Hi ${esc(vornameNice)},</p>
 <p style="font-size:14px;margin:0 0 18px;">${T("dein Mietvertrag für den Parkplatz ist von beiden Seiten unterzeichnet und damit gültig. Vielen Dank!", "your parking space agreement has been signed by both parties and is now valid. Thank you!")}</p>
 ${box(T("Dein Parkplatz", "Your parking space"), rowVoll(T("Parkplatz", "Parking space"), esc([pp.bezeichnung, ort].filter(Boolean).join(", ")), true) + row(T("Mietbeginn", "Start"), esc(formatLongDate(pp.ab))) + (pp.bis ? row(T("Befristet bis", "Fixed term until"), esc(formatLongDate(pp.bis))) : "") + row(T("Miete pro Monat", "Rent per month"), chf2(pp.miete)))}
-<p style="font-size:14px;margin:0 0 14px;">${T(`Bitte überweise die Miete monatlich im Voraus, spätestens bis zum 25. des Vormonats, an die D&amp;T Partners GmbH, Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, Referenz «${esc(ref)}».`, `Please pay the rent monthly in advance, no later than the 25th of the preceding month, to D&amp;T Partners GmbH, Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, reference "${esc(ref)}".`)}</p>
+<p style="font-size:14px;margin:0 0 4px;">${T("Bitte richte für die Miete einen Dauerauftrag ein. Sie ist monatlich im Voraus fällig, jeweils bis zum 25. des Vormonats. Am einfachsten scannst du den QR-Code mit deiner Banking-App, Konto, Betrag und Referenz sind dann schon ausgefüllt.", "Please set up a standing order for the rent. It is payable monthly in advance, by the 25th of the previous month. The easiest way is to scan the QR code with your banking app; account, amount and reference are then pre-filled.")}</p>
+${(() => { const bz = (l, v, mono = false) => `<div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">${l}</span><br><span style="color:#1a1814;font-weight:600;${mono ? "font-family:Menlo,Monaco,monospace;" : ""}">${v}</span></div>`;
+  const erste = (() => { const d = parseD(pp.ab); if (!d) return ""; d.setMonth(d.getMonth() - 1); d.setDate(25); return lang(d); })();
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f3" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;margin:10px 0 20px;width:100%;table-layout:fixed;">
+<tr><td align="center" style="padding:18px 16px 6px;text-align:center;"><img src="${qrSrc}" alt="QR" width="140" height="140" style="display:block;margin:0 auto;width:140px;height:140px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
+<tr><td style="font-size:12.5px;line-height:1.6;padding:8px 16px 14px;">
+${bz("Bank", "Graub&uuml;ndner Kantonalbank")}${bz(T("Empfänger", "Payee"), "D&amp;T Partners GmbH, Via Campeun 40, 7403 Rhäzüns")}${bz("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bz("BIC/SWIFT", "GRKBCH2270A", true)}${bz(T("Betrag pro Monat", "Amount per month"), chf2(pp.miete))}${bz(T("Referenz", "Reference"), esc(ref))}${erste ? bz(T("Erste Zahlung", "First payment"), T(`bis ${erste}`, `by ${erste}`)) : ""}
+</td></tr></table>`; })()}
+${portalLink ? `<p style="font-size:14px;margin:0 0 10px;">${T("Deinen Parkplatz, den Vertrag und die Zahlungsangaben findest du jederzeit auch im Mieterportal.", "You can also find your parking space, the agreement and the payment details in the tenant portal at any time.")}</p><div style="margin:0 0 20px;"><a href="${portalLink}" style="display:inline-block;background:#1a1814;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;">${T("Zum Mieterportal", "Open tenant portal")}</a></div>` : ""}
 <p style="font-size:14px;margin:0 0 6px;">${T("Den unterzeichneten Vertrag findest du im Anhang oder hier:", "You will find the signed agreement attached or here:")}</p>
 <div style="margin:0 0 6px;">${linksHtml}</div>`;
     return shell(T("Parkplatz bestätigt", "Parking space confirmed"), inhalt);
@@ -555,10 +563,21 @@ Deno.serve(async (req) => {
             qrSrc = "cid:dt-qr";
           }
         } catch (e) { console.error("QR-Rechnung fehlgeschlagen, neutraler QR:", e?.message); }
+      } else if (contract.contract_type === "parkplatz") {
+        // Parkplatz: eigene QR-Rechnung mit Parkplatz-Miete und derselben Referenz wie im Vertrag
+        try {
+          const ppd = (contract.contract_data && contract.contract_data.parkplatz) || {};
+          const fn = `${contract.mieter_vorname || ""} ${contract.mieter_nachname || ""}`.trim();
+          const ref = `Parkplatz ${ppd.bezeichnung || ""} ${fn}`.replace(/\s+/g, " ").trim();
+          if (+ppd.miete > 0) {
+            pdfAttachments.push({ filename: "qr-rechnung.png", content: qrB64(await qrPng(qrInhalt(+ppd.miete, ref), 6)), content_type: "image/png", content_id: "dt-qr", disposition: "inline" });
+            qrSrc = "cid:dt-qr";
+          }
+        } catch (e) { console.error("QR Parkplatz fehlgeschlagen:", e?.message); }
       }
       // Link zum Mieterportal (nur im Willkommens-Mail nach dem Untermietvertrag, also nur fuer neue Mieter)
       let portalLink = "";
-      if (contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
+      if (contract.contract_type === "untermietvertrag_und_anfangsmietzins" || (contract.contract_type === "parkplatz" && contract.tenant_id)) {
         try {
           let tq = supabase.from("tenants").select("portal_token, portal_gesperrt").limit(1);
           tq = contract.tenant_id ? tq.eq("id", contract.tenant_id) : (contract.bewerber_id ? tq.eq("bewerber_id", contract.bewerber_id) : null);

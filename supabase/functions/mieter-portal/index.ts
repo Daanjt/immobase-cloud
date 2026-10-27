@@ -33,7 +33,7 @@ const TAG = 86400000;
 const SITZUNG_TAGE = 90;
 const KAT_AUSWEIS = "Pass / Ausweis", KAT_BETR = "Betreibungsregister-Auszug";
 // Diese Dokumente darf der Mieter herunterladen
-const DOWNLOAD = ["Untermietvertrag (unterzeichnet)", "Anfangsmietzinsformular (unterzeichnet)", "Verlängerung (unterzeichnet)", "Übergabeprotokoll", "Kautionsbestätigung"];
+const DOWNLOAD = ["Untermietvertrag (unterzeichnet)", "Parkplatzvertrag (unterzeichnet)", "Anfangsmietzinsformular (unterzeichnet)", "Verlängerung (unterzeichnet)", "Übergabeprotokoll", "Kautionsbestätigung"];
 const BILDTYPEN = ["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"];
 const DOKTYPEN = ["application/pdf", ...BILDTYPEN];
 
@@ -464,6 +464,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     kaution_abrechnung: kautionAbrechnung(t),
     angebote: await angebote(t, kd || []),
     ...(await kostenUndZahlung(t, apt, room)),
+    parkplaetze: await parkplaetzeVon(t),
     nachfolge: { link: nachfolgeLink(await nachfolgeToken(t), wohnung, t.sprache === "en"), frei_ab: await freiAb(t), stand: await nachfolgeStand(t) },
   });
 }
@@ -542,6 +543,23 @@ async function kostenUndZahlung(t: any, apt: any, room: any) {
     zahlung: { empfaenger: `${KREDITOR.name}, ${KREDITOR.strasse} ${KREDITOR.nr}, ${KREDITOR.plz} ${KREDITOR.ort}`, bank: KREDITOR.bank, iban: KREDITOR.ibanLesbar, bic: KREDITOR.bic, betrag: total, referenz, qr },
     kaution: { betrag: zahl(v?.kautionBetrag) ?? zahl(t.kaution_betrag), monate: km, evorest: km == null ? null : km > 0 },
   };
+}
+
+// Parkplaetze des Mieters (mit Zahlungsangaben wie im Parkplatzvertrag)
+async function parkplaetzeVon(t: any) {
+  const { data } = await sb.from("parkplaetze").select("id, bezeichnung, nummer, art, adresse, miete_verkauf, vermietet_ab, vermietet_bis, kennzeichen").eq("tenant_id", t.id).order("nummer");
+  const name = `${t.vorname || ""} ${t.nachname || ""}`.trim();
+  const out: any[] = [];
+  for (const p of (data || [])) {
+    const bis = datumVon(p.vermietet_bis);
+    if (bis && bis.getTime() < Date.now() - 86400000) continue;
+    const referenz = `Parkplatz ${p.bezeichnung || ""} ${name}`.replace(/\s+/g, " ").trim();
+    const betrag = p.miete_verkauf != null ? +p.miete_verkauf : null;
+    let qr: string | null = null;
+    try { if (betrag && betrag > 0) qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(betrag, referenz), 6)); } catch (e) { console.error("qr parkplatz", e); }
+    out.push({ id: p.id, bezeichnung: p.bezeichnung || "", nummer: p.nummer ?? null, art: p.art || "einstellplatz", adresse: p.adresse || "", miete: betrag, ab: p.vermietet_ab || "", bis: p.vermietet_bis || "", kennzeichen: p.kennzeichen || "", referenz, qr });
+  }
+  return out;
 }
 
 async function dokumentUrl(t: any, b: any) {

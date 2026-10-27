@@ -46,6 +46,10 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line
 .kv{width:100%;border-collapse:collapse;font-size:10pt;margin:2pt 0 6pt}
 .kv td{padding:3pt 0;border-bottom:.5pt solid #eee;vertical-align:top}
 .kv td:first-child{color:#555;width:45%}
+.bank-block{display:flex;gap:14pt;align-items:center;margin:6pt 0 8pt;padding:10pt 12pt;background:#fafafa;border:.5pt solid #e0e0e0;border-radius:4pt;page-break-inside:avoid;break-inside:avoid}
+.qr-box{width:90pt;height:90pt;flex-shrink:0;background:#fff;border:.5pt solid #ddd;padding:4pt;object-fit:contain;display:block}
+.bank-info{font-size:9.5pt;line-height:1.7}
+.bank-info .ref{font-weight:700;margin-top:5pt;padding-top:5pt;border-top:.5pt dashed #ccc}
 .box{background:#faf8f3;border-left:3pt solid #1a1a1a;padding:10pt 14pt;margin:12pt 0;font-size:9.5pt;page-break-inside:avoid}
 .signatures{margin-top:24pt;display:flex;gap:30pt;page-break-inside:avoid;break-inside:avoid}
 .sig-block{flex:1;border-top:.5pt solid #1a1a1a;padding-top:6pt}
@@ -78,6 +82,18 @@ ${d.kennzeichen?`<tr><td>${T("Fahrzeug (Kennzeichen)","Vehicle (licence plate)")
 <h2>3. ${T("Mietzins und Zahlung","Rent and payment")}</h2>
 <table class="kv"><tr><td>${T("Mietzins pro Monat","Rent per month")}</td><td><strong>CHF ${betrag}</strong></td></tr></table>
 <p>${T(`Der Mietzins ist monatlich im Voraus, spätestens bis zum 25. des Vormonats, zu bezahlen auf das Konto der D&amp;T Partners GmbH bei der Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, Referenz «${E(ref)}».`,`The rent is payable monthly in advance, no later than the 25th of the preceding month, to the account of D&amp;T Partners GmbH at Graubündner Kantonalbank, IBAN CH80 0077 4010 5279 2690 0, reference "${E(ref)}".`)}</p>
+<div class="bank-block">
+  <img class="qr-box" src="${swissQrDataUri(+d.miete || 0, ref)}" alt="QR-Rechnung"/>
+  <div class="bank-info">
+    <strong>Graubündner Kantonalbank</strong><br>
+    D&amp;T Partners GmbH<br>
+    Via Campeun 40, 7403 Rhäzüns<br>
+    IBAN: CH80 0077 4010 5279 2690 0<br>
+    BIC/SWIFT: GRKBCH2270A<br>
+    ${T("Betrag","Amount")}: CHF ${betrag} ${T("pro Monat","per month")}
+    <div class="ref">${T("Referenz","Reference")}: ${E(ref)}</div>
+  </div>
+</div>
 <p>${T("Bei Zahlungsverzug kann die Vermieterin eine Mahngebühr von CHF 30 pro Mahnung erheben und das Mietverhältnis nach den gesetzlichen Bestimmungen (Art. 257d OR) kündigen.","In case of late payment, the landlord may charge a reminder fee of CHF 30 per reminder and terminate the tenancy in accordance with the statutory provisions (Art. 257d CO).")}</p>
 </div>
 <div class="section">
