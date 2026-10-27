@@ -194,10 +194,15 @@ function ppBefristetBis(adresse, apts){
   return bestS;
 }
 function ppAktiv(ab, bis, s, e){ const a=parseDMY(ab), b=parseDMY(bis); return (!a||isNaN(a)||a<=e) && (!b||isNaN(b)||b>=s); }
+// Name immer aus Gebaeude, Art und Nummer: "Josefstrasse 200/202 · Einstellplatz Nr. 10"
+const PP_ART_NAME={einstellplatz:"Einstellplatz",aussen:"Aussenparkplatz",motorrad:"Motorradplatz"};
+function ppAutoName(adresse, art, nummer){ const a=(adresse||"").trim(); const t=PP_ART_NAME[art||"einstellplatz"]||"Parkplatz"; const nr=(nummer!==""&&nummer!=null)?` Nr. ${nummer}`:" (Nr. offen)"; return `${a?a+" · ":""}${t}${nr}`; }
+function ppUebernommen(p){ return p.uebernommen!==false; }
 function ppVermietet(p){ return !!(p.tenant_id || (p.mieter_extern||"").trim()); }
 function parkFin(pps, s, e){
   let kosten=0, einnahmen=0, anzahl=0, vermietet=0;
   (pps||[]).forEach(p=>{
+    if (!ppUebernommen(p)) return;
     if (ppAktiv(p.einkauf_ab, p.einkauf_bis, s, e)) { kosten += (+p.miete_einkauf||0); anzahl++; }
     if (ppVermietet(p) && ppAktiv(p.vermietet_ab, p.vermietet_bis, s, e)) { einnahmen += (+p.miete_verkauf||0); vermietet++; }
   });
@@ -254,6 +259,9 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
   const marge = (+f.miete_verkauf||0) - (+f.miete_einkauf||0);
   const befristetBis = ppBefristetBis(f.adresse, apts);
   async function speichern(){
+    const nrWert = (f.nummer===""||f.nummer==null) ? null : parseInt(f.nummer);
+    const autoName = f.auto_name!==false && (f.adresse||"").trim();
+    if(autoName) f.bezeichnung = ppAutoName(f.adresse, f.art, nrWert);
     if(!(f.bezeichnung||"").trim()){ toast("Bitte eine Bezeichnung angeben","error"); return; }
     setBusy(true);
     const row = {
@@ -273,6 +281,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
       ausschreiben: !!f.ausschreiben, frei_ab: (f.frei_ab||"").trim()||null,
       art: f.art||"einstellplatz",
+      nummer: nrWert, uebernommen: f.uebernommen!==false,
     };
     let error=null;
     if(neu){
@@ -281,6 +290,12 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       ({error} = await supabase.from("parkplaetze").insert(rows));
     } else {
       ({error} = await supabase.from("parkplaetze").update(row).eq("id", pp.id));
+    }
+    // Bekommt ein uebernommener Platz eine Nummer, faellt der leere Platzhalter mit derselben Nummer weg
+    if(!error && nrWert!=null && row.uebernommen && row.adresse){
+      const {data:dup} = await supabase.from("parkplaetze").select("id,tenant_id,mieter_extern,uebernommen").eq("adresse",row.adresse).eq("art",row.art).eq("nummer",nrWert);
+      const weg=(dup||[]).filter(x=>x.id!==pp.id && x.uebernommen===false && !x.tenant_id && !(x.mieter_extern||"").trim()).map(x=>x.id);
+      if(weg.length) await supabase.from("parkplaetze").delete().in("id",weg);
     }
     setBusy(false);
     if(error){ toast("Speichern fehlgeschlagen","error"); return; }
@@ -299,7 +314,10 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       <div className="modal" style={{width:560}}>
         <div className="mt">{neu?"Neuer Parkplatz":"Parkplatz bearbeiten"}</div>
         <div className="frow">
-          <div className="fg"><label className="fl">Bezeichnung</label><input className="fi" value={f.bezeichnung||""} onChange={set("bezeichnung")} placeholder="z.B. Tiefgarage Nr. 12"/></div>
+          {(f.adresse||"").trim()
+            ? <div className="fg"><label className="fl">Bezeichnung (automatisch)</label><div className="fi" style={{background:"#f7f3eb",color:"#3a352d"}}>{ppAutoName(f.adresse, f.art, f.nummer)}</div></div>
+            : <div className="fg"><label className="fl">Bezeichnung</label><input className="fi" value={f.bezeichnung||""} onChange={set("bezeichnung")} placeholder="z.B. Tiefgarage Nr. 12"/></div>}
+          <div className="fg" style={{maxWidth:110}}><label className="fl">Platz-Nr.</label><input className="fi" type="number" min="1" value={f.nummer??""} onChange={set("nummer")} placeholder="offen"/></div>
           <div className="fg" style={{maxWidth:190}}><label className="fl">Art</label><select className="fi" value={f.art||"einstellplatz"} onChange={set("art")}>{Object.entries(PP_ART).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></div>
           {neu && <div className="fg" style={{maxWidth:130}}><label className="fl">Anzahl</label><input className="fi" type="number" min="1" max="50" value={f.anzahl} onChange={set("anzahl")}/></div>}
         </div>
@@ -310,6 +328,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
           <div className="fg"><label className="fl">Zu Wohnung (optional)</label><select className="fi" value={f.apt_id||""} onChange={set("apt_id")}>
             <option value="">-</option>{(apts||[]).filter(a=>!f.adresse||a.adresse===f.adresse).map(a=><option key={a.id} value={a.id}>{a.id} · {a.adresse}{a.stockwerk?`, ${a.stockwerk}`:""}</option>)}</select></div>
         </div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,margin:"4px 0 6px",cursor:"pointer"}}><input type="checkbox" checked={f.uebernommen!==false} onChange={e=>setF(x=>({...x,uebernommen:e.target.checked}))}/> Übernommen (wir mieten diesen Platz bereits)</label>
         {sek("Einkauf (was wir bezahlen)")}
         <div className="frow pp3">
           <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_einkauf??""} onChange={set("miete_einkauf")}/></div>
@@ -505,15 +524,18 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
   useEffect(()=>{ if(istAdmin) ladeAnfragen(); },[istAdmin]);
   const toggleOnline = async(p)=>{ const {error}=await supabase.from("parkplaetze").update({ausschreiben:!p.ausschreiben, updated_at:new Date().toISOString()}).eq("id",p.id); if(error){ toast("Speichern fehlgeschlagen","error"); return; } toast(!p.ausschreiben?"Auf der Website ausgeschrieben":"Von der Website genommen"); loadParkplaetze&&loadParkplaetze(); };
   const anfrageStatus = async(a, status)=>{ const {error}=await supabase.from("parkplatz_anfragen").update({status}).eq("id",a.id); if(error){ toast("Speichern fehlgeschlagen","error"); return; } ladeAnfragen(); };
-  const pps = parkplaetze||[];
+  const [alleZeigen, setAlleZeigen] = useState(false);
+  const ppsAlle = parkplaetze||[];
+  const pps = ppsAlle.filter(ppUebernommen);
+  const ppSort=(a,b)=>((a.art||"einstellplatz").localeCompare(b.art||"einstellplatz")) || ((a.nummer==null?9999:a.nummer)-(b.nummer==null?9999:b.nummer)) || (a.bezeichnung||"").localeCompare(b.bezeichnung||"");
   const fin = parkFinHeute(pps);
   const gruppen = {};
-  pps.forEach(p=>{ const k=(p.adresse||"Ohne Adresse"); (gruppen[k]=gruppen[k]||[]).push(p); });
+  ppsAlle.forEach(p=>{ const k=(p.adresse||"Ohne Adresse"); (gruppen[k]=gruppen[k]||[]).push(p); });
   const td={padding:"9px 10px",borderTop:"1px solid #efe8da",fontSize:12.5,verticalAlign:"middle"};
   const frei = pps.filter(p=>!ppVermietet(p)).length;
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}><div><div className="pt">Parkplätze</div><div className="ps">{pps.length} Parkplätze · {pps.length-frei} vermietet · {frei} frei</div></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}><div><div className="pt">Parkplätze</div><div className="ps">{pps.length} übernommen · {pps.length-frei} vermietet · {frei} frei{ppsAlle.length>pps.length?` · ${ppsAlle.length-pps.length} noch nicht übernommen`:""}</div></div>
         {istAdmin && <button className="btn btn-p" style={{width:"auto"}} onClick={()=>setEdit({bezeichnung:"Parkplatz", adresse:"", anzahl:1})}>+ Parkplatz</button>}</div>
       <div className="sg" style={{marginBottom:18}}>
         <div className="sc"><div className="sl">Einnahmen</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(fin.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
@@ -532,7 +554,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
               <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setAlleAnfragen(v=>!v)}>{alleAnfragen?"Nur offene":"Alle anzeigen"}</button>
             </div>
             {liste.length===0 && <div style={{fontSize:12.5,color:"#8a8174"}}>Keine offenen Anfragen.</div>}
-            {liste.map(a=>{ const [l,col,bg]=AST[a.status]||[a.status,"#8a8174","#efeae1"]; const freiHier=pps.filter(p=>p.adresse===a.adresse && !ppVermietet(p));
+            {liste.map(a=>{ const [l,col,bg]=AST[a.status]||[a.status,"#8a8174","#efeae1"]; const freiHier=pps.filter(p=>p.adresse===a.adresse && !ppVermietet(p)).sort(ppSort);
               return (
               <div key={a.id} style={{borderTop:"1px solid #efe8da",padding:"10px 0",display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"flex-start"}}>
                 <div style={{fontSize:12.5,lineHeight:1.55,minWidth:220,flex:1}}>
@@ -553,20 +575,21 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
       })()}
       {pps.length===0 && <div className="empty">Noch keine Parkplätze erfasst.</div>}
       {Object.keys(gruppen).sort().map(adr=>{
-        const liste=gruppen[adr]; const gf=parkFinHeute(liste);
+        const alleHier=gruppen[adr].slice().sort(ppSort); const aktivHier=alleHier.filter(ppUebernommen); const liste=alleZeigen?alleHier:aktivHier; const gf=parkFinHeute(aktivHier);
         return (
           <div key={adr} className="card" style={{marginBottom:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,flexWrap:"wrap",marginBottom:8}}>
-              <div className="ct" style={{margin:0}}>{adr}</div>
-              <div style={{fontSize:11.5,color:"#8a8174"}}>{liste.filter(ppVermietet).length}/{liste.length} vermietet · {liste.filter(x=>!ppVermietet(x)).length} frei · {liste.filter(x=>x.ausschreiben).length} online · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span> / Mt.</div>
+              <div><div className="ct" style={{margin:0}}>{adr}</div>
+                {alleHier.length>aktivHier.length && <div style={{fontSize:11.5,color:"#8a8174",marginTop:3}}>Übernommen: {["einstellplatz","aussen","motorrad"].map(a=>{ const x=alleHier.filter(p=>(p.art||"einstellplatz")===a); return x.length?`${x.filter(ppUebernommen).length} von ${x.length} ${a==="aussen"?"Aussenparkplätzen":a==="motorrad"?"Motorradplätzen":"Einstellplätzen"}`:null; }).filter(Boolean).join(" · ")} <span onClick={()=>setAlleZeigen(v=>!v)} style={{marginLeft:6,cursor:"pointer",textDecoration:"underline dotted",color:"#5a5448"}}>{alleZeigen?"nur übernommene zeigen":"alle Plätze zeigen"}</span></div>}</div>
+              <div style={{fontSize:11.5,color:"#8a8174"}}>{aktivHier.filter(ppVermietet).length}/{aktivHier.length} vermietet · {aktivHier.filter(x=>!ppVermietet(x)).length} frei · {aktivHier.filter(x=>x.ausschreiben).length} online · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span> / Mt.</div>
             </div>
             <div style={{overflowX:"auto"}}><table className="pp-tbl" style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}>
                 <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th style={{padding:"6px 10px"}}>Vertrag</th>}{istAdmin&&<th></th>}</tr></thead>
-              <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); return (
-                <tr key={p.id}>
-                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{istAdmin && !name ? <span onClick={()=>toggleOnline(p)} title={p.ausschreiben?`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}. Klicken zum Ausblenden.`:"Nicht auf der Website. Klicken zum Ausschreiben."} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,cursor:"pointer",background:p.ausschreiben?"#e3ebf4":"#f0ebe1",color:p.ausschreiben?"#2c4a6e":"#8a8174"}}>{p.ausschreiben?"online":"offline"}</span> : (p.ausschreiben && <span style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>)}<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>{PP_ART[p.art||"einstellplatz"]||p.art}{apt?` · zu ${apt.id}${apt.stockwerk?` · ${apt.stockwerk}`:""}`:""}{!name&&p.frei_ab?` · frei ab ${p.frei_ab}`:""}</div></td>
-                  <td data-label="Mieter" style={td}>{name ? <>{name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
+              <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); const inaktiv=!ppUebernommen(p); return (
+                <tr key={p.id} style={inaktiv?{opacity:.45}:undefined} title={inaktiv?"Noch nicht übernommen":undefined}>
+                  <td style={{...td,fontWeight:600}}>{p.bezeichnung}{istAdmin && !name && !inaktiv ? <span onClick={()=>toggleOnline(p)} title={p.ausschreiben?`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}. Klicken zum Ausblenden.`:"Nicht auf der Website. Klicken zum Ausschreiben."} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,cursor:"pointer",background:p.ausschreiben?"#e3ebf4":"#f0ebe1",color:p.ausschreiben?"#2c4a6e":"#8a8174"}}>{p.ausschreiben?"online":"offline"}</span> : (p.ausschreiben && <span style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>)}<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>{inaktiv?"noch nicht übernommen · ":""}{PP_ART[p.art||"einstellplatz"]||p.art}{apt?` · zu ${apt.id}${apt.stockwerk?` · ${apt.stockwerk}`:""}`:""}{!name&&p.frei_ab?` · frei ab ${p.frei_ab}`:""}</div></td>
+                  <td data-label="Mieter" style={td}>{inaktiv ? <span style={{color:"#a89f8f"}}>-</span> : name ? <>{name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
                   <td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
                   <td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>
