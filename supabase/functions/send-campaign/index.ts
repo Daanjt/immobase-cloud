@@ -33,7 +33,7 @@ function logoAnhang(b64: string | null) {
 }
 function esc(s: string) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
-type Design = { eyebrow?: string; button_text?: string; button_url?: string };
+type Design = { eyebrow?: string; button_text?: string; button_url?: string; ohne_bcc?: boolean };
 // Empfaenger kann einen eigenen Button-Link haben (z.B. persoenlicher Mieterportal-Link)
 type Empf = { email: string; vorname: string; button_url?: string };
 
@@ -183,7 +183,7 @@ serve(async (req) => {
         const resp = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: FROM_EMAIL, to: [r.email], bcc: [BCC], reply_to: REPLY_TO, subject, html: huelle(r.vorname, text, logoSrc, r.button_url ? { ...design, button_url: r.button_url } : design), attachments }),
+          body: JSON.stringify({ from: FROM_EMAIL, to: [r.email], ...(design.ohne_bcc ? {} : { bcc: [BCC] }), reply_to: REPLY_TO, subject, html: huelle(r.vorname, text, logoSrc, r.button_url ? { ...design, button_url: r.button_url } : design), attachments }),
         });
         if (resp.ok) sent++; else { failed.push(r.email); }
         await new Promise(res => setTimeout(res, 120)); // leichte Drosselung
