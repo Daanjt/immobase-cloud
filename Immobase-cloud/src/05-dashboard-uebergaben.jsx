@@ -435,7 +435,9 @@ function stromVonZimmer(r, t, apts){
   }
   return 25;
 }
-function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
+function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAlle=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
+  // Nur Plaetze, die wir tatsaechlich schon mieten (noch nicht uebernommene Plaetze zaehlen nicht)
+  const parkplaetze = (parkplaetzeAlle||[]).filter(ppUebernommen);
   const heute=new Date();
   heute.setHours(0,0,0,0);
 
@@ -562,7 +564,7 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze=[],apts,rooms
   
   // Total
   const pk = parkFinHeute(parkplaetze);
-  const pkMax = (parkplaetze||[]).reduce((s,p)=>s+(+p.miete_verkauf||0),0) - pk.kosten;
+  const pkMax = (parkplaetze||[]).filter(p=>{ const n=new Date(); return ppAktiv(p.einkauf_ab, p.einkauf_bis, new Date(n.getFullYear(),n.getMonth(),1), new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999)); }).reduce((s,p)=>s+(+p.miete_verkauf||0),0) - pk.kosten;
   const margeHeute = wgMargeIst + pk.marge, margeMax = wgMargeMax + pkMax;
   const totalAusgaben = wgAusgaben + abAusgaben + pk.kosten;
   const totalEinnahmenIst = wgEinnahmenIst; // Airbnb income not tracked
