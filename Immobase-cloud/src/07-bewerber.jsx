@@ -952,8 +952,19 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     }
   }
 
+  const [zuteilBusy, setZuteilBusy] = useState(false);
+  const zuteilLaeuft = React.useRef(false);
   async function confirmZuteilung(){
+    // Doppelklick-Schutz: sonst wird der Mieter zweimal angelegt
+    if (zuteilLaeuft.current) return;
+    zuteilLaeuft.current = true; setZuteilBusy(true);
+    try { await zuteilungAusfuehren(); } finally { zuteilLaeuft.current = false; setZuteilBusy(false); }
+  }
+  async function zuteilungAusfuehren(){
     if(!selZimmer||!b)return;
+    // Gibt es den Bewerber schon als Mieter (z.B. nach einem abgebrochenen Versuch), nicht nochmals anlegen
+    const schon = (tenants||[]).find(x => x && !x.deletedAt && x.status !== "archiviert" && ((x.bewerberId && x.bewerberId === b.id) || (b.email && x.email && x.email.toLowerCase() === String(b.email).toLowerCase() && (x.roomId === selZimmer))));
+    if (schon && !confirm(`${b.vorname} ${b.nachname} ist bereits als Mieter angelegt (${schon.id}). Trotzdem nochmals anlegen?`)) return;
     const room=rooms.find(r=>r.id===selZimmer);
     const istNachmieter = !!(room && room.occupied);
     if (istNachmieter) {
@@ -1003,6 +1014,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     const newId=`T${String(n).padStart(2,"0")}`;
     const newTenant={
       id:newId,
+      bewerberId:b.id,
       vorname:b.vorname,nachname:b.nachname,
       email:b.email,phone:b.phone,
       geburt: fmtDateDE(b.geburt),
@@ -1972,7 +1984,7 @@ www.dthomes.ch`;
             <div className="fg" style={{marginTop:14}}><label className="fl">Einzugsdatum</label><input className="fi" type="date" value={einzugDate} onChange={e=>setEinzugDate(e.target.value)}/></div>
             <div className="ma">
               <button className="btn btn-g" onClick={()=>setZuteilModal(false)}>Abbrechen</button>
-              <button className="btn btn-gr" onClick={confirmZuteilung} disabled={!selZimmer}>✓ Zuteilung bestätigen</button>
+              <button className="btn btn-gr" onClick={confirmZuteilung} disabled={!selZimmer||zuteilBusy}>{zuteilBusy?"⏳ Wird angelegt…":"✓ Zuteilung bestätigen"}</button>
             </div>
           </div>
         </div>
