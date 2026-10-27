@@ -147,12 +147,13 @@ function ppVertragsDaten(p, apts, tenants, rooms){
   if(!d.objektAdresse) fehlt.push("Adresse");
   return {d, fehlt, tenant:t, apt};
 }
-async function ppVertragSenden(p, apts, tenants, rooms){
+async function ppVertragSenden(p, apts, tenants, rooms, preBlob){
   const {d, fehlt, tenant, apt} = ppVertragsDaten(p, apts, tenants, rooms);
   if (fehlt.length) throw new Error("Es fehlt: " + fehlt.join(", "));
   const html = buildParkplatzHTML(d, false);
   const htmlEn = buildParkplatzHTML(d, true);
-  const blob = await htmlToPdf(html, `Parkplatzvertrag_${d.name.replace(/\s+/g,"_")}.pdf`);
+  // Wurde vorher eine Vorschau gezeigt, genau dieses PDF verschicken
+  const blob = preBlob || await htmlToPdf(html, `Parkplatzvertrag_${d.name.replace(/\s+/g,"_")}.pdf`);
   const token = generateContractToken();
   const path = `${token}/parkplatz.pdf`;
   const { error: upErr } = await supabase.storage.from("contracts").upload(path, blob, { contentType: "application/pdf", upsert: false });
@@ -399,6 +400,7 @@ async function ppPdfOeffnen(c){
 }
 function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChanged, onEdit}){
   const [busy, setBusy] = useState("");
+  const [vorschauPP, setVorschauPP] = useState(null);
   const [ergebnis, setErgebnis] = useState(null);
   const {d, fehlt} = ppVertragsDaten(pp, apts, tenants, rooms);
   const liste = (vertraege||[]).filter(c=>c.parkplatzId===pp.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
@@ -410,13 +412,24 @@ function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChang
     catch(e){ alert("PDF konnte nicht erstellt werden: " + (e.message||e)); }
     finally { setBusy(""); }
   }
-  async function senden(){
+  // Vor dem Versand: Vorschau mit genau dem PDF, das verschickt wird
+  async function vorschauVorSenden(){
     if(offen && !confirm("Es gibt bereits einen offenen Vertrag. Diesen zurückziehen und einen neuen senden?")) return;
+    setBusy("pdf");
+    try {
+      const fn = `Parkplatzvertrag_${(d.name||"").replace(/\s+/g,"_")}.pdf`;
+      const blob = await htmlToPdf(buildParkplatzHTML(d, false), fn);
+      setVorschauPP({ fullName: d.name, blob, weitere:[{ name:"Parkplatzvertrag", kurz:"Vertrag", blob, fn }] });
+    } catch(e){ alert("Vorschau fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(""); }
+  }
+  async function senden(){
+    const pre = vorschauPP;
     setBusy("send");
     try {
       if(offen){ const {error} = await supabase.from("contracts").update({status:"zurueckgezogen", updated_at:new Date().toISOString()}).eq("id", aktuell.id); if(error) throw new Error(error.message); }
-      const r = await ppVertragSenden(pp, apts, tenants, rooms);
-      setErgebnis(r); onChanged && await onChanged();
+      const r = await ppVertragSenden(pp, apts, tenants, rooms, pre && pre.blob);
+      setVorschauPP(null); setErgebnis(r); onChanged && await onChanged();
     } catch(e){ alert("Senden fehlgeschlagen: " + (e.message||e)); }
     finally { setBusy(""); }
   }
@@ -460,9 +473,10 @@ function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChang
         <div className="ma" style={{flexWrap:"wrap"}}>
           <button className="btn btn-g" disabled={!!busy} onClick={onClose}>Schliessen</button>
           <button className="btn btn-g" disabled={!!busy||fehlt.length>0} onClick={vorschau}>{busy==="pdf"?"Erstellt…":"PDF ansehen"}</button>
-          {(!aktuell || offen) && <button className="btn btn-p" disabled={!!busy||fehlt.length>0} onClick={senden}>{busy==="send"?"Sendet…":offen?"Neu senden":"✍ Zum Unterschreiben senden"}</button>}
+          {(!aktuell || offen) && <button className="btn btn-p" disabled={!!busy||fehlt.length>0} onClick={vorschauVorSenden}>{busy==="pdf"?"Erstellt…":offen?"👁 Vorschau und neu senden":"👁 Vorschau und senden"}</button>}
         </div>
       </div>
+      {vorschauPP && <VertragVorschauModal vorschau={vorschauPP} email={d.email} busy={busy==="send"} progress={busy==="send"?"Vertrag wird gesendet…":null} bestaetigenText="✓ Bestätigen und Parkplatzvertrag senden" onClose={()=>setVorschauPP(null)} onConfirm={senden}/>}
     </div>
   );
 }
