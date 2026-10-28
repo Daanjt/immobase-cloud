@@ -82,15 +82,6 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line
   <span class="pl">${T("Nationalität:","Nationality:")}</span><span class="pv">${E(d.nat)||"-"}</span>
 </div>
 </div>
-<div class="person-card">
-<div class="ph">${T("Vermieterin","Landlord")}</div>
-<div class="person-grid">
-  <span class="pl">${T("Firma:","Company:")}</span><span class="pv">D&amp;T Partners GmbH</span>
-  <span class="pl">${T("Strasse:","Street:")}</span><span class="pv">Via Campeun 40</span>
-  <span class="pl">${T("PLZ / Ort:","Postcode / City:")}</span><span class="pv">7403 Rhäzüns</span>
-  <span class="pl">${T("E-Mail:","Email:")}</span><span class="pv">info@dthomes.ch</span>
-</div>
-</div>
 <div class="section">
 <h2>1. ${T("Mietobjekt","Rental object")}</h2>
 <table class="kv">
