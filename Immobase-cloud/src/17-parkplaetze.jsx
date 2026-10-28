@@ -7,6 +7,7 @@ function ppDatumLang(s, en){
   const de=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"], e=["January","February","March","April","May","June","July","August","September","October","November","December"];
   return en ? `${d.getDate()} ${e[d.getMonth()]} ${d.getFullYear()}` : `${d.getDate()}. ${de[d.getMonth()]} ${d.getFullYear()}`;
 }
+function ppDatumKurz(s){ const str=String(s||"").trim(); const m=str.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${m[3]}.${m[2]}.${m[1]}`:str; }
 function ppEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function buildParkplatzHTML(d, en){
   const T=(a,b)=>en?b:a, E=ppEsc;
@@ -14,7 +15,9 @@ function buildParkplatzHTML(d, en){
   const kf = Math.max(1, parseInt(d.kuendigungsfrist)||1);
   const kfDe = {1:"einem Monat",2:"zwei Monaten",3:"drei Monaten"}[kf] || `${kf} Monaten`;
   const kfEn = kf===1 ? "one month's" : `${kf} months'`;
-  const objekt = `${E(d.bezeichnung)}, ${E(d.objektAdresse)}${d.plzOrt?`, ${E(d.plzOrt)}`:""}`;
+  // Die Bezeichnung enthaelt die Adresse schon ("Josefstrasse 200/202 · Einstellplatz Nr. 10"), dann nicht doppelt anfuegen
+  const mitAdr = d.objektAdresse && !String(d.bezeichnung||"").startsWith(d.objektAdresse);
+  const objekt = `${E(d.bezeichnung)}${mitAdr?`, ${E(d.objektAdresse)}`:""}${d.plzOrt?`, ${E(d.plzOrt)}`:""}`;
   const dauer = d.bis
     ? T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und ist befristet bis und mit <strong>${ppDatumLang(d.bis)}</strong>. Es endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf.`,
         `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is fixed-term until and including <strong>${ppDatumLang(d.bis,true)}</strong>. It ends automatically on that date without notice being required.`)
@@ -35,6 +38,11 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line
 .doc-header .left .doc-title{font-size:20pt;font-weight:300;letter-spacing:-.3pt;color:#1a1a1a}
 .doc-header .logo{width:38mm;height:auto}
 .doc-header .logo img{width:100%;display:block}
+.person-card{background:#faf8f3;border-left:3pt solid #1a1a1a;padding:12pt 16pt;margin-bottom:16pt}
+.person-card .ph{font-size:8pt;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:600;margin-bottom:8pt}
+.person-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6pt 18pt;font-size:9.5pt}
+.person-grid .pl{font-weight:600;color:#444;white-space:nowrap}
+.person-grid .pv{color:#1a1a1a}
 .parties{display:flex;gap:24pt;margin-bottom:14pt}
 .parties .p{flex:1;background:#faf8f3;padding:9pt 12pt;font-size:9.5pt;line-height:1.5}
 .parties .p .r{font-size:7.5pt;color:#888;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-bottom:3pt}
@@ -61,9 +69,27 @@ body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10pt;line
 </style></head>
 <body>
 <div class="doc-header"><div class="left"><div class="label">${T("Parkplatz &middot; D&amp;T Homes","Parking &middot; D&amp;T Homes")}</div><div class="doc-title">${T("Mietvertrag für einen Parkplatz","Parking Space Rental Agreement")}</div></div><div class="logo"><img src="${DT_LOGO_DATA_URI}" alt="D&T Homes"/></div></div>
-<div class="parties">
-  <div class="p"><div class="r">${T("Vermieterin","Landlord")}</div><strong>D&amp;T Partners GmbH</strong><br>Via Campeun 40<br>7403 Rhäzüns<br>info@dthomes.ch</div>
-  <div class="p"><div class="r">${T("Mieter*in","Tenant")}</div><strong>${E(d.name)}</strong>${d.adresseMieter?`<br>${E(d.adresseMieter).replace(/\n/g,"<br>")}`:""}${d.email?`<br>${E(d.email)}`:""}${d.telefon?`<br>${E(d.telefon)}`:""}</div>
+<div class="person-card">
+<div class="ph">${T("Mieter*in","Tenant")}</div>
+<div class="person-grid">
+  <span class="pl">${T("Vorname:","First name:")}</span><span class="pv">${E(d.vorname)||"-"}</span>
+  <span class="pl">${T("Nachname:","Last name:")}</span><span class="pv">${E(d.nachname)||"-"}</span>
+  <span class="pl">${T("Strasse:","Street:")}</span><span class="pv">${E(d.strasse)||"-"}</span>
+  <span class="pl">${T("PLZ / Ort:","Postcode / City:")}</span><span class="pv">${E(d.plzOrtMieter)||"-"}</span>
+  <span class="pl">${T("E-Mail:","Email:")}</span><span class="pv">${E(d.email)||"-"}</span>
+  <span class="pl">${T("Telefon:","Phone:")}</span><span class="pv">${E(d.telefon)||"-"}</span>
+  <span class="pl">${T("Geburtsdatum:","Date of birth:")}</span><span class="pv">${d.geburt?ppDatumKurz(d.geburt):"-"}</span>
+  <span class="pl">${T("Nationalität:","Nationality:")}</span><span class="pv">${E(d.nat)||"-"}</span>
+</div>
+</div>
+<div class="person-card">
+<div class="ph">${T("Vermieterin","Landlord")}</div>
+<div class="person-grid">
+  <span class="pl">${T("Firma:","Company:")}</span><span class="pv">D&amp;T Partners GmbH</span>
+  <span class="pl">${T("Strasse:","Street:")}</span><span class="pv">Via Campeun 40</span>
+  <span class="pl">${T("PLZ / Ort:","Postcode / City:")}</span><span class="pv">7403 Rhäzüns</span>
+  <span class="pl">${T("E-Mail:","Email:")}</span><span class="pv">info@dthomes.ch</span>
+</div>
 </div>
 <div class="section">
 <h2>1. ${T("Mietobjekt","Rental object")}</h2>
@@ -138,7 +164,7 @@ ${en?`<div class="box">This English version is a translation for your understand
 // Vertragsdaten aus Parkplatz + Mieter/Externem zusammenstellen. Liefert {d, fehlt[]}.
 function ppVertragsDaten(p, apts, tenants, rooms){
   const t = p.tenant_id ? (tenants||[]).find(x=>x.id===p.tenant_id) : null;
-  const apt = (apts||[]).find(a=>a.id===p.apt_id) || (apts||[]).find(a=>a.adresse && a.adresse===p.adresse) || null;
+  const apt = (apts||[]).find(a=>a.id===p.apt_id) || (apts||[]).find(a=>a.adresse && a.adresse===p.adresse) || (apts||[]).find(a=>a.adresse && p.adresse && a.adresse===String(p.adresse).split("/")[0].trim()) || null;
   const tRoom = t ? ((rooms||[]).find(r=>r.tenantId===t.id) || (rooms||[]).find(r=>r.id===t.roomId)) : null;
   const tApt = tRoom ? (apts||[]).find(a=>a.id===tRoom.aptId) : null;
   let vorname="", nachname="";
@@ -148,6 +174,13 @@ function ppVertragsDaten(p, apts, tenants, rooms){
     name: `${vorname} ${nachname}`.trim(), vorname, nachname,
     email: t ? (t.email||"") : (p.mieter_email||""),
     telefon: t ? (t.phone||"") : (p.mieter_telefon||""),
+    ...(()=>{ // Wohnadresse der Mieterin bzw. des Mieters, aufgeteilt wie im Untermietvertrag
+      if (t && tApt) return { strasse: tApt.adresse||"", plzOrtMieter: [tApt.plz,tApt.ort].filter(Boolean).join(" ") };
+      if (t) return { strasse: t.adresse||"", plzOrtMieter: [t.plz,t.ort].filter(Boolean).join(" ") };
+      const z=(p.mieter_adresse||"").split(/\n|,\s*/).map(x=>x.trim()).filter(Boolean);
+      return { strasse: z[0]||"", plzOrtMieter: z.slice(1).join(", ") };
+    })(),
+    geburt: t ? (t.geburt||"") : "", nat: t ? (t.nat||"") : "",
     adresseMieter: t ? (tApt ? `${tApt.adresse||""}\n${[tApt.plz,tApt.ort].filter(Boolean).join(" ")}`.trim() : "") : (p.mieter_adresse||""),
     sprache: t ? (t.sprache||"de") : (p.sprache||"de"),
     bezeichnung: p.bezeichnung, objektAdresse: p.adresse || (apt&&apt.adresse) || "",
