@@ -19,8 +19,8 @@ function buildParkplatzHTML(d, en){
   const mitAdr = d.objektAdresse && !String(d.bezeichnung||"").startsWith(d.objektAdresse);
   const objekt = `${E(d.bezeichnung)}${mitAdr?`, ${E(d.objektAdresse)}`:""}${d.plzOrt?`, ${E(d.plzOrt)}`:""}`;
   const dauer = d.bis
-    ? T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und ist befristet bis und mit <strong>${ppDatumLang(d.bis)}</strong>. Es endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf.`,
-        `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is fixed-term until and including <strong>${ppDatumLang(d.bis,true)}</strong>. It ends automatically on that date without notice being required.`)
+    ? T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und ist befristet bis und mit <strong>${ppDatumLang(d.bis)}</strong>. Es endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf. Vorher kann es von beiden Parteien unter Einhaltung einer Kündigungsfrist von <strong>${kfDe}</strong> schriftlich auf das Ende jedes Monats gekündigt werden.`,
+        `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is fixed-term until and including <strong>${ppDatumLang(d.bis,true)}</strong>. It ends automatically on that date without notice being required. Before then, either party may terminate it in writing with <strong>${kfEn} notice</strong> to the end of any month.`)
     : T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und wird auf unbestimmte Zeit abgeschlossen. Es kann von beiden Parteien unter Einhaltung einer Kündigungsfrist von <strong>${kfDe}</strong> schriftlich auf das Ende jedes Monats gekündigt werden.`,
         `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is concluded for an indefinite period. Either party may terminate it in writing with <strong>${kfEn} notice</strong> to the end of any month.`);
   const ref = `Parkplatz ${d.bezeichnung} ${d.name}`.replace(/\s+/g," ").trim();
@@ -402,7 +402,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
         </div>}
         {f.mieterArt!=="frei" && <div className="frow">
           <div className="fg"><label className="fl">Kennzeichen (optional)</label><input className="fi" value={f.kennzeichen||""} onChange={set("kennzeichen")} placeholder="z.B. ZH 123456"/></div>
-          <div className="fg"><label className="fl">Kündigungsfrist (unbefristet)</label><select className="fi" value={f.kuendigungsfrist||1} onChange={set("kuendigungsfrist")}><option value="1">1 Monat auf Monatsende</option><option value="2">2 Monate auf Monatsende</option><option value="3">3 Monate auf Monatsende</option></select></div>
+          <div className="fg"><label className="fl">Kündigungsfrist</label><select className="fi" value={f.kuendigungsfrist||1} onChange={set("kuendigungsfrist")}><option value="1">1 Monat auf Monatsende</option><option value="2">2 Monate auf Monatsende</option><option value="3">3 Monate auf Monatsende</option></select></div>
         </div>}
         {f.mieterArt==="frei" && <div className="frow"><div className="fg"><label className="fl">Angebotspreis CHF / Mt. (für die Marge)</label><input className="fi" type="number" step="5" value={f.miete_verkauf??""} onChange={set("miete_verkauf")}/></div></div>}
         <div style={{fontSize:12.5,marginTop:4,color:marge>=0?"#3d4f2f":"#9b4a3e"}}>Marge: {marge>=0?"+":""}{chf(marge)} / Mt.{f.mieterArt==="frei"?" (sobald vermietet)":""}</div>
