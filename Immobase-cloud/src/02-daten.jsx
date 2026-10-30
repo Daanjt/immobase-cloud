@@ -948,7 +948,11 @@ function useSupabaseData() {
   useEffect(() => { loadHandoverProtocols(); }, []);
   // Runterziehen in der App: Daten still im Hintergrund neu laden (ohne Startbildschirm)
   useEffect(() => {
-    window.__ibNeuLaden = () => Promise.allSettled([loadAll(true), loadContracts(), loadHandoverProtocols(), loadPayments(), loadPartners(), loadTodos(), loadProtokolle(), loadParkplaetze(), loadParkVertraege(), loadDocuments()]);
+    // Jede Ladefunktion wird gestoppt, damit bei langsamem Netz sichtbar ist, welche bremst
+    window.__ibNeuLaden = () => {
+      const teile = {loadAll:()=>loadAll(true), loadContracts, loadHandoverProtocols, loadPayments, loadPartners, loadTodos, loadProtokolle, loadParkplaetze, loadParkVertraege, loadDocuments};
+      return Promise.all(Object.entries(teile).map(([name, fn]) => { const t0 = Date.now(); return Promise.resolve().then(fn).then(() => ({name, ms: Date.now()-t0, ok: true}), () => ({name, ms: Date.now()-t0, ok: false})); }));
+    };
     return () => { delete window.__ibNeuLaden; };
   }, []);
   // Live: Verträge und Übergaben kommen per Realtime-Push. Neue Unterschrift = Hinweis.

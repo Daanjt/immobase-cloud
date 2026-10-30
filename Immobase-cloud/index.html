@@ -116,11 +116,9 @@ if ('serviceWorker' in navigator) {
     }
     var t0 = Date.now(), erledigt = false;
     function ende(){ if (erledigt) return; erledigt = true; clearTimeout(notbremse); setTimeout(fertig, Math.max(0, 550 - (Date.now() - t0))); }
-    // Notbremse: spaetestens nach 8 Sekunden ist Schluss, egal was haengt
-    var notbremse = setTimeout(function(){
-      try { window.meldeFehler && window.meldeFehler('Neuladen', 'Runterziehen: Zeitüberschreitung nach 8s', { schritt: schritt }); } catch(_e) {}
-      ende();
-    }, 8000);
+    // Notbremse: spaetestens nach 8 Sekunden verschwindet der Ladekreis. Die Daten laden im Hintergrund weiter,
+    // das ist bei langsamem Mobilnetz normal und kein Fehler.
+    var notbremse = setTimeout(function(){ ende(); }, 8000);
     var schritt = 'version';
     function mitLimit(prom, ms){ return Promise.race([prom, new Promise(function(res){ setTimeout(function(){ res('__zeit'); }, ms); })]); }
     mitLimit(version(), 2500).then(function(v){
@@ -131,7 +129,18 @@ if ('serviceWorker' in navigator) {
       schritt = 'daten';
       var lauf;
       try { lauf = window.__ibNeuLaden(); } catch(_e) { lauf = null; }
+      var tDaten = Date.now();
       mitLimit(Promise.resolve(lauf).catch(function(){}), 7000).then(ende, ende);
+      // Als Fehler melden nur, wenn das Nachladen wirklich haengt (ueber 25 s) oder ein Teil scheitert; mit Zeiten pro Teil
+      var gemeldet = false;
+      var melde = function(text, teile){ if (gemeldet) return; gemeldet = true; try { window.meldeFehler && window.meldeFehler('Neuladen', text, { schritt: 'daten', teile: teile || null, netz: (navigator.connection && navigator.connection.effectiveType) || null }); } catch(_e) {} };
+      var haenger = setTimeout(function(){ melde('Runterziehen: Daten nach 25s noch nicht geladen'); }, 25000);
+      Promise.resolve(lauf).then(function(teile){
+        clearTimeout(haenger);
+        if (!Array.isArray(teile)) return;
+        var kaputt = teile.filter(function(x){ return x && x.ok === false; });
+        if (kaputt.length) melde('Runterziehen: Laden fehlgeschlagen (' + kaputt.map(function(x){ return x.name; }).join(', ') + ')', teile);
+      }, function(){ clearTimeout(haenger); melde('Runterziehen: Laden fehlgeschlagen'); });
     }, ende);
   }, { passive: true });
   if (app) document.addEventListener('touchcancel', function(){ if (startY !== null && !laedt) { startY = null; setze(0, true); } }, { passive: true });
