@@ -8,6 +8,8 @@ function ppDatumLang(s, en){
   return en ? `${d.getDate()} ${e[d.getMonth()]} ${d.getFullYear()}` : `${d.getDate()}. ${de[d.getMonth()]} ${d.getFullYear()}`;
 }
 function ppDatumKurz(s){ const str=String(s||"").trim(); const m=str.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${m[3]}.${m[2]}.${m[1]}`:str; }
+// Letzter moeglicher Kuendigungstermin: Monatsende drei Monate vor dem Enddatum (30.06.2028 -> 31. Maerz 2028)
+function ppDreiMonateVor(bis, en){ const m=String(bis||"").trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if(!m) return ppDatumLang(bis,en); const e=new Date(+m[3],+m[2]-1,+m[1]); const t=new Date(e.getFullYear(), e.getMonth()-2, 0); return ppDatumLang(`${t.getDate()}.${t.getMonth()+1}.${t.getFullYear()}`, en); }
 function ppEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function buildParkplatzHTML(d, en){
   const T=(a,b)=>en?b:a, E=ppEsc;
@@ -19,8 +21,8 @@ function buildParkplatzHTML(d, en){
   const mitAdr = d.objektAdresse && !String(d.bezeichnung||"").startsWith(d.objektAdresse);
   const objekt = `${E(d.bezeichnung)}${mitAdr?`, ${E(d.objektAdresse)}`:""}${d.plzOrt?`, ${E(d.plzOrt)}`:""}`;
   const dauer = d.bis
-    ? T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und ist befristet bis und mit <strong>${ppDatumLang(d.bis)}</strong>. Es endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf. Vorher kann es von beiden Parteien unter Einhaltung einer Kündigungsfrist von <strong>${kfDe}</strong> schriftlich auf das Ende jedes Monats gekündigt werden.`,
-        `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is fixed-term until and including <strong>${ppDatumLang(d.bis,true)}</strong>. It ends automatically on that date without notice being required. Before then, either party may terminate it in writing with <strong>${kfEn} notice</strong> to the end of any month.`)
+    ? T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und ist befristet bis und mit <strong>${ppDatumLang(d.bis)}</strong>. Es endet an diesem Datum automatisch, ohne dass es einer Kündigung bedarf. Vorher kann es von beiden Parteien unter Einhaltung einer Kündigungsfrist von <strong>${kfDe}</strong> schriftlich auf das Ende jedes Monats gekündigt werden. Ausgenommen sind die letzten drei Monate vor dem Enddatum: Eine Kündigung auf einen Termin nach dem <strong>${ppDreiMonateVor(d.bis)}</strong> ist nicht mehr möglich, der Vertrag läuft dann bis zum Enddatum.`,
+        `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is fixed-term until and including <strong>${ppDatumLang(d.bis,true)}</strong>. It ends automatically on that date without notice being required. Before then, either party may terminate it in writing with <strong>${kfEn} notice</strong> to the end of any month. This does not apply to the last three months before the end date: notice to a date after <strong>${ppDreiMonateVor(d.bis,true)}</strong> is no longer possible, and the agreement then runs until the end date.`)
     : T(`Das Mietverhältnis beginnt am <strong>${ppDatumLang(d.ab)}</strong> und wird auf unbestimmte Zeit abgeschlossen. Es kann von beiden Parteien unter Einhaltung einer Kündigungsfrist von <strong>${kfDe}</strong> schriftlich auf das Ende jedes Monats gekündigt werden.`,
         `The tenancy begins on <strong>${ppDatumLang(d.ab,true)}</strong> and is concluded for an indefinite period. Either party may terminate it in writing with <strong>${kfEn} notice</strong> to the end of any month.`);
   const ref = `Parkplatz ${d.bezeichnung} ${d.name}`.replace(/\s+/g," ").trim();
