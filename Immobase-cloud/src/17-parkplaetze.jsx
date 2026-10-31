@@ -458,6 +458,20 @@ function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChang
   const [vorschauPP, setVorschauPP] = useState(null);
   const [ergebnis, setErgebnis] = useState(null);
   const {d, fehlt} = ppVertragsDaten(pp, apts, tenants, rooms);
+  const kAnz = Math.max(0, Math.min(10, parseInt(pp.schluessel_anzahl)||0));
+  const [kNrs, setKNrs] = useState(()=>Array.from({length:kAnz},(_,i)=>String((pp.schluessel_nrs||[])[i]||"")));
+  useEffect(()=>{ setKNrs(Array.from({length:kAnz},(_,i)=>String((pp.schluessel_nrs||[])[i]||""))); }, [pp.id, kAnz, JSON.stringify(pp.schluessel_nrs||[])]);
+  async function kSpeichern(senden){
+    if(senden && !confirm(`Übergabeprotokoll für den Schlüssel an ${d.email} senden?`)) return;
+    setBusy(senden?"key":"knr");
+    try {
+      const {error} = await supabase.from("parkplaetze").update({schluessel_nrs: kNrs.map(x=>x.trim()), updated_at:new Date().toISOString()}).eq("id", pp.id).is("schluessel_bestaetigt_am", null);
+      if(error) throw new Error(error.message);
+      if(senden){ await ppSchluesselSenden(pp); toast("Übergabeprotokoll an den Mieter gesendet"); } else toast("Schlüsselnummern gespeichert");
+      onChanged && await onChanged();
+    } catch(e){ alert("Fehlgeschlagen: " + (e.message||e)); }
+    finally { setBusy(""); }
+  }
   const liste = (vertraege||[]).filter(c=>c.parkplatzId===pp.id).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
   const aktuell = ppAktuellerVertrag(pp, vertraege);
   const offen = aktuell && PP_OFFEN.includes(aktuell.status);
@@ -510,19 +524,30 @@ function ParkVertragModal({pp, apts, tenants, rooms, vertraege, onClose, onChang
         {d.kennzeichen && <R l="Kennzeichen" v={d.kennzeichen}/>}
         <R l="Sprache" v={d.sprache==="en" ? "Deutsch + englische Übersetzung" : "Deutsch"}/>
         <div style={{marginTop:14,padding:"12px 14px",background:"#faf8f3",borderRadius:8,fontSize:12.5}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"space-between"}}>
-            <span>🔑 Schlüssel: {pp.schluessel_bestaetigt_am
-              ? <strong>{(pp.schluessel_nrs||[]).length}× (Nr. {(pp.schluessel_nrs||[]).join(", ")}) · bestätigt {new Date(pp.schluessel_bestaetigt_am).toLocaleDateString("de-CH")}</strong>
-              : !(parseInt(pp.schluessel_anzahl)>0) ? <span style={{color:"#8a8174"}}>Anzahl nicht erfasst (<span style={{textDecoration:"underline",cursor:"pointer"}} onClick={onEdit}>Parkplatz bearbeiten</span>)</span>
-              : <strong>{pp.schluessel_anzahl}× · {pp.schluessel_gesendet_am?`Bestätigung offen, gesendet ${new Date(pp.schluessel_gesendet_am).toLocaleDateString("de-CH")}`:"noch nicht gesendet"}</strong>}</span>
-            {!pp.schluessel_bestaetigt_am && parseInt(pp.schluessel_anzahl)>0 && <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={!!busy||!d.email} title={d.email?"":"Keine E-Mail-Adresse"} onClick={async()=>{
-              if(!confirm(`Link zur Schlüsselbestätigung an ${d.email} senden?`)) return;
-              setBusy("key");
-              try { await ppSchluesselSenden(pp); toast("Schlüsselbestätigung gesendet"); onChanged && await onChanged(); }
-              catch(e){ alert("Senden fehlgeschlagen: " + (e.message||e)); }
-              finally { setBusy(""); }
-            }}>{busy==="key"?"Sendet…":pp.schluessel_gesendet_am?"Erneut senden":"Schlüsselbestätigung senden"}</button>}
-          </div>
+          <div style={{fontWeight:600,marginBottom:6}}>🔑 Übergabeprotokoll Schlüssel</div>
+          {pp.schluessel_bestaetigt_am ? (
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"space-between"}}>
+              <span>{(pp.schluessel_nrs||[]).length}× (Nr. {(pp.schluessel_nrs||[]).join(", ")}) · vom Mieter bestätigt am {new Date(pp.schluessel_bestaetigt_am).toLocaleDateString("de-CH")}</span>
+              {pp.schluessel_pdf_path && <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={async()=>{ const w=window.open("about:blank","_blank"); const {data,error}=await supabase.storage.from("documents").createSignedUrl(pp.schluessel_pdf_path,600); if(error||!data){ if(w) w.close(); toast("PDF konnte nicht geöffnet werden","error"); return; } if(w) w.location.href=data.signedUrl; else window.location.href=data.signedUrl; }}>📄 Protokoll</button>}
+            </div>
+          ) : !(parseInt(pp.schluessel_anzahl)>0) ? (
+            <span style={{color:"#8a8174"}}>Anzahl Schlüssel nicht erfasst (<span style={{textDecoration:"underline",cursor:"pointer"}} onClick={onEdit}>Parkplatz bearbeiten</span>)</span>
+          ) : (<>
+            <div style={{color:"#8a8174",marginBottom:8}}>Nummern hier eintragen (optional). Der Mieter sieht sie vorausgefüllt, kann sie korrigieren und bestätigt mit Unterschrift.</div>
+            {kNrs.map((x,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                <span style={{minWidth:80}}>Schlüssel {i+1}</span>
+                <input className="fi" style={{flex:1}} value={x} maxLength={40} placeholder="Schlüsselnummer" onChange={e=>setKNrs(kNrs.map((y,j)=>j===i?e.target.value:y))}/>
+              </div>
+            ))}
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",justifyContent:"space-between",marginTop:8}}>
+              <span style={{color:"#8a6d3b"}}>{pp.schluessel_gesendet_am?`Bestätigung offen, gesendet ${new Date(pp.schluessel_gesendet_am).toLocaleDateString("de-CH")}`:"Noch nicht gesendet"}</span>
+              <span style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={!!busy} onClick={()=>kSpeichern(false)}>{busy==="knr"?"Speichert…":"Nummern speichern"}</button>
+                <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={!!busy||!d.email} title={d.email?"":"Keine E-Mail-Adresse"} onClick={()=>kSpeichern(true)}>{busy==="key"?"Sendet…":pp.schluessel_gesendet_am?"Speichern und erneut senden":"Speichern und an Mieter senden"}</button>
+              </span>
+            </div>
+          </>)}
         </div>
         {fehlt.length>0 && <div className="warn" style={{marginTop:14}}>Für den Vertrag fehlt noch: <strong>{fehlt.join(", ")}</strong>. <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={onEdit}>Parkplatz bearbeiten</span></div>}
         {aktuell && (

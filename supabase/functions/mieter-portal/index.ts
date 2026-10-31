@@ -78,10 +78,10 @@ const b64url = {
   dec(s: string) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s); return Uint8Array.from(b, (c) => c.charCodeAt(0)); },
 };
 
-async function mail(to: string, betreff: string, text: string, en: boolean, mitBcc = false) {
+async function mail(to: string, betreff: string, text: string, en: boolean, mitBcc = false, anhaenge: any[] = []) {
   const r = await fetch(`${URL_}/functions/v1/send-message`, {
     method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ to, betreff, text, sprache: en ? "en" : "de", ohneBcc: !mitBcc }),
+    body: JSON.stringify({ to, betreff, text, sprache: en ? "en" : "de", ohneBcc: !mitBcc, anhaenge }),
   });
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
@@ -548,7 +548,7 @@ async function kostenUndZahlung(t: any, apt: any, room: any) {
 
 // Parkplaetze des Mieters (mit Zahlungsangaben wie im Parkplatzvertrag)
 async function parkplaetzeVon(t: any) {
-  const { data } = await sb.from("parkplaetze").select("id, bezeichnung, nummer, art, adresse, miete_verkauf, vermietet_ab, vermietet_bis, kennzeichen, schluessel_anzahl, schluessel_nrs, schluessel_token, schluessel_gesendet_am, schluessel_bestaetigt_am").eq("tenant_id", t.id).order("nummer");
+  const { data } = await sb.from("parkplaetze").select("id, bezeichnung, nummer, art, adresse, miete_verkauf, vermietet_ab, vermietet_bis, kennzeichen, schluessel_anzahl, schluessel_pdf_path, schluessel_nrs, schluessel_token, schluessel_gesendet_am, schluessel_bestaetigt_am").eq("tenant_id", t.id).order("nummer");
   const name = `${t.vorname || ""} ${t.nachname || ""}`.trim();
   const out: any[] = [];
   for (const p of (data || [])) {
@@ -560,7 +560,7 @@ async function parkplaetzeVon(t: any) {
     try { if (betrag && betrag > 0) qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(betrag, referenz), 6)); } catch (e) { console.error("qr parkplatz", e); }
     const schluessel = p.schluessel_bestaetigt_am
       ? { bestaetigt_am: fmt(new Date(p.schluessel_bestaetigt_am)), nrs: Array.isArray(p.schluessel_nrs) ? p.schluessel_nrs : [] }
-      : (p.schluessel_token && p.schluessel_gesendet_am ? { offen: true, anzahl: p.schluessel_anzahl || 1, link: `https://mieter.dthomes.ch/parkplatz-schluessel/${p.schluessel_token}` } : null);
+      : (p.schluessel_token && p.schluessel_gesendet_am ? { offen: true, token: p.schluessel_token, anzahl: p.schluessel_anzahl || 1, nrs: Array.isArray(p.schluessel_nrs) ? p.schluessel_nrs : [] } : null);
     out.push({ id: p.id, bezeichnung: p.bezeichnung || "", nummer: p.nummer ?? null, art: p.art || "einstellplatz", adresse: p.adresse || "", miete: betrag, ab: p.vermietet_ab || "", bis: p.vermietet_bis || "", kennzeichen: p.kennzeichen || "", referenz, qr, schluessel });
   }
   return out;
@@ -771,8 +771,8 @@ async function ppSchluesselSenden(req: Request, b: any) {
   const k = e.en ? (anzahl === 1 ? "1 key" : `${anzahl} keys`) : (anzahl === 1 ? "1 Schlüssel" : `${anzahl} Schlüssel`);
   await mail(e.email, e.en ? "Please confirm your parking key" : "Bitte bestätige deinen Parkplatzschlüssel",
     e.en
-      ? `Hi ${e.vorname},\n\nfor your ${platz} you receive ${k} from us.\n\nPlease enter the number stamped on ${anzahl === 1 ? "the key" : "each key"} and confirm receipt with your signature. It only takes a minute:\n${link}${e.portal ? `\n\nYou can also do this in the tenant portal under your parking space:\n${e.portal}` : ""}\n\nAt the end of the tenancy, all keys must be returned.\n\nBest regards\nYour D&T Homes Team`
-      : `Hallo ${e.vorname},\n\nfür deinen ${platz} erhältst du von uns ${k}.\n\nBitte trage die Nummer ein, die auf ${anzahl === 1 ? "dem Schlüssel" : "jedem Schlüssel"} eingestanzt ist, und bestätige den Erhalt mit deiner Unterschrift. Das dauert nur eine Minute:\n${link}${e.portal ? `\n\nDu kannst das auch im Mieterportal bei deinem Parkplatz machen:\n${e.portal}` : ""}\n\nBei Vertragsende sind alle Schlüssel zurückzugeben.\n\nLiebe Grüsse\nDein D&T Homes Team`, e.en);
+      ? `Hi ${e.vorname},\n\nfor your ${platz} you receive ${k} from us.\n\nPlease check the key number${anzahl === 1 ? "" : "s"} (or enter ${anzahl === 1 ? "it" : "them"} if still empty) and confirm receipt with your signature. You will then receive the handover protocol by email. It only takes a minute:\n${link}${e.portal ? `\n\nYou can also do this in the tenant portal under your parking space:\n${e.portal}` : ""}\n\nAt the end of the tenancy, all keys must be returned.\n\nBest regards\nYour D&T Homes Team`
+      : `Hallo ${e.vorname},\n\nfür deinen ${platz} erhältst du von uns ${k}.\n\nBitte prüfe die Schlüsselnummer${anzahl === 1 ? "" : "n"} (oder trage sie ein, falls noch leer) und bestätige den Erhalt mit deiner Unterschrift. Danach erhältst du das Übergabeprotokoll per E-Mail. Das dauert nur eine Minute:\n${link}${e.portal ? `\n\nDu kannst das auch im Mieterportal bei deinem Parkplatz machen:\n${e.portal}` : ""}\n\nBei Vertragsende sind alle Schlüssel zurückzugeben.\n\nLiebe Grüsse\nDein D&T Homes Team`, e.en);
   return json({ ok: true, link, email: e.email });
 }
 async function ppSchluesselLaden(b: any) {
@@ -784,6 +784,52 @@ async function ppSchluesselLaden(b: any) {
   return json({ name: e.name, en: e.en, platz_de: ppPlatzText(p, false), platz_en: ppPlatzText(p, true), anzahl: p.schluessel_anzahl || 1,
     bestaetigt_am: p.schluessel_bestaetigt_am ? fmt(new Date(p.schluessel_bestaetigt_am)) : null, nrs: Array.isArray(p.schluessel_nrs) ? p.schluessel_nrs : [] });
 }
+const PDF_API = "https://mieter.dthomes.ch/api/pdf-generate";
+const escH = (x: unknown) => String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function ppProtokollHtml(p: any, e: any, nrs: string[], sig: string, zeit: string, en: boolean) {
+  const T = (de: string, eng: string) => en ? eng : de;
+  const rows = nrs.map((n, i) => `<span class="lbl">${T("Schlüssel", "Key")} ${i + 1}:</span><span>Nr. ${escH(n)}</span>`).join("");
+  return `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="utf-8"><style>
+  body{margin:0;background:#fff;} @page{ size:A4; margin:16mm 16mm 18mm; }
+  .pg{max-width:760px;margin:0 auto;padding:36px 40px;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#1a1a1a;}
+  .hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:2px solid #1a1a1a;margin-bottom:22px;}
+  .hd .label{font-size:9px;color:#888;letter-spacing:.3em;text-transform:uppercase;margin-bottom:5px;} .hd h1{font-size:27px;font-weight:300;margin:0;}
+  .hd img{width:130px;display:block;}
+  .ey{font-size:9px;color:#888;letter-spacing:.3em;text-transform:uppercase;font-weight:600;margin-bottom:11px;}
+  .pc{background:#faf8f3;border-left:3px solid #1a1a1a;padding:15px 20px;margin-bottom:14px;}
+  .is{background:#fafafa;border:1px solid #e6e2d8;border-radius:3px;padding:14px 18px;margin:12px 0;}
+  .ig{display:grid;grid-template-columns:max-content 1fr;gap:7px 20px;} .lbl{font-weight:600;color:#444;}
+  .tx{font-size:11.5px;line-height:1.6;color:#2a2823;margin:18px 0;}
+  .sig{margin-top:26px;width:50%;border-top:1px solid #1a1a1a;padding-top:7px;page-break-inside:avoid;}
+  .sig .role{font-size:9px;color:#888;letter-spacing:.2em;text-transform:uppercase;} .sig img{height:70px;display:block;margin:6px 0;} .sig .meta{font-size:10.5px;color:#555;}
+  .ft{margin-top:30px;font-size:9.5px;color:#999;border-top:1px solid #eee;padding-top:8px;}
+  </style></head><body><div class="pg">
+  <div class="hd"><div><div class="label">${T("Parkplatz", "Parking")}</div><h1>${T("Übergabeprotokoll Schlüssel", "Key handover protocol")}</h1></div><img src="https://mieter.dthomes.ch/dt-logo.png" alt="D&amp;T Homes"/></div>
+  <div class="pc"><div class="ey">${T("Mieter*in", "Tenant")}</div><div class="ig">
+    <span class="lbl">${T("Name", "Name")}:</span><span>${escH(e.name || "-")}</span>
+    ${e.email ? `<span class="lbl">E-Mail:</span><span>${escH(e.email)}</span>` : ""}
+  </div></div>
+  <div class="is"><div class="ey">${T("Mietobjekt", "Rental object")}</div><div class="ig">
+    <span class="lbl">${T("Parkplatz", "Parking space")}:</span><span>${escH(ppPlatzText(p, en))}</span>
+    ${p.kennzeichen ? `<span class="lbl">${T("Fahrzeug", "Vehicle")}:</span><span>${escH(p.kennzeichen)}</span>` : ""}
+    ${p.vermietet_ab ? `<span class="lbl">${T("Mietbeginn", "Start of tenancy")}:</span><span>${escH(p.vermietet_ab)}</span>` : ""}
+  </div></div>
+  <div class="is"><div class="ey">${T("Schlüsselübergabe", "Key handover")}</div><div class="ig">
+    <span class="lbl">${T("Anzahl", "Number")}:</span><span>${nrs.length}</span>${rows}
+  </div></div>
+  <div class="tx">${T(`Die Mieterin bzw. der Mieter bestätigt, ${nrs.length === 1 ? "den oben aufgeführten Schlüssel" : "die oben aufgeführten Schlüssel"} erhalten zu haben. Bei Vertragsende sind alle Schlüssel vollständig zurückzugeben; fehlende Schlüssel werden der Mieterin bzw. dem Mieter in Rechnung gestellt. Ein Verlust ist D&amp;T Homes umgehend zu melden.`, `The tenant confirms having received the ${nrs.length === 1 ? "key" : "keys"} listed above. At the end of the tenancy, all keys must be returned in full; missing keys will be charged to the tenant. Any loss must be reported to D&amp;T Homes immediately.`)}</div>
+  <div class="sig"><div class="role">${T("Mietpartei · digital unterschrieben", "Tenant · signed digitally")}</div><img src="${sig}" alt=""/><div class="meta">${escH(e.name || "")} · ${escH(zeit)}</div></div>
+  <div class="ft">D&amp;T Partners GmbH · dthomes.ch · info@dthomes.ch</div>
+  </div></body></html>`;
+}
+async function ppPdf(html: string): Promise<Uint8Array | null> {
+  try {
+    const r = await fetch(PDF_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html, filename: "protokoll.pdf", format: "A4" }) });
+    if (!r.ok) { console.error("pp pdf", r.status, await r.text()); return null; }
+    return new Uint8Array(await r.arrayBuffer());
+  } catch (err) { console.error("pp pdf ex", err); return null; }
+}
+function bytesB64(b: Uint8Array) { let s = ""; const CH = 0x8000; for (let i = 0; i < b.length; i += CH) s += String.fromCharCode.apply(null, Array.from(b.subarray(i, i + CH)) as unknown as number[]); return btoa(s); }
 async function ppSchluesselBestaetigen(b: any) {
   const token = String(b.token || "");
   if (!/^[a-f0-9]{32}$/.test(token)) return fehler("Ungültiger Link.", 404);
@@ -796,17 +842,30 @@ async function ppSchluesselBestaetigen(b: any) {
   const sig = String(b.unterschrift || "");
   if (!/^data:image\/png;base64,/.test(sig) || sig.length > 400000) return fehler("Bitte unterschreiben.");
   const jetzt = new Date();
-  const { error } = await sb.from("parkplaetze").update({ schluessel_nrs: nrs, schluessel_unterschrift: sig, schluessel_bestaetigt_am: jetzt.toISOString() }).eq("id", p.id).is("schluessel_bestaetigt_am", null);
+  const { data: upd, error } = await sb.from("parkplaetze").update({ schluessel_nrs: nrs, schluessel_unterschrift: sig, schluessel_bestaetigt_am: jetzt.toISOString() }).eq("id", p.id).is("schluessel_bestaetigt_am", null).select("id");
   if (error) return fehler("Konnte nicht gespeichert werden.", 500);
+  if (!upd || !upd.length) return fehler("Die Schlüssel wurden bereits bestätigt.");
   const e = await ppEmpfaenger(p);
   const zeit = jetzt.toLocaleString("de-CH", { timeZone: "Europe/Zurich", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  // Protokoll als PDF: ablegen (beim Mieter unter "Übergabeprotokoll", sonst beim Parkplatz) und per Mail schicken
+  const pdf = await ppPdf(ppProtokollHtml(p, e, nrs, sig, zeit, e.en));
+  const fname = `${sanitize(e.name || "Mieter")}_Uebergabeprotokoll_Parkplatzschluessel.pdf`;
+  if (pdf) {
+    const pfad = p.tenant_id ? `tenant/${p.tenant_id}/${Date.now()}_${fname}` : `parkplatz/${p.id}/${Date.now()}_${fname}`;
+    const { error: upErr } = await sb.storage.from("documents").upload(pfad, pdf, { contentType: "application/pdf", upsert: true });
+    if (!upErr) {
+      await sb.from("parkplaetze").update({ schluessel_pdf_path: pfad }).eq("id", p.id);
+      if (p.tenant_id) await sb.from("documents").insert({ entity_type: "tenant", entity_id: String(p.tenant_id), category: "Übergabeprotokoll", filename: fname, storage_path: pfad, file_size: pdf.length, mime_type: "application/pdf", uploaded_by: "Parkplatzschlüssel (automatisch)" });
+    } else console.error("pp pdf upload", upErr.message);
+  }
   const liste = nrs.map((n: string, i: number) => `${e.en ? "Key" : "Schlüssel"} ${i + 1}: Nr. ${n}`).join("\n");
   if (e.email) {
     try {
-      await mail(e.email, e.en ? "Confirmation: parking key received" : "Bestätigung: Parkplatzschlüssel erhalten",
+      await mail(e.email, e.en ? "Handover protocol: parking key" : "Übergabeprotokoll: Parkplatzschlüssel",
         e.en
-          ? `Hi ${e.vorname},\n\nthank you. You have confirmed receipt of the following ${nrs.length === 1 ? "key" : "keys"} for your ${ppPlatzText(p, true)}:\n\n${liste}\n\nConfirmed on ${zeit} by ${e.name}.\n\nPlease keep this email. At the end of the tenancy, all keys must be returned; missing keys will be charged.\n\nBest regards\nYour D&T Homes Team`
-          : `Hallo ${e.vorname},\n\ndanke dir. Du hast den Erhalt ${nrs.length === 1 ? "des folgenden Schlüssels" : "der folgenden Schlüssel"} für deinen ${ppPlatzText(p, false)} bestätigt:\n\n${liste}\n\nBestätigt am ${zeit} von ${e.name}.\n\nBitte bewahre diese E-Mail auf. Bei Vertragsende sind alle Schlüssel zurückzugeben, fehlende Schlüssel werden in Rechnung gestellt.\n\nLiebe Grüsse\nDein D&T Homes Team`, e.en, true);
+          ? `Hi ${e.vorname},\n\nthank you. You have confirmed receipt of the following ${nrs.length === 1 ? "key" : "keys"} for your ${ppPlatzText(p, true)}:\n\n${liste}\n\nConfirmed on ${zeit} by ${e.name}.${pdf ? "\n\nYou will find the signed handover protocol attached." : ""}\n\nAt the end of the tenancy, all keys must be returned; missing keys will be charged.\n\nBest regards\nYour D&T Homes Team`
+          : `Hallo ${e.vorname},\n\ndanke dir. Du hast den Erhalt ${nrs.length === 1 ? "des folgenden Schlüssels" : "der folgenden Schlüssel"} für deinen ${ppPlatzText(p, false)} bestätigt:\n\n${liste}\n\nBestätigt am ${zeit} von ${e.name}.${pdf ? "\n\nIm Anhang findest du das unterschriebene Übergabeprotokoll." : ""}\n\nBei Vertragsende sind alle Schlüssel zurückzugeben, fehlende Schlüssel werden in Rechnung gestellt.\n\nLiebe Grüsse\nDein D&T Homes Team`,
+        e.en, true, pdf ? [{ filename: fname, content: bytesB64(pdf) }] : []);
     } catch (err) { console.error("pp schluessel mail", err); }
   }
   return json({ ok: true, bestaetigt_am: fmt(jetzt), nrs });

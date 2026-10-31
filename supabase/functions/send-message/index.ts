@@ -53,7 +53,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (!(await istAdminOderServer(req))) return verweigert(CORS);
   try {
-    const { to, betreff, text, sprache, cc, ohneBcc } = await req.json().catch(() => ({}));
+    const { to, betreff, text, sprache, cc, ohneBcc, anhaenge } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "Keine E-Mail-Adresse." }, 400);
     if (!String(text || "").trim()) return json({ error: "Der Text ist leer." }, 400);
     const en = sprache === "en";
@@ -67,7 +67,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: FROM_EMAIL, to: toList, ...(ccList.length ? { cc: ccList } : {}), ...(ohneBcc ? {} : { bcc: [BCC] }), reply_to: REPLY_TO,
         subject: betreff || (en ? "Message from D&T Homes" : "Mitteilung von D&T Homes"), html, text,
-        attachments: logoB64 ? [{ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [],
+        attachments: [...(logoB64 ? [{ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : []), ...(Array.isArray(anhaenge) ? anhaenge.filter((a: any) => a && a.filename && a.content).slice(0, 5).map((a: any) => ({ filename: String(a.filename), content: String(a.content) })) : [])],
       }),
     });
     if (!r.ok) return json({ error: "Versand fehlgeschlagen: " + (await r.text()).slice(0, 200) }, 502);
