@@ -437,6 +437,7 @@ function HandoverConfirmButton({protocol, onDone}){
     try {
       const { data, error } = await supabase.functions.invoke("finalize-handover", { body: { protocolId: p.id, preview: true } });
       if (error) throw error;
+      if (data && data.previewUrl) { setPreviewUrl(data.previewUrl); return; }
       if (!data || data.error || !data.pdfBase64) throw new Error((data&&data.error)||"Keine Vorschau erhalten");
       const bin = atob(data.pdfBase64); const bytes = new Uint8Array(bin.length);
       for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
@@ -445,7 +446,7 @@ function HandoverConfirmButton({protocol, onDone}){
     } catch(e){ console.error("handover preview:", e); alert("Vorschau fehlgeschlagen: " + (e.message||e)); }
     finally { setBusy(false); }
   }
-  function closePreview(){ if(previewUrl){ try{URL.revokeObjectURL(previewUrl);}catch(_){} } setPreviewUrl(null); }
+  function closePreview(){ if(previewUrl && previewUrl.startsWith("blob:")){ try{URL.revokeObjectURL(previewUrl);}catch(_){} } setPreviewUrl(null); }
   async function confirmSend(){
     if (p.status !== "submitted") { alert("Dieses Protokoll wurde noch nicht eingereicht und kann darum nicht bestätigt werden."); return; }
     setBusy(true);

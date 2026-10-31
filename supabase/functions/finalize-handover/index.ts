@@ -3,6 +3,7 @@
 // Mail + Dokument + Abschluss aus. Mit skipEmail=true nur Dokument ersetzen (kein Mail).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { istAdminOderServer } from "../_shared/auth.ts";
+import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -148,14 +149,13 @@ function buildSubmittedHtml(p: Record<string, any>): string {
     </div></body></html>`;
 }
 
-async function renderPdf(html: string): Promise<string | null> {
+// Liefert die PDF-Bytes. Base64 nur dort, wo es gebraucht wird (schnell mit std/encoding statt Zeichen-Schleife),
+// sonst stoesst die Funktion bei vielen Fotos an die CPU-/Speichergrenze.
+async function renderPdfBytes(html: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(PDF_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html, filename: "protokoll.pdf", format: "A4" }) });
     if (!res.ok) { console.error("PDF-API", res.status, await res.text()); return null; }
-    const buf = new Uint8Array(await res.arrayBuffer());
-    let bin = ""; const CH = 0x8000;
-    for (let i = 0; i < buf.length; i += CH) bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + CH)) as unknown as number[]);
-    return btoa(bin);
+    return new Uint8Array(await res.arrayBuffer());
   } catch (e) { console.error("PDF-API ex", (e as Error).message); return null; }
 }
 
@@ -207,9 +207,20 @@ Deno.serve(async (req: Request) => {
       }));
     }
     const html = buildSubmittedHtml(p);
-    const pdfBase64 = await renderPdf(html);
-    if (!pdfBase64) throw new Error("PDF generation failed");
-    if (preview) return new Response(JSON.stringify({ ok: true, preview: true, pdfBase64 }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
+    const pdfBytes = await renderPdfBytes(html);
+    if (!pdfBytes) throw new Error("PDF generation failed");
+    // Vorschau: PDF kurz ablegen und nur einen signierten Link zurueckgeben (kein grosses Base64 an den Browser)
+    if (preview) {
+      const vpfad = `vorschau/uebergabe_${protocolId}.pdf`;
+      const up = await fetch(`${SUPABASE_URL}/storage/v1/object/documents/${vpfad}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/pdf", "x-upsert": "true" }, body: pdfBytes });
+      if (!up.ok) throw new Error(`Vorschau speichern ${up.status}`);
+      const sg = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/documents/${vpfad}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 600 }) });
+      const sj = await sg.json().catch(() => ({}));
+      const su = sj.signedURL || sj.signedUrl;
+      if (!su) throw new Error("Vorschau-Link fehlgeschlagen");
+      return new Response(JSON.stringify({ ok: true, preview: true, previewUrl: `${SUPABASE_URL}/storage/v1${su}` }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+    const pdfBase64 = encodeBase64(pdfBytes);
 
     // Vom Mieter im Protokoll erfasste Schluesselnummern beim Mieter hinterlegen
     try {
