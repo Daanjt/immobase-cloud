@@ -253,13 +253,24 @@ async function ppSchluesselSenden(pp){
   return j;
 }
 function ppVermietet(p){ return !!(p.tenant_id || (p.mieter_extern||"").trim()); }
+// Anteil des Zeitraums [s,e], in dem ab..bis gilt (z.B. Anmietung ab 16.11. = halber November)
+function ppAnteil(ab, bis, s, e){
+  const T=86400000, tag=(d)=>Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/T);
+  const a=parseDMY(ab), b=parseDMY(bis);
+  const von=Math.max(tag(s), a&&!isNaN(a)?tag(a):-Infinity), bisT=Math.min(tag(e), b&&!isNaN(b)?tag(b):Infinity);
+  if(bisT<von) return 0;
+  return (bisT-von+1)/(tag(e)-tag(s)+1);
+}
 function parkFin(pps, s, e){
   let kosten=0, einnahmen=0, anzahl=0, vermietet=0;
   (pps||[]).forEach(p=>{
     if (!ppUebernommen(p)) return;
-    if (ppAktiv(p.einkauf_ab, p.einkauf_bis, s, e)) { kosten += (+p.miete_einkauf||0); anzahl++; }
-    if (ppVermietet(p) && ppAktiv(p.vermietet_ab, p.vermietet_bis, s, e)) { einnahmen += (+p.miete_verkauf||0); vermietet++; }
+    const ak=ppAnteil(p.einkauf_ab, p.einkauf_bis, s, e);
+    if (ak>0) { kosten += (+p.miete_einkauf||0)*ak; anzahl++; }
+    const av=ppVermietet(p) ? ppAnteil(p.vermietet_ab, p.vermietet_bis, s, e) : 0;
+    if (av>0) { einnahmen += (+p.miete_verkauf||0)*av; vermietet++; }
   });
+  kosten=Math.round(kosten); einnahmen=Math.round(einnahmen);
   return {kosten, einnahmen, marge: einnahmen-kosten, anzahl, vermietet};
 }
 function parkFinHeute(pps){ const n=new Date(); const s=new Date(n.getFullYear(),n.getMonth(),1); const e=new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999); return parkFin(pps,s,e); }

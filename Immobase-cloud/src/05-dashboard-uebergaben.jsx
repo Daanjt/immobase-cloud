@@ -564,7 +564,7 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
   
   // Total
   const pk = parkFinHeute(parkplaetze);
-  const pkMax = (parkplaetze||[]).filter(p=>{ const n=new Date(); return ppAktiv(p.einkauf_ab, p.einkauf_bis, new Date(n.getFullYear(),n.getMonth(),1), new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999)); }).reduce((s,p)=>s+(+p.miete_verkauf||0),0) - pk.kosten;
+  const pkMax = Math.round((parkplaetze||[]).reduce((s,p)=>{ const n=new Date(); return s+(+p.miete_verkauf||0)*ppAnteil(p.einkauf_ab, p.einkauf_bis, new Date(n.getFullYear(),n.getMonth(),1), new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999)); },0)) - pk.kosten;
   const margeHeute = wgMargeIst + pk.marge, margeMax = wgMargeMax + pkMax;
   const totalAusgaben = wgAusgaben + abAusgaben + pk.kosten;
   const totalEinnahmenIst = wgEinnahmenIst; // Airbnb income not tracked
