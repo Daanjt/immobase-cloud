@@ -58,7 +58,7 @@ function buildSubmittedHtml(p: Record<string, any>): string {
   .person-grid { display:grid; grid-template-columns:96px 1fr 120px 1fr; gap:8px 20px; }
   .person-grid .pl { font-weight:600; color:#444; }
   .info-section { background:#fafafa; border:1px solid #e6e2d8; border-radius:3px; padding:14px 18px; margin:12px 0; }
-  .info-grid { display:grid; grid-template-columns:110px 1fr; gap:7px 20px; }
+  .info-grid { display:grid; grid-template-columns:max-content 1fr; gap:7px 20px; }
   .info-grid .lbl { font-weight:600; color:#444; }
   .maengel-title { font-size:9px; color:#888; letter-spacing:.3em; text-transform:uppercase; font-weight:600; margin:22px 0 12px; }
   .no-maengel { background:#f2f6ec; border:1px solid #cdddb8; border-radius:3px; padding:11px 15px; color:#3a5230; }

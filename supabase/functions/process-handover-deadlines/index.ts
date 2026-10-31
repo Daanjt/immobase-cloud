@@ -181,6 +181,7 @@ function buildProtocolHtml(pRaw: Record<string, unknown>): string {
   .info-section { background:#fafafa; border:1px solid #e6e2d8; border-radius:3px; padding:14px 18px; margin:12px 0; page-break-inside:avoid; }
   .info-grid { display:grid; grid-template-columns:96px 1fr 120px 1fr; gap:7px 20px; font-size:12px; }
   .info-grid .lbl { font-weight:600; color:#444; white-space:nowrap; }
+  .info-grid.info-grid-1 { grid-template-columns:max-content 1fr; }
   .maengel-title { font-size:9px; color:#888; letter-spacing:.3em; text-transform:uppercase; font-weight:600; margin:22px 0 12px; }
   .no-maengel { background:#f2f6ec; border:1px solid #cdddb8; border-radius:3px; padding:11px 15px; font-size:12px; color:#3a5230; }
   .clauses { margin-top:18px; page-break-inside:avoid; }
@@ -214,7 +215,7 @@ function buildProtocolHtml(pRaw: Record<string, unknown>): string {
   const schluesselSection = (wohnungsSchluessel || extraSchluessel || wgSchluessel) ? `
     <div class="info-section">
       <div class="card-eyebrow">Schlüsselübergabe</div>
-      <div class="info-grid">
+      <div class="info-grid info-grid-1">
         ${wohnungsSchluessel ? `<span class="lbl">Wohnungsschlüssel:</span><span>${esc(wohnungsSchluessel)}</span>` : ""}
         ${extraSchluessel ? `<span class="lbl">Extra-Schlüssel:</span><span style="white-space:pre-wrap">${esc(extraSchluessel)}</span>` : ""}
         ${wgSchluessel ? `<span class="lbl">Gemeinsame WG-Schlüssel:</span><span style="white-space:pre-wrap">${esc(wgSchluessel)} <em style="color:#8a8174">(allen Bewohnern der WG gemeinsam anvertraut)</em></span>` : ""}
