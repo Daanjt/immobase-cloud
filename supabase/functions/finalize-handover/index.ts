@@ -213,7 +213,7 @@ Deno.serve(async (req: Request) => {
     if (preview) {
       const vpfad = `vorschau/uebergabe_${protocolId}.pdf`;
       const up = await fetch(`${SUPABASE_URL}/storage/v1/object/documents/${vpfad}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/pdf", "x-upsert": "true" }, body: pdfBytes });
-      if (!up.ok) throw new Error(`Vorschau speichern ${up.status}`);
+      if (!up.ok) { const t = (await up.text()).slice(0, 200); console.error("vorschau upload", up.status, t, pdfBytes.length); throw new Error(`Vorschau speichern ${up.status} (${Math.round(pdfBytes.length / 1e5) / 10} MB): ${t}`); }
       const sg = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/documents/${vpfad}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 600 }) });
       const sj = await sg.json().catch(() => ({}));
       const su = sj.signedURL || sj.signedUrl;
