@@ -333,7 +333,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
       mieter_telefon: f.mieterArt==="extern" ? ((f.mieter_telefon||"").trim()||null) : null,
       mieter_adresse: f.mieterArt==="extern" ? ((f.mieter_adresse||"").trim()||null) : null,
       sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
-      ausschreiben: !!f.ausschreiben, frei_ab: (f.frei_ab||"").trim()||null,
+      ausschreiben: !!f.ausschreiben, frei_ab: (f.frei_ab||"").trim() || (f.mieterArt==="frei" ? (f.einkauf_ab||"").trim() : "") || null,
       art: f.art||"einstellplatz",
       nummer: nrWert, uebernommen: f.uebernommen!==false,
       schluessel_anzahl: parseInt(f.schluessel_anzahl)||null,
@@ -415,7 +415,6 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
           <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.vermietet_bis||""} onChange={set("vermietet_bis")} placeholder={befristetBis||"TT.MM.JJJJ"}/></div>
         </div>}
         {f.mieterArt!=="frei" && <div className="frow">
-          <div className="fg"><label className="fl">Kennzeichen (optional)</label><input className="fi" value={f.kennzeichen||""} onChange={set("kennzeichen")} placeholder="z.B. ZH 123456"/></div>
           <div className="fg"><label className="fl">Kündigungsfrist</label><select className="fi" value={f.kuendigungsfrist||1} onChange={set("kuendigungsfrist")}><option value="1">1 Monat auf Monatsende</option><option value="2">2 Monate auf Monatsende</option><option value="3">3 Monate auf Monatsende</option></select></div>
           <div className="fg" style={{maxWidth:130}}><label className="fl">Schlüssel (Anzahl)</label><input className="fi" type="number" min="0" max="10" value={f.schluessel_anzahl??""} onChange={set("schluessel_anzahl")} placeholder="0"/></div>
         </div>}
@@ -427,7 +426,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
           Auf dthomes.ch ausschreiben (Seite Parkplätze und bei Wohnungen an dieser Adresse)
         </label>
         {f.ausschreiben && <div className="frow" style={{marginTop:8}}>
-          <div className="fg"><label className="fl">Frei ab</label><input className="fi" value={f.frei_ab||""} onChange={set("frei_ab")} placeholder="TT.MM.JJJJ, leer = sofort"/></div>
+          <div className="fg"><label className="fl">Frei ab</label><input className="fi" value={f.frei_ab||""} onChange={set("frei_ab")} placeholder={(f.einkauf_ab||"").trim()?`leer = ab ${f.einkauf_ab} (Anmietung)`:"TT.MM.JJJJ, leer = sofort"}/></div>
           <div className="fg"><label className="fl">Preis auf der Website</label><div style={{fontSize:13,padding:"9px 0"}}>{f.miete_verkauf!=null&&f.miete_verkauf!==""?`${chf(+f.miete_verkauf)} / Mt.`:<span style={{color:"#9b4a3e"}}>Angebotspreis fehlt</span>}</div></div>
         </div>}
         {f.ausschreiben && f.mieterArt!=="frei" && <div style={{fontSize:11.5,color:"#8a6d3b",marginTop:4}}>Der Platz ist noch vermietet. Ausschreiben nur, wenn er bald frei wird, und "Frei ab" angeben.</div>}
