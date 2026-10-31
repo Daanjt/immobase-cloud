@@ -12,6 +12,7 @@
 // Geschuetzte Aktionen brauchen den Header x-portal-sitzung.
 import { KREDITOR, qrInhalt, qrPng, b64 as b64Png } from "../_shared/qrrechnung.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { istAdminOderServer } from "../_shared/auth.ts";
 import {
   generateAuthenticationOptions, generateRegistrationOptions,
   verifyAuthenticationResponse, verifyRegistrationResponse,
@@ -77,10 +78,10 @@ const b64url = {
   dec(s: string) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s); return Uint8Array.from(b, (c) => c.charCodeAt(0)); },
 };
 
-async function mail(to: string, betreff: string, text: string, en: boolean) {
+async function mail(to: string, betreff: string, text: string, en: boolean, mitBcc = false) {
   const r = await fetch(`${URL_}/functions/v1/send-message`, {
     method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ to, betreff, text, sprache: en ? "en" : "de", ohneBcc: true }),
+    body: JSON.stringify({ to, betreff, text, sprache: en ? "en" : "de", ohneBcc: !mitBcc }),
   });
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
@@ -547,7 +548,7 @@ async function kostenUndZahlung(t: any, apt: any, room: any) {
 
 // Parkplaetze des Mieters (mit Zahlungsangaben wie im Parkplatzvertrag)
 async function parkplaetzeVon(t: any) {
-  const { data } = await sb.from("parkplaetze").select("id, bezeichnung, nummer, art, adresse, miete_verkauf, vermietet_ab, vermietet_bis, kennzeichen").eq("tenant_id", t.id).order("nummer");
+  const { data } = await sb.from("parkplaetze").select("id, bezeichnung, nummer, art, adresse, miete_verkauf, vermietet_ab, vermietet_bis, kennzeichen, schluessel_anzahl, schluessel_nrs, schluessel_token, schluessel_gesendet_am, schluessel_bestaetigt_am").eq("tenant_id", t.id).order("nummer");
   const name = `${t.vorname || ""} ${t.nachname || ""}`.trim();
   const out: any[] = [];
   for (const p of (data || [])) {
@@ -557,7 +558,10 @@ async function parkplaetzeVon(t: any) {
     const betrag = p.miete_verkauf != null ? +p.miete_verkauf : null;
     let qr: string | null = null;
     try { if (betrag && betrag > 0) qr = "data:image/png;base64," + b64Png(await qrPng(qrInhalt(betrag, referenz), 6)); } catch (e) { console.error("qr parkplatz", e); }
-    out.push({ id: p.id, bezeichnung: p.bezeichnung || "", nummer: p.nummer ?? null, art: p.art || "einstellplatz", adresse: p.adresse || "", miete: betrag, ab: p.vermietet_ab || "", bis: p.vermietet_bis || "", kennzeichen: p.kennzeichen || "", referenz, qr });
+    const schluessel = p.schluessel_bestaetigt_am
+      ? { bestaetigt_am: fmt(new Date(p.schluessel_bestaetigt_am)), nrs: Array.isArray(p.schluessel_nrs) ? p.schluessel_nrs : [] }
+      : (p.schluessel_token && p.schluessel_gesendet_am ? { offen: true, anzahl: p.schluessel_anzahl || 1, link: `https://mieter.dthomes.ch/parkplatz-schluessel/${p.schluessel_token}` } : null);
+    out.push({ id: p.id, bezeichnung: p.bezeichnung || "", nummer: p.nummer ?? null, art: p.art || "einstellplatz", adresse: p.adresse || "", miete: betrag, ab: p.vermietet_ab || "", bis: p.vermietet_bis || "", kennzeichen: p.kennzeichen || "", referenz, qr, schluessel });
   }
   return out;
 }
@@ -735,6 +739,79 @@ async function geraetAbmelden(t: any, b: any) {
   return json({ ok: true });
 }
 
+// ── Parkplatz-Schlüssel: wir senden einen Link, der Mieter trägt die Schlüsselnummer(n) ein und bestätigt den Erhalt
+const PP_ART_DE: Record<string, string> = { einstellplatz: "Einstellplatz", aussenparkplatz: "Aussenparkplatz" };
+const PP_ART_EN: Record<string, string> = { einstellplatz: "Garage space", aussenparkplatz: "Outdoor parking space" };
+async function ppEmpfaenger(p: any) {
+  if (p.tenant_id) {
+    const { data: t } = await sb.from("tenants").select("vorname, nachname, email, sprache, portal_token").eq("id", p.tenant_id).maybeSingle();
+    if (t) return { vorname: t.vorname || "", name: `${t.vorname || ""} ${t.nachname || ""}`.trim(), email: t.email || "", en: t.sprache === "en", portal: t.portal_token ? `https://mieter.dthomes.ch/p/${t.portal_token}` : "" };
+  }
+  const name = String(p.mieter_extern || "").trim();
+  return { vorname: name.split(/\s+/)[0] || "", name, email: p.mieter_email || "", en: p.sprache === "en", portal: "" };
+}
+function ppPlatzText(p: any, en: boolean) {
+  const art = (en ? PP_ART_EN : PP_ART_DE)[p.art] || (en ? "Parking space" : "Parkplatz");
+  return `${art}${p.nummer != null ? ` ${en ? "no." : "Nr."} ${p.nummer}` : ""}${p.adresse ? `, ${p.adresse}` : ""}`;
+}
+async function ppSchluesselSenden(req: Request, b: any) {
+  if (!(await istAdminOderServer(req, true))) return fehler("Nicht berechtigt", 403);
+  const { data: p } = await sb.from("parkplaetze").select("*").eq("id", String(b.id || "")).maybeSingle();
+  if (!p) return fehler("Parkplatz nicht gefunden.", 404);
+  const anzahl = parseInt(String(p.schluessel_anzahl ?? ""), 10) || 0;
+  if (anzahl < 1) return fehler("Bitte zuerst die Anzahl Schlüssel beim Parkplatz eintragen.");
+  if (p.schluessel_bestaetigt_am) return fehler("Die Schlüssel wurden bereits bestätigt.");
+  const e = await ppEmpfaenger(p);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e.email)) return fehler("Keine E-Mail-Adresse beim Mieter hinterlegt.");
+  const token = p.schluessel_token || zufallHex(16);
+  const { error } = await sb.from("parkplaetze").update({ schluessel_token: token, schluessel_gesendet_am: new Date().toISOString() }).eq("id", p.id);
+  if (error) return fehler("Konnte nicht gespeichert werden.", 500);
+  const link = `https://mieter.dthomes.ch/parkplatz-schluessel/${token}`;
+  const platz = ppPlatzText(p, e.en);
+  const k = e.en ? (anzahl === 1 ? "1 key" : `${anzahl} keys`) : (anzahl === 1 ? "1 Schlüssel" : `${anzahl} Schlüssel`);
+  await mail(e.email, e.en ? "Please confirm your parking key" : "Bitte bestätige deinen Parkplatzschlüssel",
+    e.en
+      ? `Hi ${e.vorname},\n\nfor your ${platz} you receive ${k} from us.\n\nPlease enter the number stamped on ${anzahl === 1 ? "the key" : "each key"} and confirm receipt with your signature. It only takes a minute:\n${link}${e.portal ? `\n\nYou can also do this in the tenant portal under your parking space:\n${e.portal}` : ""}\n\nAt the end of the tenancy, all keys must be returned.\n\nBest regards\nYour D&T Homes Team`
+      : `Hallo ${e.vorname},\n\nfür deinen ${platz} erhältst du von uns ${k}.\n\nBitte trage die Nummer ein, die auf ${anzahl === 1 ? "dem Schlüssel" : "jedem Schlüssel"} eingestanzt ist, und bestätige den Erhalt mit deiner Unterschrift. Das dauert nur eine Minute:\n${link}${e.portal ? `\n\nDu kannst das auch im Mieterportal bei deinem Parkplatz machen:\n${e.portal}` : ""}\n\nBei Vertragsende sind alle Schlüssel zurückzugeben.\n\nLiebe Grüsse\nDein D&T Homes Team`, e.en);
+  return json({ ok: true, link, email: e.email });
+}
+async function ppSchluesselLaden(b: any) {
+  const token = String(b.token || "");
+  if (!/^[a-f0-9]{32}$/.test(token)) return fehler("Ungültiger Link.", 404);
+  const { data: p } = await sb.from("parkplaetze").select("*").eq("schluessel_token", token).maybeSingle();
+  if (!p) return fehler("Ungültiger Link.", 404);
+  const e = await ppEmpfaenger(p);
+  return json({ name: e.name, en: e.en, platz_de: ppPlatzText(p, false), platz_en: ppPlatzText(p, true), anzahl: p.schluessel_anzahl || 1,
+    bestaetigt_am: p.schluessel_bestaetigt_am ? fmt(new Date(p.schluessel_bestaetigt_am)) : null, nrs: Array.isArray(p.schluessel_nrs) ? p.schluessel_nrs : [] });
+}
+async function ppSchluesselBestaetigen(b: any) {
+  const token = String(b.token || "");
+  if (!/^[a-f0-9]{32}$/.test(token)) return fehler("Ungültiger Link.", 404);
+  const { data: p } = await sb.from("parkplaetze").select("*").eq("schluessel_token", token).maybeSingle();
+  if (!p) return fehler("Ungültiger Link.", 404);
+  if (p.schluessel_bestaetigt_am) return fehler("Die Schlüssel wurden bereits bestätigt.");
+  const anzahl = p.schluessel_anzahl || 1;
+  const nrs = (Array.isArray(b.nrs) ? b.nrs : []).slice(0, anzahl).map((x: any) => String(x || "").trim().slice(0, 40));
+  if (nrs.length !== anzahl || nrs.some((x: string) => !x)) return fehler("Bitte bei jedem Schlüssel die Nummer eintragen.");
+  const sig = String(b.unterschrift || "");
+  if (!/^data:image\/png;base64,/.test(sig) || sig.length > 400000) return fehler("Bitte unterschreiben.");
+  const jetzt = new Date();
+  const { error } = await sb.from("parkplaetze").update({ schluessel_nrs: nrs, schluessel_unterschrift: sig, schluessel_bestaetigt_am: jetzt.toISOString() }).eq("id", p.id).is("schluessel_bestaetigt_am", null);
+  if (error) return fehler("Konnte nicht gespeichert werden.", 500);
+  const e = await ppEmpfaenger(p);
+  const zeit = jetzt.toLocaleString("de-CH", { timeZone: "Europe/Zurich", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const liste = nrs.map((n: string, i: number) => `${e.en ? "Key" : "Schlüssel"} ${i + 1}: Nr. ${n}`).join("\n");
+  if (e.email) {
+    try {
+      await mail(e.email, e.en ? "Confirmation: parking key received" : "Bestätigung: Parkplatzschlüssel erhalten",
+        e.en
+          ? `Hi ${e.vorname},\n\nthank you. You have confirmed receipt of the following ${nrs.length === 1 ? "key" : "keys"} for your ${ppPlatzText(p, true)}:\n\n${liste}\n\nConfirmed on ${zeit} by ${e.name}.\n\nPlease keep this email. At the end of the tenancy, all keys must be returned; missing keys will be charged.\n\nBest regards\nYour D&T Homes Team`
+          : `Hallo ${e.vorname},\n\ndanke dir. Du hast den Erhalt ${nrs.length === 1 ? "des folgenden Schlüssels" : "der folgenden Schlüssel"} für deinen ${ppPlatzText(p, false)} bestätigt:\n\n${liste}\n\nBestätigt am ${zeit} von ${e.name}.\n\nBitte bewahre diese E-Mail auf. Bei Vertragsende sind alle Schlüssel zurückzugeben, fehlende Schlüssel werden in Rechnung gestellt.\n\nLiebe Grüsse\nDein D&T Homes Team`, e.en, true);
+    } catch (err) { console.error("pp schluessel mail", err); }
+  }
+  return json({ ok: true, bestaetigt_am: fmt(jetzt), nrs });
+}
+
 // ── Router ────────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -753,6 +830,9 @@ Deno.serve(async (req) => {
       case "pk_login_optionen": return await pkLoginOptionen(b, req);
       case "pk_login": return await pkLogin(b, req);
       case "nachfolge_info": return await nachfolgeInfo(b);
+      case "pp_schluessel_laden": return await ppSchluesselLaden(b);
+      case "pp_schluessel_bestaetigen": return await ppSchluesselBestaetigen(b);
+      case "pp_schluessel_senden": return await ppSchluesselSenden(req, b);
     }
     const s = await mieterPerSitzung(req);
     if (!s) return fehler("Bitte melde dich neu an.", 401);
