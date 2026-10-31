@@ -33,7 +33,7 @@ function logoAnhang(b64: string | null) {
 }
 function esc(s: string) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
-type Design = { eyebrow?: string; button_text?: string; button_url?: string; ohne_bcc?: boolean };
+type Design = { sprache?: string; eyebrow?: string; button_text?: string; button_url?: string; ohne_bcc?: boolean };
 // Empfaenger kann einen eigenen Button-Link haben (z.B. persoenlicher Mieterportal-Link)
 type Empf = { email: string; vorname: string; button_url?: string };
 
@@ -109,15 +109,16 @@ function huelle(vorname: string, text: string, logoSrc: string, d: Design = {}) 
   let inhalt = body + button;
   if (button && body.includes(BTN_MARKE)) inhalt = body.replace(BTN_MARKE, button);
   else if (body.includes(BTN_MARKE)) inhalt = body.replace(BTN_MARKE, "");
-  const gruss = hatGruss ? "" : `<p style="font-size:14px;color:#3a352d;margin:6px 0 0;">Liebe Grüsse<br><strong style="color:#1a1814;">Daan</strong><br><span style="color:#8a8174;font-size:12.5px;">D&amp;T Homes</span></p>`;
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
+  const en = d.sprache === "en";
+  const gruss = hatGruss ? "" : `<p style="font-size:14px;color:#3a352d;margin:6px 0 0;">${en ? "Best regards" : "Liebe Grüsse"}<br><strong style="color:#1a1814;">Daan</strong><br><span style="color:#8a8174;font-size:12.5px;">D&amp;T Homes</span></p>`;
+  return `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
 <div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${esc(eyebrow)}</div>
 <p style="font-size:15px;font-weight:600;margin:0 0 14px;">${anrede}</p>
 ${inhalt}${gruss}
-<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">Bei Fragen: <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> oder per WhatsApp <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
+<p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${en ? "Questions?" : "Bei Fragen:"} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${en ? "or via WhatsApp" : "oder per WhatsApp"} <a href="${wa}" style="color:#5a5448;">${WA_DISPLAY}</a>.</p>
 </div>
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
 </div></body></html>`;
