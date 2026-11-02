@@ -564,6 +564,22 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
   
   // Total
   const pk = parkFinHeute(parkplaetze);
+  // Parkplaetze wie Wohnungen: pro Platz Ausgabe/Einnahme im laufenden Monat (tagesgenau anteilig)
+  const _pn=new Date(), _ps=new Date(_pn.getFullYear(),_pn.getMonth(),1), _pe=new Date(_pn.getFullYear(),_pn.getMonth()+1,0,23,59,59,999);
+  const ppZeile = (p, zukunft) => {
+    const ak = zukunft ? 1 : ppAnteil(p.einkauf_ab, p.einkauf_bis, _ps, _pe);
+    const vermietet = ppVermietet(p);
+    const av = vermietet ? (zukunft ? 1 : ppAnteil(p.vermietet_ab, p.vermietet_bis, _ps, _pe)) : 0;
+    const ausgabe = Math.round((+p.miete_einkauf||0)*ak), ist = Math.round((+p.miete_verkauf||0)*av), max = Math.round((+p.miete_verkauf||0)*ak);
+    const kurz = `${PP_ART_NAME[p.art]||"Parkplatz"}${p.nummer!=null?` Nr. ${p.nummer}`:""}`;
+    return { p, vermietet, ausgabe, ist, max, kurz, mieter: ppMieterName(p, tenants) };
+  };
+  const ppSort = (a,b)=>String(a.adresse||"").localeCompare(String(b.adresse||""))||String(a.art||"").localeCompare(String(b.art||""))||((a.nummer??999)-(b.nummer??999));
+  const ppHeute = (parkplaetze||[]).filter(p=>ppAnteil(p.einkauf_ab, p.einkauf_bis, _ps, _pe)>0).sort(ppSort);
+  const ppZeilen = ppHeute.map(p=>ppZeile(p,false));
+  const ppZukunft = (parkplaetze||[]).filter(p=>{ const a=parseDMY(p.einkauf_ab); return a && !isNaN(a) && a>_pe; }).sort(ppSort).map(p=>ppZeile(p,true));
+  const ppTot = ppZeilen.reduce((t,z)=>({ausgabe:t.ausgabe+z.ausgabe, ist:t.ist+z.ist, max:t.max+z.max, leer:t.leer+(z.vermietet?0:z.max)}), {ausgabe:0,ist:0,max:0,leer:0});
+  const ppAuslastung = ppZeilen.length ? Math.round(ppZeilen.filter(z=>z.vermietet).length/ppZeilen.length*100) : 0;
   const pkMax = Math.round((parkplaetze||[]).reduce((s,p)=>{ const n=new Date(); return s+(+p.miete_verkauf||0)*ppAnteil(p.einkauf_ab, p.einkauf_bis, new Date(n.getFullYear(),n.getMonth(),1), new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59,999)); },0)) - pk.kosten;
   const margeHeute = wgMargeIst + pk.marge, margeMax = wgMargeMax + pkMax;
   const totalAusgaben = wgAusgaben + abAusgaben + pk.kosten;
@@ -644,13 +660,6 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
         </div>
       </div>
 
-      {(parkplaetze||[]).length>0 && (()=>{ const frei=(parkplaetze||[]).filter(p=>!ppVermietet(p)).length; return (
-        <div onClick={()=>navigateTo&&navigateTo("parkplaetze",null)} style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"8px 22px",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 20px",marginBottom:24,cursor:"pointer",fontSize:12.5}}>
-          <span style={{fontWeight:600}}>🅿️ Parkplätze</span>
-          <span>{parkplaetze.length-frei}/{parkplaetze.length} vermietet{frei>0?<span style={{color:"#b8843e"}}> · {frei} frei</span>:null}</span>
-          <span style={{color:"#8a8174"}}>Einnahmen {chf(pk.einnahmen)} · Kosten {chf(pk.kosten)}</span>
-          <span style={{marginLeft:"auto",fontWeight:600,color:pk.marge>=0?"#3d4f2f":"#9b4a3e"}}>Marge {pk.marge>=0?"+":""}{chf(pk.marge)} / Mt.</span>
-        </div>); })()}
 
       <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WGs und Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
@@ -660,6 +669,17 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
         <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:wgLeerstand>0?"#9b4a3e":"#5a6e4a"}}>{wgLeerstand>0?"−":""}{chf(wgLeerstand).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{wgFree.length} frei</div></div>
       </div>
       {(()=>{const _fz=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _fw=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return(<>{_fz.length>0&&<div className="warn">⚠ <strong>{_fz.length} WG-Zimmer frei:</strong> {_fz.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}{_fw.length>0&&<div className="warn">⚠ <strong>{_fw.length} {_fw.length===1?"Wohnung":"Wohnungen"} frei:</strong> {_fw.map(r=>{const _a=apts.find(a=>a.id===r.aptId);return `${_a.id} ${_a.adresse} (${chf(r.miete)}/Mt.)`;}).join(" · ")}</div>}</>);})()}
+
+      {ppHeute.length>0 && (<>
+        <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>Parkplätze</div>
+        <div className="sg" style={{marginBottom:18}}>
+          <div className="sc" onClick={()=>navigateTo&&navigateTo("parkplaetze",null)} style={{cursor:"pointer"}}><div className="sl">Auslastung</div><div className="sv">{ppAuslastung}%</div><div className="sn" style={{color:ppAuslastung>=80?"#5a6e4a":ppAuslastung>=50?"#b8843e":"#9b4a3e"}}>{ppZeilen.filter(z=>z.vermietet).length}/{ppZeilen.length} Plätze</div></div>
+          <div className="sc"><div className="sl">Ausgaben</div><div className="sv" style={{fontSize:24}}>{chf(pk.kosten).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
+          <div className="sc"><div className="sl">Einnahmen Ist</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(pk.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>von max. {chf(ppTot.max)}</div></div>
+          <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:ppTot.leer>0?"#9b4a3e":"#5a6e4a"}}>{ppTot.leer>0?"−":""}{chf(ppTot.leer).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{ppZeilen.filter(z=>!z.vermietet).length} frei</div></div>
+        </div>
+        {ppZeilen.filter(z=>!z.vermietet).length>0 && <div className="warn">⚠ <strong>{ppZeilen.filter(z=>!z.vermietet).length} {ppZeilen.filter(z=>!z.vermietet).length===1?"Parkplatz":"Parkplätze"} frei:</strong> {ppZeilen.filter(z=>!z.vermietet).map(z=>`${z.kurz} (${chf(+z.p.miete_verkauf||0)}/Mt.)`).join(" · ")}</div>}
+      </>)}
 
       {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;60 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
@@ -749,6 +769,19 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
               );
             })}
             </React.Fragment>))}
+            {ppZeilen.length>0 && <tr><td colSpan={14} style={{background:"#f5f2ea",fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".28em",fontWeight:700,padding:"8px 10px"}}>Parkplätze</td></tr>}
+            {ppZeilen.map(z=><PPFinZeile key={z.p.id} z={z} navigateTo={navigateTo}/>)}
+            {ppZeilen.length>0 && <tr style={{borderTop:"1px solid #d8d0c0"}}>
+              <td colSpan={6} style={{fontWeight:600}}>Total Parkplätze</td>
+              <td style={{textAlign:"right",fontWeight:600}}>{chf(ppTot.ausgabe)}</td>
+              <td style={{textAlign:"right",fontWeight:600,color:"#5a6e4a"}}>{chf(ppTot.ist)}</td>
+              <td style={{textAlign:"right",fontWeight:600,color:"#8a8174"}}>{chf(ppTot.max)}</td>
+              <td style={{textAlign:"right",fontWeight:600,color:ppTot.ist-ppTot.ausgabe>=0?"#5a6e4a":"#9b4a3e"}}>{(ppTot.ist-ppTot.ausgabe>=0?"+":"")+chf(ppTot.ist-ppTot.ausgabe)}</td>
+              <td style={{textAlign:"right",fontWeight:600}}>{(ppTot.max-ppTot.ausgabe>=0?"+":"")+chf(ppTot.max-ppTot.ausgabe)}</td>
+              <td style={{textAlign:"right",color:"#bab2a0"}}>-</td>
+              <td style={{textAlign:"right",fontWeight:600,color:ppTot.max-ppTot.ausgabe>=0?"#5a6e4a":"#9b4a3e"}}>{(ppTot.max-ppTot.ausgabe>=0?"+":"")+chf(ppTot.max-ppTot.ausgabe)}</td>
+              <td><span style={{fontSize:11,color:"#8a8174"}}>{ppAuslastung}%</span></td>
+            </tr>}
           </tbody>
           <tfoot>
             <tr style={{borderTop:"2px solid #1a1814"}}>
@@ -770,6 +803,18 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
         </table>
         </div>
         </div>
+        {ppZukunft.length > 0 && (
+          <div style={{marginTop:22}}>
+            <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:4}}>Parkplätze in der Zukunft</div>
+            <div style={{fontSize:11.5,color:"#8a8174",marginBottom:12,fontStyle:"italic"}}>Anmietung beginnt erst später, deshalb nicht in den oberen Zahlen enthalten.</div>
+            <div className="finance-scroll-table-wrap"><div className="finance-scroll-table">
+            <table>
+              <thead><tr><th>ID</th><th>Adresse</th><th>Art</th><th>Mieter</th><th>Mietbeginn</th><th>Mietende</th><th style={{textAlign:"right"}}>Ausgabe</th><th style={{textAlign:"right"}}>Einnahme Ist</th><th style={{textAlign:"right"}}>Einnahme Max</th><th style={{textAlign:"right"}}>Marge Ist</th><th style={{textAlign:"right"}}>Marge Max</th><th style={{textAlign:"right"}}>Servicegebühr</th><th style={{textAlign:"right"}}>Marge Total</th><th>Belegung</th></tr></thead>
+              <tbody>{ppZukunft.map(z=><PPFinZeile key={z.p.id} z={z} navigateTo={navigateTo} zukunft/>)}</tbody>
+            </table>
+            </div></div>
+          </div>
+        )}
         {wgAptsZukunft.length > 0 && (
           <div style={{marginTop:22}}>
             <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:4}}>Wohnungen in der Zukunft</div>
@@ -1089,3 +1134,32 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
   );
 }
 
+
+
+// Eine Parkplatz-Zeile in der Finanzuebersicht, gleiche Spalten wie bei den Wohnungen
+function PPFinZeile({z, navigateTo, zukunft}){
+  const p=z.p, mIst=z.ist-z.ausgabe, mMax=z.max-z.ausgabe;
+  return (
+    <tr onClick={()=>navigateTo&&navigateTo("parkplaetze",null)} style={{cursor:"pointer",...(zukunft?{opacity:.85}:{})}}>
+      <td style={{fontWeight:600,whiteSpace:"nowrap"}}>{p.nummer!=null?`Nr. ${p.nummer}`:"-"}</td>
+      <td style={{fontSize:11.5,color:"#8a8174"}}>{p.adresse||"-"}</td>
+      <td data-label="Art" style={{fontSize:11.5,color:"#4a4439"}}>{PP_ART_NAME[p.art]||"Parkplatz"}</td>
+      <td data-label="Mieter" style={{fontSize:11.5,color:z.vermietet?"#4a4439":"#b8843e"}}>{z.vermietet?(z.mieter||"vermietet"):"frei"}</td>
+      <td data-label="Mietbeginn" style={{fontSize:11.5,color:zukunft?"#3d4f2f":"#4a4439",fontWeight:zukunft?500:400}}>{p.einkauf_ab||"-"}</td>
+      <td data-label="Mietende" style={{fontSize:11.5,color:"#4a4439"}}>{p.einkauf_bis||"-"}</td>
+      <td data-label="Ausgabe" style={{textAlign:"right"}}>{chf(z.ausgabe)}</td>
+      <td data-label="Einnahmen IST" style={{textAlign:"right",color:"#5a6e4a"}}>{chf(z.ist)}</td>
+      <td data-label="Einnahmen MAX" style={{textAlign:"right",color:"#8a8174"}}>{chf(z.max)}</td>
+      <td data-label="Marge IST" style={{textAlign:"right",fontWeight:500,color:mIst>=0?"#5a6e4a":"#9b4a3e"}}>{(mIst>=0?"+":"")+chf(mIst)}</td>
+      <td data-label="Marge MAX" style={{textAlign:"right",fontWeight:500,color:"#1a1814"}}>{(mMax>=0?"+":"")+chf(mMax)}</td>
+      <td data-label="Servicegebühr" style={{textAlign:"right",color:"#bab2a0"}}>-</td>
+      <td data-label="Marge Total" style={{textAlign:"right",fontWeight:600,color:mMax>=0?"#5a6e4a":"#9b4a3e"}}>{(mMax>=0?"+":"")+chf(mMax)}</td>
+      <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{flex:"1 1 0",minWidth:0}}><Prog val={z.vermietet?1:0} max={1}/></div>
+          <span style={{fontSize:10.5,color:"#8a8174"}}>{z.vermietet?1:0}/1</span>
+        </div>
+      </td>
+    </tr>
+  );
+}
