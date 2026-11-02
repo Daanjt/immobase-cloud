@@ -778,6 +778,9 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
   const [selZimmer,setSelZimmer]=useState(null);
+  // Moebliert-Status des Zimmers direkt bei der Zuteilung festlegen (vorbelegt mit dem aktuellen Wert des Zimmers)
+  const [zuteilMoebliert,setZuteilMoebliert]=useState(false);
+  useEffect(()=>{ const _r=(rooms||[]).find(r=>r.id===selZimmer); setZuteilMoebliert(!!(_r&&_r.moebliert)); },[selZimmer]);
   const [einzugDate,setEinzugDate]=useState("");
   const [filterStatus,setFilterStatus]=useState("Neu");
   const [listMode,setListMode]=useState("bewerber");
@@ -961,7 +964,11 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     // Doppelklick-Schutz: sonst wird der Mieter zweimal angelegt
     if (zuteilLaeuft.current) return;
     zuteilLaeuft.current = true; setZuteilBusy(true);
-    try { await zuteilungAusfuehren(); } finally { zuteilLaeuft.current = false; setZuteilBusy(false); }
+    try {
+      const _r=(rooms||[]).find(r=>r.id===selZimmer);
+      if (_r && !!_r.moebliert !== zuteilMoebliert) await updateRoom(selZimmer,{moebliert:zuteilMoebliert});
+      await zuteilungAusfuehren();
+    } finally { zuteilLaeuft.current = false; setZuteilBusy(false); }
   }
   async function zuteilungAusfuehren(){
     if(!selZimmer||!b)return;
@@ -1985,6 +1992,10 @@ www.dthomes.ch`;
               })}
             </>)}
             <div className="fg" style={{marginTop:14}}><label className="fl">Einzugsdatum</label><input className="fi" type="date" value={einzugDate} onChange={e=>setEinzugDate(e.target.value)}/></div>
+            {selZimmer && <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,marginTop:4}}>
+              <input type="checkbox" checked={zuteilMoebliert} onChange={e=>setZuteilMoebliert(e.target.checked)}/>
+              <span>🛋 Zimmer ist möbliert</span>
+            </label>}
             <div className="ma">
               <button className="btn btn-g" onClick={()=>setZuteilModal(false)}>Abbrechen</button>
               <button className="btn btn-gr" onClick={confirmZuteilung} disabled={!selZimmer||zuteilBusy}>{zuteilBusy?"⏳ Wird angelegt…":"✓ Zuteilung bestätigen"}</button>

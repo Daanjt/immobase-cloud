@@ -43,6 +43,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       miete:+form.miete||0,
       groesse:formatGroesse(form.groesse),
       balkon:!!form.balkon,
+      moebliert:!!form.moebliert,
     });
     setEditing(false);
   }
