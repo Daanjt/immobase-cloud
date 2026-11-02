@@ -193,10 +193,14 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                     <td data-label="Miete" style={{color:"#5a6e4a"}}>{r.miete?chf(r.miete):"-"}</td>
                     <td data-label="Balkon">{r.balkon?"🌿":"-"}</td>
                     <td data-label="Möbliert"><span style={{display:"inline-block",fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:11,whiteSpace:"nowrap",lineHeight:1.4,border:`1px solid ${r.moebliert?"#b89a5e":"#ddd6c8"}`,background:r.moebliert?"#f3ead2":"#fff",color:r.moebliert?"#7a5f22":"#b0a894"}}>{r.moebliert?"🛋 Möbliert":"Unmöbliert"}</span></td>
-                    <td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}</td>
+                    <td data-label="Status">{r.occupied?<Bdg label="● belegt" color="g"/>:<Bdg label="○ frei" color="y"/>}{(r.ausschreibOverride==="ja"||(!r.occupied&&r.ausschreibOverride!=="nein"))&&<div style={{fontSize:10.5,color:"#7a5f22",marginTop:3,whiteSpace:"nowrap"}}>📣 ausgeschrieben</div>}{!r.occupied&&r.ausschreibOverride==="nein"&&<div style={{fontSize:10.5,color:"#8a8174",marginTop:3,whiteSpace:"nowrap"}}>nicht auf Website</div>}</td>
                     <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td>
                     <td style={{textAlign:"right",whiteSpace:"nowrap"}}>
                       {!r.occupied&&<button className="btn btn-p btn-sm" onClick={()=>openAssign(r)} style={{marginRight:4}}>+ Zuteilen</button>}
+                      {(()=>{ const ov=r.ausschreibOverride||"auto"; const an=ov==="ja"||(!r.occupied&&ov!=="nein");
+                        const ziel = an ? (r.occupied?"auto":"nein") : (r.occupied?"ja":"auto");
+                        return <button className="btn btn-g btn-sm" style={{marginRight:4}} title={an?"Nicht mehr auf der Website zeigen":"Auf der Website ausschreiben (auch wenn das Zimmer noch belegt ist)"}
+                          onClick={async()=>{ if(!an && r.occupied && !confirm(`${objektLabel(r.id)} auf der Website ausschreiben, obwohl es noch belegt ist?`)) return; await updateRoom(r.id,{ausschreibOverride:ziel}); toast(an?"Nicht mehr ausgeschrieben":"Auf der Website ausgeschrieben"); }}>{an?"✕ Ausschreibung beenden":"📣 Ausschreiben"}</button>; })()}
                       <button className="btn btn-g btn-sm" onClick={()=>openEdit(r)}>✏ Bearbeiten</button>
                     </td>
                   </tr>
