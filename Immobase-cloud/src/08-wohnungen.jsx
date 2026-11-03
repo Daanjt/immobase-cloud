@@ -532,7 +532,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
                 <div className="igrid">{[
                   ["Typ",<TypeBadge type={apt.vermietungsart==="wohnung"?"Wohnung":apt.type}/>],
                   isWG && ["Vermietung", apt.vermietungsart==="wohnung" ? "Wohnung (unmöbliert)" : "Einzelne Zimmer"],
-                  ["Früherer Mietzins", apt.frueherer_mietzins ? `CHF ${apt.frueherer_mietzins} netto${apt.frueherer_nk?` + CHF ${apt.frueherer_nk} NK`:""}` : "-"],
+                  istAdmin && ["Früherer Mietzins", apt.frueherer_mietzins ? `CHF ${apt.frueherer_mietzins} netto${apt.frueherer_nk?` + CHF ${apt.frueherer_nk} NK`:""}` : "-"],
                   ["Zimmer",apt.zimmer+" Zi."],
                   ["Stockwerk",apt.stockwerk||"-"],
                   istAdmin && ["Miete (an Vermieter)",<strong style={{color:"#9b4a3e"}}>{chf(apt.miete)}</strong>],

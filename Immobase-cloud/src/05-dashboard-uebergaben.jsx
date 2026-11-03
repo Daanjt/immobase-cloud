@@ -1194,9 +1194,9 @@ function BelegungOps({wgApts, wgAptsZukunft, rooms, ppZeilen, ppZukunft, navigat
       <td style={{fontWeight:600}}>{z.p.nummer!=null?`Nr. ${z.p.nummer}`:"-"}</td>
       <td style={{fontSize:11.5,color:"#8a8174"}}>{z.p.adresse||"-"}</td>
       <td data-label="Art" style={{fontSize:11.5}}>{PP_ART_NAME[z.p.art]||"Parkplatz"}</td>
-      <td data-label="Mieter" style={{fontSize:11.5,color:z.vermietet?"#4a4439":"#b8843e"}}>{z.vermietet?(z.mieter||"vermietet"):"frei"}</td>
-      <td data-label="Mietbeginn" style={{fontSize:11.5}}>{z.p.vermietet_ab||"-"}</td>
-      <td data-label="Mietende" style={{fontSize:11.5}}>{z.p.vermietet_bis||"-"}</td>
+      <td data-label="Mieter" style={{fontSize:11.5,color:z.vermietet?"#4a4439":"#b8843e"}}>{z.vermietet?<>{z.mieter||"vermietet"}{z.p.vermietet_ab&&<div style={{fontSize:10.5,color:"#8a8174"}}>ab {z.p.vermietet_ab}{z.p.vermietet_bis?` bis ${z.p.vermietet_bis}`:""}</div>}</>:<>frei{(z.p.frei_ab||z.p.einkauf_ab)&&<div style={{fontSize:10.5,color:"#8a8174"}}>ab {z.p.frei_ab||z.p.einkauf_ab}</div>}</>}</td>
+      <td data-label="Mietbeginn" style={{fontSize:11.5}}>{z.p.einkauf_ab||"-"}</td>
+      <td data-label="Mietende" style={{fontSize:11.5}}>{z.p.einkauf_bis||"-"}</td>
       <td data-label="Belegung"><span style={{fontSize:10.5,color:z.vermietet?"#8a8174":"#b8843e"}}>{z.vermietet?"1/1":"0/1 · frei"}</span></td>
     </tr>);
   const kopf = <thead><tr><th>ID</th><th>Adresse</th><th>Zimmer / Art</th><th>Stock / Mieter</th><th>Mietbeginn</th><th>Mietende</th><th>Belegung</th></tr></thead>;

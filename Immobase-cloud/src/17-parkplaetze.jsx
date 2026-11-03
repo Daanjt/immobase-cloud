@@ -771,7 +771,7 @@ const NAV_GRUPPEN=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["dashboard","bewerber","mieter","todos","schaeden","kuendigungen","dokumente","wohnungen","zimmer","nachvermietung","uebergaben","parkplaetze","reinigung"],
+  operations: ["dashboard","bewerber","mieter","todos","schaeden","kuendigungen","wohnungen","zimmer","nachvermietung","uebergaben","parkplaetze","reinigung"],
 };
 
 function seitenFuerRolle(rolle) {

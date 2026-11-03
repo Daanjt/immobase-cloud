@@ -12,6 +12,7 @@ function useSupabaseData() {
 
   async function loadAll(still) {
     if (!still) setLoading(true);
+    if (window.__ibRolle === "operations") supabase.rpc("vormietzins_wohnungen").then(({data})=>{ const m={}; (data||[]).forEach(x=>{ m[x.id]=x.frueherer_mietzins; }); window.__ibVormiete=m; });
     const [a, r, t, b] = await Promise.all([
       supabase.from(aptQuelle()).select("*").order("id"),
       supabase.from("rooms").select("*").order("id"),

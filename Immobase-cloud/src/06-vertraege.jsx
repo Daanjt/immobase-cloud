@@ -39,7 +39,8 @@ function wohnungVertragswerte(p, apt, room, personen){
   const brutto = netto + nk;
   const km = p.kautionMonate == null ? 3 : p.kautionMonate;
   const auf = p.aufschlag || 0;
-  const fNetto = +(apt && apt.frueherer_mietzins) || 0;
+  // Operations sieht den frueheren Mietzins nicht in der Wohnungsansicht; fuer das Anfangsmietzinsformular kommt er aus einem separaten Abruf
+  const fNetto = +(apt && (apt.frueherer_mietzins ?? ((window.__ibVormiete||{})[apt.id]))) || 0;
   const fNk = +(apt && apt.frueherer_nk) || 0;
   return { ...p, _bruttoBasis: basis, vertragsart: "wohnung", personen: pers, fruehererNetto: fNetto || "", fruehererNk: fNetto ? fNk : "", fruehererMietzins: fNetto ? fNetto + fNk : "", nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: (brutto + strom) * km, moebliert: false };
 }
