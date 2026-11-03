@@ -31,4 +31,4 @@ jobs:
         with:
           version: latest
       - name: Deploy alle Functions im supabase/functions Ordner
-        run: supabase functions deploy --project-ref "$PROJECT_ID"
+        run: supabase functions deploy --project-ref "$PROJECT_ID" --yes
