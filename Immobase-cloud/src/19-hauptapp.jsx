@@ -438,14 +438,13 @@ function KommunikationTab({empfaenger, zielgruppe}) {
 
 const ROLLEN_LABELS = {
   admin: "Admin (Vollzugriff)",
-  operations: "Operations (Besichtigungen & Übergaben)",
-  mitarbeiter: "Mitarbeiter (nur eigene Zeiterfassung)",
+  operations: "Operations (Vermietung, ohne Finanzen und Hauptmiete)",
 };
 
 function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {
   const [liste, setListe] = useState(null);
   const [neuMail, setNeuMail] = useState("");
-  const [neuRolle, setNeuRolle] = useState("mitarbeiter");
+  const [neuRolle, setNeuRolle] = useState("operations");
   const [neuVorname, setNeuVorname] = useState("");
   const [neuNachname, setNeuNachname] = useState("");
   const [neuFunktion, setNeuFunktion] = useState("");
@@ -537,14 +536,13 @@ function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {
 
         <div style={{marginTop:18}}>
           <div style={{fontSize:9.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".22em",marginBottom:8,fontWeight:500}}>Neue Person hinzufügen</div>
-          <div style={{fontSize:11,color:"var(--muted)",marginBottom:10,lineHeight:1.5}}>Wird als Login freigeschaltet und automatisch als Mitarbeiter in der Zeiterfassung angelegt.</div>
+          <div style={{fontSize:11,color:"var(--muted)",marginBottom:10,lineHeight:1.5}}>Wird als Login freigeschaltet.</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
             <input className="team-fi" placeholder="Vorname" value={neuVorname} onChange={e=>setNeuVorname(e.target.value)} style={inp}/>
             <input className="team-fi" placeholder="Nachname" value={neuNachname} onChange={e=>setNeuNachname(e.target.value)} style={inp}/>
             <input className="team-fi" type="email" placeholder="E-Mail-Adresse" value={neuMail} onChange={e=>setNeuMail(e.target.value)} style={inp}/>
             <input className="team-fi" placeholder="Telefon" value={neuPhone} onChange={e=>setNeuPhone(e.target.value)} style={inp}/>
-            <input className="team-fi" placeholder="Funktion (z.B. Reinigung)" value={neuFunktion} onChange={e=>setNeuFunktion(e.target.value)} style={inp}/>
-            <input className="team-fi" type="number" placeholder="Stundenlohn CHF" value={neuLohn} onChange={e=>setNeuLohn(e.target.value)} style={inp}/>
+            <input className="team-fi" placeholder="Funktion (z.B. Vermietung)" value={neuFunktion} onChange={e=>setNeuFunktion(e.target.value)} style={inp}/>
           </div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <select className="team-fi" value={neuRolle} onChange={e=>setNeuRolle(e.target.value)}

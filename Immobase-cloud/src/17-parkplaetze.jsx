@@ -755,7 +755,8 @@ const PAGES=[
   {id:"dokumente",icon:"📁",label:"Dokumente",group:"verwaltung"},
   {id:"datencheck",icon:"🩺",label:"Datencheck",group:"verwaltung"},
   {id:"passwoerter",icon:"🔐",label:"Passwörter",group:"verwaltung"},
-  {id:"zeit",icon:"⏱",label:"Zeiterfassung",group:"verwaltung"},
+  // Zeiterfassung ausgeblendet (erfolgsbasiertes Lohnmodell); Seite bleibt im Code, falls sie wieder gebraucht wird
+
 ];
 // Gruppen der Seitenleiste (aufklappbar)
 const NAV_GRUPPEN=[
@@ -770,13 +771,13 @@ const NAV_GRUPPEN=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","zeit","schaeden"],
-  mitarbeiter: ["zeit"],
+  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","schaeden"],
 };
 
 function seitenFuerRolle(rolle) {
   const erlaubt = ROLLEN_SEITEN[rolle];
-  if (erlaubt === null || erlaubt === undefined) return PAGES;
+  if (erlaubt === null) return PAGES;
+  if (!erlaubt) return []; // unbekannte Rolle: nichts zeigen
   return PAGES.filter(p => erlaubt.includes(p.id));
 }
 
