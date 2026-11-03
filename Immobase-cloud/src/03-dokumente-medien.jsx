@@ -434,7 +434,7 @@ function MediaManager({apt, editApt, rooms}){
     const p = photos[idx];
     try {
       // Datei nur loeschen, wenn keine andere Wohnung dasselbe Bild verwendet (z.B. kopierte Fotos)
-      const { data: andere } = await supabase.from("apartments").select("id,photos").neq("id", apt.id);
+      const { data: andere } = await supabase.from(aptQuelle()).select("id,photos").neq("id", apt.id);
       const geteilt = (andere||[]).some(a => (Array.isArray(a.photos)?a.photos:[]).some(x => x && x.path === p.path));
       if (!geteilt) await supabase.storage.from("assets").remove([p.path]);
     } catch(e){ console.warn("Storage delete failed:", e); }

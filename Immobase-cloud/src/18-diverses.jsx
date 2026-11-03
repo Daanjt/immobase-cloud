@@ -116,7 +116,7 @@ function WerbungTab(){
   const abbrechenGeplant=async(id)=>{ if(!confirm("Geplante Kampagne abbrechen?")) return; await supabase.from("kampagnen_geplant").delete().eq("id",id); ladeGeplant(); };
   const speichernVorlage=async()=>{ if(!subject.trim()&&!text.trim()){ toast("Nichts zu speichern","error"); return; } const name=prompt("Name der Vorlage:"); if(!name||!name.trim()) return; const {error}=await supabase.from("kampagnen_vorlagen").insert({name:name.trim(),betreff:subject,text,design:design()}); if(error){ toast("Fehler beim Speichern","error"); return; } toast("Vorlage gespeichert"); ladeVorlagen(); };
   const loeschenVorlage=async(id)=>{ if(!confirm("Vorlage löschen?")) return; await supabase.from("kampagnen_vorlagen").delete().eq("id",id); ladeVorlagen(); };
-  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); ladeErfolg(); ladeGeplant(); (async()=>{ try{ const {data}=await supabase.from("apartments").select("id,adresse,etage,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
+  React.useEffect(()=>{ ladeLog(); ladeVorlagen(); ladeErfolg(); ladeGeplant(); (async()=>{ try{ const {data}=await supabase.from(aptQuelle()).select("id,adresse,etage,type").eq("type","WG"); setApts(data||[]); }catch(_e){} })(); },[]);
   React.useEffect(()=>{(async()=>{
     setExcluded({}); setOpenN({});
     try{

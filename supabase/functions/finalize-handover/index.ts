@@ -2,7 +2,7 @@
 // Unterschrift, Klauseln) serverseitig zu PDF und loest ueber send-handover-pdf
 // Mail + Dokument + Abschluss aus. Mit skipEmail=true nur Dokument ersetzen (kein Mail).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { istAdminOderServer } from "../_shared/auth.ts";
+import { istTeamOderServer } from "../_shared/auth.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -180,7 +180,7 @@ Deno.serve(async (req: Request) => {
     // Absicherung: nur eingeloggte Admins (allowed_users.role = admin) duerfen ein Protokoll finalisieren
     // oder eine Vorschau erzeugen. Blockt Aufrufe mit blossem Anon-Key oder ganz
     // ohne Auth (jemand, der nur die Funktions-URL und eine protocolId kennt).
-    const authOk = await istAdminOderServer(req);
+    const authOk = await istTeamOderServer(req);
     if (!authOk) return new Response(JSON.stringify({ error: "Nicht autorisiert - bitte im Admin einloggen." }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
     const { protocolId, skipEmail, preview } = await req.json();

@@ -4,7 +4,7 @@
 // Die Mail kommt persönlich von Daan: zuerst über sein Outlook (Microsoft Graph, landet in "Gesendet"),
 // falls das nicht geht über Resend mit Daan als Absender (Antworten an Daan, Kopie in BCC an Daan).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { istTeamOderServer, verweigert } from "../_shared/auth.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -59,7 +59,7 @@ async function viaOutlook(an: string[], cc: string[], betreff: string, html: str
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (!(await istAdminOderServer(req))) return verweigert(CORS);
+  if (!(await istTeamOderServer(req))) return verweigert(CORS);
   try {
     const b = await req.json().catch(() => ({}));
     const an = String(b.an || "").split(/[;,]/).map((x: string) => x.trim()).filter(Boolean);

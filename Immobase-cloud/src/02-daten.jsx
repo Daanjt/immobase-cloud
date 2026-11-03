@@ -13,7 +13,7 @@ function useSupabaseData() {
   async function loadAll(still) {
     if (!still) setLoading(true);
     const [a, r, t, b] = await Promise.all([
-      supabase.from("apartments").select("*").order("id"),
+      supabase.from(aptQuelle()).select("*").order("id"),
       supabase.from("rooms").select("*").order("id"),
       supabase.from("tenants").select("*").is("deleted_at",null).order("id"),
       supabase.from("applicants").select("*").order("created_at", {ascending:false}),
@@ -741,7 +741,7 @@ function useSupabaseData() {
       parkplatzId:c.parkplatz_id, signUrl:c.token?`https://mieter.dthomes.ch/${c.token}`:null})));
   }
   async function loadParkplaetze() {
-    const {data, error} = await supabase.from("parkplaetze").select("*").order("adresse").order("bezeichnung");
+    const {data, error} = await supabase.from(ppQuelle()).select("*").order("adresse").order("bezeichnung");
     if (error) { console.warn("Parkplätze:", error.message); return; }
     setParkplaetze(data || []);
   }

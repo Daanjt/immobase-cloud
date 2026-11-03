@@ -26,7 +26,7 @@ async function istAdminOderServer(req: Request): Promise<boolean> {
   if (!email) return false;
   const r = await fetch(`${SUPABASE_URL}/rest/v1/allowed_users?email=ilike.${encodeURIComponent(email)}&select=role`, { headers: H });
   const rows = r.ok ? await r.json() : [];
-  return rows.some((x: any) => x.role === "admin");
+  return rows.some((x: any) => x.role === "admin" || x.role === "operations");
 }
 async function rest(path: string) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: H });

@@ -75,7 +75,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
   const [erhAlt, setErhAlt] = useState({n:"",e:""});
   const [boxen, setBoxen] = useState(null);
   useEffect(()=>{
-    supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel||""); } });
+    supabase.from(aptQuelle()).select("schluessel_anzahl,extra_schluessel").eq("id", apt.id).single().then(({data})=>{ if(data){ setErhNormal(data.schluessel_anzahl!=null?String(data.schluessel_anzahl):""); setErhExtra(data.extra_schluessel||""); } });
     ladeBoxen();
   },[apt.id]);
   async function ladeBoxen(){

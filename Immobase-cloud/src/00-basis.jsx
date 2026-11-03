@@ -559,3 +559,7 @@ const NATIONALITAETEN_REST = [
 ];
 const NATIONALITAETEN = [...NATIONALITAETEN_TOP, ...NATIONALITAETEN_REST];
 
+
+// Operations sieht Wohnungen und Parkplaetze nur ueber Ansichten ohne Hauptmiete/Einkauf (Datenbank-Views)
+function aptQuelle(){ return window.__ibRolle==="operations" ? "apartments_ops" : "apartments"; }
+function ppQuelle(){ return window.__ibRolle==="operations" ? "parkplaetze_ops" : "parkplaetze"; }

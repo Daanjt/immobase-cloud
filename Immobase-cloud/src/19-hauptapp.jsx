@@ -712,8 +712,8 @@ function App() {
     let aktiv = true;
     supabase.rpc("current_user_role").then(({data, error}) => {
       if (!aktiv) return;
-      if (error) { console.warn("Rolle konnte nicht geladen werden:", error); setRolle("admin"); }
-      else setRolle(data || "admin");
+      if (error) { console.warn("Rolle konnte nicht geladen werden:", error); window.__ibRolle="admin"; setRolle("admin"); }
+      else { window.__ibRolle = data || "admin"; setRolle(data || "admin"); }
     });
     return () => { aktiv = false; };
   }, [authed]);

@@ -1,6 +1,6 @@
 // Versendet eine Nachricht aus den ImmoBase-Vorlagen im einheitlichen D&T-Mail-Design.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { istTeamOderServer, verweigert } from "../_shared/auth.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = "D&T Homes <noreply@dthomes.ch>";
@@ -51,7 +51,7 @@ ${inhalt}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (!(await istAdminOderServer(req))) return verweigert(CORS);
+  if (!(await istTeamOderServer(req))) return verweigert(CORS);
   try {
     const { to, betreff, text, sprache, cc, ohneBcc, anhaenge } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "Keine E-Mail-Adresse." }, 400);

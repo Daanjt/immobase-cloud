@@ -359,7 +359,7 @@ function ParkplatzModal({pp, apts, tenants, onClose, onSaved}){
     }
     // Bekommt ein uebernommener Platz eine Nummer, faellt der leere Platzhalter mit derselben Nummer weg
     if(!error && nrWert!=null && row.uebernommen && row.adresse){
-      const {data:dup} = await supabase.from("parkplaetze").select("id,tenant_id,mieter_extern,uebernommen").eq("adresse",row.adresse).eq("art",row.art).eq("nummer",nrWert);
+      const {data:dup} = await supabase.from(ppQuelle()).select("id,tenant_id,mieter_extern,uebernommen").eq("adresse",row.adresse).eq("art",row.art).eq("nummer",nrWert);
       const weg=(dup||[]).filter(x=>x.id!==pp.id && x.uebernommen===false && !x.tenant_id && !(x.mieter_extern||"").trim()).map(x=>x.id);
       if(weg.length) await supabase.from("parkplaetze").delete().in("id",weg);
     }
@@ -771,7 +771,7 @@ const NAV_GRUPPEN=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","portfoliowatch","marktradar","bauradar","pipeline","kontakte","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","schaeden"],
+  operations: ["bewerber","nachvermietung","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","schaeden"],
 };
 
 function seitenFuerRolle(rolle) {

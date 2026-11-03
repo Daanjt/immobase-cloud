@@ -55,7 +55,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   useEffect(()=>{
     if(!startFor||!startFor.apt||!startFor.apt.id){ setRefKeyInfo(null); return; }
     (async()=>{
-      const {data:a} = await supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id",startFor.apt.id).single();
+      const {data:a} = await supabase.from(aptQuelle()).select("schluessel_anzahl,extra_schluessel").eq("id",startFor.apt.id).single();
       const byTyp={};
       setRefKeyInfo({ erhNormal:a?a.schluessel_anzahl:null, erhExtra:a?a.extra_schluessel:null, byTyp });
     })();

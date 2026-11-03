@@ -229,7 +229,7 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   React.useEffect(()=>{
     if(!showStartModal || !apt || !apt.id){ return; }
     (async()=>{
-      const {data:a} = await supabase.from("apartments").select("schluessel_anzahl,extra_schluessel").eq("id",apt.id).single();
+      const {data:a} = await supabase.from(aptQuelle()).select("schluessel_anzahl,extra_schluessel").eq("id",apt.id).single();
       const byTyp={};
       setRefKeyInfo({ erhNormal:a?a.schluessel_anzahl:null, erhExtra:a?a.extra_schluessel:null, byTyp });
     })();
