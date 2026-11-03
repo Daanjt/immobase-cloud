@@ -657,9 +657,9 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}><div><div className="pt">Parkplätze</div><div className="ps">{pps.length} übernommen · {pps.length-frei} vermietet · {frei} frei{ppsAlle.length>pps.length?` · ${ppsAlle.length-pps.length} noch nicht übernommen`:""}</div></div>
         {istAdmin && <button className="btn btn-p" style={{width:"auto"}} onClick={()=>setEdit({bezeichnung:"Parkplatz", adresse:"", anzahl:1})}>+ Parkplatz</button>}</div>
       <div className="sg" style={{marginBottom:18}}>
-        <div className="sc"><div className="sl">Einnahmen</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(fin.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
-        <div className="sc"><div className="sl">Kosten</div><div className="sv" style={{fontSize:24}}>{chf(fin.kosten).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
-        <div className="sc"><div className="sl">Marge</div><div className="sv" style={{fontSize:24,color:fin.marge>=0?"#3d4f2f":"#9b4a3e"}}>{fin.marge>=0?"+":""}{chf(fin.marge).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
+        {istAdmin && <div className="sc"><div className="sl">Einnahmen</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(fin.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>}
+        {istAdmin && <div className="sc"><div className="sl">Kosten</div><div className="sv" style={{fontSize:24}}>{chf(fin.kosten).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>}
+        {istAdmin && <div className="sc"><div className="sl">Marge</div><div className="sv" style={{fontSize:24,color:fin.marge>=0?"#3d4f2f":"#9b4a3e"}}>{fin.marge>=0?"+":""}{chf(fin.marge).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>}
         <div className="sc"><div className="sl">Frei</div><div className="sv" style={{fontSize:24,color:frei>0?"#b8843e":"#5a6e4a"}}>{frei}</div><div className="sn" style={{color:"#8a8174"}}>von {pps.length}</div></div>
       </div>
       {istAdmin && anfragen.length>0 && (()=>{
@@ -700,18 +700,18 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,flexWrap:"wrap",marginBottom:8}}>
               <div><div className="ct" style={{margin:0}}>{adr}</div>
                 {alleHier.length>aktivHier.length && <div style={{fontSize:11.5,color:"#8a8174",marginTop:3}}>Übernommen: {["einstellplatz","aussen","motorrad"].map(a=>{ const x=alleHier.filter(p=>(p.art||"einstellplatz")===a); return x.length?`${x.filter(ppUebernommen).length} von ${x.length} ${a==="aussen"?"Aussenparkplätzen":a==="motorrad"?"Motorradplätzen":"Einstellplätzen"}`:null; }).filter(Boolean).join(" · ")} <span onClick={()=>setAlleZeigen(v=>!v)} style={{marginLeft:6,cursor:"pointer",textDecoration:"underline dotted",color:"#5a5448"}}>{alleZeigen?"nur übernommene zeigen":"alle Plätze zeigen"}</span></div>}</div>
-              <div style={{fontSize:11.5,color:"#8a8174"}}>{aktivHier.filter(ppVermietet).length}/{aktivHier.length} vermietet · {aktivHier.filter(x=>!ppVermietet(x)).length} frei · {aktivHier.filter(x=>x.ausschreiben).length} online · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span> / Mt.</div>
+              <div style={{fontSize:11.5,color:"#8a8174"}}>{aktivHier.filter(ppVermietet).length}/{aktivHier.length} vermietet · {aktivHier.filter(x=>!ppVermietet(x)).length} frei · {aktivHier.filter(x=>x.ausschreiben).length} online{istAdmin && <> · Marge <span style={{color:gf.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600}}>{gf.marge>=0?"+":""}{chf(gf.marge)}</span></>} / Mt.</div>
             </div>
             <div style={{overflowX:"auto"}}><table className="pp-tbl" style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}>
-                <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th><th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th><th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>{istAdmin&&<th style={{padding:"6px 10px"}}>Vertrag</th>}{istAdmin&&<th></th>}</tr></thead>
+                <th style={{padding:"6px 10px"}}>Parkplatz</th><th style={{padding:"6px 10px"}}>Mieter</th>{istAdmin&&<th style={{padding:"6px 10px",textAlign:"right"}}>Einkauf</th>}<th style={{padding:"6px 10px",textAlign:"right"}}>Vermietung</th>{istAdmin&&<th style={{padding:"6px 10px",textAlign:"right"}}>Marge</th>}{istAdmin&&<th style={{padding:"6px 10px"}}>Vertrag</th>}{istAdmin&&<th></th>}</tr></thead>
               <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); const inaktiv=!ppUebernommen(p); return (
                 <tr key={p.id} style={inaktiv?{opacity:.45}:undefined} title={inaktiv?"Noch nicht übernommen":undefined}>
                   <td style={{...td,fontWeight:600}}>{p.bezeichnung}{istAdmin && !name && !inaktiv ? <span onClick={()=>toggleOnline(p)} title={p.ausschreiben?`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}. Klicken zum Ausblenden.`:"Nicht auf der Website. Klicken zum Ausschreiben."} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,cursor:"pointer",background:p.ausschreiben?"#e3ebf4":"#f0ebe1",color:p.ausschreiben?"#2c4a6e":"#8a8174"}}>{p.ausschreiben?"online":"offline"}</span> : (p.ausschreiben && <span style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>)}<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>{inaktiv?"noch nicht übernommen · ":""}{PP_ART[p.art||"einstellplatz"]||p.art}{apt?` · zu ${apt.id}${apt.stockwerk?` · ${apt.stockwerk}`:""}`:""}{!name&&p.frei_ab?` · frei ab ${p.frei_ab}`:""}</div></td>
                   <td data-label="Mieter" style={td}>{inaktiv ? <span style={{color:"#a89f8f"}}>-</span> : name ? <>{name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
-                  <td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>
+                  {istAdmin&&<td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>}
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
-                  <td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>
+                  {istAdmin&&<td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>}
                   {istAdmin && <td data-label="Vertrag" style={td}>{(()=>{ const c=ppAktuellerVertrag(p, parkVertraege); if(!name) return <span style={{color:"#a89f8f"}}>-</span>;
                     if(c && c.status==="mieter_signiert") return <CountersignButton contract={c} onDone={loadParkVertraege} onSigned={()=>{}}/>;
                     if(c){ const [l,col,bg]=PP_STATUS[c.status]||[c.status,"#8a8174","#f0ebe1"]; return <span onClick={()=>setVertragFuer(p)} style={{cursor:"pointer",fontSize:11,padding:"3px 8px",borderRadius:10,color:col,background:bg,whiteSpace:"nowrap"}}>{l}</span>; }
@@ -771,7 +771,7 @@ const NAV_GRUPPEN=[
 // dient nur einer aufgeraeumten Oberflaeche.
 const ROLLEN_SEITEN = {
   admin: null,
-  operations: ["bewerber","nachvermietung","dokumente","wohnungen","zimmer","mieter","uebergaben","todos","schaeden"],
+  operations: ["dashboard","bewerber","mieter","todos","schaeden","kuendigungen","dokumente","wohnungen","zimmer","nachvermietung","uebergaben","parkplaetze","reinigung"],
 };
 
 function seitenFuerRolle(rolle) {

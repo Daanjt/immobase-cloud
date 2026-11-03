@@ -19,7 +19,7 @@ function MainApp({rolle}) {
   const refreshPortal = () => {
     supabase.from("schadenmeldungen").select("id",{count:"exact",head:true}).neq("status","erledigt")
       .then(({count})=>setPortalOffen(o=>({...o, schaeden:count||0}))).catch(()=>{});
-    if (rolle === "admin") supabase.from("kuendigungen").select("id",{count:"exact",head:true}).eq("status","eingereicht")
+    if (rolle === "admin" || rolle === "operations") supabase.from("kuendigungen").select("id",{count:"exact",head:true}).eq("status","eingereicht")
       .then(({count})=>setPortalOffen(o=>({...o, kuendigungen:count||0}))).catch(()=>{});
   };
   useEffect(() => { refreshPortal(); const iv = setInterval(refreshPortal, 120000); return () => clearInterval(iv); }, [page]);

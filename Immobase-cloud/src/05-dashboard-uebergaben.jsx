@@ -435,7 +435,7 @@ function stromVonZimmer(r, t, apts){
   }
   return 25;
 }
-function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAlle=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
+function Dashboard({istAdmin=true,parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAlle=[],apts,rooms,tenants,bewerber,navigateTo,updateTenant,updateRoom,contracts,handoverProtocols,loadContracts,loadHandoverProtocols}){
   // Nur Plaetze, die wir tatsaechlich schon mieten (noch nicht uebernommene Plaetze zaehlen nicht)
   const parkplaetze = (parkplaetzeAlle||[]).filter(ppUebernommen);
   const heute=new Date();
@@ -596,7 +596,7 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
       <div className="ps">D&T Homes · {new Date().toLocaleDateString("de-CH")}</div>
 
       {/* GEGENZEICHNUNG-BANNER: gleich wie im Bewerber-Tab */}
-      {(() => {
+      {istAdmin && (() => {
         const wartend = [...(contracts||[]), ...(parkVertraege||[])].filter(c => c.status === "mieter_signiert");
         if (wartend.length === 0) return null;
         const typLabel = (ct) => ct === "parkplatz" ? "Parkplatz" : ct === "untermietvertrag" ? "Untermietvertrag"
@@ -641,6 +641,7 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
         );
       })()}
 
+      {istAdmin && (<>
       {/* TOTAL OVERVIEW - 3-column hero */}
       <div className="dash-hero" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
         <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
@@ -661,12 +662,16 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
       </div>
 
 
+      </>)}
       <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>WGs und Wohnungen</div>
       <div className="sg" style={{marginBottom:18}}>
         <div className="sc"><div className="sl">Auslastung</div><div className="sv">{wgAuslastung}%</div><div className="sn" style={{color:wgAuslastung>=80?"#5a6e4a":wgAuslastung>=50?"#b8843e":"#9b4a3e"}}>{(()=>{const _wr=wgRooms.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _gr=wgRooms.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return `${_wr.filter(r=>r.occupied).length}/${_wr.length} WG-Zimmer · ${_gr.filter(r=>r.occupied).length}/${_gr.length} Wohnungen`;})()}</div></div>
+        {istAdmin ? (<>
         <div className="sc"><div className="sl">Ausgaben</div><div className="sv" style={{fontSize:24}}>{chf(wgAusgaben).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
         <div className="sc"><div className="sl">Einnahmen Ist</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(wgEinnahmenIst).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>von max. {chf(wgEinnahmenMax)}</div></div>
         <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:wgLeerstand>0?"#9b4a3e":"#5a6e4a"}}>{wgLeerstand>0?"−":""}{chf(wgLeerstand).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{wgFree.length} frei</div></div>
+        </>) : <div className="sc"><div className="sl">Frei</div><div className="sv" style={{fontSize:24,color:wgFree.length>0?"#9b4a3e":"#5a6e4a"}}>{wgFree.length}</div><div className="sn" style={{color:"#8a8174"}}>Zimmer und Wohnungen</div></div>}
+        {!istAdmin && <><div className="sc"><div className="sl">Objekte</div><div className="sv" style={{fontSize:24}}>{wgApts.length}</div><div className="sn" style={{color:"#8a8174"}}>{wgAptsZukunft.length>0?`+ ${wgAptsZukunft.length} ab später`:"aktiv"}</div></div><div className="sc"><div className="sl">Mietende &lt; 60 Tage</div><div className="sv" style={{fontSize:24,color:baldEnde.length>0?"#9b4a3e":"#5a6e4a"}}>{baldEnde.length}</div><div className="sn" style={{color:"#8a8174"}}>Objekte</div></div></>}
       </div>
       {(()=>{const _fz=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _fw=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return(<>{_fz.length>0&&<div className="warn">⚠ <strong>{_fz.length} WG-Zimmer frei:</strong> {_fz.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}{_fw.length>0&&<div className="warn">⚠ <strong>{_fw.length} {_fw.length===1?"Wohnung":"Wohnungen"} frei:</strong> {_fw.map(r=>{const _a=apts.find(a=>a.id===r.aptId);return `${_a.id} ${_a.adresse} (${chf(r.miete)}/Mt.)`;}).join(" · ")}</div>}</>);})()}
 
@@ -674,9 +679,12 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
         <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>Parkplätze</div>
         <div className="sg" style={{marginBottom:18}}>
           <div className="sc" onClick={()=>navigateTo&&navigateTo("parkplaetze",null)} style={{cursor:"pointer"}}><div className="sl">Auslastung</div><div className="sv">{ppAuslastung}%</div><div className="sn" style={{color:ppAuslastung>=80?"#5a6e4a":ppAuslastung>=50?"#b8843e":"#9b4a3e"}}>{ppZeilen.filter(z=>z.vermietet).length}/{ppZeilen.length} Plätze</div></div>
+          {istAdmin ? (<>
           <div className="sc"><div className="sl">Ausgaben</div><div className="sv" style={{fontSize:24}}>{chf(pk.kosten).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>
           <div className="sc"><div className="sl">Einnahmen Ist</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(pk.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>von max. {chf(ppTot.max)}</div></div>
           <div className="sc"><div className="sl">Leerstand</div><div className="sv" style={{fontSize:24,color:ppTot.leer>0?"#9b4a3e":"#5a6e4a"}}>{ppTot.leer>0?"−":""}{chf(ppTot.leer).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>{ppZeilen.filter(z=>!z.vermietet).length} frei</div></div>
+          </>) : <div className="sc"><div className="sl">Frei</div><div className="sv" style={{fontSize:24}}>{ppZeilen.filter(z=>!z.vermietet).length}</div><div className="sn" style={{color:"#8a8174"}}>Parkplätze</div></div>}
+          {!istAdmin && <><div className="sc"><div className="sl">Plätze</div><div className="sv" style={{fontSize:24}}>{ppZeilen.length}</div><div className="sn" style={{color:"#8a8174"}}>aktiv</div></div><div className="sc"><div className="sl">Ab später</div><div className="sv" style={{fontSize:24}}>{ppZukunft.length}</div><div className="sn" style={{color:"#8a8174"}}>Parkplätze</div></div></>}
         </div>
         {ppZeilen.filter(z=>!z.vermietet).length>0 && <div className="warn">⚠ <strong>{ppZeilen.filter(z=>!z.vermietet).length} {ppZeilen.filter(z=>!z.vermietet).length===1?"Parkplatz":"Parkplätze"} frei:</strong> {ppZeilen.filter(z=>!z.vermietet).map(z=>`${z.kurz} (${chf(+z.p.miete_verkauf||0)}/Mt.)`).join(" · ")}</div>}
       </>)}
@@ -684,6 +692,8 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
       {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;60 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
 
+      {!istAdmin && <BelegungOps wgApts={wgApts} wgAptsZukunft={wgAptsZukunft} rooms={rooms} ppZeilen={ppZeilen} ppZukunft={ppZukunft} navigateTo={navigateTo}/>}
+      {istAdmin && (<>
       {/* PER-APARTMENT FINANCE BREAKDOWN - separated WG / Airbnb */}
       <div className="card finance-card-compact" style={{marginBottom:24}}>
         <div className="ct">Finanzübersicht - WGs und Wohnungen</div>
@@ -1036,6 +1046,8 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
       </div>
       )}
 
+      </>)}
+
       <div className="card" style={{marginBottom:16}}>
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>Neueste Bewerber</span>
@@ -1050,7 +1062,7 @@ function Dashboard({parkVertraege=[],loadParkVertraege,parkplaetze:parkplaetzeAl
       </div>
 
       {/* KAUTIONS-AUFSCHLÄGE */}
-      {aufschlagMieter.length > 0 && (
+      {istAdmin && aufschlagMieter.length > 0 && (
         <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"22px 24px",marginBottom:24}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16,paddingBottom:14,borderBottom:"1px solid #e1d8c5"}}>
             <div>
@@ -1161,5 +1173,50 @@ function PPFinZeile({z, navigateTo, zukunft}){
         </div>
       </td>
     </tr>
+  );
+}
+
+
+// Belegungs-Uebersicht fuer Operations: gleiche Tabelle wie die Finanzuebersicht, aber ohne Betraege
+function BelegungOps({wgApts, wgAptsZukunft, rooms, ppZeilen, ppZukunft, navigateTo}){
+  const zeile = (a, zukunft) => { const rs=(rooms||[]).filter(r=>r.aptId===a.id); const occ=rs.filter(r=>r.occupied).length; return (
+    <tr key={a.id} onClick={()=>navigateTo&&navigateTo("wohnungen",a.id)} style={{cursor:"pointer",...(zukunft?{opacity:.85}:{})}}>
+      <td style={{fontWeight:600,whiteSpace:"nowrap"}}>{a.id} <TypeBadge type={aptKat(a)}/></td>
+      <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}</td>
+      <td data-label="Zimmer" style={{fontSize:11.5}}>{a.zimmer?`${a.zimmer} Zi.`:"-"}</td>
+      <td data-label="Stock" style={{fontSize:11.5}}>{a.stockwerk||"-"}</td>
+      <td data-label="Mietbeginn" style={{fontSize:11.5,color:zukunft?"#3d4f2f":"#4a4439",fontWeight:zukunft?500:400}}>{a.mietbeginn||"-"}</td>
+      <td data-label="Mietende" style={{fontSize:11.5}}>{a.mietende||"-"}</td>
+      <td data-label="Belegung" style={{width:170,minWidth:130,maxWidth:200}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:"1 1 0",minWidth:0}}><Prog val={occ} max={rs.length}/></div><span style={{fontSize:10.5,color:occ<rs.length?"#b8843e":"#8a8174"}}>{occ}/{rs.length}{occ<rs.length?` · ${rs.length-occ} frei`:""}</span></div></td>
+    </tr>); };
+  const ppZ = (z) => (
+    <tr key={z.p.id} onClick={()=>navigateTo&&navigateTo("parkplaetze",null)} style={{cursor:"pointer"}}>
+      <td style={{fontWeight:600}}>{z.p.nummer!=null?`Nr. ${z.p.nummer}`:"-"}</td>
+      <td style={{fontSize:11.5,color:"#8a8174"}}>{z.p.adresse||"-"}</td>
+      <td data-label="Art" style={{fontSize:11.5}}>{PP_ART_NAME[z.p.art]||"Parkplatz"}</td>
+      <td data-label="Mieter" style={{fontSize:11.5,color:z.vermietet?"#4a4439":"#b8843e"}}>{z.vermietet?(z.mieter||"vermietet"):"frei"}</td>
+      <td data-label="Mietbeginn" style={{fontSize:11.5}}>{z.p.vermietet_ab||"-"}</td>
+      <td data-label="Mietende" style={{fontSize:11.5}}>{z.p.vermietet_bis||"-"}</td>
+      <td data-label="Belegung"><span style={{fontSize:10.5,color:z.vermietet?"#8a8174":"#b8843e"}}>{z.vermietet?"1/1":"0/1 · frei"}</span></td>
+    </tr>);
+  const kopf = <thead><tr><th>ID</th><th>Adresse</th><th>Zimmer / Art</th><th>Stock / Mieter</th><th>Mietbeginn</th><th>Mietende</th><th>Belegung</th></tr></thead>;
+  const kat = (k,l)=>{ const l2=wgApts.filter(a=>aptKat(a)===k); return l2.length ? (<React.Fragment key={k}><tr><td colSpan={7} style={{background:"#f5f2ea",fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".28em",fontWeight:700,padding:"8px 10px"}}>{l}</td></tr>{l2.map(a=>zeile(a,false))}</React.Fragment>) : null; };
+  return (
+    <div className="card finance-card-compact" style={{marginBottom:24}}>
+      <div className="ct">Übersicht Wohnungen und Belegung</div>
+      <div className="finance-scroll-table-wrap"><div className="finance-scroll-table">
+      <table>{kopf}<tbody>
+        {kat("WG","WGs")}{kat("Wohnung","Wohnungen")}
+        {ppZeilen.length>0 && <tr><td colSpan={7} style={{background:"#f5f2ea",fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".28em",fontWeight:700,padding:"8px 10px"}}>Parkplätze</td></tr>}
+        {ppZeilen.map(ppZ)}
+      </tbody></table>
+      </div></div>
+      {(wgAptsZukunft.length>0 || ppZukunft.length>0) && (<div style={{marginTop:22}}>
+        <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:12}}>In der Zukunft</div>
+        <div className="finance-scroll-table-wrap"><div className="finance-scroll-table">
+        <table>{kopf}<tbody>{wgAptsZukunft.map(a=>zeile(a,true))}{ppZukunft.map(ppZ)}</tbody></table>
+        </div></div>
+      </div>)}
+    </div>
   );
 }
