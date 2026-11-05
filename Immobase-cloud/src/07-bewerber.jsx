@@ -906,8 +906,9 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     return true;                          // Mieter zieht vor Wohnungsende aus
   });
   // Filter: Status + ggf. Wohnungs-Match wenn Nachmieter gesucht wird
-  const wgLeadCount=bewerber.filter(x=>x.quelle==="wgzimmer").length;
-  let shown = listMode==="leads" ? bewerber.filter(x=>x.quelle==="wgzimmer") : bewerber.filter(x=>(x.quelle!=="wgzimmer") && x.status===filterStatus);
+  const istWgLead=x=>x.quelle==="wgzimmer"||x.quelle==="weegee";
+  const wgLeadCount=bewerber.filter(istWgLead).length;
+  let shown = listMode==="leads" ? bewerber.filter(istWgLead) : bewerber.filter(x=>!istWgLead(x) && x.status===filterStatus);
   if (nachmieterFor) {
     // Bewerber die das Ziel-Zimmer als Wunsch haben oder keine Präferenz
     const targetRoom = rooms.find(r => r.id === nachmieterFor);
@@ -1693,7 +1694,7 @@ www.dthomes.ch`;
           </div>
           <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",borderBottom:"1px solid var(--line)",paddingBottom:10}}>
             <button className={`btn btn-sm ${listMode!=="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("bewerber")}>Bewerber</button>
-            <button className={`btn btn-sm ${listMode==="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("leads")}>wgzimmer-Leads{wgLeadCount>0?(" ("+wgLeadCount+")"):""}</button>
+            <button className={`btn btn-sm ${listMode==="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("leads")}>WG-Leads (wgzimmer/weegee){wgLeadCount>0?(" ("+wgLeadCount+")"):""}</button>
           </div>
           {listMode!=="leads" && <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
             {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}

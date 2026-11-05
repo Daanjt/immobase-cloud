@@ -1,5 +1,6 @@
 // wgzimmer-import: holt wgzimmer.ch Kontaktanfragen aus dem Outlook-Postfach (Graph, App-only)
 // und legt sie als Bewerber (quelle = wgzimmer) an. Laeuft per pg_cron alle 10 Minuten.
+// Zusaetzlich: weegee.ch-Nachrichten (info@weegee.ch, "Neue Nachricht fuer dein weegee.ch-Inserat"), quelle = weegee.
 // - Dedupe ueber internetMessageId (wg_import_log) und E-Mail-Adresse (applicants)
 // - Inserat -> Zimmer ueber Tabelle wg_inserate (erste 8 Zeichen der Inserat-ID)
 // - owner bleibt leer: der Name erscheint erst, wenn jemand dem Lead schreibt
@@ -36,6 +37,21 @@ function parse(html: string) {
   return { inseratId, inseratUrl, email: email.toLowerCase(), name, phone, nachricht };
 }
 
+// weegee.ch: "Um die Person zu kontaktieren ... Oder schreibe direkt an x@y.", Nachricht zwischen den <hr>
+function parseWeegee(html: string, subject: string) {
+  const t = htmlToText(html.replace(/<hr\s*\/?>/gi, "\n@@HR@@\n"));
+  const link = html.match(/https:\/\/weegee\.ch\/[a-z]{2}\/wg\/[^"'\s<]*\/([A-Za-z0-9._-]+)/i) || [];
+  const emailRe = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const dm = t.match(/schreibe direkt an\s+([^\s]+@[^\s]+?)\.?\s*$/im) || t.match(/write directly to\s+([^\s]+@[^\s]+?)\.?\s*$/im);
+  let email = dm ? dm[1] : "";
+  if (!email) email = ((t.match(new RegExp(emailRe.source, "gi")) || []).find((e) => !/weegee\.ch$/i.test(e)) || "");
+  const teile = t.split("@@HR@@");
+  const nachricht = teile.length >= 3 ? teile[1].trim() : "";
+  const phone = (nachricht.match(/(?:\+|00)\d[\d \/.-]{7,}\d|\b0\d{2}[ \/.-]?\d{3}[ \/.-]?\d{2}[ \/.-]?\d{2}\b/) || [""])[0];
+  const adr = (subject.match(/Inserat\s*[–-]\s*(.+)$/) || [])[1] || "";
+  return { inseratId: link[1] || "", inseratUrl: link[0] || "", email: email.toLowerCase(), name: "", phone, nachricht, adresse: adr.trim() };
+}
+
 // Schweizer Nummern einheitlich: +41 78 778 16 66
 function telFormat(t: string): string {
   const d = (t || "").replace(/[^\d+]/g, "");
@@ -47,11 +63,12 @@ function telFormat(t: string): string {
   return `+41 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5, 7)} ${n.slice(7, 9)}`;
 }
 
-async function aiAuswertung(p: { name: string; phone: string; nachricht: string }) {
+async function aiAuswertung(p: { name: string; phone: string; nachricht: string; email?: string; plattform?: string }) {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return null;
-  const prompt = `Du verarbeitest eine Anfrage auf ein WG-Zimmer-Inserat (wgzimmer.ch) fuer D&T Homes in Zuerich.
-Absendername: ${p.name}
+  const prompt = `Du verarbeitest eine Anfrage auf ein WG-Zimmer-Inserat (${p.plattform || "wgzimmer.ch"}) fuer D&T Homes in Zuerich.
+Absendername: ${p.name || "-"}
+E-Mail: ${p.email || "-"} (wenn kein Name bekannt ist, Vor- und Nachname wenn moeglich aus Nachricht oder E-Mail-Adresse ableiten)
 Telefon (roh): ${p.phone || "-"}
 Nachricht:
 """${p.nachricht.slice(0, 4000)}"""
@@ -102,13 +119,23 @@ Deno.serve(async (req) => {
   let url: string | null = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${flt}&$select=id,subject,receivedDateTime,body,internetMessageId&$top=50`;
   const msgs: any[] = [];
   while (url && msgs.length < 300) {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${tok}` } });
-    const d = await r.json();
+    const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${tok}` } });
+    const d: any = await r.json();
     if (!r.ok) return json({ error: "graph_failed", detail: d?.error?.message || "" }, 500);
     msgs.push(...(d.value || []));
     url = d["@odata.nextLink"] || null;
   }
-  const anfragen = msgs.filter((m) => /Kontaktanfrage|contact request/i.test(m.subject || ""))
+  for (const m of msgs) m._q = "wgzimmer";
+  const flt2 = encodeURIComponent(`from/emailAddress/address eq 'info@weegee.ch' and receivedDateTime ge ${since}`);
+  let url2: string | null = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${flt2}&$select=id,subject,receivedDateTime,body,internetMessageId&$top=50`;
+  while (url2 && msgs.length < 400) {
+    const r: Response = await fetch(url2, { headers: { Authorization: `Bearer ${tok}` } });
+    const d: any = await r.json();
+    if (!r.ok) break;
+    for (const m of (d.value || [])) { m._q = "weegee"; msgs.push(m); }
+    url2 = d["@odata.nextLink"] || null;
+  }
+  const anfragen = msgs.filter((m) => m._q === "weegee" ? /Neue Nachricht|new message/i.test(m.subject || "") : /Kontaktanfrage|contact request/i.test(m.subject || ""))
     .sort((a, b) => String(a.receivedDateTime).localeCompare(String(b.receivedDateTime)));
 
   const { data: inserate } = await sb.from("wg_inserate").select("inserat_prefix,zimmer_id,bezeichnung");
@@ -118,10 +145,12 @@ Deno.serve(async (req) => {
     const mid = m.internetMessageId || m.id;
     const { data: done } = await sb.from("wg_import_log").select("message_id").eq("message_id", mid).maybeSingle();
     if (done) continue;
-    const p = parse(m.body?.content || "");
-    const ins = (inserate || []).find((i: any) => p.inseratId && p.inseratId.startsWith(i.inserat_prefix));
+    const q: string = m._q;
+    const plattform = q === "weegee" ? "weegee.ch" : "wgzimmer.ch";
+    const p: any = q === "weegee" ? parseWeegee(m.body?.content || "", m.subject || "") : parse(m.body?.content || "");
+    const ins = (inserate || []).find((i: any) => p.inseratId && (q === "weegee" ? i.inserat_prefix === "weegee:" + p.inseratId : p.inseratId.startsWith(i.inserat_prefix)));
     const zimmer = ins?.zimmer_id || null;
-    const bez = ins?.bezeichnung || (p.inseratId ? `unbekanntes Inserat ${p.inseratId.slice(0, 8)}` : "Inserat unbekannt");
+    const bez = ins?.bezeichnung || (q === "weegee" && p.adresse ? p.adresse : (p.inseratId ? `unbekanntes Inserat ${p.inseratId.slice(0, 8)}` : "Inserat unbekannt"));
     const log = async (ergebnis: string, applicant_id: string | null = null) => {
       result.push({ subject: m.subject, email: p.email, ergebnis, zimmer });
       if (!dryRun) await sb.from("wg_import_log").insert({ message_id: mid, received_at: m.receivedDateTime, email: p.email, applicant_id, ergebnis });
@@ -133,7 +162,7 @@ Deno.serve(async (req) => {
     if (vorh && vorh.length) {
       const a = vorh[0];
       const datum = new Date(m.receivedDateTime).toLocaleDateString("de-CH", { timeZone: "Europe/Zurich" });
-      const zusatz = `Weitere wgzimmer-Anfrage am ${datum} (${bez}).`;
+      const zusatz = `Weitere ${q}-Anfrage am ${datum} (${bez}).`;
       // Nur vermerken, wenn die Anfrage ein anderes Inserat betrifft als der bestehende Eintrag
       const anderesInserat = (zimmer || "") !== (a.zimmer_wunsch || "") && !(a.notiz || "").includes(bez);
       if (!dryRun && anderesInserat) {
@@ -148,15 +177,15 @@ Deno.serve(async (req) => {
       const seit = new Date(new Date(m.receivedDateTime).getTime() - 3 * 86400000).toISOString();
       const bis = new Date(new Date(m.receivedDateTime).getTime() + 3 * 86400000).toISOString();
       const vn = p.name.split(/\s+/)[0];
-      const { data: gleich } = await sb.from("applicants").select("id").eq("quelle", "wgzimmer").ilike("vorname", vn)
+      const { data: gleich } = await sb.from("applicants").select("id").eq("quelle", q).ilike("vorname", vn)
         .gte("created_at", seit).lte("created_at", bis).eq("zimmer_wunsch", zimmer ?? "").limit(1);
       if (gleich && gleich.length) { await log("duplikat (gleicher Name)", gleich[0].id); continue; }
     }
 
-    const ai = await aiAuswertung(p);
+    const ai = await aiAuswertung({ ...p, plattform });
     if (ai && ai.interessent === false) { await log("kein Interessent (Werbung/Anfrage)"); continue; }
-    const teile = p.name.split(/\s+/).filter(Boolean);
-    const vorname = (ai?.vorname || teile[0] || p.name || "").trim();
+    const teile = (p.name || "").split(/\s+/).filter(Boolean);
+    const vorname = (ai?.vorname || teile[0] || p.name || p.email.split("@")[0] || "").trim();
     const nachname = (ai?.nachname ?? teile.slice(1).join(" ")).trim();
     const notizText = (ai?.notiz || p.nachricht.replace(/\s+/g, " ").slice(0, 400)).replace(/\s[–—]\s/g, ", ");
     const row: Record<string, unknown> = {
@@ -164,11 +193,11 @@ Deno.serve(async (req) => {
       vorname, nachname,
       email: p.email,
       phone: telFormat(ai?.telefon || p.phone || ""),
-      quelle: "wgzimmer",
+      quelle: q,
       status: "Neu",
       zimmer_wunsch: zimmer,
       sprache: ai?.sprache === "de" ? "de" : (ai?.sprache === "en" ? "en" : "de"),
-      notiz: `wgzimmer-Lead · ${bez}. ${notizText}${p.inseratUrl && !ins ? `\nInserat: ${p.inseratUrl}` : ""}`,
+      notiz: `${q}-Lead · ${bez}. ${notizText}${p.inseratUrl && !ins ? `\nInserat: ${p.inseratUrl}` : ""}`,
       bemerkung: p.nachricht || null,
       created_at: m.receivedDateTime,
       owner: null,
