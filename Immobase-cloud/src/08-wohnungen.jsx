@@ -228,10 +228,22 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
   function updAddRoom(i,key,val){ setAddRoomList(prev=>prev.map((r,idx)=>idx===i?{...r,[key]:val}:r)); }
   async function submitAddRooms(){ const list=(addRoomList||[]).filter(Boolean); if(!list.length){ setAddRoomsFor(null); return; } const res=await insertRooms(addRoomsFor,list); if(res){ setAddRoomsFor(null); setAddRoomList([]); } }
   const apt=apts.find(a=>a.id===sel);const aptRooms=apt?rooms.filter(r=>r.aptId===apt.id).sort((a,b)=>natSort(a.id, b.id)):[];
-  const wgApts=apts.filter(a=>aptKat(a)==="WG" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
-  const ganzeApts=apts.filter(a=>aptKat(a)==="Wohnung" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
-  const airbnbApts=apts.filter(a=>a.type==="Airbnb" && !a.pipeline).sort((a,b)=>natSort(a.id, b.id));
-  const pipelineApts=apts.filter(a=>!!a.pipeline).sort((a,b)=>natSort(a.id, b.id));
+  const [suche,setSuche]=useState("");
+  const sucheNorm=(x)=>String(x||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/strasse/g,"str").replace(/\s+/g," ").trim();
+  const sucheTokens=sucheNorm(suche).split(" ").filter(Boolean);
+  function aptTrifft(a){
+    if(!sucheTokens.length) return true;
+    const rs=(rooms||[]).filter(r=>r.aptId===a.id);
+    const rIds=rs.map(r=>r.id);
+    const namen=(tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv" && (t.aptId===a.id || rIds.includes(t.roomId) || rs.some(r=>r.tenantId===t.id))).map(t=>`${t.vorname||""} ${t.nachname||""}`);
+    const text=sucheNorm([a.id,a.adresse,a.plz,a.ort,a.stockwerk,a.refnr,a.zimmer?`${a.zimmer} zi`:"",a.type,a.vermietungsart,a.verwaltung,...rIds,...namen].join(" "));
+    return sucheTokens.every(tk=>text.includes(tk));
+  }
+  const wgApts=apts.filter(a=>aptKat(a)==="WG" && !a.pipeline && aptTrifft(a)).sort((a,b)=>natSort(a.id, b.id));
+  const ganzeApts=apts.filter(a=>aptKat(a)==="Wohnung" && !a.pipeline && aptTrifft(a)).sort((a,b)=>natSort(a.id, b.id));
+  const airbnbApts=apts.filter(a=>a.type==="Airbnb" && !a.pipeline && aptTrifft(a)).sort((a,b)=>natSort(a.id, b.id));
+  const pipelineApts=apts.filter(a=>!!a.pipeline && aptTrifft(a)).sort((a,b)=>natSort(a.id, b.id));
+  const keineTreffer=sucheTokens.length>0 && !wgApts.length && !ganzeApts.length && !airbnbApts.length && !pipelineApts.length;
   function F(k){return e=>setForm(p=>({...p,[k]:e.target.value}));}
   function NF(k){
     return e => {
@@ -474,6 +486,11 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
       </div>
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
+          <div style={{position:"relative",marginBottom:12}}>
+            <input className="fi" type="text" value={suche} onChange={e=>setSuche(e.target.value)} onKeyDown={e=>{ if(e.key==="Escape") setSuche(""); if(e.key==="Enter"){ const erste=[...wgApts,...ganzeApts,...airbnbApts,...pipelineApts][0]; if(erste){ setSel(erste.id); setTab("info"); } } }} placeholder="🔍 Suchen: ID, Adresse, Mieter…" style={{width:"100%",paddingRight:suche?28:undefined}}/>
+            {suche&&<button onClick={()=>setSuche("")} title="Suche leeren" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",border:"none",background:"transparent",cursor:"pointer",color:"#8a8174",fontSize:14,lineHeight:1}}>✕</button>}
+          </div>
+          {keineTreffer&&<div style={{fontSize:12,color:"#8a8174",padding:"8px 2px"}}>Keine Wohnung gefunden für «{suche}».</div>}
           {(filter==="alle"||filter==="WG")&&wgApts.length>0&&(
             <div style={{marginBottom:14}}>
               <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:600,marginBottom:8,paddingLeft:2}}>WGs</div>
