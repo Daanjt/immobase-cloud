@@ -37,7 +37,7 @@ function SchadenKarte({ s, tenantName, onTenant, onGeaendert, onWeiterleiten, on
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>{s.titel}{s.kontakt_freigabe ? <span title="Mieter ist einverstanden, dass seine Kontaktdaten für die Terminvereinbarung weitergegeben werden" style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 99, background: "#e6eedc", color: "#3a5230", verticalAlign: "middle" }}>✓ Kontakt freigegeben</span> : null}</div>
           <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 2 }}>
-            {fmtZeitP(s.created_at)}{s.ort_im_objekt ? ` · ${s.ort_im_objekt}` : ""}{tenantName ? <> · <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onTenant}>{tenantName}</span></> : null}{s.room_id ? ` · ${s.room_id}` : (s.apt_id ? ` · ${s.apt_id}` : "")}
+            {fmtZeitP(s.created_at)}{s.ort_im_objekt ? ` · ${s.ort_im_objekt}` : ""}{tenantName ? <> · <span className="ib-lnk" onClick={onTenant}>{tenantName}</span></> : null}{s.room_id ? <> · <ZimmerLink id={s.room_id}/></> : (s.apt_id ? <> · <WohnungLink id={s.apt_id}/></> : "")}
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -634,8 +634,8 @@ function KuendigungenPage({ tenants, apts, bewerber, updateTenant, navigateTo })
                   <span style={{ fontSize: 10.5, padding: "2px 7px", borderRadius: 8, color: col, background: bg, marginLeft: 6 }}>{k.art === "nachmieter" && k.status === "bestaetigt" ? "Erledigt" : l}</span>
                 </div>
                 <div style={{ color: "#5a5448" }}>
-                  von <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={() => navigateTo && navigateTo("mieter", k.tenant_id)}>{t ? `${t.vorname} ${t.nachname}` : k.tenant_id}</span>
-                  {t?.roomId ? ` · ${t.roomId}` : (t?.aptId ? ` · ${t.aptId}` : "")}{apt?.adresse ? ` · ${apt.adresse}` : ""} · eingegangen {fmtZeitP(k.created_at)}
+                  von <span className="ib-lnk" onClick={() => navigateTo && navigateTo("mieter", k.tenant_id)}>{t ? `${t.vorname} ${t.nachname}` : k.tenant_id}</span>
+                  {t?.roomId ? <> · <ZimmerLink id={t.roomId}/></> : (t?.aptId ? <> · <WohnungLink id={t.aptId}/></> : "")}{apt?.adresse ? <> · <WohnungLink id={apt.id}>{apt.adresse}</WohnungLink></> : ""} · eingegangen {fmtZeitP(k.created_at)}
                 </div>
                 {k.art === "nachmieter" && <div><a href={`mailto:${k.nachmieter_email}`}>{k.nachmieter_email}</a>{k.nachmieter_telefon ? <> · <a href={`tel:${k.nachmieter_telefon}`}>{k.nachmieter_telefon}</a></> : null}{hatBeworben(k.nachmieter_email) ? <span style={{ color: "#3d4f2f", marginLeft: 6 }}>✓ hat sich beworben</span> : <span style={{ color: "#8a8174", marginLeft: 6 }}>noch keine Bewerbung</span>}</div>}
                 {k.grund && <div style={{ color: "#5a5448", whiteSpace: "pre-wrap" }}>Grund: {k.grund}</div>}

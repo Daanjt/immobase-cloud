@@ -144,7 +144,7 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
           <thead><tr style={{textAlign:"left",fontSize:9.5,color:"#8a8174",letterSpacing:".15em",textTransform:"uppercase"}}><th style={{padding:"6px 10px"}}>Mieter</th><th style={{padding:"6px 10px"}}>Zimmer</th><th style={{padding:"6px 10px"}}>Schlüsselnummer</th><th style={{padding:"6px 10px"}}>Extra</th></tr></thead>
           <tbody>{mieter.map(t=>(
             <tr key={t.id}>
-              <td style={{...td,fontWeight:600}}>{t.vorname} {t.nachname}</td>
+              <td style={{...td,fontWeight:600}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></td>
               <td style={td}>{zimmerVon(t)||"-"}</td>
               <td style={{...td,fontFamily:"monospace"}}>{nrVon(t)||<span style={{color:"#a4442e",fontFamily:"inherit"}}>fehlt</span>}</td>
               <td style={td}>{(t.extraSchluessel||"").trim()||"-"}</td>

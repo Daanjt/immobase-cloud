@@ -208,8 +208,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                         <div style={{fontSize:10,fontWeight:700,color:catCfg.color,letterSpacing:".05em",textTransform:"uppercase"}}>{catCfg.icon} {catCfg.label}</div>
                         <div style={{fontSize:10,color:catCfg.color,fontWeight:600}}>{dayHint}</div>
                       </div>
-                      <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                      <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"} · Einzug {s.tenant.einzug || "-"}</div>
+                      <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}><MieterLink id={s.tenant.id}>{s.tenant.vorname} {s.tenant.nachname}</MieterLink></div>
+                      <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}><ZimmerLink id={s.room?.id}>{s.room?.id||"-"}</ZimmerLink> · <WohnungLink id={s.apt?.id}>{s.apt?.adresse||"-"}</WohnungLink> · Einzug {s.tenant.einzug || "-"}</div>
                       {schluesselText(s.tenant) && (
                         <div style={{fontSize:10.5,color:"#4a4439",marginBottom:8}}>🔑 {schluesselText(s.tenant)}</div>
                       )}
@@ -250,8 +250,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10,marginTop:10}}>
                 {erledigt.map(s => (
                   <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
-                    <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}>{s.tenant.vorname} {s.tenant.nachname}</div>
-                    <div style={{fontSize:10.5,color:"#4a4439",marginBottom:2}}>{s.room?.id||"-"} · {s.apt?.adresse||"-"}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}><MieterLink id={s.tenant.id}>{s.tenant.vorname} {s.tenant.nachname}</MieterLink></div>
+                    <div style={{fontSize:10.5,color:"#4a4439",marginBottom:2}}><ZimmerLink id={s.room?.id}>{s.room?.id||"-"}</ZimmerLink> · <WohnungLink id={s.apt?.id}>{s.apt?.adresse||"-"}</WohnungLink></div>
                     {schluesselText(s.tenant) && <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>🔑 {schluesselText(s.tenant)}</div>}
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       <button
@@ -299,7 +299,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               {kautionTenant && <div className="ov-x" onClick={()=>setKautionTenant(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"36px 14px",overflowY:"auto"}}>
                 <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"#f7f3eb",borderRadius:16,maxWidth:560,width:"100%"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px 4px"}}>
-                    <div style={{fontSize:15,fontWeight:700}}>{kautionTenant.vorname} {kautionTenant.nachname}</div>
+                    <div style={{fontSize:15,fontWeight:700}}><MieterLink id={kautionTenant.id}>{kautionTenant.vorname} {kautionTenant.nachname}</MieterLink></div>
                     <button onClick={()=>setKautionTenant(null)} style={{border:"none",background:"none",fontSize:24,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
                   </div>
                   <div style={{padding:"0 18px 18px"}}><KautionsAbrechnung tenant={kautionTenant} updateTenant={updateTenant} onDone={()=>{setDismissed(d=>[...d,kautionTenant.id]); setKautionTenant(null);}}/></div>
@@ -313,8 +313,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{r.kautionOffen ? "Kautionsabrechnung offen" : (cat.icon+" "+cat.label)}</div>
                       <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{r.kautionOffen ? "ausgezogen" : (r.daysLeft < 0 ? `${Math.abs(r.daysLeft)} T. überfällig` : `in ${r.daysLeft} Tagen`)}</div>
                     </div>
-                    <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}>{r.tenant.vorname} {r.tenant.nachname}</div>
-                    <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}>{r.room?.id||"-"} · {r.apt?.adresse||"-"} · {r.tenant.auszug}</div>
+                    <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}><MieterLink id={r.tenant.id}>{r.tenant.vorname} {r.tenant.nachname}</MieterLink></div>
+                    <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}><ZimmerLink id={r.room?.id}>{r.room?.id||"-"}</ZimmerLink> · <WohnungLink id={r.apt?.id}>{r.apt?.adresse||"-"}</WohnungLink> · {r.tenant.auszug}</div>
                     {r.aptEndsToo && (
                       <div style={{fontSize:10,color:"#5a5a5a",background:"rgba(0,0,0,.05)",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block",fontWeight:600,letterSpacing:".02em"}}>
                         📅 Hauptmietvertrag endet {r.apt?.mietende}
@@ -353,7 +353,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           <div className="modal-x klein" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"20px 20px 16px",maxWidth:420,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
             <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:4}}>Protokoll starten</div>
             <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>
-              {startFor.tenant.vorname} {startFor.tenant.nachname} · {startFor.room?.id||"-"} · {startFor.apt?.adresse||"-"}<br/>
+              <MieterLink id={startFor.tenant.id}>{startFor.tenant.vorname} {startFor.tenant.nachname}</MieterLink> · <ZimmerLink id={startFor.room?.id}>{startFor.room?.id||"-"}</ZimmerLink> · <WohnungLink id={startFor.apt?.id}>{startFor.apt?.adresse||"-"}</WohnungLink><br/>
               Der Mieter erhält einen Link und hat 14 Tage Zeit, das Protokoll auszufüllen.
             </div>
             {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && (
@@ -1088,9 +1088,9 @@ function Dashboard({istAdmin=true,parkVertraege=[],loadParkVertraege,parkplaetze
             <tbody>
               {aufschlagMieter.map(({tenant:t,room,apt,aufschlag}) => (
                 <tr key={t.id} onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{borderTop:"1px solid #f0e9d8",cursor:"pointer"}}>
-                  <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}>{t.vorname} {t.nachname}</td>
-                  <td style={{padding:"8px",color:"#4a4439"}}>{apt?apt.id+" - "+apt.adresse:"-"}</td>
-                  <td style={{padding:"8px",color:"#4a4439"}}>{room?.id||"-"}</td>
+                  <td style={{padding:"8px",fontWeight:600,color:"#1a1814"}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></td>
+                  <td style={{padding:"8px",color:"#4a4439"}}>{apt?<WohnungLink id={apt.id}>{apt.id+" - "+apt.adresse}</WohnungLink>:"-"}</td>
+                  <td style={{padding:"8px",color:"#4a4439"}}><ZimmerLink id={room?.id}>{room?.id||"-"}</ZimmerLink></td>
                   <td style={{padding:"8px"}}>
                     <span style={{display:"inline-block",padding:"2px 8px",background:"#f5efe4",borderRadius:4,fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>
                       {t.kautionOpt==="0x"?"Keine Kaution":t.kautionOpt==="1x"?"1× Miete":t.kautionOpt==="2x"?"2× Miete":t.kautionMonate!=null?`${t.kautionMonate}× Miete`:"-"}
@@ -1156,7 +1156,7 @@ function PPFinZeile({z, navigateTo, zukunft}){
       <td style={{fontWeight:600,whiteSpace:"nowrap"}}>{p.nummer!=null?`Nr. ${p.nummer}`:"-"}</td>
       <td style={{fontSize:11.5,color:"#8a8174"}}>{p.adresse||"-"}</td>
       <td data-label="Art" style={{fontSize:11.5,color:"#4a4439"}}>{PP_ART_NAME[p.art]||"Parkplatz"}</td>
-      <td data-label="Mieter" style={{fontSize:11.5,color:z.vermietet?"#4a4439":"#b8843e"}}>{z.vermietet?(z.mieter||"vermietet"):"frei"}</td>
+      <td data-label="Mieter" style={{fontSize:11.5,color:z.vermietet?"#4a4439":"#b8843e"}}>{z.vermietet?<MieterLink id={p.tenant_id}>{z.mieter||"vermietet"}</MieterLink>:"frei"}</td>
       <td data-label="Mietbeginn" style={{fontSize:11.5,color:zukunft?"#3d4f2f":"#4a4439",fontWeight:zukunft?500:400}}>{p.einkauf_ab||"-"}</td>
       <td data-label="Mietende" style={{fontSize:11.5,color:"#4a4439"}}>{p.einkauf_bis||"-"}</td>
       <td data-label="Ausgabe" style={{textAlign:"right"}}>{chf(z.ausgabe)}</td>

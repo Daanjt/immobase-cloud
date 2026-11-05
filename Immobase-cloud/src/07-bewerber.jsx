@@ -1911,7 +1911,7 @@ www.dthomes.ch`;
             
             {b.bemerkung&&(<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"10px 13px",marginBottom:12}}><div style={{fontSize:9.5,color:"#8a8478",textTransform:"uppercase",marginBottom:5}}>Bemerkung</div><div style={{fontSize:12.5,lineHeight:1.6}}>{b.bemerkung}</div></div>)}
 
-            {b.zugeteiltes_zimmer&&(<div style={{background:"#eaeee2",border:"1px solid rgba(90,124,94,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#5a7c5e"}}>✓ Zugeteilt zu Zimmer <strong>{b.zugeteiltes_zimmer}</strong></div></div>)}
+            {b.zugeteiltes_zimmer&&(<div style={{background:"#eaeee2",border:"1px solid rgba(90,124,94,.3)",borderRadius:7,padding:"10px 13px",marginTop:12}}><div style={{fontSize:12,color:"#5a7c5e"}}>✓ Zugeteilt zu Zimmer <strong><ZimmerLink id={b.zugeteiltes_zimmer}/></strong></div></div>)}
             
             <DocumentChecklist entityType="applicant" entityId={String(b.id)} documents={documents} onJumpToDocs={()=>setTab("docs")}/>
             </>}

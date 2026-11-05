@@ -590,7 +590,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
                         <Av name={row.tenant.vorname} size={32}/>
                         <div>
                           <div style={{fontSize:13,fontWeight:600,color:"#1a1814",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                            <span>{row.tenant.vorname} {row.tenant.nachname}</span>
+                            <span><MieterLink id={row.tenant.id}>{row.tenant.vorname} {row.tenant.nachname}</MieterLink></span>
                             {row.tenant.status==="archiviert" && <span style={{fontSize:9,fontWeight:600,padding:"1.5px 6px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIV</span>}
                             {row.isPartialMonth && <span style={{fontSize:9,fontWeight:600,padding:"1.5px 6px",borderRadius:3,background:"#fdf2e0",color:"#7a5c3c",letterSpacing:".05em"}}>TEILMONAT</span>}
                           </div>
@@ -691,7 +691,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:16}}>
               <div style={{display:"grid",gridTemplateColumns:"130px 1fr",gap:"8px 12px",fontSize:13,alignItems:"baseline"}}>
                 <div style={{color:"#8a8174"}}>Empfänger</div>
-                <div style={{color:"#1a1814",fontWeight:600}}>{mahnungConfirm.row.tenant.vorname} {mahnungConfirm.row.tenant.nachname}</div>
+                <div style={{color:"#1a1814",fontWeight:600}}><MieterLink id={mahnungConfirm.row.tenant.id}>{mahnungConfirm.row.tenant.vorname} {mahnungConfirm.row.tenant.nachname}</MieterLink></div>
                 <div style={{color:"#8a8174"}}>Email</div>
                 <div style={{color:"#1a1814",wordBreak:"break-all"}}>{mahnungConfirm.row.tenant.email}</div>
                 <div style={{color:"#8a8174"}}>Monat</div>
@@ -752,7 +752,7 @@ function Zahlungen({tenants, rooms, apts, payments, upsertPayment, deletePayment
           <div className="modal" style={{width:520,maxHeight:"90vh",overflowY:"auto"}}>
             <div className="mt">💰 Zahlung bearbeiten</div>
             <div style={{fontSize:13,color:"#4a4439",marginBottom:14}}>
-              <strong>{editingPayment.tenant.vorname} {editingPayment.tenant.nachname}</strong> ({editingPayment.tenant.id}) · {MONATS_NAMEN[editingPayment.monat-1]} {editingPayment.jahr}
+              <strong><MieterLink id={editingPayment.tenant.id}>{editingPayment.tenant.vorname} {editingPayment.tenant.nachname}</MieterLink></strong> ({editingPayment.tenant.id}) · {MONATS_NAMEN[editingPayment.monat-1]} {editingPayment.jahr}
             </div>
             
             <div className="frow">

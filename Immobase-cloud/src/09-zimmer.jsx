@@ -178,7 +178,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       {grouped.map(({apt,rs})=>(
         <div key={apt.id} className="card">
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{apt.id} - {apt.adresse} <TypeBadge type={aptKat(apt)}/></span>
+            <span style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><WohnungLink id={apt.id}>{apt.id} - {apt.adresse}</WohnungLink> <TypeBadge type={aptKat(apt)}/></span>
             <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>
           </div>
           <table>
@@ -219,7 +219,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
           <div className="fg"><label className="fl">Größe</label><input className="fi" value={form.groesse||""} onChange={F("groesse")} placeholder="z.B. 14 (m² wird automatisch ergänzt)"/></div>
           <div className="fg"><label className="fl">Miete CHF/Mt.</label><input className="fi" type="number" value={form.miete||""} onChange={F("miete")}/></div>
         </div>
-        {(() => { const t = form.tenantId ? tenants.find(x => x.id === form.tenantId) : null; if (!t) return null; const mz = (t.mietzins != null && t.mietzins !== "") ? +t.mietzins : null; return <div style={{fontSize:11.5,color:"#6e6a62",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"8px 12px",marginBottom:12}}>Der Preis gilt für den nächsten Mieter (Website und neue Verträge). {t.vorname} {t.nachname} zahlt weiter {mz != null ? `CHF ${mz}` : "den bisherigen Mietzins"}{t.auszug ? ` bis zum Auszug am ${t.auszug}` : ""}.</div>; })()}
+        {(() => { const t = form.tenantId ? tenants.find(x => x.id === form.tenantId) : null; if (!t) return null; const mz = (t.mietzins != null && t.mietzins !== "") ? +t.mietzins : null; return <div style={{fontSize:11.5,color:"#6e6a62",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"8px 12px",marginBottom:12}}>Der Preis gilt für den nächsten Mieter (Website und neue Verträge). <MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink> zahlt weiter {mz != null ? `CHF ${mz}` : "den bisherigen Mietzins"}{t.auszug ? ` bis zum Auszug am ${t.auszug}` : ""}.</div>; })()}
         <div className="fg">
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
             <input type="checkbox" checked={!!form.balkon} onChange={FB("balkon")}/>
@@ -303,7 +303,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                         <input type="radio" name="oldTenant" checked={sel} readOnly/>
                         <Av name={t.vorname} size={32}/>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600}}>{t.vorname} {t.nachname} <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#8a8174",fontWeight:500}}>· {t.id}</span></div>
+                          <div style={{fontSize:13,fontWeight:600}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink> <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#8a8174",fontWeight:500}}>· {t.id}</span></div>
                           <div style={{fontSize:11,color:"#8a8174"}}>{t.email||"-"} · Ausgezogen: {t.auszug||"-"}</div>
                         </div>
                       </label>

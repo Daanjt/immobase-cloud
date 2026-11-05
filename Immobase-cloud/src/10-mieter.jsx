@@ -651,7 +651,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 <div style={{fontSize:10.5,color:"#8a8478",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                   {tRoom ? (
                     <>
-                      🏠 <strong style={{color:"#5a5249"}}>{tRoom.id}</strong>
+                      🏠 <strong style={{color:"#5a5249"}}><ZimmerLink id={tRoom.id}/></strong>
                       {tApt && tApt.zimmer && <> · {tApt.zimmer} Zi.</>}
                       {tApt && tApt.stockwerk && <> · {tApt.stockwerk}</>}
                       {tApt && <> · {tApt.adresse}</>}
@@ -738,7 +738,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
               </div>
             )}
             {room&&<div style={{background:"#fafaf7",border:"1px solid #2a2d3e",borderRadius:7,padding:"8px 12px",marginBottom:14,fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-              <div>🏠 <strong>{apt?.adresse}</strong> · {apt?.vermietungsart==="wohnung"?<>Wohnung <strong>{apt.id}</strong></>:<>Zimmer <strong>{room.id}</strong></>} · {chf(room.miete)}/Mt.</div>
+              <div>🏠 <strong><WohnungLink id={apt?.id}>{apt?.adresse}</WohnungLink></strong> · {apt?.vermietungsart==="wohnung"?<>Wohnung <strong><WohnungLink id={apt.id}/></strong></>:<>Zimmer <strong><ZimmerLink id={room.id}/></strong></>} · {chf(room.miete)}/Mt.</div>
               <div style={{display:"flex",gap:4}}>
                 {apt&&<button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("wohnungen",apt.id)} style={{fontSize:9}}>→ Wohnung</button>}
                 <button className="btn btn-g btn-sm" onClick={()=>navigateTo&&navigateTo("zimmer",room.id)} style={{fontSize:9}}>→ Zimmer</button>
@@ -1211,7 +1211,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
         return (
         <div className="ov" onClick={e=>e.target===e.currentTarget && !nachBusy && setNachModal(false)}>
           <div className="modal" style={{width:560,maxHeight:"90vh",overflowY:"auto"}}>
-            <div className="mt">⏱ Verlängerung · {t.vorname} {t.nachname}</div>
+            <div className="mt">⏱ Verlängerung · <MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></div>
             <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:16}}>Nachtrag zum bestehenden Untermietvertrag, gleiche Basis, nur neues Enddatum.</div>
             {nachResult ? (
               <div style={{padding:"16px 18px",borderRadius:8,background:nachResult.ok?"var(--green-soft)":"#f7e4e0",fontSize:13,lineHeight:1.6}}>
@@ -1303,7 +1303,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
             </div>
             <div style={{height:14}}/>
             <div style={{background:"#f5efe4",border:"1px solid #ddd0b8",borderRadius:8,padding:"12px 16px",marginBottom:18,fontSize:12.5}}>
-              <strong style={{color:"#1a1814"}}>{t.vorname} {t.nachname}</strong>
+              <strong style={{color:"#1a1814"}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></strong>
               <div style={{color:"#8a8174",fontSize:11.5,marginTop:3}}>{t.email} · {t.phone}</div>
             </div>
             
