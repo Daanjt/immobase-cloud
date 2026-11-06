@@ -112,10 +112,29 @@ function zahlInfo(contract, en) {
   const sg = +vertrag.aufschlag || 0;
   const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
   const referenz = `${en ? "Rent" : "Miete"} ${apt.adresse || ""} & ${fullName}`;
-  return { total, referenz };
+  return { total, referenz, erste: ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en) };
 }
 
-function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logoSrc = "https://mieter.dthomes.ch/dt-logo.png", qrSrc = "https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png", portalLink = "", hausinfos = "") {
+// Einzug unter dem Monat: erster Monat anteilig (Einzug am 16. = halber Monat, sonst nach Tagen), auf 5 Rappen gerundet
+function ersteMiete(einzug, total, adresse, fullName, en) {
+  let d = null;
+  const t = String(einzug || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) d = new Date(t.slice(0, 10) + "T12:00:00");
+  else { const m = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if (m) d = new Date(+m[3], +m[2] - 1, +m[1], 12); }
+  if (!d || isNaN(d.getTime()) || d.getDate() === 1 || !(total > 0)) return null;
+  const tag = d.getDate();
+  const len = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const anteil = tag === 16 ? 0.5 : (len - tag + 1) / len;
+  const betrag = Math.round(total * anteil * 20) / 20;
+  const MDE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  const MEN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monat = (en ? MEN : MDE)[d.getMonth()];
+  const folge = (en ? MEN : MDE)[(d.getMonth() + 1) % 12];
+  const referenz = `${en ? "Rent" : "Miete"} ${monat} ${adresse || ""} & ${fullName}`.replace(/\s+/g, " ").trim();
+  return { betrag, referenz, monat, folge, halb: tag === 16, tag };
+}
+
+function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logoSrc = "https://mieter.dthomes.ch/dt-logo.png", qrSrc = "https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png", portalLink = "", hausinfos = "", qrErsteSrc = "") {
   const en = sprache === "en";
   const T = (de, e) => (en ? e : de);
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -150,9 +169,6 @@ function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logo
   const formatLongDate = (s) => { const d = parseD(s); return d ? lang(d) : (s || "-"); };
   const einzugStr = formatLongDate(vertrag.einzug);
   const ersteBelastungStr = (() => { const d = parseD(vertrag.einzug); if (!d) return "-"; d.setMonth(d.getMonth() - 1); d.setDate(25); return lang(d); })();
-  // Erste Zahlung: 25. des Vormonats; liegt das schon in der Vergangenheit, dann umgehend
-  const ersteVorbei = (() => { const d = parseD(vertrag.einzug); if (!d) return false; d.setMonth(d.getMonth() - 1); d.setDate(25); d.setHours(23, 59, 59); return d.getTime() < Date.now(); })();
-  const ersteZahlungStr = ersteVorbei ? T("umgehend", "right away") : T(`bis ${ersteBelastungStr}`, `by ${ersteBelastungStr}`);
   const sg = +vertrag.aufschlag || 0;
   const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
   const chf2 = (n) => `CHF\u00a0${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -232,34 +248,27 @@ ${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartmen
     ? T(`Wir nutzen für Mietkautionen die Schweizer Plattform <strong>Evorest</strong>. Du erhältst eine separate E-Mail von Evorest (registrations@evorest.ch) mit einem persönlichen Link. Dort eröffnest du in wenigen Minuten online dein Kautionskonto und zahlst die Kaution ein. Deine Kaution beträgt <strong>${km} ${km === 1 ? "Monatsmiete" : "Monatsmieten"}${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>. Bitte erledige das vor deinem Einzug. Falls die E-Mail nicht ankommt, schau bitte auch im Spam-Ordner nach.`, `We use the Swiss platform <strong>Evorest</strong> for rental deposits. You will receive a separate email from Evorest (registrations@evorest.ch) with a personal link. There you open your deposit account online in a few minutes and pay in the deposit. Your deposit is <strong>${km} ${km === 1 ? "month's" : "months'"} rent${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>. Please complete this before you move in. If the email does not arrive, please check your spam folder.`)
     : T("Bei deiner Variante ist <strong>keine Kaution</strong> nötig. Dafür ist die monatliche Servicegebühr im Mietzins enthalten.", "With your option <strong>no deposit</strong> is required. Instead, the monthly service fee is included in your rent.");
   const bankZeile = (l, v, mono = false) => `<div style="padding:3px 0;"><span style="color:#8a8174;font-size:10px;text-transform:uppercase;letter-spacing:.12em;">${l}</span><br><span style="color:#1a1814;font-weight:600;${mono ? "font-family:Menlo,Monaco,monospace;" : ""}">${v}</span></div>`;
-  const zahlung = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f3" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;margin:10px 0 0;width:100%;table-layout:fixed;">
-<tr><td align="center" style="padding:18px 16px 6px;text-align:center;"><img src="${qrSrc}" alt="QR" width="140" height="140" style="display:block;margin:0 auto;width:140px;height:140px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
-<tr><td style="font-size:12.5px;line-height:1.6;padding:8px 16px 14px;">
-${bankZeile("Bank", "Graub&uuml;ndner Kantonalbank")}${bankZeile("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bankZeile("BIC/SWIFT", "GRKBCH2270A", true)}${bankZeile(T("Betrag", "Amount"), mietzinsStr)}${bankZeile(T("Referenz", "Reference"), esc(referenz))}${bankZeile(T("Erste Zahlung", "First payment"), ersteZahlungStr)}
-</td></tr></table>`;
+  const qrBox = (src, zeilen) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f3" style="background:#faf8f3;border:1px dashed #c5bca8;border-radius:10px;margin:10px 0 0;width:100%;table-layout:fixed;">
+<tr><td align="center" style="padding:18px 16px 6px;text-align:center;"><img src="${src}" alt="QR" width="140" height="140" style="display:block;margin:0 auto;width:140px;height:140px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
+<tr><td style="font-size:12.5px;line-height:1.6;padding:8px 16px 14px;">${zeilen}</td></tr></table>`;
+  const bankBasis = `${bankZeile("Bank", "Graub&uuml;ndner Kantonalbank")}${bankZeile("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bankZeile("BIC/SWIFT", "GRKBCH2270A", true)}`;
+  const ER = ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en);
+  const zahlungMonat = qrBox(qrSrc, bankBasis + bankZeile(T("Betrag", "Amount"), mietzinsStr) + bankZeile(T("Referenz", "Reference"), esc(referenz)) + (ER ? bankZeile(T("Fällig", "Due"), T(`ab ${ER.folge}, jeweils bis zum 25. des Vormonats`, `from ${ER.folge}, by the 25th of the previous month`)) : ""));
+  const zahlungErste = ER ? qrBox(qrErsteSrc || qrSrc, bankBasis + bankZeile(T("Betrag", "Amount"), chf2(ER.betrag)) + bankZeile(T("Referenz", "Reference"), esc(ER.referenz))) : "";
 
   const portalText = T("Im Mieterportal findest du alles zu deiner Miete an einem Ort: deinen Vertrag und deine Dokumente, die Zahlungsangaben mit QR-Code, das Übergabeprotokoll und die Hausinfos. Dort meldest du auch Schäden, und später kannst du dort kündigen oder einen Nachmieter vorschlagen. Beim ersten Öffnen auf einem Gerät schicken wir dir kurz einen Code per E-Mail.", "In the tenant portal you will find everything about your rental in one place: your contract and documents, the payment details with QR code, the handover report and the house information. You can also report damage there, and later give notice or suggest a successor tenant. When you open it for the first time on a device, we send you a short code by email.");
   const knopf = (href, txt) => `<div style="margin:12px 0 0;"><a href="${href}" style="display:inline-block;background:#1a1814;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;">${txt}</a></div>`;
   const wlanBox = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f3" style="background:#faf8f3;border:1px solid #efe7d6;border-radius:10px;margin:10px 0 0;width:100%;"><tr><td style="font-size:12.5px;line-height:1.6;padding:12px 16px;">${bankZeile(T("WLAN-Name", "Network name"), "D&amp;T Homes")}${bankZeile(T("Passwort", "Password"), "Welcome!", true)}</td></tr></table>`;
-  const hausHtml = hausinfos ? `<div style="margin:10px 0 0;padding:12px 14px;background:#faf8f3;border-left:3px solid #c5b896;font-size:13.5px;line-height:1.6;white-space:pre-line;">${esc(hausinfos)}</div>` : "";
-  const einzugText = (istWohnung
-    ? T("Die Schlüssel übergeben wir dir am Einzugstag, sobald die erste Miete und die Kaution eingegangen sind. Nach dem Einzug erhältst du einen Link zum Übernahmeprotokoll: Dort hältst du innert 14 Tagen allfällige Mängel mit Fotos fest. So bist du beim Auszug auf der sicheren Seite.", "We hand over the keys on your move-in day, once the first rent and the deposit have been received. After moving in you will receive a link to the handover report, where you record any existing defects with photos within 14 days. This protects you when you move out.")
-    : T("Die Schlüssel übergeben wir dir am Einzugstag, sobald die erste Miete und die Kaution eingegangen sind. Nach dem Einzug erhältst du einen Link zum Übernahmeprotokoll: Dort hältst du innert 14 Tagen allfällige Mängel mit Fotos fest. So bist du beim Auszug auf der sicheren Seite.", "We hand over the keys on your move-in day, once the first rent and the deposit have been received. After moving in you will receive a link to the handover report, where you record any existing defects with photos within 14 days. This protects you when you move out."))
-    + `<ul style="margin:10px 0 0 18px;padding:0;">`
-    + `<li style="margin:0 0 6px;">${T("<strong>Privathaftpflicht:</strong> Bitte schliesse eine Privathaftpflichtversicherung ab (falls du noch keine hast) und schick uns den Nachweis vor dem Einzug, z.B. als Antwort auf diese E-Mail.", "<strong>Personal liability insurance:</strong> please take out personal liability insurance (if you don't have one yet) and send us the proof before you move in, e.g. by replying to this email.")}</li>`
-    + `<li style="margin:0 0 6px;">${T("<strong>Anmeldung:</strong> Melde dich innert 14 Tagen nach dem Einzug beim Personenmeldeamt bzw. Kreisbüro deiner Gemeinde an.", "<strong>Registration:</strong> please register with the residents' office (Personenmeldeamt / Kreisbüro) of your municipality within 14 days of moving in.")}</li>`
-    + `<li style="margin:0;">${T("<strong>Briefkasten:</strong> Damit deine Post ankommt, schreib bitte deinen Namen an den Briefkasten bzw. gib deiner Post die neue Adresse an.", "<strong>Mailbox:</strong> so that your mail arrives, please put your name on the mailbox and give your new address to the post office.")}</li>`
-    + `</ul>`;
   let nr = 0;
   const schritte = [
     schritt(++nr, km > 0 ? T("Kaution einrichten", "Set up your deposit") : T("Kaution", "Deposit"), kautionText),
-    schritt(++nr, T("Erste Miete bezahlen und Dauerauftrag einrichten", "Pay your first rent and set up a standing order"), (ersteVorbei
-      ? T("Bitte überweise die erste Miete umgehend und richte danach einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats. Am einfachsten scannst du den QR-Code mit deiner Banking-App:", "Please transfer your first rent right away and then set up a standing order, due by the 25th of the previous month. The easiest way is to scan the QR code with your banking app:")
-      : T(`Die erste Miete ist bis ${ersteBelastungStr} fällig. Richte am besten gleich einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats. Am einfachsten scannst du den QR-Code mit deiner Banking-App:`, `Your first rent is due by ${ersteBelastungStr}. It is best to set up a standing order right away, due by the 25th of the previous month. The easiest way is to scan the QR code with your banking app:`)) + zahlung),
+    schritt(++nr, T("Erste Miete bezahlen und Dauerauftrag einrichten", "Pay your first rent and set up a standing order"), ER
+      ? T(`Da du am ${einzugStr} einziehst, bezahlst du für den ${ER.monat} nur ${ER.halb ? "den halben Monat" : "die Tage ab deinem Einzug"}: <strong>${chf2(ER.betrag)}</strong>. Bitte überweise diesen Betrag vor deinem Einzug. Am einfachsten scannst du den QR-Code mit deiner Banking-App:`, `As you move in on ${einzugStr}, you only pay ${ER.halb ? "half a month" : "for the days from your move-in"} for ${ER.monat}: <strong>${chf2(ER.betrag)}</strong>. Please transfer this amount before you move in. The easiest way is to scan the QR code with your banking app:`)
+        + zahlungErste
+        + `<div style="margin:16px 0 0;">${T(`Ab ${ER.folge} gilt die volle Monatsmiete. Bitte richte dafür einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats:`, `From ${ER.folge} the full monthly rent applies. Please set up a standing order for it, due by the 25th of the previous month:`)}</div>` + zahlungMonat
+      : T("Bitte überweise die erste Miete vor deinem Einzug und richte danach einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats. Am einfachsten scannst du den QR-Code mit deiner Banking-App:", "Please transfer your first rent before you move in and then set up a standing order, due by the 25th of the previous month. The easiest way is to scan the QR code with your banking app:") + zahlungMonat),
     portalLink ? schritt(++nr, T("Dein Mieterportal", "Your tenant portal"), portalText + knopf(portalLink, T("Zum Mieterportal", "Open tenant portal"))) : "",
     istWohnung ? "" : schritt(++nr, T("WLAN", "Wi-Fi"), T("Das WLAN ist in der Miete inbegriffen und in der ganzen Wohnung verfügbar:", "Wi-Fi is included in your rent and available throughout the flat:") + wlanBox),
-    schritt(++nr, T("Einzug", "Moving in"), einzugText),
-    hausHtml ? schritt(++nr, T("Infos zum Haus", "About the building"), hausHtml) : "",
   ].join("\n");
   const intro = istWohnung
     ? (mmV ? T("euer Untermietvertrag für die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!", "your sublease agreement for the apartment has been signed. Welcome to D&amp;T Homes!") : T("dein Untermietvertrag für die Wohnung ist unterzeichnet. Herzlich willkommen bei D&amp;T Homes!", "your sublease agreement for the apartment has been signed. Welcome to D&amp;T Homes!"))
@@ -579,12 +588,17 @@ Deno.serve(async (req) => {
       // QR-Rechnung pro Mieter (Betrag und Referenz wie im Text der Mail).
       // Sonst oder bei fehlendem Betrag: neutraler QR (nur Konto) ueber email-assets/dt-qr.png.
       let qrSrc = undefined;
+      let qrErsteSrc = "";
       if (contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
         try {
           const zi = zahlInfo(contract, en);
           if (zi.total > 0) {
             pdfAttachments.push({ filename: "qr-rechnung.png", content: qrB64(await qrPng(qrInhalt(zi.total, zi.referenz), 6)), content_type: "image/png", content_id: "dt-qr", disposition: "inline" });
             qrSrc = "cid:dt-qr";
+            if (zi.erste) {
+              pdfAttachments.push({ filename: "qr-rechnung-erster-monat.png", content: qrB64(await qrPng(qrInhalt(zi.erste.betrag, zi.erste.referenz), 6)), content_type: "image/png", content_id: "dt-qr1", disposition: "inline" });
+              qrErsteSrc = "cid:dt-qr1";
+            }
           }
         } catch (e) { console.error("QR-Rechnung fehlgeschlagen, neutraler QR:", e?.message); }
       } else if (contract.contract_type === "parkplatz") {
@@ -617,15 +631,7 @@ Deno.serve(async (req) => {
           }
         } catch (_) { /* ohne Portal-Link */ }
       }
-      // Hausinfos der Liegenschaft (wie im Mieterportal)
-      let hausinfos = "";
-      try {
-        const adr = contract?.contract_data?.vertrag?.apt?.adresse || contract?.contract_data?.vertrag?.adresse;
-        if (adr && contract.contract_type === "untermietvertrag_und_anfangsmietzins") {
-          const { data: lg } = await supabase.from("liegenschaften").select("hausinfos, hausinfos_en").eq("adresse", adr).maybeSingle();
-          hausinfos = (en ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "";
-        }
-      } catch (_) { /* ohne Hausinfos */ }
+      const hausinfos = "";
       try {
         const mailResp = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -641,7 +647,7 @@ Deno.serve(async (req) => {
               : contract.contract_type === "verlaengerung" || contract.contract_type === "nachtrag"
               ? (en ? "Your extension is confirmed" : "Deine Verl\u00e4ngerung ist best\u00e4tigt")
               : (en ? "Welcome to D&T Homes: contract signed" : "Willkommen bei D&T Homes: Vertrag unterzeichnet"),
-            html: confirmationEmailToTenant(contract, downloadLinks, sprache, logoSrc, qrSrc, portalLink, hausinfos),
+            html: confirmationEmailToTenant(contract, downloadLinks, sprache, logoSrc, qrSrc, portalLink, hausinfos, qrErsteSrc),
             attachments: pdfAttachments,
           }),
         });
