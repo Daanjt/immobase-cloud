@@ -702,6 +702,10 @@ li{margin-bottom:3pt;line-height:1.5}
 
 .page-break{page-break-after:always}
 .avoid-break{page-break-inside:avoid}
+
+/* LAYOUT: Absaetze nicht ueber Seiten trennen, Einleitungssatz bei Tabelle/Liste halten */
+.section p,.clause,li,.sig-row{page-break-inside:avoid;break-inside:avoid}
+.section p:has(+ .miet-wrap),.section p:has(+ .bank-block),.section p:has(+ ul),.section p:has(+ .indent-list),.section p:has(+ .highlight-box),.section p:has(+ .info-box){page-break-after:avoid;break-after:avoid}
 </style>
 </head>
 <body>
