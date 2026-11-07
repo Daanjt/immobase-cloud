@@ -176,6 +176,8 @@ function MediaManager({apt, editApt, rooms}){
   const [aiIdx, setAiIdx] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [aiReview, setAiReview] = useState(null);
+  const [aiAnweisung, setAiAnweisung] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
   const CAT_ORDER = ["aussen","balkon","__room","kueche","wohnzimmer","bad","eingang","sonstiges"];
   function catRank(cat){ if(!cat) return 90; const c=String(cat); if(c==="grundriss") return 100; if(c.indexOf("room:")===0) return CAT_ORDER.indexOf("__room"); const i=CAT_ORDER.indexOf(c); return i>=0?i:80; }
   function roomKey(cat){ const id=String(cat||"").replace(/^room:/,""); const n=parseInt(id.split("-")[1],10); return isNaN(n)?9999:n; }
@@ -192,19 +194,48 @@ function MediaManager({apt, editApt, rooms}){
     }catch(err){ alert("KI-Bearbeitung nicht moeglich: "+(err.message||err)); }
     setAiIdx(null);
   }
+  // Nachbessern in der Vorschau: Anweisung auf die aktuelle KI-Version anwenden (oder neu vom Original)
+  async function refineAi(vomOriginal){
+    const rv=aiReview; if(!rv || aiBusy) return;
+    const anw=aiAnweisung.trim();
+    if(!vomOriginal && !anw){ alert("Bitte beschreibe kurz, was angepasst werden soll."); return; }
+    setAiBusy(true);
+    try{
+      const body = vomOriginal
+        ? {path:rv.origPath, apartment_id:apt.id, mode:"leeren"}
+        : {path:rv.aiPath, apartment_id:apt.id, mode:"anpassen", anweisung:anw};
+      const {data,error}=await supabase.functions.invoke("edit-image",{body});
+      if(error) throw error;
+      if(data&&data.error) throw new Error(data.error);
+      if(data&&data.path){
+        const alt=rv.aiPath;
+        setAiReview({...rv, aiPath:data.path, verlauf:[...(rv.verlauf||[]), alt]});
+        setAiAnweisung("");
+      } else { alert("Keine bearbeitete Version erhalten."); }
+    }catch(err){ alert("Anpassung nicht moeglich: "+(err.message||err)); }
+    setAiBusy(false);
+  }
+  async function undoAi(){
+    const rv=aiReview; if(!rv || !(rv.verlauf||[]).length || aiBusy) return;
+    const v=[...rv.verlauf]; const vorher=v.pop();
+    try{ await supabase.storage.from("assets").remove([rv.aiPath]); }catch(e){}
+    setAiReview({...rv, aiPath:vorher, verlauf:v});
+  }
+  async function aufraeumenVerlauf(rv){ const alt=(rv&&rv.verlauf)||[]; if(alt.length){ try{ await supabase.storage.from("assets").remove(alt); }catch(e){} } }
   async function confirmAi(){
     const rv=aiReview; if(!rv) return;
     try{
       const next=photos.map((ph,ix)=>ix===rv.idx?{...ph,hidden:true}:ph);
       next.push({path:rv.aiPath, sort_order:(rv.sort_order!=null?rv.sort_order:photos.length), category:rv.category||null, hidden:false, edited:true});
       await editApt(apt.id,{photos:next});
+      await aufraeumenVerlauf(rv);
     }catch(err){ toast("Speichern fehlgeschlagen", "error"); }
-    setAiReview(null);
+    setAiReview(null); setAiAnweisung("");
   }
   async function rejectAi(){
     const rv=aiReview; if(!rv) return;
-    try{ await supabase.storage.from("assets").remove([rv.aiPath]); }catch(e){}
-    setAiReview(null);
+    try{ await supabase.storage.from("assets").remove([rv.aiPath, ...(rv.verlauf||[])]); }catch(e){}
+    setAiReview(null); setAiAnweisung("");
   }
   const fileInputRef = React.useRef(null);
   const photos = apt.photos || [];
@@ -529,11 +560,19 @@ function MediaManager({apt, editApt, rooms}){
               <img src={publicUrl(aiReview.aiPath)} style={{maxWidth:"44vw",maxHeight:"62vh",objectFit:"contain",borderRadius:6,border:"1px solid rgba(255,255,255,.2)"}}/>
             </div>
           </div>
-          <div style={{display:"flex",gap:10,marginTop:4}}>
-            <button className="btn btn-p btn-sm" onClick={confirmAi}>Übernehmen</button>
-            <button className="btn btn-sm" style={{background:"#fff"}} onClick={rejectAi}>Verwerfen</button>
+          <div style={{display:"flex",gap:8,width:"min(640px,100%)",flexWrap:"wrap"}}>
+            <input type="text" value={aiAnweisung} disabled={aiBusy} onChange={e=>setAiAnweisung(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") refineAi(false); }}
+              placeholder="Was soll noch angepasst werden? z.B. «Teppich links auch entfernen» oder «Lampe an der Decke behalten»"
+              style={{flex:"1 1 320px",minWidth:0,padding:"9px 12px",borderRadius:6,border:"1px solid rgba(255,255,255,.3)",background:"rgba(255,255,255,.95)",fontSize:13}}/>
+            <button className="btn btn-sm" style={{background:"#fff"}} disabled={aiBusy||!aiAnweisung.trim()} onClick={()=>refineAi(false)}>{aiBusy?"⏳ Wird angepasst…":"✨ Anpassen"}</button>
           </div>
-          <div style={{color:"#9a9384",fontSize:11,maxWidth:540,textAlign:"center",lineHeight:1.4}}>Übernehmen verbirgt das Original und nutzt die KI-Version für die Ausschreibungen. Verwerfen löscht die KI-Version, das Original bleibt.</div>
+          <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center"}}>
+            <button className="btn btn-p btn-sm" disabled={aiBusy} onClick={confirmAi}>Übernehmen</button>
+            {(aiReview.verlauf||[]).length>0 && <button className="btn btn-sm" style={{background:"#fff"}} disabled={aiBusy} onClick={undoAi}>↶ Letzte Anpassung zurück</button>}
+            <button className="btn btn-sm" style={{background:"#fff"}} disabled={aiBusy} onClick={()=>refineAi(true)}>↻ Neu vom Original</button>
+            <button className="btn btn-sm" style={{background:"#fff"}} disabled={aiBusy} onClick={rejectAi}>Verwerfen</button>
+          </div>
+          <div style={{color:"#9a9384",fontSize:11,maxWidth:540,textAlign:"center",lineHeight:1.4}}>Passt etwas nicht, beschreibe die Änderung oben und klicke «Anpassen». Die Anpassung wird auf die rechte Version angewendet. Übernehmen verbirgt das Original und nutzt die KI-Version für die Ausschreibungen. Verwerfen löscht alle KI-Versionen, das Original bleibt.</div>
         </div>
       )}
       {photos.length > 0 ? (

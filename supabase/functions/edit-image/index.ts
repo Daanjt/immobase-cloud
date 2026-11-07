@@ -52,7 +52,12 @@ serve(async (req) => {
     if (!key) return j({ error: "Kein OpenAI-Schluessel hinterlegt (Edge-Function-Secret OPENAI_API_KEY oder app_config.openai_api_key)." }, 200);
     if (!model) model = "gpt-image-1.5";
 
-    const prompt = PROMPTS[mode] || PROMPTS["leeren"];
+    // Nachbessern: freie Anweisung aus der Vorschau, angewendet auf die bereits bearbeitete Version
+    const anweisung = (p.anweisung || "").toString().trim().slice(0, 600);
+    if (mode === "anpassen" && !anweisung) return j({ error: "Bitte beschreibe, was angepasst werden soll." }, 200);
+    const prompt = mode === "anpassen"
+      ? `Edit this interior real estate photo according to this instruction (may be in German): "${anweisung}". Change only what the instruction asks for. Keep everything else, including the room's architecture, walls, floor, ceiling, windows, doors, fixtures, lighting and camera perspective, exactly the same and fully photorealistic. Do not add any text or watermarks.`
+      : (PROMPTS[mode] || PROMPTS["leeren"]);
 
     // Originalbild aus dem assets-Bucket holen
     const { data: pub } = sb.storage.from("assets").getPublicUrl(path);
@@ -88,7 +93,7 @@ serve(async (req) => {
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 
-    const newPath = `apartments/${apartmentId}/ki_${mode}_${Date.now()}.png`;
+    const newPath = `apartments/${apartmentId}/ki_${mode === "anpassen" ? "leeren" : mode}_${Date.now()}.png`;
     const { error: upErr } = await sb.storage.from("assets").upload(newPath, bytes, { contentType: "image/png", upsert: false });
     if (upErr) return j({ error: "Speichern fehlgeschlagen: " + upErr.message }, 200);
 
