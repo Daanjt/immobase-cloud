@@ -15,7 +15,7 @@ function j(body: unknown, status = 200) {
 const PROMPTS: Record<string, string> = {
   // Moebel entfernen und aufraeumen -> leerer, ordentlicher Raum
   leeren:
-    "Remove all freestanding furniture, decor, clutter and personal items from this interior real estate photo, showing an empty, clean and tidy room. Keep the room's architecture, walls, floor, ceiling, windows, doors, radiators, built-in fixtures, lighting and camera perspective exactly the same and fully photorealistic. Do not add any new objects, text or watermarks. Natural, realistic result.",
+    "Remove ONLY the movable furniture from this interior real estate photo (e.g. sofa, chairs, tables, beds, shelves, wardrobes, rugs) together with the objects standing or lying on that furniture. Change NOTHING else: keep the walls, wall colour, floor, ceiling, windows, curtains and blinds, doors, radiators, built-in kitchen and bathroom fixtures, built-in cabinets, ceiling lamps, lighting, colours, brightness, image framing and camera perspective exactly as in the original. Do not clean, tidy, retouch, repaint, relight or improve anything. Only fill the areas where furniture was removed with the matching existing floor and wall. Do not add any new objects, text or watermarks. Fully photorealistic.",
   // Nur aufraeumen -> Unordnung weg, Moebel bleiben
   aufraeumen:
     "Declutter and tidy this interior real estate photo: remove mess, clutter, personal items, cables and small objects so the room looks clean and neat. Keep all furniture, the room's architecture, walls, floor, windows, fixtures, lighting and camera perspective exactly the same and fully photorealistic. Do not add any new objects, text or watermarks.",
@@ -76,6 +76,8 @@ serve(async (req) => {
     form.append("size", "auto");
     form.append("quality", "medium");
     form.append("n", "1");
+    // moeglichst nah am Original bleiben (nur von gpt-image-1 Modellen unterstuetzt)
+    if (/^gpt-image-1/.test(model)) form.append("input_fidelity", "high");
 
     const oa = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
