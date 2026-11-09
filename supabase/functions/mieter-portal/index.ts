@@ -86,7 +86,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean, mitB
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, kaution_abrechnung, extra_schluessel, archived_at, namensschild, namensschild_at, namensschild_erinnert_at";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, kaution_abrechnung, extra_schluessel, archived_at, namensschild, namensschild_at, namensschild_erinnert_at, namensschild_bestellt_at";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 // Zugang bleibt bis 3 Monate nach dem Auszug (bzw. nach der Archivierung, falls kein Auszug eingetragen ist)
@@ -345,7 +345,7 @@ async function aptIdVon(t: any) {
 async function ladeApt(t: any) {
   const id = await aptIdVon(t);
   if (!id) return null;
-  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, vermietungsart, mietende, immer_befristet, zimmer, flaeche").eq("id", id).maybeSingle();
+  const { data } = await sb.from("apartments").select("id, adresse, plz, ort, stockwerk, refnr, vermietungsart, mietende, immer_befristet, zimmer, flaeche").eq("id", id).maybeSingle();
   return data;
 }
 
@@ -446,7 +446,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     // WLAN in allen WG-Zimmern gleich (wie in der Uebernahme-Mail); ganze Wohnungen haben eigenes Internet
     wlan: wohnung ? null : { name: "D&T Homes", passwort: "Welcome!" },
     // Namensschild (Briefkasten/Klingel): nur bei ganzen Wohnungen
-    namensschild: wohnung ? { name: t.namensschild || "", am: t.namensschild_at ? fmt(new Date(t.namensschild_at)) : null, vorschlag: `${t.vorname ? String(t.vorname).trim().charAt(0).toUpperCase() + ". " : ""}${t.nachname || ""}`.trim() } : null,
+    namensschild: wohnung ? { name: t.namensschild || "", bestellt: !!t.namensschild_bestellt_at, am: t.namensschild_at ? fmt(new Date(t.namensschild_at)) : null, vorschlag: `${t.vorname ? String(t.vorname).trim().charAt(0).toUpperCase() + ". " : ""}${t.nachname || ""}`.trim() } : null,
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
     hausinfos_de: lg?.hausinfos || lg?.hausinfos_en || "",
     hausinfos_en: lg?.hausinfos_en || lg?.hausinfos || "",
@@ -700,9 +700,30 @@ async function namensschildSetzen(t: any, b: any) {
   const name = String(b.name || "").replace(/\s+/g, " ").trim();
   if (name.length < 2) return fehler("Bitte gib den Namen für das Namensschild ein.");
   if (name.length > 60) return fehler("Der Name ist zu lang (max. 60 Zeichen).");
+  if (t.namensschild_bestellt_at) return fehler("Das Namensschild ist bereits bestellt. Für eine Änderung schreib uns bitte an info@dthomes.ch. / The name sign has already been ordered. To change it, please write to info@dthomes.ch.");
   const { error } = await sb.from("tenants").update({ namensschild: name, namensschild_at: new Date().toISOString() }).eq("id", t.id);
   if (error) return fehler("Speichern fehlgeschlagen.", 500);
-  return json({ ok: true, name, am: fmt(new Date()) });
+  // Bestellung direkt an den Schilderhersteller der Liegenschaft
+  const hersteller = schilderHersteller(apt);
+  let bestellt = false;
+  if (hersteller) {
+    try {
+      const mieter = `${t.vorname || ""} ${t.nachname || ""}`.trim();
+      const ortZ = [apt.plz, apt.ort].filter(Boolean).join(" ");
+      const whg = [apt.refnr ? `Nr. ${apt.refnr}` : "", apt.stockwerk || ""].filter(Boolean).join(", ");
+      const adresse = `${mieter}\n${apt.adresse}${apt.refnr ? ` (Wohnung ${apt.refnr})` : ""}\n${ortZ}`;
+      await mail(hersteller, `Schilderbestellung ${apt.adresse}${apt.refnr ? `, Wohnung ${apt.refnr}` : ""}`,
+        `Guten Tag\n\nGerne bestellen wir neue Schilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nWohnung: ${whg || "-"}\nGravur: ${name}\nAnzahl: je 1 Schild für Briefkasten und Klingel\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`, false, true);
+      await sb.from("tenants").update({ namensschild_bestellt_at: new Date().toISOString() }).eq("id", t.id);
+      bestellt = true;
+    } catch (e) { console.error("schilderbestellung", t.id, e); }
+  }
+  return json({ ok: true, name, am: fmt(new Date()), bestellt });
+}
+// Schilderhersteller je Liegenschaft (Bestellung per Mail mit Liegenschaft, Gravur, Liefer- und Rechnungsadresse)
+function schilderHersteller(apt: any): string | null {
+  if (/^Josefstrasse\s+20[02]\b/i.test(String(apt?.adresse || ""))) return "info@schluessel-mezza.ch"; // Mezza GmbH, Wallisellen
+  return null;
 }
 // Einmalige Erinnerung an Mieter ganzer Wohnungen ohne Namensschild (nur Server/Admin). {probe:true} = nur Liste
 async function namensschildErinnerung(req: Request, b: any) {

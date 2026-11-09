@@ -37,7 +37,7 @@ function MieterSchluessel({tenant, updateTenant, istWohnung}) {
       {(istWohnung || tenant.namensschild) && <div style={{background:"#faf8f3",border:"1px solid #efe7d6",borderRadius:8,padding:"12px 14px",marginTop:10,fontSize:13}}>
         <div style={{fontSize:12,fontWeight:600,color:"#5a5448",marginBottom:6}}>Namensschild (Briefkasten &amp; Klingel)</div>
         {tenant.namensschild
-          ? <div><span style={{fontWeight:600}}>{tenant.namensschild}</span>{tenant.namensschild_at && <span style={{color:"#8a8174",fontSize:11.5}}> · im Portal angegeben am {new Date(tenant.namensschild_at).toLocaleDateString("de-CH")}</span>}</div>
+          ? <div><span style={{fontWeight:600}}>{tenant.namensschild}</span>{tenant.namensschild_at && <span style={{color:"#8a8174",fontSize:11.5}}> · im Portal angegeben am {new Date(tenant.namensschild_at).toLocaleDateString("de-CH")}</span>}{tenant.namensschild_bestellt_at && <span style={{color:"#3a5230",fontSize:11.5}}> · bei Mezza bestellt am {new Date(tenant.namensschild_bestellt_at).toLocaleDateString("de-CH")}</span>}</div>
           : <div style={{color:"#a4442e"}}>Noch nicht angegeben{tenant.namensschild_erinnert_at ? ` · erinnert am ${new Date(tenant.namensschild_erinnert_at).toLocaleDateString("de-CH")}` : ""}</div>}
       </div>}
       <div style={{fontSize:11,color:"#8a8174",marginTop:10,lineHeight:1.5}}>Die Schlüsselnummern, die der Mieter im Übergabeprotokoll einträgt, werden nach Abschluss automatisch hier übernommen.</div>
