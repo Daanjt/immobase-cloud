@@ -446,7 +446,7 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     // WLAN in allen WG-Zimmern gleich (wie in der Uebernahme-Mail); ganze Wohnungen haben eigenes Internet
     wlan: wohnung ? null : { name: "D&T Homes", passwort: "Welcome!" },
     // Namensschild (Briefkasten/Klingel): nur bei ganzen Wohnungen
-    namensschild: wohnung ? { name: t.namensschild || "", am: t.namensschild_at ? fmt(new Date(t.namensschild_at)) : null, vorschlag: `${t.vorname || ""} ${t.nachname || ""}`.trim() } : null,
+    namensschild: wohnung ? { name: t.namensschild || "", am: t.namensschild_at ? fmt(new Date(t.namensschild_at)) : null, vorschlag: `${t.vorname ? String(t.vorname).trim().charAt(0).toUpperCase() + ". " : ""}${t.nachname || ""}`.trim() } : null,
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
     hausinfos_de: lg?.hausinfos || lg?.hausinfos_en || "",
     hausinfos_en: lg?.hausinfos_en || lg?.hausinfos || "",
@@ -726,8 +726,8 @@ async function namensschildErinnerung(req: Request, b: any) {
     const adr = [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     try {
       await mail(t.email, en ? "Your name for the mailbox and doorbell" : "Dein Name für Briefkasten und Klingel",
-        en ? `Hi ${t.vorname || ""},\n\nso that your mail arrives reliably and visitors find you, we will have a name sign made for your mailbox and doorbell at ${adr}.\n\nPlease let us know in the tenant portal which name should be on it (e.g. both names if you live there as a couple):\n\n${link}\n\nPlease note that the cost of the name sign is borne by the tenant.\n\nIt only takes a minute. Thank you!\n\nBest regards\nYour D&T Homes Team`
-           : `Hallo ${t.vorname || ""},\n\ndamit deine Post zuverlässig ankommt und dich Besuch findet, lassen wir für deinen Briefkasten und deine Klingel an der ${adr} ein Namensschild machen.\n\nBitte gib uns im Mieterportal an, welcher Name darauf stehen soll (z.B. beide Namen, wenn ihr zu zweit wohnt):\n\n${link}\n\nDie Kosten für das Namensschild werden vom Mieter getragen.\n\nDas dauert nur eine Minute. Danke dir!\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
+        en ? `Hi ${t.vorname || ""},\n\nso that your mail arrives reliably and visitors find you, we will have a name sign made for your mailbox and doorbell at ${adr}.\n\nPlease let us know in the tenant portal which name should be on it. Usually it is the first initial and the surname, e.g. M. Muster (or M. Muster / A. Beispiel for two people):\n\n${link}\n\nPlease note that the cost of the name sign is borne by the tenant.\n\nIt only takes a minute. Thank you!\n\nBest regards\nYour D&T Homes Team`
+           : `Hallo ${t.vorname || ""},\n\ndamit deine Post zuverlässig ankommt und dich Besuch findet, lassen wir für deinen Briefkasten und deine Klingel an der ${adr} ein Namensschild machen.\n\nBitte gib uns im Mieterportal an, welcher Name darauf stehen soll. Meistens ist es der erste Buchstabe des Vornamens und der Nachname, z.B. M. Muster (bei zwei Personen M. Muster / A. Beispiel):\n\n${link}\n\nDie Kosten für das Namensschild werden vom Mieter getragen.\n\nDas dauert nur eine Minute. Danke dir!\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
       await sb.from("tenants").update({ namensschild_erinnert_at: new Date().toISOString() }).eq("id", t.id);
       gesendet++;
     } catch (e) { console.error("namensschild mail", t.id, e); }
