@@ -735,11 +735,10 @@ async function namensschildBestellen(req: Request, b: any) {
 function schilderMail(t: any, apt: any, name: string) {
   const mieter = `${t.vorname || ""} ${t.nachname || ""}`.trim();
   const ortZ = [apt.plz, apt.ort].filter(Boolean).join(" ");
-  const whg = [apt.refnr ? `Nr. ${apt.refnr}` : "", apt.stockwerk || ""].filter(Boolean).join(", ");
-  const adresse = `${mieter}\n${apt.adresse}${apt.refnr ? ` (Wohnung ${apt.refnr})` : ""}\n${ortZ}`;
+  const adresse = `${mieter}\n${apt.adresse}\n${ortZ}`;
   return {
-    betreff: `Schilderbestellung ${apt.adresse}${apt.refnr ? `, Wohnung ${apt.refnr}` : ""}`,
-    text: `Guten Tag\n\nGerne bestellen wir neue Schilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nWohnung: ${whg || "-"}\nGravur: ${name}\nAnzahl: je 1 Schild für Briefkasten und Klingel\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`,
+    betreff: `Namensschilder ${apt.adresse}`,
+    text: `Guten Tag\n\nWir bräuchten neue Namensschilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nGravur: ${name}\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`,
   };
 }
 // Schilderhersteller je Liegenschaft (Bestellung per Mail mit Liegenschaft, Gravur, Liefer- und Rechnungsadresse)
