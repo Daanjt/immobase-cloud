@@ -6,15 +6,18 @@ function MieterNamensschild({tenant}) {
   const [msg, setMsg] = useState("");
   const [bestelltAm, setBestelltAm] = useState(tenant.namensschild_bestellt_at||null);
   const d = (x) => x ? new Date(x).toLocaleDateString("de-CH") : "";
-  async function go(){
-    if(!confirm(`Namensschild "${name.trim()}" jetzt bestellen?`)) return;
+  const [vs, setVs] = useState(null);
+  async function rufe(extra){
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/mieter-portal`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"namensschild_bestellen", tenant_id: tenant.id, name: name.trim(), ...extra }) });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
+    return j;
+  }
+  async function vorschau(){ setBusy(true); setMsg(""); try{ setVs(await rufe({vorschau:true})); }catch(e){ setMsg(e.message); } setBusy(false); }
+  async function senden(){
     setBusy(true); setMsg("");
-    try{
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/mieter-portal`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"namensschild_bestellen", tenant_id: tenant.id, name: name.trim() }) });
-      const j = await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
-      setBestelltAm(new Date().toISOString()); setMsg(`Bestellt bei ${j.an}`);
-    }catch(e){ setMsg(e.message); }
+    try{ const j = await rufe({betreff: vs.betreff, text: vs.text}); setBestelltAm(new Date().toISOString()); setVs(null); setMsg(`Bestellt bei ${j.an}`); }
+    catch(e){ setMsg(e.message); }
     setBusy(false);
   }
   return (
@@ -28,8 +31,17 @@ function MieterNamensschild({tenant}) {
             : <div style={{color:"#a4442e",fontSize:11.5,marginBottom:6}}>Noch nicht angegeben{tenant.namensschild_erinnert_at ? ` · erinnert am ${d(tenant.namensschild_erinnert_at)}` : ""}</div>}
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <input className="fi" style={{flex:"1 1 200px",minWidth:0}} value={name} maxLength={60} onChange={e=>setName(e.target.value)} placeholder="z.B. M. Muster"/>
-            <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy||name.trim().length<2} onClick={go}>{busy?"Bestellt…":"✓ Go: bestellen"}</button>
+            <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy||name.trim().length<2} onClick={vorschau}>{busy&&!vs?"Lädt…":"✓ Go: Vorschau"}</button>
           </div>
+          {vs && <div style={{marginTop:10,background:"#fff",border:"1px solid #e3dccb",borderRadius:8,padding:10}}>
+            <div className="fl" style={{marginBottom:3}}>An</div><div style={{fontWeight:600,marginBottom:8}}>{vs.an}</div>
+            <label className="fl">Betreff</label><input className="fi" value={vs.betreff} onChange={e=>setVs({...vs,betreff:e.target.value})}/>
+            <label className="fl" style={{marginTop:8,display:"block"}}>Text</label><textarea className="fi" rows={16} style={{fontFamily:"inherit",lineHeight:1.45}} value={vs.text} onChange={e=>setVs({...vs,text:e.target.value})}/>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+              <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>setVs(null)}>Abbrechen</button>
+              <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy||!vs.betreff.trim()||!vs.text.trim()} onClick={senden}>{busy?"Sendet…":"✉ Bestellung senden"}</button>
+            </div>
+          </div>}
         </>}
       {msg && <div style={{fontSize:11.5,marginTop:6,color:/Bestellt/.test(msg)?"#3a5230":"#a4442e"}}>{msg}</div>}
     </div>

@@ -719,17 +719,28 @@ async function namensschildBestellen(req: Request, b: any) {
   if (name.length < 2 || name.length > 60) return fehler("Bitte einen gültigen Namen (2 bis 60 Zeichen) angeben.");
   const hersteller = schilderHersteller(apt);
   if (!hersteller) return fehler("Für diese Liegenschaft ist kein Schilderhersteller hinterlegt.");
+  const v = schilderMail(t, apt, name);
+  // Vorschau fuer ImmoBase: Mail anzeigen, noch nichts senden
+  if (b.vorschau) return json({ an: hersteller, betreff: v.betreff, text: v.text });
+  const betreff = String(b.betreff || v.betreff).trim().slice(0, 200);
+  const text = String(b.text || v.text).trim().slice(0, 5000);
+  if (!betreff || !text) return fehler("Betreff und Text dürfen nicht leer sein.");
+  try { await mail(hersteller, betreff, text, false, true); }
+  catch (_) { return fehler("Mailversand fehlgeschlagen.", 502); }
+  const jetzt = new Date().toISOString();
+  await sb.from("tenants").update({ namensschild: name, namensschild_at: t.namensschild_at || jetzt, namensschild_bestellt_at: jetzt }).eq("id", t.id);
+  return json({ ok: true, name, an: hersteller });
+}
+// Bestellmail an den Schilderhersteller (Liegenschaft, Gravur, Liefer- und Rechnungsadresse)
+function schilderMail(t: any, apt: any, name: string) {
   const mieter = `${t.vorname || ""} ${t.nachname || ""}`.trim();
   const ortZ = [apt.plz, apt.ort].filter(Boolean).join(" ");
   const whg = [apt.refnr ? `Nr. ${apt.refnr}` : "", apt.stockwerk || ""].filter(Boolean).join(", ");
   const adresse = `${mieter}\n${apt.adresse}${apt.refnr ? ` (Wohnung ${apt.refnr})` : ""}\n${ortZ}`;
-  try {
-    await mail(hersteller, `Schilderbestellung ${apt.adresse}${apt.refnr ? `, Wohnung ${apt.refnr}` : ""}`,
-      `Guten Tag\n\nGerne bestellen wir neue Schilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nWohnung: ${whg || "-"}\nGravur: ${name}\nAnzahl: je 1 Schild für Briefkasten und Klingel\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`, false, true);
-  } catch (_) { return fehler("Mailversand fehlgeschlagen.", 502); }
-  const jetzt = new Date().toISOString();
-  await sb.from("tenants").update({ namensschild: name, namensschild_at: t.namensschild_at || jetzt, namensschild_bestellt_at: jetzt }).eq("id", t.id);
-  return json({ ok: true, name, an: hersteller });
+  return {
+    betreff: `Schilderbestellung ${apt.adresse}${apt.refnr ? `, Wohnung ${apt.refnr}` : ""}`,
+    text: `Guten Tag\n\nGerne bestellen wir neue Schilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nWohnung: ${whg || "-"}\nGravur: ${name}\nAnzahl: je 1 Schild für Briefkasten und Klingel\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`,
+  };
 }
 // Schilderhersteller je Liegenschaft (Bestellung per Mail mit Liegenschaft, Gravur, Liefer- und Rechnungsadresse)
 function schilderHersteller(apt: any): string | null {
