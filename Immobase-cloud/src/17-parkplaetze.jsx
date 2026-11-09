@@ -755,6 +755,7 @@ const PAGES=[
   {id:"werbung",icon:"📣",label:"Werbung",group:"akquise"},
   {id:"dokumente",icon:"📁",label:"Dokumente",group:"verwaltung"},
   {id:"datencheck",icon:"🩺",label:"Datencheck",group:"verwaltung"},
+  {id:"kiwissen",icon:"🤖",label:"KI-Wissen",group:"verwaltung"},
   {id:"passwoerter",icon:"🔐",label:"Passwörter",group:"verwaltung"},
   // Zeiterfassung ausgeblendet (erfolgsbasiertes Lohnmodell); Seite bleibt im Code, falls sie wieder gebraucht wird
 
