@@ -28,6 +28,7 @@ function TodoPage({tenants, apts, rooms, documents, todos, insertTodo, updateTod
     if(!hasDoc(t,"Untermietvertrag")) auto.push({id:"umv-"+t.id,icon:"📄",label:"Untermietvertrag fehlt",sub:nm,page:"mieter",target:t.id});
     if(!hasDoc(t,"Anfangsmietzins")) auto.push({id:"amz-"+t.id,icon:"📄",label:"Anfangsmietzinsformular fehlt",sub:nm,page:"mieter",target:t.id});
     if(!((t.schluesselAnzahl||t.schluesselNr||"").toString().trim())) auto.push({id:"key-"+t.id,icon:"🔑",label:"Schlüsselnummer fehlt",sub:nm,page:"mieter",target:t.id});
+    if((t.namensschild||"").trim() && !t.namensschild_bestellt_at) auto.push({id:"ns-"+t.id+"-"+(t.namensschild_at||""),icon:"🏷️",label:"Namensschild freigeben: "+t.namensschild,sub:nm,page:"mieter",target:t.id});
     if(!(t.zivilstand||"").trim()) auto.push({id:"civ-"+t.id,icon:"👤",label:"Zivilstand fehlt",sub:nm,page:"mieter",target:t.id});
     if((t.drittmeldungStatus||"offen")!=="gemeldet") auto.push({id:"dm-ez-"+t.id,icon:"📮",label:"Drittmeldung Einzug offen",sub:nm,page:"mieter",target:t.id});
     if((t.uebergabeStatus||"offen")!=="erledigt" && !hasDoc(t,"Übergabeprotokoll") && !(handoverProtocols||[]).some(h=>h.tenant_id===t.id && ["accepted","abgeschlossen","completed"].includes(h.status))) auto.push({id:"hop-"+t.id,icon:"🔑",label:"Übergabeprotokoll fehlt",sub:nm,page:"mieter",target:t.id});

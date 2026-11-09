@@ -1,4 +1,40 @@
 // ─── MIETER ──────────────────────────────────────────────────────────────────
+// Namensschild: Mieter gibt den Namen im Portal an, hier wird er geprüft und mit "Go" beim Hersteller bestellt
+function MieterNamensschild({tenant}) {
+  const [name, setName] = useState(tenant.namensschild||"");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [bestelltAm, setBestelltAm] = useState(tenant.namensschild_bestellt_at||null);
+  const d = (x) => x ? new Date(x).toLocaleDateString("de-CH") : "";
+  async function go(){
+    if(!confirm(`Namensschild "${name.trim()}" jetzt bestellen?`)) return;
+    setBusy(true); setMsg("");
+    try{
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/mieter-portal`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"namensschild_bestellen", tenant_id: tenant.id, name: name.trim() }) });
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
+      setBestelltAm(new Date().toISOString()); setMsg(`Bestellt bei ${j.an}`);
+    }catch(e){ setMsg(e.message); }
+    setBusy(false);
+  }
+  return (
+    <div style={{background:"#faf8f3",border:"1px solid #efe7d6",borderRadius:8,padding:"12px 14px",marginTop:10,fontSize:13}}>
+      <div style={{fontSize:12,fontWeight:600,color:"#5a5448",marginBottom:6}}>Namensschild (Briefkasten &amp; Klingel)</div>
+      {bestelltAm
+        ? <div><span style={{fontWeight:600}}>{name}</span><span style={{color:"#3a5230",fontSize:11.5}}> · bestellt am {d(bestelltAm)}</span></div>
+        : <>
+          {tenant.namensschild
+            ? <div style={{color:"#8a8174",fontSize:11.5,marginBottom:6}}>Vom Mieter im Portal angegeben am {d(tenant.namensschild_at)}. Prüfen und Go geben.</div>
+            : <div style={{color:"#a4442e",fontSize:11.5,marginBottom:6}}>Noch nicht angegeben{tenant.namensschild_erinnert_at ? ` · erinnert am ${d(tenant.namensschild_erinnert_at)}` : ""}</div>}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <input className="fi" style={{flex:"1 1 200px",minWidth:0}} value={name} maxLength={60} onChange={e=>setName(e.target.value)} placeholder="z.B. M. Muster"/>
+            <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy||name.trim().length<2} onClick={go}>{busy?"Bestellt…":"✓ Go: bestellen"}</button>
+          </div>
+        </>}
+      {msg && <div style={{fontSize:11.5,marginTop:6,color:/Bestellt/.test(msg)?"#3a5230":"#a4442e"}}>{msg}</div>}
+    </div>
+  );
+}
 function MieterSchluessel({tenant, updateTenant, istWohnung}) {
   const nrStart = ((tenant.schluesselNr||"").toString().trim() || (tenant.schluesselAnzahl||"").toString().trim());
   const [edit, setEdit] = useState(false);
@@ -34,12 +70,7 @@ function MieterSchluessel({tenant, updateTenant, istWohnung}) {
           </div>
         )}
       </div>
-      {(istWohnung || tenant.namensschild) && <div style={{background:"#faf8f3",border:"1px solid #efe7d6",borderRadius:8,padding:"12px 14px",marginTop:10,fontSize:13}}>
-        <div style={{fontSize:12,fontWeight:600,color:"#5a5448",marginBottom:6}}>Namensschild (Briefkasten &amp; Klingel)</div>
-        {tenant.namensschild
-          ? <div><span style={{fontWeight:600}}>{tenant.namensschild}</span>{tenant.namensschild_at && <span style={{color:"#8a8174",fontSize:11.5}}> · im Portal angegeben am {new Date(tenant.namensschild_at).toLocaleDateString("de-CH")}</span>}{tenant.namensschild_bestellt_at && <span style={{color:"#3a5230",fontSize:11.5}}> · bei Mezza bestellt am {new Date(tenant.namensschild_bestellt_at).toLocaleDateString("de-CH")}</span>}</div>
-          : <div style={{color:"#a4442e"}}>Noch nicht angegeben{tenant.namensschild_erinnert_at ? ` · erinnert am ${new Date(tenant.namensschild_erinnert_at).toLocaleDateString("de-CH")}` : ""}</div>}
-      </div>}
+      {(istWohnung || tenant.namensschild) && <MieterNamensschild tenant={tenant}/>}
       <div style={{fontSize:11,color:"#8a8174",marginTop:10,lineHeight:1.5}}>Die Schlüsselnummern, die der Mieter im Übergabeprotokoll einträgt, werden nach Abschluss automatisch hier übernommen.</div>
     </div>
   );

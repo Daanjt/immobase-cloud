@@ -703,22 +703,33 @@ async function namensschildSetzen(t: any, b: any) {
   if (t.namensschild_bestellt_at) return fehler("Das Namensschild ist bereits bestellt. Für eine Änderung schreib uns bitte an info@dthomes.ch. / The name sign has already been ordered. To change it, please write to info@dthomes.ch.");
   const { error } = await sb.from("tenants").update({ namensschild: name, namensschild_at: new Date().toISOString() }).eq("id", t.id);
   if (error) return fehler("Speichern fehlgeschlagen.", 500);
-  // Bestellung direkt an den Schilderhersteller der Liegenschaft
+  return json({ ok: true, name, am: fmt(new Date()) });
+}
+
+// Go aus ImmoBase: Namensschild beim Hersteller der Liegenschaft bestellen (nur Admin). {tenant_id, name?}
+async function namensschildBestellen(req: Request, b: any) {
+  if (!(await istAdminOderServer(req))) return fehler("Nicht berechtigt", 403);
+  const { data: t0 } = await sb.from("tenants").select(MIETER_FELDER).eq("id", String(b.tenant_id || "")).maybeSingle();
+  if (!t0) return fehler("Mieter nicht gefunden.", 404);
+  if (t0.namensschild_bestellt_at && !b.erneut) return fehler("Das Namensschild wurde bereits bestellt.");
+  const t = await mitRaum(t0);
+  const apt = await ladeApt(t);
+  if (apt?.vermietungsart !== "wohnung") return fehler("Nur bei ganzen Wohnungen.");
+  const name = String(b.name || t.namensschild || "").replace(/\s+/g, " ").trim();
+  if (name.length < 2 || name.length > 60) return fehler("Bitte einen gültigen Namen (2 bis 60 Zeichen) angeben.");
   const hersteller = schilderHersteller(apt);
-  let bestellt = false;
-  if (hersteller) {
-    try {
-      const mieter = `${t.vorname || ""} ${t.nachname || ""}`.trim();
-      const ortZ = [apt.plz, apt.ort].filter(Boolean).join(" ");
-      const whg = [apt.refnr ? `Nr. ${apt.refnr}` : "", apt.stockwerk || ""].filter(Boolean).join(", ");
-      const adresse = `${mieter}\n${apt.adresse}${apt.refnr ? ` (Wohnung ${apt.refnr})` : ""}\n${ortZ}`;
-      await mail(hersteller, `Schilderbestellung ${apt.adresse}${apt.refnr ? `, Wohnung ${apt.refnr}` : ""}`,
-        `Guten Tag\n\nGerne bestellen wir neue Schilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nWohnung: ${whg || "-"}\nGravur: ${name}\nAnzahl: je 1 Schild für Briefkasten und Klingel\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`, false, true);
-      await sb.from("tenants").update({ namensschild_bestellt_at: new Date().toISOString() }).eq("id", t.id);
-      bestellt = true;
-    } catch (e) { console.error("schilderbestellung", t.id, e); }
-  }
-  return json({ ok: true, name, am: fmt(new Date()), bestellt });
+  if (!hersteller) return fehler("Für diese Liegenschaft ist kein Schilderhersteller hinterlegt.");
+  const mieter = `${t.vorname || ""} ${t.nachname || ""}`.trim();
+  const ortZ = [apt.plz, apt.ort].filter(Boolean).join(" ");
+  const whg = [apt.refnr ? `Nr. ${apt.refnr}` : "", apt.stockwerk || ""].filter(Boolean).join(", ");
+  const adresse = `${mieter}\n${apt.adresse}${apt.refnr ? ` (Wohnung ${apt.refnr})` : ""}\n${ortZ}`;
+  try {
+    await mail(hersteller, `Schilderbestellung ${apt.adresse}${apt.refnr ? `, Wohnung ${apt.refnr}` : ""}`,
+      `Guten Tag\n\nGerne bestellen wir neue Schilder für Briefkasten und Klingel:\n\nLiegenschaft: ${apt.adresse}, ${ortZ}\nWohnung: ${whg || "-"}\nGravur: ${name}\nAnzahl: je 1 Schild für Briefkasten und Klingel\n\nLieferadresse:\n${adresse}\n\nRechnungsadresse:\n${adresse}\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`, false, true);
+  } catch (_) { return fehler("Mailversand fehlgeschlagen.", 502); }
+  const jetzt = new Date().toISOString();
+  await sb.from("tenants").update({ namensschild: name, namensschild_at: t.namensschild_at || jetzt, namensschild_bestellt_at: jetzt }).eq("id", t.id);
+  return json({ ok: true, name, an: hersteller });
 }
 // Schilderhersteller je Liegenschaft (Bestellung per Mail mit Liegenschaft, Gravur, Liefer- und Rechnungsadresse)
 function schilderHersteller(apt: any): string | null {
@@ -958,6 +969,7 @@ Deno.serve(async (req) => {
       case "pp_schluessel_bestaetigen": return await ppSchluesselBestaetigen(b);
       case "pp_schluessel_senden": return await ppSchluesselSenden(req, b);
       case "namensschild_erinnerung": return await namensschildErinnerung(req, b);
+      case "namensschild_bestellen": return await namensschildBestellen(req, b);
     }
     const s = await mieterPerSitzung(req);
     if (!s) return fehler("Bitte melde dich neu an.", 401);
