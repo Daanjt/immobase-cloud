@@ -5,6 +5,8 @@
 //      (send-handover-pdf). Damit hat ein auto-akzeptiertes Protokoll dasselbe
 //      Dokument wie ein eingereichtes.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { waSenden, telefonVon } from "../_shared/whatsapp.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -502,6 +504,11 @@ Deno.serve(async (req: Request) => {
               throw mailErr;
             }
           }
+          try {
+            const sbw = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+            const tel = await telefonVon(sbw, { tenant_id: p.tenant_id, bewerber_id: p.bewerber_id, fallback: p.mieter_telefon });
+            await waSenden(sbw, { art: "uebernahme", ref: `${p.id}:${stufe}`, telefon: tel, en, params: [name, fristText(p.deadline, en), signUrl] });
+          } catch (waErr) { console.error("whatsapp uebernahme", waErr); }
           if (stufe === "final") results.reminder_12d_sent++; else results.reminder_7d_sent++;
         }
       } catch (e) {

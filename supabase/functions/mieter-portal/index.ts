@@ -13,6 +13,7 @@
 import { KREDITOR, qrInhalt, qrPng, b64 as b64Png } from "../_shared/qrrechnung.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer } from "../_shared/auth.ts";
+import { waSenden, telefonVon } from "../_shared/whatsapp.ts";
 import {
   generateAuthenticationOptions, generateRegistrationOptions,
   verifyAuthenticationResponse, verifyRegistrationResponse,
@@ -776,6 +777,7 @@ async function namensschildErinnerung(req: Request, b: any) {
         en ? `Hi ${t.vorname || ""},\n\nso that your mail arrives reliably and visitors find you, we will have a name sign made for your mailbox and doorbell at ${adr}.\n\nPlease let us know in the tenant portal which name should be on it. Usually it is the first initial and the surname, e.g. M. Muster (or M. Muster / A. Beispiel for two people):\n\n${link}\n\nPlease note that the cost of the name sign is borne by the tenant.\n\nIt only takes a minute. Thank you!\n\nBest regards\nYour D&T Homes Team`
            : `Hallo ${t.vorname || ""},\n\ndamit deine Post zuverlässig ankommt und dich Besuch findet, lassen wir für deinen Briefkasten und deine Klingel an der ${adr} ein Namensschild machen.\n\nBitte gib uns im Mieterportal an, welcher Name darauf stehen soll. Meistens ist es der erste Buchstabe des Vornamens und der Nachname, z.B. M. Muster (bei zwei Personen M. Muster / A. Beispiel):\n\n${link}\n\nDie Kosten für das Namensschild werden vom Mieter getragen.\n\nDas dauert nur eine Minute. Danke dir!\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
       await sb.from("tenants").update({ namensschild_erinnert_at: new Date().toISOString() }).eq("id", t.id);
+      try { await waSenden(sb, { art: "namensschild", ref: String(t.id), telefon: await telefonVon(sb, { tenant_id: t.id }), en, params: [t.vorname || (en ? "there" : "zusammen"), link] }); } catch (_) { /* WhatsApp ist Zusatz */ }
       gesendet++;
     } catch (e) { console.error("namensschild mail", t.id, e); }
   }

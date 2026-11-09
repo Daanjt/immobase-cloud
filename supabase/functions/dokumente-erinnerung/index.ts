@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { benoetigteDokumente, DOK_FELDER, KAT_A, KAT_B } from "../_shared/dokumente.ts";
+import { waSenden, telefonVon } from "../_shared/whatsapp.ts";
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
 const KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -82,7 +83,12 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ to: p.c.mieter_email, betreff: m.betreff, text: m.text, sprache: en ? "en" : "de" }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
-      res.push({ vertrag: p.c.id, nr: p.nr, ok: true });
+      let wa: any = null;
+      try {
+        const tel = await telefonVon(sb, { tenant_id: p.c.tenant_id, bewerber_id: p.c.bewerber_id });
+        wa = await waSenden(sb, { art: "dokumente", ref: `${p.c.id}:${p.nr}`, telefon: tel, en: !!en, params: [String(p.c.mieter_vorname || "").trim().split(/\s+/)[0] || (en ? "there" : "zusammen"), `${PORTAL}/dokumente/${p.c.token}`] });
+      } catch (e) { console.error("whatsapp dokumente", e); }
+      res.push({ vertrag: p.c.id, nr: p.nr, ok: true, whatsapp: wa?.status || null });
     } catch (e) {
       await sb.from("contracts").update({ dok_mail_count: p.nr }).eq("id", p.c.id);
       res.push({ vertrag: p.c.id, nr: p.nr, error: String(e).slice(0, 200) });

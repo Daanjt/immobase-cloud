@@ -1,6 +1,8 @@
 // send-contract-email - Vertragslink an Mieter (DE/EN), Logo eingebettet.
 // Nur fuer eingeloggte Admins bzw. serverseitig.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { waSenden, telefonVon } from "../_shared/whatsapp.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -192,7 +194,14 @@ Deno.serve(async (req: Request) => {
     });
     if (!resendRes.ok) { const err = await resendRes.text(); throw new Error(`Resend error: ${resendRes.status} ${err}`); }
     const resendData = await resendRes.json();
-    return json({ ok: true, emailId: resendData.id, signUrl, to: c.mieter_email });
+    // zusaetzlich per WhatsApp (falls YCloud eingerichtet und Nummer vorhanden)
+    let whatsapp: any = null;
+    try {
+      const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+      const tel = await telefonVon(sb, { tenant_id: c.tenant_id, bewerber_id: c.bewerber_id, fallback: c.contract_data?.bewerber?.phone || c.contract_data?.mieter_telefon || null });
+      whatsapp = await waSenden(sb, { art: "vertrag", ref: `${c.id}:${c.token}`, telefon: tel, en, params: [String(c.mieter_vorname || "").trim().split(/\s+/)[0] || T("zusammen", "there"), signUrl] });
+    } catch (e) { console.error("whatsapp vertrag", e); }
+    return json({ ok: true, emailId: resendData.id, signUrl, to: c.mieter_email, whatsapp });
   } catch (err) {
     console.error("send-contract-email error:", err);
     return json({ error: String((err as Error).message || err) }, 500);

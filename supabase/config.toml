@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.mieter-portal]
 verify_jwt = false
+
+[functions.whatsapp]
+verify_jwt = false
