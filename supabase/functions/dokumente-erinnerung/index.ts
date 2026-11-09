@@ -1,7 +1,7 @@
 // dokumente-erinnerung - stuendlicher Cron-Job
 // Nach der Unterschrift des Mieters: Mail mit Upload-Link, falls noch Dokumente fehlen.
 // Welche Dokumente noetig sind (Wohnung / WG / Kautionsreduktion): _shared/dokumente.ts 1. Mail ab 1 Stunde nach Unterschrift,
-// Erinnerungen nach 3 und 7 Tagen. Danach keine weiteren Mails.
+// eine einzige Erinnerung nach 7 Tagen. Danach keine weiteren Mails.
 // Body {"dry":true} zeigt nur, wer eine Mail bekaeme.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   const sb = createClient(URL_, KEY);
   const { data: vertraege, error } = await sb.from("contracts")
     .select(`id, token, status, tenant_id, bewerber_id, mieter_email, mieter_vorname, signed_at, dok_mail_count, dok_mail_last, adresse:contract_data->>adresse, sprache:contract_data->>sprache, lang:contract_data->>lang, bsprache:contract_data->bewerber->>sprache, ${DOK_FELDER}`)
-    .gte("signed_at", new Date(AB_WOHNUNG).toISOString()).lt("dok_mail_count", 3)
+    .gte("signed_at", new Date(AB_WOHNUNG).toISOString()).lt("dok_mail_count", 2)
     .in("status", ["mieter_signiert", "signiert"]);
   if (error) return json({ error: error.message }, 500);
   const jetzt = Date.now();
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     if (!fehltB && !fehltA) continue;
     const nr = c.dok_mail_count || 0;
     const signiert = new Date(c.signed_at).getTime();
-    const faellig = nr === 0 ? signiert + 1 * H : nr === 1 ? signiert + 72 * H : signiert + 168 * H;
+    const faellig = nr === 0 ? signiert + 1 * H : signiert + 168 * H;
     if (jetzt < faellig) continue;
     plan.push({ c, nr, fehltB, fehltA, adresse, wohnung: bedarf.wohnung });
   }
