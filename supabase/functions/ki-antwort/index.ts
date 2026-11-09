@@ -66,7 +66,9 @@ Deno.serve(async (req) => {
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: cfg } = await sb.from("app_config").select("key,value").in("key", ["anthropic_api_key", "anthropic_model"]);
     const c: Record<string, string> = Object.fromEntries((cfg || []).map((r: any) => [r.key, r.value]));
-    if (!c.anthropic_api_key) return json({ error: "anthropic_api_key fehlt" }, 400);
+    c.anthropic_api_key = Deno.env.get("ANTHROPIC_API_KEY") || c.anthropic_api_key || "";
+    c.anthropic_model = Deno.env.get("ANTHROPIC_MODEL") || c.anthropic_model || "claude-sonnet-5";
+    if (!c.anthropic_api_key) return json({ error: "Kein Anthropic-Schlüssel hinterlegt" }, 400);
     const { data: wissen } = await sb.from("ki_wissen").select("titel, inhalt").eq("aktiv", true).order("sort");
     const wissenText = (wissen || []).map((w: any) => `## ${w.titel}\n${w.inhalt}`).join("\n\n");
     const live = await angebot(sb);
@@ -92,7 +94,7 @@ ${live}`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": c.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: c.anthropic_model || "claude-sonnet-4-5", max_tokens: 800, system, messages: msgs }),
+      body: JSON.stringify({ model: c.anthropic_model, max_tokens: 800, system, messages: msgs }),
     });
     const j = await r.json();
     if (!r.ok) return json({ error: "KI-Fehler: " + JSON.stringify(j).slice(0, 300) }, 502);
