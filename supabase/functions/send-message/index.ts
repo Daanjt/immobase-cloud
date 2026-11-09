@@ -1,11 +1,17 @@
 // Versendet eine Nachricht aus den ImmoBase-Vorlagen im einheitlichen D&T-Mail-Design.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { istTeamOderServer, verweigert } from "../_shared/auth.ts";
+import { istTeamOderServer, istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = "D&T Homes <noreply@dthomes.ch>";
 const REPLY_TO = "info@dthomes.ch";
 const BCC = "daan.theijse@dthomes.ch";
+// persoenliche Mail im Namen von Daan (z.B. Bestellungen an Lieferanten): eigener Absender, schlichtes Layout ohne D&T-Huelle
+const PERSOENLICH_FROM = "Daan Theijse <daan.theijse@dthomes.ch>";
+function schlicht(text: string) {
+  const inner = String(text || "").replace(/\r\n/g, "\n").trim().split("\n").map((z) => `<div>${z.trim() ? esc(z) : "<br>"}</div>`).join("\n");
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Aptos,'Segoe UI',Calibri,Helvetica,Arial,sans-serif;font-size:11pt;color:#000;">${inner}</body></html>`;
+}
 const LOGO_URL = "https://mieter.dthomes.ch/dt-logo.png";
 const WA_DIGITS = "41766887091";
 const WA_DISPLAY = "+41 76 688 70 91";
@@ -53,19 +59,21 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (!(await istTeamOderServer(req))) return verweigert(CORS);
   try {
-    const { to, betreff, text, sprache, cc, ohneBcc, anhaenge } = await req.json().catch(() => ({}));
+    const { to, betreff, text, sprache, cc, ohneBcc, anhaenge, persoenlich } = await req.json().catch(() => ({}));
     if (!to) return json({ error: "Keine E-Mail-Adresse." }, 400);
     if (!String(text || "").trim()) return json({ error: "Der Text ist leer." }, 400);
     const en = sprache === "en";
-    const logoB64 = await ladeLogo();
-    const html = huelle(textZuHtml(text), logoB64 ? "cid:dt-logo" : LOGO_URL, en);
+    const pers = !!persoenlich;
+    if (pers && !(await istAdminOderServer(req))) return verweigert(CORS);
+    const logoB64 = pers ? null : await ladeLogo();
+    const html = pers ? schlicht(text) : huelle(textZuHtml(text), logoB64 ? "cid:dt-logo" : LOGO_URL, en);
     const toList = String(to).split(/[;,]/).map((x) => x.trim()).filter(Boolean);
     const ccList = cc ? String(cc).split(/[;,]/).map((x) => x.trim()).filter(Boolean) : [];
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: FROM_EMAIL, to: toList, ...(ccList.length ? { cc: ccList } : {}), ...(ohneBcc ? {} : { bcc: [BCC] }), reply_to: REPLY_TO,
+        from: pers ? PERSOENLICH_FROM : FROM_EMAIL, to: toList, ...(ccList.length ? { cc: ccList } : {}), ...(ohneBcc ? {} : { bcc: [BCC] }), reply_to: pers ? BCC : REPLY_TO,
         subject: betreff || (en ? "Message from D&T Homes" : "Mitteilung von D&T Homes"), html, text,
         attachments: [...(logoB64 ? [{ filename: "logo.png", content: logoB64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : []), ...(Array.isArray(anhaenge) ? anhaenge.filter((a: any) => a && a.filename && a.content).slice(0, 5).map((a: any) => ({ filename: String(a.filename), content: String(a.content) })) : [])],
       }),

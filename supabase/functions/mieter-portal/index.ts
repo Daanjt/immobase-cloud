@@ -725,7 +725,12 @@ async function namensschildBestellen(req: Request, b: any) {
   const betreff = String(b.betreff || v.betreff).trim().slice(0, 200);
   const text = String(b.text || v.text).trim().slice(0, 5000);
   if (!betreff || !text) return fehler("Betreff und Text dürfen nicht leer sein.");
-  try { await mail(hersteller, betreff, text, false, true); }
+  try {
+    // persoenlich von Daans Adresse, Kopie (BCC) an ihn selbst
+    const r = await fetch(`${URL_}/functions/v1/send-message`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ to: hersteller, betreff, text, sprache: "de", persoenlich: true }) });
+    if (!r.ok) throw new Error(await r.text());
+  }
   catch (_) { return fehler("Mailversand fehlgeschlagen.", 502); }
   const jetzt = new Date().toISOString();
   await sb.from("tenants").update({ namensschild: name, namensschild_at: t.namensschild_at || jetzt, namensschild_bestellt_at: jetzt }).eq("id", t.id);
