@@ -1,6 +1,48 @@
 // ─── MIETER ──────────────────────────────────────────────────────────────────
 // Namensschild: Mieter gibt den Namen im Portal an, hier wird er geprüft und mit "Go" beim Hersteller bestellt
-function MieterNamensschild({tenant}) {
+// Seite "Namensschilder": alle Mieter ganzer Wohnungen mit Stand (offen / zur Freigabe / bestellt)
+function nsMieterGanzeWohnung(tenants, rooms, apts){
+  return (tenants||[]).filter(t=>t.status!=="archiviert").map(t=>{
+    const r=(rooms||[]).find(x=>x.tenantId===t.id)||(t.roomId?(rooms||[]).find(x=>x.id===t.roomId):null);
+    const a=r?(apts||[]).find(x=>x.id===r.aptId):null;
+    return a&&a.vermietungsart==="wohnung"?{t,a}:null;
+  }).filter(Boolean);
+}
+function nsStand(t){ return t.namensschild_bestellt_at?"bestellt":((t.namensschild||"").trim()?"freigabe":"offen"); }
+function NamensschilderPage({tenants, rooms, apts, navigateTo, loadAll}){
+  const [filter, setFilter] = useState("");
+  const liste = nsMieterGanzeWohnung(tenants, rooms, apts).sort((x,y)=>(x.a.adresse||"").localeCompare(y.a.adresse||"")||String(x.a.refnr||"").localeCompare(String(y.a.refnr||"")));
+  const n = (k)=>liste.filter(x=>nsStand(x.t)===k).length;
+  const ST = {offen:["Noch nicht angegeben","#a4442e","#fbeae6"],freigabe:["Zur Freigabe","#8a6d3b","#f6eedb"],bestellt:["Bestellt","#3d4f2f","#e8eadb"]};
+  const zeigen = filter ? liste.filter(x=>nsStand(x.t)===filter) : liste;
+  const d = (x)=>x?new Date(x).toLocaleDateString("de-CH"):"";
+  return (
+    <div>
+      <div className="pt">Namensschilder</div>
+      <div className="ps">Briefkasten &amp; Klingel bei ganzen Wohnungen. Die Mieter geben den Namen im Mieterportal an, hier gibst du das Go für die Bestellung.</div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",margin:"14px 0"}}>
+        {[["","Alle",liste.length,"#5a5448","#f3efe7"],["offen",ST.offen[0],n("offen"),ST.offen[1],ST.offen[2]],["freigabe",ST.freigabe[0],n("freigabe"),ST.freigabe[1],ST.freigabe[2]],["bestellt",ST.bestellt[0],n("bestellt"),ST.bestellt[1],ST.bestellt[2]]].map(([k,l,z,c,bg])=>(
+          <button key={k||"alle"} onClick={()=>setFilter(k)} style={{background:bg,color:c,border:filter===k?`2px solid ${c}`:"2px solid transparent",borderRadius:10,padding:"10px 14px",cursor:"pointer",textAlign:"left",minWidth:130,fontFamily:"inherit"}}>
+            <div style={{fontSize:22,fontWeight:700,lineHeight:1.1}}>{z}</div><div style={{fontSize:12,fontWeight:600}}>{l}</div>
+          </button>))}
+      </div>
+      {zeigen.length===0 && <div className="card" style={{color:"#8a8174"}}>Keine Einträge.</div>}
+      {zeigen.map(({t,a})=>{ const st=nsStand(t); return (
+        <div key={t.id} className="card" style={{marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+            <div>
+              <button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"inherit",color:"var(--ink)"}}>{`${t.vorname||""} ${t.nachname||""}`.trim()||t.id}</button>
+              <div style={{fontSize:12,color:"#8a8174"}}>{a.adresse}{a.refnr?` · Wohnung ${a.refnr}`:""}{a.stockwerk?` · ${a.stockwerk}`:""}{t.einzug?` · Einzug ${t.einzug}`:""}</div>
+            </div>
+            <span style={{background:ST[st][2],color:ST[st][1],fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:10}}>{ST[st][0]}</span>
+          </div>
+          {st==="offen" && <div style={{fontSize:12,color:"#8a8174",marginTop:6}}>{t.namensschild_erinnert_at?`Erinnert am ${d(t.namensschild_erinnert_at)}`:"Noch nicht erinnert"}</div>}
+          {st!=="offen" && <MieterNamensschild key={t.id+(t.namensschild_bestellt_at||"")} tenant={t} onBestellt={loadAll}/>}
+        </div>); })}
+    </div>
+  );
+}
+function MieterNamensschild({tenant, onBestellt}) {
   const [name, setName] = useState(tenant.namensschild||"");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -16,7 +58,7 @@ function MieterNamensschild({tenant}) {
   async function vorschau(){ setBusy(true); setMsg(""); try{ setVs(await rufe({vorschau:true})); }catch(e){ setMsg(e.message); } setBusy(false); }
   async function senden(){
     setBusy(true); setMsg("");
-    try{ const j = await rufe({betreff: vs.betreff, text: vs.text}); setBestelltAm(new Date().toISOString()); setVs(null); setMsg(`Bestellt bei ${j.an}`); }
+    try{ const j = await rufe({betreff: vs.betreff, text: vs.text}); setBestelltAm(new Date().toISOString()); setVs(null); setMsg(`Bestellt bei ${j.an}`); onBestellt&&onBestellt(); }
     catch(e){ setMsg(e.message); }
     setBusy(false);
   }

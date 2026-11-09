@@ -742,6 +742,7 @@ const PAGES=[
   {id:"uebergaben",icon:"🔑",label:"Übergaben",group:"vermietung"},
   {id:"parkplaetze",icon:"🅿️",label:"Parkplätze",group:"vermietung"},
   {id:"reinigung",icon:"🧽",label:"Reinigung & Umzug",group:"vermietung"},
+  {id:"namensschilder",icon:"🏷️",label:"Namensschilder",group:"vermietung"},
   {id:"zahlungen",icon:"💰",label:"Zahlungen",group:"finanzen"},
   {id:"finanzen",icon:"📊",label:"Finanzen",group:"finanzen"},
   {id:"auslagen",icon:"💳",label:"Geschäftskarte",group:"finanzen"},
