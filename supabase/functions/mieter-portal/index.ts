@@ -86,7 +86,7 @@ async function mail(to: string, betreff: string, text: string, en: boolean, mitB
   if (!r.ok) throw new Error("Mailversand fehlgeschlagen");
 }
 
-const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, kaution_abrechnung, extra_schluessel, archived_at";
+const MIETER_FELDER = "id, vorname, nachname, email, phone, sprache, status, deleted_at, portal_gesperrt, portal_token, nachfolge_token, auszug, einzug, apt_id, room_id, bewerber_id, mietzins, strom, personen, kaution_betrag, kaution_monate, kaution_aufschlag, kaution_abrechnung, extra_schluessel, archived_at, namensschild, namensschild_at, namensschild_erinnert_at";
 
 // Prueft, ob der Mieter das Portal (noch) nutzen darf
 // Zugang bleibt bis 3 Monate nach dem Auszug (bzw. nach der Archivierung, falls kein Auszug eingetragen ist)
@@ -445,6 +445,8 @@ async function uebersicht(t: any, sitzungId: string, req: Request) {
     passkey: (pk || 0) > 0,
     // WLAN in allen WG-Zimmern gleich (wie in der Uebernahme-Mail); ganze Wohnungen haben eigenes Internet
     wlan: wohnung ? null : { name: "D&T Homes", passwort: "Welcome!" },
+    // Namensschild (Briefkasten/Klingel): nur bei ganzen Wohnungen
+    namensschild: wohnung ? { name: t.namensschild || "", am: t.namensschild_at ? fmt(new Date(t.namensschild_at)) : null, vorschlag: `${t.vorname || ""} ${t.nachname || ""}`.trim() } : null,
     hausinfos: (t.sprache === "en" ? (lg?.hausinfos_en || lg?.hausinfos) : (lg?.hausinfos || lg?.hausinfos_en)) || "",
     hausinfos_de: lg?.hausinfos || lg?.hausinfos_en || "",
     hausinfos_en: lg?.hausinfos_en || lg?.hausinfos || "",
@@ -691,6 +693,48 @@ async function serviceAnfrage(t: any, b: any) {
   return json({ ok: true });
 }
 
+// Namensschild für Briefkasten und Klingel (nur ganze Wohnungen)
+async function namensschildSetzen(t: any, b: any) {
+  const apt = await ladeApt(t);
+  if (apt?.vermietungsart !== "wohnung") return fehler("Das Namensschild ist nur bei ganzen Wohnungen möglich.");
+  const name = String(b.name || "").replace(/\s+/g, " ").trim();
+  if (name.length < 2) return fehler("Bitte gib den Namen für das Namensschild ein.");
+  if (name.length > 60) return fehler("Der Name ist zu lang (max. 60 Zeichen).");
+  const { error } = await sb.from("tenants").update({ namensschild: name, namensschild_at: new Date().toISOString() }).eq("id", t.id);
+  if (error) return fehler("Speichern fehlgeschlagen.", 500);
+  return json({ ok: true, name, am: fmt(new Date()) });
+}
+// Einmalige Erinnerung an Mieter ganzer Wohnungen ohne Namensschild (nur Server/Admin). {probe:true} = nur Liste
+async function namensschildErinnerung(req: Request, b: any) {
+  if (!(await istAdminOderServer(req))) return fehler("Nicht berechtigt", 403);
+  const { data: ts } = await sb.from("tenants").select(MIETER_FELDER).eq("status", "aktiv").is("deleted_at", null).is("archived_at", null).is("namensschild", null);
+  const ziele: any[] = [];
+  for (const t0 of (ts || [])) {
+    if (!t0.email || !t0.portal_token || !zugangOk(t0)) continue;
+    if (t0.namensschild_erinnert_at && !b.erneut) continue;
+    const t = await mitRaum(t0);
+    const apt = await ladeApt(t);
+    if (apt?.vermietungsart !== "wohnung") continue;
+    ziele.push({ t, apt });
+  }
+  const liste = ziele.map(({ t, apt }) => ({ id: t.id, name: `${t.vorname || ""} ${t.nachname || ""}`.trim(), email: t.email, wohnung: apt?.id, adresse: apt?.adresse }));
+  if (b.probe) return json({ anzahl: liste.length, liste });
+  let gesendet = 0;
+  for (const { t, apt } of ziele) {
+    const en = t.sprache === "en";
+    const link = `${portalBasis(req)}/p/${t.portal_token}`;
+    const adr = [apt?.adresse, [apt?.plz, apt?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    try {
+      await mail(t.email, en ? "Your name for the mailbox and doorbell" : "Dein Name für Briefkasten und Klingel",
+        en ? `Hi ${t.vorname || ""},\n\nso that your mail arrives reliably and visitors find you, we will have a name sign made for your mailbox and doorbell at ${adr}.\n\nPlease let us know in the tenant portal which name should be on it (e.g. both names if you live there as a couple):\n\n${link}\n\nIt only takes a minute. Thank you!\n\nBest regards\nYour D&T Homes Team`
+           : `Hallo ${t.vorname || ""},\n\ndamit deine Post zuverlässig ankommt und dich Besuch findet, lassen wir für deinen Briefkasten und deine Klingel an der ${adr} ein Namensschild machen.\n\nBitte gib uns im Mieterportal an, welcher Name darauf stehen soll (z.B. beide Namen, wenn ihr zu zweit wohnt):\n\n${link}\n\nDas dauert nur eine Minute. Danke dir!\n\nLiebe Grüsse\nDein D&T Homes Team`, en);
+      await sb.from("tenants").update({ namensschild_erinnert_at: new Date().toISOString() }).eq("id", t.id);
+      gesendet++;
+    } catch (e) { console.error("namensschild mail", t.id, e); }
+  }
+  return json({ ok: true, gesendet, liste });
+}
+
 // Übergabeprotokoll (Einzug): normalerweise starten wir es, der Mieter darf es ab dem Einzugstag aber auch selbst starten
 function datumVon(x: string): Date | null {
   const s = String(x || "").trim();
@@ -892,6 +936,7 @@ Deno.serve(async (req) => {
       case "pp_schluessel_laden": return await ppSchluesselLaden(b);
       case "pp_schluessel_bestaetigen": return await ppSchluesselBestaetigen(b);
       case "pp_schluessel_senden": return await ppSchluesselSenden(req, b);
+      case "namensschild_erinnerung": return await namensschildErinnerung(req, b);
     }
     const s = await mieterPerSitzung(req);
     if (!s) return fehler("Bitte melde dich neu an.", 401);
@@ -908,6 +953,7 @@ Deno.serve(async (req) => {
       case "nachmieter": return await nachmieter(s.t, b);
       case "service": return await serviceAnfrage(s.t, b);
       case "uebergabe_starten": return await uebergabeStarten(s.t, req, b);
+      case "namensschild": return await namensschildSetzen(s.t, b);
     }
     return fehler("Unbekannte Aktion.");
   } catch (e) {
