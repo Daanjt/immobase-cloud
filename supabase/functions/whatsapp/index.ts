@@ -44,6 +44,23 @@ Deno.serve(async (req) => {
       }
       return json({ ergebnis: erg });
     }
+    if (b.aktion === "webhook_einrichten") {
+      const key = waKey(); if (!key) return json({ error: "YCLOUD_API_KEY fehlt" }, 400);
+      const url = `${URL_}/functions/v1/whatsapp-eingang`;
+      const versuche = [["whatsapp.inbound_message.received", "whatsapp.smb.message.echoes"], ["whatsapp.inbound_message.received"]];
+      let letzte: any = null;
+      for (const ev of versuche) {
+        const r = await fetch("https://api.ycloud.com/v2/webhookEndpoints", { method: "POST", headers: { "X-API-Key": key, "Content-Type": "application/json" },
+          body: JSON.stringify({ url, enabledEvents: ev, description: "ImmoBase whatsapp-eingang" }) });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.secret) {
+          await sb.from("app_config").upsert({ key: "ycloud_webhook_secret", value: j.secret }, { onConflict: "key" });
+          return json({ ok: true, id: j.id, events: ev });
+        }
+        letzte = { status: r.status, j };
+      }
+      return json({ error: "Webhook konnte nicht angelegt werden", details: JSON.stringify(letzte).slice(0, 400) }, 502);
+    }
     if (b.aktion === "vorlagen_einreichen") return json({ ergebnis: await vorlagenEinreichen(Array.isArray(b.nur) ? b.nur : undefined) });
     if (b.aktion === "bewerber_kontakt") {
       // Erste Kontaktaufnahme mit einem Bewerber (Vorlage dt_bewerbung_interesse)

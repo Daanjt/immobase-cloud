@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.ki-antwort]
 verify_jwt = false
+
+[functions.whatsapp-eingang]
+verify_jwt = false
