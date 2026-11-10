@@ -297,6 +297,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
       mietbeginn:form.mietbeginn,mietende:form.mietende,
       verwaltung:form.verwaltung,eigentuemer:form.eigentuemer,
       refnr:form.refnr,vertrag:form.vertrag,
+      kellernummer:form.kellernummer||"",
       pipeline:!!form.pipeline,
       ausschreiben:!!form.ausschreiben,
       nichtAusschreiben:!!form.nichtAusschreiben,
@@ -397,6 +398,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
       eigentuemer: newForm.eigentuemer || "",
       refzins: newForm.refzins || "",
       refnr: newForm.refnr || "",
+      kellernummer: newForm.kellernummer || "",
       vertrag: newForm.vertrag || "",
       pipeline: !!newForm.pipeline,
       ausschreiben: !!newForm.ausschreiben,
@@ -557,6 +559,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
                   ["Kautionstyp",apt.kautionType||apt.kaution_type],
                   ["Referenzzinssatz",apt.refzins?`${apt.refzins}%`:"-"],
                   ["Referenz-Nr.",apt.refnr||"-"],
+                  ["Kellernummer",apt.kellernummer||"-"],
                   (()=>{ const l=(parkplaetze||[]).filter(p=>p.apt_id===apt.id); return l.length>0 && ["Parkplätze", <span style={{cursor:"pointer",textDecoration:"underline dotted"}} onClick={()=>navigateTo&&navigateTo("parkplaetze",null)}>{l.map(p=>p.bezeichnung).join(", ")}</span>]; })(),
                   ["Mietbeginn",apt.mietbeginn],
                   ["Mietende",apt.mietende||"-"],
@@ -759,6 +762,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
         <AnsprechpersonFeld adresse={newForm.adresse} verwaltung={newForm.verwaltung} value={anspNeu} onChange={setAnspNeu} onLiegenschaft={verwaltungVorschlag(setNewForm, newForm.verwaltung)} />
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={newForm.refnr||""} onChange={NF("refnr")}/></div>
+          <div className="fg"><label className="fl">Kellernummer</label><input className="fi" value={newForm.kellernummer||""} onChange={NF("kellernummer")} placeholder="z.B. K12"/></div>
         </div>
 
 
@@ -890,6 +894,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
         <AnsprechpersonFeld adresse={form.adresse} verwaltung={form.verwaltung} value={anspEdit} onChange={setAnspEdit} />
         <div className="frow">
           <div className="fg"><label className="fl">Referenz-Nr.</label><input className="fi" value={form.refnr||""} onChange={F("refnr")}/></div>
+          <div className="fg"><label className="fl">Kellernummer</label><input className="fi" value={form.kellernummer||""} onChange={F("kellernummer")} placeholder="z.B. K12"/></div>
         </div>
 
 
