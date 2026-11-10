@@ -4,7 +4,7 @@
 // {aktion:"ausstehend"}          -> Cron: Einladung zum Übernahmeprotokoll per WhatsApp (neue Protokolle)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
-import { waKey, waSenden, telefonVon, vorlagenEinreichen, VORLAGEN } from "../_shared/whatsapp.ts";
+import { waKey, waSenden, telefonVon, vorlagenEinreichen, VORLAGEN, normTelefon } from "../_shared/whatsapp.ts";
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
 const KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -44,7 +44,28 @@ Deno.serve(async (req) => {
       }
       return json({ ergebnis: erg });
     }
-    if (b.aktion === "vorlagen_einreichen") return json({ ergebnis: await vorlagenEinreichen() });
+    if (b.aktion === "vorlagen_einreichen") return json({ ergebnis: await vorlagenEinreichen(Array.isArray(b.nur) ? b.nur : undefined) });
+    if (b.aktion === "bewerber_kontakt") {
+      // Erste Kontaktaufnahme mit einem Bewerber (Vorlage dt_bewerbung_interesse)
+      const { data: a } = await sb.from("applicants").select("id, vorname, phone, sprache, zimmer_wunsch, zugeteiltes_zimmer, owner").eq("id", String(b.bewerber_id || "")).maybeSingle();
+      if (!a) return json({ error: "Bewerber nicht gefunden" }, 404);
+      const tel = normTelefon(a.phone);
+      if (!tel) return json({ error: "Keine gültige Telefonnummer beim Bewerber" }, 400);
+      const rid = a.zugeteiltes_zimmer || a.zimmer_wunsch;
+      const { data: r } = rid ? await sb.from("rooms").select("id, apt_id, miete").eq("id", rid).maybeSingle() : { data: null };
+      const { data: ap } = r ? await sb.from("apartments").select("adresse, ort, vermietungsart").eq("id", r.apt_id).maybeSingle() : { data: null };
+      if (!r || !ap) return json({ error: "Beim Bewerber ist kein Zimmer bzw. keine Wohnung hinterlegt" }, 400);
+      const en = a.sprache === "en";
+      const wohnung = ap.vermietungsart === "wohnung";
+      const objekt = en ? `${wohnung ? "the apartment" : "a room"} at ${ap.adresse}, ${ap.ort || "Zürich"}` : `${wohnung ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}, ${ap.ort || "Zürich"}`;
+      const preis = `CHF ${Number(r.miete || 0).toLocaleString("de-CH").replace(/[’\u2019]/g, "'")}`;
+      const absender = String(b.absender || a.owner || "Daan").trim().split(/\s+/)[0];
+      const res = await waSenden(sb, { art: "bewerbung", ref: b.erneut ? `${a.id}:${Date.now()}` : String(a.id), telefon: tel, en,
+        params: [String(a.vorname || "").trim().split(/\s+/)[0] || (en ? "there" : "zusammen"), absender, objekt, preis] });
+      await sb.from("applicants").update({ whatsapp_followup_status: res.status, whatsapp_followup_error: res.fehler || null,
+        whatsapp_followup_language: en ? "en" : "de", ...(res.status === "gesendet" ? { whatsapp_followup_sent_at: new Date().toISOString() } : {}) }).eq("id", a.id);
+      return json(res);
+    }
     if (b.aktion === "ausstehend") {
       if (!waKey()) return json({ aktiv: false });
       const seit = new Date(Date.now() - 3 * 86400000).toISOString();

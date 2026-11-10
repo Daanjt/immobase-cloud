@@ -823,6 +823,20 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
     if(meNameB && !(bb.owner&&String(bb.owner).trim())){ updateBewerber(bb.id,{owner:meNameB}); }
   }
+  async function waAutoB(bb, e){
+    if(e) e.stopPropagation();
+    if(!bb.phone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
+    const erneut = !!bb.whatsapp_followup_sent_at;
+    if(!confirm(erneut ? "Diesem Bewerber wurde schon eine automatische WhatsApp geschickt. Nochmals senden?" : `Interesse jetzt automatisch per WhatsApp bei ${bb.vorname||""} anfragen?`)) return;
+    try{
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"bewerber_kontakt", bewerber_id: bb.id, absender: meNameB || bb.owner || "Daan", erneut }) });
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
+      const txt = { gesendet:"WhatsApp gesendet", testmodus:"Testmodus aktiv: nicht gesendet (nur an Testnummern)", schon_gesendet:"Wurde schon gesendet", keine_nummer:"Keine gültige Nummer", aus:"WhatsApp ist nicht eingerichtet", fehler:"Fehler: "+(j.fehler||"") }[j.status] || j.status;
+      toast(txt, j.status==="gesendet"?undefined:"error");
+      if(j.status==="gesendet"){ updateBewerber(bb.id,{ whatsapp_followup_sent_at:new Date().toISOString(), ...(meNameB && !(bb.owner&&String(bb.owner).trim()) ? {owner:meNameB} : {}) }); }
+    }catch(err){ toast(err.message,"error"); }
+  }
   const [editForm,setEditForm]=useState({});
   const [vertragData,setVertragData]=useState(null);
   const [emailMenu,setEmailMenu]=useState(false);
@@ -1763,6 +1777,7 @@ www.dthomes.ch`;
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp-Nachricht senden" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp</button>
+                <button className="btn btn-sm" onClick={(e)=>waAutoB(b,e)} title="Interesse automatisch per WhatsApp anfragen (offizielle Vorlage, ImmoBase sendet direkt)" style={{background:"#fff",color:"#3d6b45",borderColor:"#4e7d55"}}>📲 Auto-WhatsApp{b.whatsapp_followup_sent_at?" ✓":""}</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#f0ebe1",color:"#3a352d",borderColor:"#d8d0c0"}}>↻ Als Nachmieter übernehmen</button>}
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>

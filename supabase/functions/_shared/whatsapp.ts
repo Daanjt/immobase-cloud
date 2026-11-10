@@ -5,7 +5,7 @@
 export const WA_ABSENDER = "+41766887091";
 const API = "https://api.ycloud.com/v2";
 
-export type WaArt = "vertrag" | "dokumente" | "uebernahme" | "namensschild";
+export type WaArt = "vertrag" | "dokumente" | "uebernahme" | "namensschild" | "bewerbung";
 
 // Vorlagen (Kategorie UTILITY). {{n}} = Parameter in dieser Reihenfolge.
 export const VORLAGEN: Record<WaArt, { name: string; de: string; en: string; beispiel: string[] }> = {
@@ -26,6 +26,12 @@ export const VORLAGEN: Record<WaArt, { name: string; de: string; en: string; bei
     de: "Hallo {{1}}, bitte fülle bis am {{2}} dein Übernahmeprotokoll online aus und halte allfällige Mängel mit Fotos fest: {{3}}\n\nDen Link findest du auch in unserer E-Mail.",
     en: "Hi {{1}}, please complete your handover protocol online by {{2}} and record any defects with photos: {{3}}\n\nYou can also find the link in our email.",
     beispiel: ["Anna", "30.11.2026", "https://mieter.dthomes.ch/uebernahme/abc123"],
+  },
+  bewerbung: {
+    name: "dt_bewerbung_interesse",
+    de: "Hallo {{1}}, hier ist {{2}} von D&T Homes.\n\nVielen Dank für deine Bewerbung. Du hast dich für {{3}} für {{4}} pro Monat beworben, und dein Profil könnte gut passen.\n\nIst das für dich noch aktuell? Wenn ja, gehen wir gemeinsam die nächsten Schritte an. Bei Fragen bin ich gerne für dich da.\n\nLiebe Grüsse",
+    en: "Hi {{1}}, this is {{2}} from D&T Homes.\n\nThank you for your application. You applied for {{3}} for {{4}} per month, and your profile could be a great fit.\n\nIs this still relevant for you? If so, we will go through the next steps together. Happy to answer any questions.\n\nKind regards",
+    beispiel: ["Anna", "Daan", "ein Zimmer an der Albisriederstrasse 268, Zürich", "CHF 1'090"],
   },
   namensschild: {
     name: "dt_namensschild",
@@ -92,7 +98,7 @@ export async function waSenden(sb: any, o: { art: WaArt; ref: string; telefon: s
 }
 
 // Vorlagen bei YCloud/Meta zur Genehmigung einreichen (einmalig)
-export async function vorlagenEinreichen(): Promise<any[]> {
+export async function vorlagenEinreichen(nur?: string[]): Promise<any[]> {
   const key = waKey();
   if (!key) throw new Error("YCLOUD_API_KEY fehlt");
   const pn = await fetch(`${API}/whatsapp/phoneNumbers?limit=10`, { headers: { "X-API-Key": key } }).then((r) => r.json());
@@ -100,6 +106,7 @@ export async function vorlagenEinreichen(): Promise<any[]> {
   if (!nummer?.wabaId) throw new Error("Keine WhatsApp-Nummer in YCloud gefunden: " + JSON.stringify(pn).slice(0, 300));
   const erg: any[] = [];
   for (const v of Object.values(VORLAGEN)) {
+    if (nur && nur.length && !nur.includes(v.name)) continue;
     for (const sprache of ["de", "en"] as const) {
       const r = await fetch(`${API}/whatsapp/templates`, {
         method: "POST", headers: { "X-API-Key": key, "Content-Type": "application/json" },
