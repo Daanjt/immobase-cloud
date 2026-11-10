@@ -40,7 +40,6 @@ function KiWissenPage() {
   const [laden, setLaden] = useState(true);
   const [geaendert, setGeaendert] = useState({});
   const [test, setTest] = useState("");
-  const [testR, setTestR] = useState(null);
   const [busy, setBusy] = useState(false);
   const [lauf, setLauf] = useState([]);
   const [laufBusy, setLaufBusy] = useState(false);
@@ -63,7 +62,17 @@ function KiWissenPage() {
     if (error) { toast("Anlegen fehlgeschlagen", "error"); return; } lade();
   };
   const loeschen = async (w) => { if (!confirm(`Abschnitt "${w.titel}" löschen?`)) return; const { error } = await supabase.from("ki_wissen").delete().eq("id", w.id); if (error) { toast("Löschen fehlgeschlagen", "error"); return; } lade(); };
-  const testen = async () => { setBusy(true); setTestR(null); try { setTestR(await kiAntwortHolen(test.trim())); } catch (e) { setTestR({ error: e.message }); } setBusy(false); };
+  // Test-Chat: wie ein WhatsApp-Verlauf, die KI kennt die bisherigen Nachrichten
+  const [chat, setChat] = useState([]);
+  const testen = async () => {
+    const frage = test.trim(); if (!frage) return;
+    setBusy(true); setTest("");
+    const verlauf = chat.filter(x => !x.error).map(x => ({ von: x.von, text: x.text }));
+    setChat(c => [...c, { von: "kunde", text: frage }]);
+    try { const r = await kiAntwortHolen(frage, verlauf); setChat(c => [...c, { von: "wir", text: r.antwort, eskalieren: r.eskalieren, grund: r.grund }]); }
+    catch (e) { setChat(c => [...c, { von: "wir", text: e.message, error: true }]); }
+    setBusy(false);
+  };
   const trockenlauf = async () => {
     setLaufBusy(true); setLauf([]);
     for (const f of KI_BEISPIELE) { let r; try { r = await kiAntwortHolen(f); } catch (e) { r = { error: e.message }; } setLauf(l => [...l, { frage: f, r }]); }
@@ -77,13 +86,23 @@ function KiWissenPage() {
       <div className="ps">Das darf die KI bei Antworten an Interessenten verwenden, zusätzlich zu den freien Zimmern und Wohnungen aus ImmoBase. Was hier nicht steht, beantwortet sie nicht selbst, sondern leitet es an euch weiter.</div>
 
       <div className="card" style={{marginTop:14,marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:600,color:"#5a5448",marginBottom:8}}>Testen</div>
-        <textarea className="fi" rows={3} value={test} onChange={e => setTest(e.target.value)} placeholder="Nachricht eines Interessenten eingeben, z.B. «Ist das Zimmer noch frei?»"/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:13,fontWeight:600,color:"#5a5448"}}>Test-Chat (du schreibst als Interessent)</div>
+          {chat.length > 0 && <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={() => setChat([])}>Neu starten</button>}
+        </div>
+        {chat.length > 0 && <div style={{background:"#efeae2",borderRadius:10,padding:10,marginBottom:8,display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
+          {chat.map((m, i) => (
+            <div key={i} style={{alignSelf:m.von === "kunde" ? "flex-end" : "flex-start",maxWidth:"85%",background:m.von === "kunde" ? "#d9fdd3" : (m.error ? "#fbeae6" : "#fff"),borderRadius:8,padding:"7px 10px",fontSize:13.5,lineHeight:1.45,whiteSpace:"pre-wrap",boxShadow:"0 1px 1px rgba(0,0,0,.06)"}}>
+              {m.text}
+              {m.von === "wir" && !m.error && <div style={{fontSize:10.5,marginTop:4,color:m.eskalieren ? "#a4442e" : "#3a5230"}}>{m.eskalieren ? "⚠ würde an euch weitergeleitet" : "✓ würde automatisch gesendet"}{m.grund ? ` · ${m.grund}` : ""}</div>}
+            </div>))}
+          {busy && <div style={{alignSelf:"flex-start",fontSize:12,color:"#8a8174"}}>schreibt…</div>}
+        </div>}
+        <textarea className="fi" rows={2} value={test} onChange={e => setTest(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!busy && test.trim().length >= 2) testen(); } }} placeholder="Nachricht eines Interessenten, z.B. «Ist das Zimmer noch frei?»"/>
         <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
-          <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy || test.trim().length < 2} onClick={testen}>{busy ? "Denkt…" : "Antwort vorschlagen"}</button>
+          <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy || test.trim().length < 2} onClick={testen}>{busy ? "Denkt…" : "Senden"}</button>
           <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={laufBusy} onClick={trockenlauf}>{laufBusy ? `Trockenlauf… ${lauf.length}/${KI_BEISPIELE.length}` : `Trockenlauf mit ${KI_BEISPIELE.length} Beispielen`}</button>
         </div>
-        {testR && <KiAntwortKarte r={testR}/>}
         {lauf.map((x, i) => <KiAntwortKarte key={i} frage={x.frage} r={x.r}/>)}
       </div>
 
