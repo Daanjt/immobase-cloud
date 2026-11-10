@@ -48,11 +48,15 @@ function KiWissenPage() {
   const lade = async () => { setLaden(true); const { data, error } = await supabase.from("ki_wissen").select("*").order("sort"); if (error) toast("Laden fehlgeschlagen", "error"); setListe(data || []); setGeaendert({}); setLaden(false); };
   useEffect(() => { lade(); }, []);
   const feld = (id, k, v) => { setListe(l => l.map(x => x.id === id ? { ...x, [k]: v } : x)); setGeaendert(g => ({ ...g, [id]: true })); };
+  const [status, setStatus] = useState({});
   const speichern = async (w) => {
-    const { error } = await supabase.from("ki_wissen").update({ titel: w.titel, inhalt: w.inhalt, aktiv: w.aktiv, sort: w.sort, updated_at: new Date().toISOString(), updated_by: "ImmoBase" }).eq("id", w.id);
-    if (error) { toast("Speichern fehlgeschlagen", "error"); return; }
-    setGeaendert(g => { const n = { ...g }; delete n[w.id]; return n; }); toast("Gespeichert");
+    setStatus(st => ({ ...st, [w.id]: "speichert…" }));
+    const { data, error } = await supabase.from("ki_wissen").update({ titel: w.titel, inhalt: w.inhalt, aktiv: w.aktiv, sort: w.sort, updated_at: new Date().toISOString(), updated_by: "ImmoBase" }).eq("id", w.id).select("id");
+    if (error || !data || !data.length) { setStatus(st => ({ ...st, [w.id]: "⚠ nicht gespeichert" + (error ? ": " + error.message : " (keine Berechtigung)") })); toast("Speichern fehlgeschlagen", "error"); return; }
+    setGeaendert(g => { const n = { ...g }; delete n[w.id]; return n; });
+    setStatus(st => ({ ...st, [w.id]: "✓ gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }) })); toast("Gespeichert");
   };
+  const aktuell = (id) => liste.find(x => x.id === id);
   const neu = async () => {
     const sort = (liste.reduce((m, x) => Math.max(m, x.sort || 0), 0) || 0) + 10;
     const { error } = await supabase.from("ki_wissen").insert({ titel: "Neuer Abschnitt", inhalt: "", sort, updated_by: "ImmoBase" });
@@ -91,15 +95,15 @@ function KiWissenPage() {
       {liste.map(w => (
         <div key={w.id} className="card" style={{marginBottom:10,opacity:w.aktiv ? 1 : .55}}>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-            <input className="fi" style={{flex:"1 1 220px",fontWeight:600}} value={w.titel} onChange={e => feld(w.id, "titel", e.target.value)}/>
+            <input className="fi" style={{flex:"1 1 220px",fontWeight:600}} value={w.titel} onChange={e => feld(w.id, "titel", e.target.value)} onBlur={() => { if (geaendert[w.id]) speichern(aktuell(w.id) || w); }}/>
             <label style={{fontSize:12,color:"#5a5448",display:"flex",gap:4,alignItems:"center"}}><input type="checkbox" checked={!!w.aktiv} onChange={e => feld(w.id, "aktiv", e.target.checked)}/> aktiv</label>
           </div>
-          <textarea className="fi" rows={Math.min(14, Math.max(3, String(w.inhalt || "").split("\n").length + 1))} style={{marginTop:8,fontFamily:"inherit",lineHeight:1.5}} value={w.inhalt} onChange={e => feld(w.id, "inhalt", e.target.value)}/>
+          <textarea className="fi" rows={Math.min(14, Math.max(3, String(w.inhalt || "").split("\n").length + 1))} style={{marginTop:8,fontFamily:"inherit",lineHeight:1.5}} value={w.inhalt} onChange={e => feld(w.id, "inhalt", e.target.value)} onBlur={() => { if (geaendert[w.id]) speichern(aktuell(w.id) || w); }}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6,gap:8,flexWrap:"wrap"}}>
-            <div style={{fontSize:11,color:"#8a8174"}}>{w.updated_by ? `${w.updated_by} · ` : ""}{w.updated_at ? new Date(w.updated_at).toLocaleDateString("de-CH") : ""}</div>
+            <div style={{fontSize:11,color:status[w.id] && status[w.id].startsWith("⚠") ? "#a4442e" : "#8a8174"}}>{status[w.id] || ((w.updated_by ? `${w.updated_by} · ` : "") + (w.updated_at ? new Date(w.updated_at).toLocaleDateString("de-CH") : ""))}</div>
             <div style={{display:"flex",gap:6}}>
               <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={() => loeschen(w)}>Löschen</button>
-              <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={!geaendert[w.id]} onClick={() => speichern(w)}>Speichern</button>
+              <button className="btn btn-p btn-sm" style={{width:"auto"}} onClick={() => speichern(aktuell(w.id) || w)}>Speichern</button>
             </div>
           </div>
         </div>
