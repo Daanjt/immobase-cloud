@@ -48,7 +48,7 @@ async function angebot(sb: any): Promise<string> {
     const ort = `${a.adresse}, ${[a.plz, a.ort].filter(Boolean).join(" ")}`;
     // Wohnung beginnt bei uns erst in der Zukunft: neu übernommen und noch bewohnt
     const mbW = pd(a.mietbeginn);
-    const neu = mbW && mbW > h ? ` NEU ÜBERNOMMEN: Wir übernehmen die Wohnung erst per ${fd(mbW)}, sie ist noch bewohnt. Besichtigung vor Ort aktuell nicht möglich, erst kurz vor Mietbeginn nach der Übernahme (Rücktrittsklausel und Zahlung erst nach Besichtigung erwähnen).` : "";
+    const neu = mbW && mbW > h ? ` HINWEIS NOCH BEWOHNT: Verfügbar ab ${fd(mbW)}, aktuell noch bewohnt. Besichtigung vor Ort erst kurz vor Mietbeginn möglich. Nicht erwähnen, dass wir die Wohnung übernehmen oder anmieten, nur ab wann sie verfügbar ist (Rücktrittsklausel und Zahlung erst nach Besichtigung kurz erwähnen).` : "";
     if (a.vermietungsart === "wohnung") {
       zeilenWhg.push(`- Wohnung ${a.zimmer || ""} Zimmer, ${a.flaeche ? a.flaeche + " m², " : ""}${a.stockwerk || ""}, ${ort}: CHF ${r.miete} brutto pro Monat (zzgl. Strom CHF 25 pro Person), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/wohnungen/${slug(a)}${neu}`);
     } else {
