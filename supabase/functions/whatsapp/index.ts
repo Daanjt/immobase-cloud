@@ -4,7 +4,7 @@
 // {aktion:"ausstehend"}          -> Cron: Einladung zum Übernahmeprotokoll per WhatsApp (neue Protokolle)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
-import { waKey, waSenden, telefonVon, vorlagenEinreichen, VORLAGEN, normTelefon } from "../_shared/whatsapp.ts";
+import { waKey, waSenden, telefonVon, vorlagenEinreichen, VORLAGEN, normTelefon, WA_ABSENDER } from "../_shared/whatsapp.ts";
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
 const KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -60,6 +60,27 @@ Deno.serve(async (req) => {
         letzte = { status: r.status, j };
       }
       return json({ error: "Webhook konnte nicht angelegt werden", details: JSON.stringify(letzte).slice(0, 400) }, 502);
+    }
+    if (b.aktion === "senden") {
+      // Freitext aus dem ImmoBase-Posteingang. Nur innerhalb von 24h nach der letzten Kundennachricht erlaubt (WhatsApp-Regel).
+      const key = waKey(); if (!key) return json({ error: "YCLOUD_API_KEY fehlt" }, 400);
+      const tel = normTelefon(b.telefon);
+      const text = String(b.text || "").trim();
+      if (!tel || !text) return json({ error: "Telefon und Text nötig" }, 400);
+      const { data: le } = await sb.from("wa_nachrichten").select("created_at").eq("telefon", tel).eq("richtung", "ein").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!le || Date.now() - new Date(le.created_at).getTime() > 24 * 3600000) {
+        return json({ error: "Die letzte Nachricht dieses Kontakts ist älter als 24 Stunden. WhatsApp erlaubt dann nur noch genehmigte Vorlagen, kein freier Text." }, 400);
+      }
+      const r = await fetch("https://api.ycloud.com/v2/whatsapp/messages/sendDirectly", {
+        method: "POST", headers: { "X-API-Key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: WA_ABSENDER, to: tel, type: "text", text: { body: text.slice(0, 4000) } }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return json({ error: "WhatsApp-Versand fehlgeschlagen: " + JSON.stringify(j).slice(0, 300) }, 502);
+      await sb.from("wa_nachrichten").insert({ richtung: "aus", telefon: tel, text, typ: "text", wamid: j.wamid || j.id || null,
+        quelle: b.ki ? "immobase_ki" : "immobase", ki_eskalieren: b.ki ? !!b.ki.eskalieren : null, ki_grund: b.ki ? (b.ki.grund || null) : null });
+      await sb.from("wa_chats").upsert({ telefon: tel, gelesen_at: new Date().toISOString(), updated_at: new Date().toISOString(), updated_by: String(b.von || "ImmoBase") }, { onConflict: "telefon" });
+      return json({ ok: true });
     }
     if (b.aktion === "vorlagen_einreichen") return json({ ergebnis: await vorlagenEinreichen(Array.isArray(b.nur) ? b.nur : undefined) });
     if (b.aktion === "bewerber_kontakt") {

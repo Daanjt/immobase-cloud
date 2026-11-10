@@ -734,6 +734,7 @@ const PAGES=[
   {id:"bewerber",icon:"📋",label:"Bewerber"},
   {id:"mieter",icon:"👤",label:"Mieter"},
   {id:"todos",icon:"✅",label:"To-dos"},
+  {id:"whatsapp",icon:"💬",label:"WhatsApp"},
   {id:"schaeden",icon:"🔧",label:"Schäden"},
   {id:"kuendigungen",icon:"📤",label:"Kündigungen"},
   {id:"wohnungen",icon:"🏠",label:"Wohnungen",group:"vermietung"},

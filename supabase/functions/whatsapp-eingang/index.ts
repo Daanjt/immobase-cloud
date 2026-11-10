@@ -51,6 +51,12 @@ Deno.serve(async (req) => {
   // Testphase: nur Testnummern bekommen eine automatische KI-Antwort
   const test = String(c.whatsapp_testnummern || "").split(/[,;\s]+/).map(normTelefon).filter(Boolean);
   if (!test.includes(tel) || !text || !waKey()) return ok({ gespeichert: true });
+  // KI pausiert: im Posteingang ausgeschaltet oder ein Mensch hat in den letzten 6 Stunden geantwortet
+  const { data: chat } = await sb.from("wa_chats").select("ki_aus").eq("telefon", tel).maybeSingle();
+  if (chat?.ki_aus) return ok({ gespeichert: true, ki: "aus" });
+  const { data: mensch } = await sb.from("wa_nachrichten").select("id").eq("telefon", tel).eq("richtung", "aus").in("quelle", ["handy", "immobase", "immobase_ki"])
+    .gte("created_at", new Date(Date.now() - 6 * 3600000).toISOString()).limit(1);
+  if (mensch && mensch.length) return ok({ gespeichert: true, ki: "pause" });
 
   // Verlauf der letzten 7 Tage fuer diese Nummer
   const seit = new Date(Date.now() - 7 * 86400000).toISOString();

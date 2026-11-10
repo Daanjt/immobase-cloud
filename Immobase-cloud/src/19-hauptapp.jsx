@@ -16,13 +16,16 @@ function MainApp({rolle}) {
   const [marktRadarOffen, setMarktRadarOffen] = useState(0);
   const [pipelineOffen, setPipelineOffen] = useState(0);
   const [portalOffen, setPortalOffen] = useState({schaeden:0, kuendigungen:0});
+  const [waOffen, setWaOffen] = useState(0);
   const refreshPortal = () => {
     supabase.from("schadenmeldungen").select("id",{count:"exact",head:true}).neq("status","erledigt")
       .then(({count})=>setPortalOffen(o=>({...o, schaeden:count||0}))).catch(()=>{});
     if (rolle === "admin" || rolle === "operations") supabase.from("kuendigungen").select("id",{count:"exact",head:true}).eq("status","eingereicht")
       .then(({count})=>setPortalOffen(o=>({...o, kuendigungen:count||0}))).catch(()=>{});
+    if (rolle === "admin") supabase.from("wa_chat_liste").select("letzte_richtung, eskaliert, erledigt_at, letzte_ein_at").limit(500)
+      .then(({data})=>setWaOffen((data||[]).filter(c=>(!c.erledigt_at || new Date(c.letzte_ein_at||0) > new Date(c.erledigt_at)) && (c.letzte_richtung==="ein" || c.eskaliert)).length)).catch(()=>{});
   };
-  useEffect(() => { refreshPortal(); const iv = setInterval(refreshPortal, 120000); return () => clearInterval(iv); }, [page]);
+  useEffect(() => { refreshPortal(); const iv = setInterval(refreshPortal, 60000); return () => clearInterval(iv); }, [page]);
   const refreshPortfolioWatch = () => {
     supabase.from("flatfox_treffer").select("id",{count:"exact",head:true}).eq("gesehen",false)
       .then(({count})=>setPortfolioWatchOffen(count||0)).catch(()=>{});
@@ -67,7 +70,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,parkplaetze:ParkplaetzePage,namensschilder:NamensschilderPage,kiwissen:KiWissenPage,reinigung:ReinigungPage,schaeden:SchaedenPage,kuendigungen:KuendigungenPage,datencheck:DatencheckPage,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:Dashboard,bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,parkplaetze:ParkplaetzePage,namensschilder:NamensschilderPage,kiwissen:KiWissenPage,whatsapp:WhatsAppPage,reinigung:ReinigungPage,schaeden:SchaedenPage,kuendigungen:KuendigungenPage,datencheck:DatencheckPage,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
@@ -179,7 +182,7 @@ function MainApp({rolle}) {
         </div>
         <div className="nav">
           {(()=>{
-            const badges={bewerber:[neueBewerber,"#f5efe4","#a08864"],nachvermietung:[nachvermietungOffen,"#fbeae6","#8a3a2e"],portfoliowatch:[portfolioWatchOffen,"#eae3d6","#7c6a4e"],marktradar:[marktRadarOffen,"#e7e0d3","#7c6a4e"],pipeline:[pipelineOffen,"#d9e0d0","#5f6b4e"],zimmer:[freeCount,"#f6ecd8","#c89653"],parkplaetze:[(data.parkplaetze||[]).filter(p=>ppUebernommen(p)&&!ppVermietet(p)).length,"#f6ecd8","#c89653"],zahlungen:[offeneZahlungen,"#fbeae6","#8a3a2e"],uebergaben:[(offeneUebergaben||0)+(offeneAuszuege||0),"#fbeae6","#8a3a2e"],schaeden:[portalOffen.schaeden,"#fbeae6","#8a3a2e"],kuendigungen:[portalOffen.kuendigungen,"#fbeae6","#8a3a2e"],namensschilder:[nsMieterGanzeWohnung(data.tenants,data.rooms,data.apts).filter(x=>nsStand(x.t)==="freigabe").length,"#f6eedb","#8a6d3b"]};
+            const badges={bewerber:[neueBewerber,"#f5efe4","#a08864"],nachvermietung:[nachvermietungOffen,"#fbeae6","#8a3a2e"],portfoliowatch:[portfolioWatchOffen,"#eae3d6","#7c6a4e"],marktradar:[marktRadarOffen,"#e7e0d3","#7c6a4e"],pipeline:[pipelineOffen,"#d9e0d0","#5f6b4e"],zimmer:[freeCount,"#f6ecd8","#c89653"],parkplaetze:[(data.parkplaetze||[]).filter(p=>ppUebernommen(p)&&!ppVermietet(p)).length,"#f6ecd8","#c89653"],zahlungen:[offeneZahlungen,"#fbeae6","#8a3a2e"],uebergaben:[(offeneUebergaben||0)+(offeneAuszuege||0),"#fbeae6","#8a3a2e"],schaeden:[portalOffen.schaeden,"#fbeae6","#8a3a2e"],kuendigungen:[portalOffen.kuendigungen,"#fbeae6","#8a3a2e"],whatsapp:[waOffen,"#dcf8c6","#1f7a3a"],namensschilder:[nsMieterGanzeWohnung(data.tenants,data.rooms,data.apts).filter(x=>nsStand(x.t)==="freigabe").length,"#f6eedb","#8a6d3b"]};
             const badge=(id)=>{ const b=badges[id]; return (b&&b[0]>0)?<span style={{background:b[1],color:b[2],fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>{b[0]}</span>:null; };
             const knopf=(p,sub)=>(<button key={p.id} className={`nb${page===p.id?" on":""}${sub?" nb-sub":""}`} onClick={()=>{setPage(p.id);setNavTarget(null);setSidebarOpen(false);}}>
               <span className="ni">{p.icon}</span><span style={{flex:1}}>{p.label}</span>{badge(p.id)}

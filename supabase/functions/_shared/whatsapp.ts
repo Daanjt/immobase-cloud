@@ -88,6 +88,9 @@ export async function waSenden(sb: any, o: { art: WaArt; ref: string; telefon: s
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(`HTTP ${r.status} ${JSON.stringify(j).slice(0, 300)}`);
     await sb.from("whatsapp_log").update({ status: j.status || "gesendet", ycloud_id: j.id || null }).eq("art", o.art).eq("ref", o.ref);
+    // auch im Chatverlauf (Posteingang) zeigen, mit eingesetzten Werten
+    const textV = v[sprache].replace(/\{\{(\d+)\}\}/g, (_m, n) => String(o.params[+n - 1] ?? ""));
+    await sb.from("wa_nachrichten").insert({ richtung: "aus", telefon: tel, text: textV, typ: "template", wamid: j.wamid || j.id || null, quelle: "vorlage", ki_grund: v.name }).then(() => {}, () => {});
     return { status: "gesendet" };
   } catch (e) {
     const fehler = String((e as Error)?.message || e).slice(0, 500);
