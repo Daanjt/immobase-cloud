@@ -73,6 +73,11 @@ Deno.serve(async (req) => {
     const wissenText = (wissen || []).map((w: any) => `## ${w.titel}\n${w.inhalt}`).join("\n\n");
     const live = await angebot(sb);
 
+    // Sprache der Nachricht grob erkennen, damit die Antwort sicher in der richtigen Sprache kommt
+    const w = (re: RegExp) => (nachricht.toLowerCase().match(re) || []).length;
+    const en = w(/\b(the|and|is|are|can|you|my|we|please|hello|hi|thanks|available|room|rent|together|would|what|how)\b/g);
+    const de = w(/\b(und|ist|ich|das|der|die|nicht|ein|eine|bitte|hallo|danke|kann|wie|wann|zimmer|wohnung|möchte|gerne)\b/g);
+    const sprache = en > de ? "en" : "de";
     const system = `Du bist der Assistent von D&T Homes und beantwortest Nachrichten von Wohnungs- und Zimmer-Interessenten per WhatsApp.
 WICHTIG: Schreibe die Antwort immer in der Sprache der letzten Nachricht des Interessenten. Schreibt er Englisch, antworte vollständig auf Englisch; schreibt er Deutsch, auf Deutsch (du-Form). Andere Sprachen: Englisch.
 Halte dich strikt an das hinterlegte Wissen und die Live-Daten unten. Erfinde nichts. Wenn eine Frage damit nicht sicher beantwortet werden kann, oder wenn sie unter "Offene Punkte" fällt, setze "eskalieren": true und schreibe nur eine kurze, freundliche Zwischenantwort (wir klären das und melden uns).
@@ -82,7 +87,10 @@ Antworte ausschliesslich mit einem JSON-Objekt ohne weiteren Text: {"antwort": s
 ${wissenText}
 
 # Live-Daten aus ImmoBase
-${live}`;
+${live}
+
+# Antwortsprache
+${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort ausschliesslich auf Englisch, auch wenn das Wissen oben auf Deutsch ist, und setze \"sprache\": \"en\"." : "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch in der du-Form, ausser die Nachricht ist eindeutig in einer anderen Sprache, dann auf Englisch."}`;
 
     const messages: any[] = [];
     for (const v of verlauf) { const t = String(v?.text || "").trim(); if (t) messages.push({ role: v.von === "wir" ? "assistant" : "user", content: t.slice(0, 2000) }); }
