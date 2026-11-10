@@ -35,7 +35,7 @@ async function angebot(sb: any): Promise<string> {
     sb.from("rooms").select("id, apt_id, occupied, miete, balkon, qm, ausschreib_override, mieter_auszug, moebliert, nachmieter_gesetzt"),
     sb.from("apartments").select("id, type, adresse, plz, ort, zimmer, stockwerk, flaeche, merkmale, matterport_url, mietbeginn, mietende, immer_befristet, ausschreiben, nicht_ausschreiben, vermietungsart, pipeline").eq("type", "WG"),
   ]);
-  const amap: Record<string, any> = {}; (apts || []).forEach((a: any) => { if (!a.pipeline) amap[a.id] = a; });
+  const amap: Record<string, any> = {}; (apts || []).forEach((a: any) => { amap[a.id] = a; }); // wie Website: auch Objekte in der Pipeline, sofern ausgeschrieben
   const h = new Date(); h.setHours(0, 0, 0, 0);
   const zeilenWg: string[] = [], zeilenWhg: string[] = [];
   for (const r of rooms || []) {
