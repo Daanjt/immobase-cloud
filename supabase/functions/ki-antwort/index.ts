@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     const system = `Du bist der Assistent von D&T Homes und beantwortest Nachrichten von Wohnungs- und Zimmer-Interessenten per WhatsApp.
 WICHTIG: Schreibe die Antwort immer in der Sprache der letzten Nachricht des Interessenten. Schreibt er Englisch, antworte vollständig auf Englisch; schreibt er Deutsch, auf Deutsch (du-Form). Andere Sprachen: Englisch.
 Halte dich strikt an das hinterlegte Wissen und die Live-Daten unten. Erfinde nichts. Wenn eine Frage damit nicht sicher beantwortet werden kann, oder wenn sie unter "Offene Punkte" fällt, setze "eskalieren": true und schreibe nur eine kurze, freundliche Zwischenantwort (wir klären das und melden uns).
-Antworte ausschliesslich mit einem JSON-Objekt ohne weiteren Text: {"antwort": string, "eskalieren": boolean, "grund": string, "sprache": "de"|"en"}. "grund" ist eine kurze interne Notiz für das Team (Deutsch), warum eskaliert wird oder welche Quellen du genutzt hast.
+Gib deine Antwort immer über das Werkzeug "antwort_senden" zurück (antwort, eskalieren, grund, sprache). "grund" ist eine kurze interne Notiz für das Team (Deutsch), warum eskaliert wird oder welche Quellen du genutzt hast.
 
 # Hinterlegtes Wissen
 ${wissenText}
@@ -103,14 +103,31 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": c.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: c.anthropic_model, max_tokens: 800, system, messages: msgs }),
+      body: JSON.stringify({
+        model: c.anthropic_model, max_tokens: 1200, system, messages: msgs,
+        tools: [{
+          name: "antwort_senden",
+          description: "Die Antwort an den Interessenten zurückgeben.",
+          input_schema: { type: "object", properties: {
+            antwort: { type: "string", description: "Text der WhatsApp-Antwort an den Interessenten" },
+            eskalieren: { type: "boolean", description: "true, wenn das Team übernehmen soll" },
+            grund: { type: "string", description: "Kurze interne Notiz auf Deutsch" },
+            sprache: { type: "string", enum: ["de", "en"] },
+          }, required: ["antwort", "eskalieren", "grund", "sprache"] },
+        }],
+        tool_choice: { type: "tool", name: "antwort_senden" },
+      }),
     });
     const j = await r.json();
     if (!r.ok) return json({ error: "KI-Fehler: " + JSON.stringify(j).slice(0, 300) }, 502);
-    const text = (j.content || []).map((x: any) => x.text || "").join("").trim();
-    let out: any = null;
-    try { out = JSON.parse(text.replace(/^```(json)?|```$/g, "").trim()); } catch { const m = text.match(/\{[\s\S]*\}/); if (m) try { out = JSON.parse(m[0]); } catch { /* */ } }
-    if (!out || typeof out.antwort !== "string") return json({ error: "Antwort nicht lesbar", roh: text.slice(0, 500) }, 502);
+    let out: any = (j.content || []).find((x: any) => x.type === "tool_use")?.input || null;
+    if (!out || typeof out.antwort !== "string") {
+      // Rückfall: Freitext oder JSON im Text
+      const text = (j.content || []).map((x: any) => x.text || "").join("").trim();
+      try { out = JSON.parse(text.replace(/^```(json)?|```$/g, "").trim()); } catch { const m = text.match(/\{[\s\S]*\}/); if (m) try { out = JSON.parse(m[0]); } catch { /* */ } }
+      if ((!out || typeof out.antwort !== "string") && text) out = { antwort: text, eskalieren: true, grund: "Antwort ohne Struktur, bitte prüfen", sprache };
+    }
+    if (!out || typeof out.antwort !== "string" || !out.antwort.trim()) return json({ error: "Antwort nicht lesbar" }, 502);
     // Sicherheitsnetz: Gedankenstriche entfernen, interne Zimmer-IDs nie nach aussen
     out.antwort = out.antwort.replace(/\s[–—]\s/g, ", ").replace(/[–—]/g, "-");
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) { out.eskalieren = true; out.grund = (out.grund || "") + " | interne Zimmer-ID in Antwort"; }
