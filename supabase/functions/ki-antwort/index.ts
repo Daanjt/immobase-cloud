@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
     const live = await angebot(sb);
 
     const system = `Du bist der Assistent von D&T Homes und beantwortest Nachrichten von Wohnungs- und Zimmer-Interessenten per WhatsApp.
+WICHTIG: Schreibe die Antwort immer in der Sprache der letzten Nachricht des Interessenten. Schreibt er Englisch, antworte vollständig auf Englisch; schreibt er Deutsch, auf Deutsch (du-Form). Andere Sprachen: Englisch.
 Halte dich strikt an das hinterlegte Wissen und die Live-Daten unten. Erfinde nichts. Wenn eine Frage damit nicht sicher beantwortet werden kann, oder wenn sie unter "Offene Punkte" fällt, setze "eskalieren": true und schreibe nur eine kurze, freundliche Zwischenantwort (wir klären das und melden uns).
 Antworte ausschliesslich mit einem JSON-Objekt ohne weiteren Text: {"antwort": string, "eskalieren": boolean, "grund": string, "sprache": "de"|"en"}. "grund" ist eine kurze interne Notiz für das Team (Deutsch), warum eskaliert wird oder welche Quellen du genutzt hast.
 
