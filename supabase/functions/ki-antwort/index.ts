@@ -46,10 +46,13 @@ async function angebot(sb: any): Promise<string> {
     const ende = pd(a.mietende);
     const dauer = ende ? `befristet bis ${fd(ende)}` : "unbefristet";
     const ort = `${a.adresse}, ${[a.plz, a.ort].filter(Boolean).join(" ")}`;
+    // Wohnung beginnt bei uns erst in der Zukunft: neu übernommen und noch bewohnt
+    const mbW = pd(a.mietbeginn);
+    const neu = mbW && mbW > h ? ` NEU ÜBERNOMMEN: Wir übernehmen die Wohnung erst per ${fd(mbW)}, sie ist noch bewohnt. Besichtigung vor Ort aktuell nicht möglich, erst kurz vor Mietbeginn nach der Übernahme (Rücktrittsklausel und Zahlung erst nach Besichtigung erwähnen).` : "";
     if (a.vermietungsart === "wohnung") {
-      zeilenWhg.push(`- Wohnung ${a.zimmer || ""} Zimmer, ${a.flaeche ? a.flaeche + " m², " : ""}${a.stockwerk || ""}, ${ort}: CHF ${r.miete} brutto pro Monat (zzgl. Strom CHF 25 pro Person), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/wohnungen/${slug(a)}`);
+      zeilenWhg.push(`- Wohnung ${a.zimmer || ""} Zimmer, ${a.flaeche ? a.flaeche + " m², " : ""}${a.stockwerk || ""}, ${ort}: CHF ${r.miete} brutto pro Monat (zzgl. Strom CHF 25 pro Person), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/wohnungen/${slug(a)}${neu}`);
     } else {
-      zeilenWg.push(`- WG-Zimmer ${r.qm ? r.qm + " m²" : ""}${r.balkon ? " mit Balkon" : ""} in einer ${a.zimmer || ""}-Zimmer-WG, ${ort}: CHF ${r.miete} pro Monat inkl. Nebenkosten (zzgl. Strom CHF 25), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/zimmer/${slug(a)}`);
+      zeilenWg.push(`- WG-Zimmer ${r.qm ? r.qm + " m²" : ""}${r.balkon ? " mit Balkon" : ""} in einer ${a.zimmer || ""}-Zimmer-WG, ${ort}: CHF ${r.miete} pro Monat inkl. Nebenkosten (zzgl. Strom CHF 25), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/zimmer/${slug(a)}${neu}`);
     }
   }
   return `Freie WG-Zimmer (Stand heute ${fd(h)}):\n${zeilenWg.join("\n") || "- keine"}\n\nFreie Wohnungen:\n${zeilenWhg.join("\n") || "- keine"}`;
