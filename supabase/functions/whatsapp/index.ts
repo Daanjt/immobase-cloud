@@ -30,6 +30,20 @@ Deno.serve(async (req) => {
       return json({ aktiv: true, nummern: (nummern.items || []).map((n: any) => ({ nummer: n.phoneNumber, name: n.verifiedName, status: n.status, qualitaet: n.qualityRating })),
         vorlagen: (vorlagen.items || []).filter((v: any) => namen.includes(v.name)).map((v: any) => ({ name: v.name, sprache: v.language, status: v.status, grund: v.reason || null })), log });
     }
+    if (b.aktion === "test") {
+      // jede Vorlage einmal an die Testnummer(n) senden, mit Beispielwerten
+      const { data: tm } = await sb.from("app_config").select("value").eq("key", "whatsapp_testnummern").maybeSingle();
+      const nr = String(tm?.value || "").split(/[,;\s]+/).filter(Boolean)[0];
+      if (!nr) return json({ error: "keine Testnummer hinterlegt" }, 400);
+      const ts = Date.now();
+      const erg: any[] = [];
+      for (const [art, v] of Object.entries(VORLAGEN)) {
+        for (const en of (b.sprachen || ["de"]).map((x: string) => x === "en")) {
+          erg.push({ art, en, ...(await waSenden(sb, { art: art as any, ref: `test:${ts}:${en ? "en" : "de"}`, telefon: nr, en, params: v.beispiel })) });
+        }
+      }
+      return json({ ergebnis: erg });
+    }
     if (b.aktion === "vorlagen_einreichen") return json({ ergebnis: await vorlagenEinreichen() });
     if (b.aktion === "ausstehend") {
       if (!waKey()) return json({ aktiv: false });
