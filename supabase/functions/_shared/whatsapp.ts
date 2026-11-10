@@ -61,6 +61,10 @@ export async function waSenden(sb: any, o: { art: WaArt; ref: string; telefon: s
   if (!key) return { status: "aus" };
   const tel = normTelefon(o.telefon);
   if (!tel) return { status: "keine_nummer" };
+  // Testmodus: solange app_config.whatsapp_testnummern gesetzt ist, nur an diese Nummern senden
+  const { data: tm } = await sb.from("app_config").select("value").eq("key", "whatsapp_testnummern").maybeSingle();
+  const test = String(tm?.value || "").split(/[,;\s]+/).map(normTelefon).filter(Boolean);
+  if (test.length && !test.includes(tel)) return { status: "testmodus" };
   const v = VORLAGEN[o.art];
   const sprache = o.en ? "en" : "de";
   // zuerst reservieren (unique art+ref verhindert Doppelversand)
