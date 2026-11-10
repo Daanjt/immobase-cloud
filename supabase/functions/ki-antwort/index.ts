@@ -131,7 +131,27 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
       if ((!out || typeof out.antwort !== "string") && text) out = { antwort: text, eskalieren: true, grund: "Antwort ohne Struktur, bitte prüfen", sprache };
     }
     if (!out || typeof out.antwort !== "string" || !out.antwort.trim()) return json({ error: "Antwort nicht lesbar" }, 502);
-    // Sicherheitsnetz: Gedankenstriche entfernen, interne Zimmer-IDs nie nach aussen
+    // Sicherheitsnetz: Steuer-Markup, das ins Antwortfeld gerutscht ist, abschneiden und auswerten
+    {
+      const a = out.antwort;
+      const cut = a.search(/<\/?(antwort|parameter|invoke|function_calls)\b|<\/antml|<parameter\s/i);
+      if (cut >= 0) {
+        const rest = a.slice(cut);
+        const pm = (k: string) => (rest.match(new RegExp(`name="${k}">\\s*([\\s\\S]*?)\\s*(?:</parameter>|<parameter|$)`, "i")) || [])[1];
+        const esk = pm("eskalieren"), gr = pm("grund"), sp = pm("sprache");
+        if (esk !== undefined && typeof out.eskalieren !== "boolean") out.eskalieren = /true/i.test(esk);
+        else if (esk !== undefined) out.eskalieren = out.eskalieren || /true/i.test(esk);
+        if (gr && !out.grund) out.grund = gr.trim();
+        if (sp && !out.sprache) out.sprache = sp.trim();
+        out.antwort = a.slice(0, cut);
+      }
+    }
+    // WhatsApp kennt kein Markdown: [text](url) zu url, **fett** zu *fett*
+    out.antwort = out.antwort
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_m: string, t: string, u: string) => (u.replace(/^https?:\/\//, "").replace(/\/$/, "") === t.replace(/^https?:\/\//, "").replace(/\/$/, "") ? t : `${t}: ${u}`))
+      .replace(/\*\*([^*]+)\*\*/g, "*$1*")
+      .replace(/\n{3,}/g, "\n\n").trim();
+    // Gedankenstriche entfernen, interne Zimmer-IDs nie nach aussen
     out.antwort = out.antwort.replace(/\s[–—]\s/g, ", ").replace(/[–—]/g, "-");
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) { out.eskalieren = true; out.grund = (out.grund || "") + " | interne Zimmer-ID in Antwort"; }
     return json({ antwort: out.antwort, eskalieren: !!out.eskalieren, grund: out.grund || "", sprache: out.sprache || "de" });
