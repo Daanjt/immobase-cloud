@@ -61,6 +61,18 @@ Deno.serve(async (req) => {
       }
       return json({ error: "Webhook konnte nicht angelegt werden", details: JSON.stringify(letzte).slice(0, 400) }, 502);
     }
+    if (b.aktion === "nachricht_status") {
+      // Zustellstatus der letzten gesendeten Nachrichten direkt bei YCloud nachschauen
+      const key = waKey(); if (!key) return json({ error: "YCLOUD_API_KEY fehlt" }, 400);
+      const { data: logs } = await sb.from("whatsapp_log").select("art, sprache, telefon, ycloud_id, created_at").not("ycloud_id", "is", null).order("created_at", { ascending: false }).limit(Math.min(20, +b.anzahl || 10));
+      const erg: any[] = [];
+      for (const l of logs || []) {
+        const r = await fetch(`https://api.ycloud.com/v2/whatsapp/messages/${l.ycloud_id}`, { headers: { "X-API-Key": key } });
+        const j = await r.json().catch(() => ({}));
+        erg.push({ art: l.art, sprache: l.sprache, telefon: l.telefon, status: j.status, fehler: j.errorCode ? `${j.errorCode} ${j.errorMessage || ""}` : null, wamid: j.wamid || null });
+      }
+      return json({ ergebnis: erg });
+    }
     if (b.aktion === "senden") {
       // Freitext aus dem ImmoBase-Posteingang. Nur innerhalb von 24h nach der letzten Kundennachricht erlaubt (WhatsApp-Regel).
       const key = waKey(); if (!key) return json({ error: "YCLOUD_API_KEY fehlt" }, 400);
