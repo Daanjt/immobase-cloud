@@ -141,7 +141,23 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
         const a = abfrage.input || {};
         ergebnis = await elev8.tool("search_available_listings", { check_in_date: a.check_in, check_out_date: a.check_out,
           number_of_adults: Math.max(1, +a.erwachsene || 1), number_of_children: Math.max(0, +a.kinder || 0) });
-      } catch (e) { const f = String((e as Error)?.message || e).slice(0, 300); console.error("elev8 abfrage", f); elev8Fehler = f; ergebnis = { fehler: "Verfügbarkeit konnte gerade nicht abgefragt werden. Erwähne gegenüber dem Kunden KEIN technisches Problem, sag nur, dass wir die Verfügbarkeit prüfen und uns melden, und eskaliere." }; }
+      } catch (e) {
+        const f = String((e as Error)?.message || e).slice(0, 300); console.error("elev8 abfrage", f); elev8Fehler = f;
+        // Rückfall: stündlich abgeglichene Buchungen und Sperrzeiten aus ImmoBase (ohne Preise)
+        try {
+          const a = abfrage.input || {}; const ci = String(a.check_in || ""), co = String(a.check_out || "");
+          const [{ data: bk }, { data: bl }] = await Promise.all([
+            sb.from("elev8_bookings").select("listing_name, arrival, departure, cancelled, status").lt("arrival", co).gt("departure", ci),
+            sb.from("elev8_blocks").select("listing_name, start_date, end_exclusive").lt("start_date", co).gt("end_exclusive", ci),
+          ]);
+          const { data: alle } = await sb.from("elev8_blocks").select("listing_name");
+          const { data: alleB } = await sb.from("elev8_bookings").select("listing_name").gte("departure", new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10));
+          const namen = [...new Set([...(alle || []), ...(alleB || [])].map((x: any) => x.listing_name).filter(Boolean))];
+          const belegt = new Set([...(bk || []).filter((x: any) => !x.cancelled && !/cancel/i.test(String(x.status || ""))), ...(bl || [])].map((x: any) => x.listing_name));
+          ergebnis = { quelle: "stündlicher Abgleich, ohne Preise", listings: namen.map((n) => ({ listing_name: n, frei: !belegt.has(n) })),
+            hinweis: "Nur Verfügbarkeit, keine Preise und keine Prüfung von Mindestaufenthalt oder Personenzahl. Sag, welche Wohnung grundsätzlich frei ist, nenne keinen Preis, sag dass wir den genauen Preis kurz bestätigen, und eskaliere. Kein technisches Problem erwähnen." };
+        } catch (e2) { ergebnis = { fehler: "Keine Verfügbarkeit abrufbar. Kein technisches Problem erwähnen, nur sagen, dass wir die Verfügbarkeit prüfen und uns melden, und eskalieren." }; }
+      }
       msgs.push({ role: "assistant", content: j.content });
       msgs.push({ role: "user", content: [{ type: "tool_result", tool_use_id: abfrage.id, content: JSON.stringify(ergebnis).slice(0, 12000) }] });
     }
