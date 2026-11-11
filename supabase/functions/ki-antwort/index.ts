@@ -1,6 +1,7 @@
 // ki-antwort - Antwortvorschlag für Interessenten (WhatsApp / Inserate) aus KI-Wissen + Live-Angebot.
 // Nur Admin oder Service-Key. Body: { nachricht, verlauf?: [{von:"kunde"|"wir", text}], kanal?: "whatsapp" }
 // Antwort: { antwort, eskalieren, grund, sprache }
+import { elev8Verbinden } from "../_shared/elev8.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
     const system = `Du bist der Assistent von D&T Homes und beantwortest Nachrichten von Wohnungs- und Zimmer-Interessenten per WhatsApp.
 WICHTIG: Schreibe die Antwort immer in der Sprache der letzten Nachricht des Interessenten. Schreibt er Englisch, antworte vollständig auf Englisch; schreibt er Deutsch, auf Deutsch (du-Form). Andere Sprachen: Englisch.
 Halte dich strikt an das hinterlegte Wissen und die Live-Daten unten. Erfinde nichts. Wenn eine Frage damit nicht sicher beantwortet werden kann, oder wenn sie unter "Offene Punkte" fällt, setze "eskalieren": true und schreibe nur eine kurze, freundliche Zwischenantwort (wir klären das und melden uns).
-Gib deine Antwort immer über das Werkzeug "antwort_senden" zurück (antwort, eskalieren, grund, sprache). "grund" ist eine kurze interne Notiz für das Team (Deutsch), warum eskaliert wird oder welche Quellen du genutzt hast.
+Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}.\nFerienwohnungen: Nennt jemand Daten (und Personenzahl), frage mit "ferienwohnung_verfuegbarkeit" live ab, welche Wohnungen frei sind und was sie kosten. Nenne den Gesamtpreis (total_price) so wie geliefert, in CHF, inkl. Gebühren und Taxen, und verweise für die Buchung auf das jeweilige Inserat bzw. sag, dass wir die Buchung gerne vorbereiten (dann eskalieren). Ist nichts frei oder bookable=false (z.B. Mindestaufenthalt), sag das und nenne den Grund. Fehlen Daten, frag danach. Nie selbst buchen oder reservieren.\nGib deine Antwort am Schluss immer über das Werkzeug "antwort_senden" zurück (antwort, eskalieren, grund, sprache). "grund" ist eine kurze interne Notiz für das Team (Deutsch), warum eskaliert wird oder welche Quellen du genutzt hast.
 
 # Hinterlegtes Wissen
 ${wissenText}
@@ -103,27 +104,48 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
     for (const m of [...messages, { role: "user", content: nachricht }]) {
       if (msgs.length && msgs[msgs.length - 1].role === m.role) msgs[msgs.length - 1].content += "\n" + m.content; else msgs.push({ ...m });
     }
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": c.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model: c.anthropic_model, max_tokens: 1200, system, messages: msgs,
-        tools: [{
-          name: "antwort_senden",
-          description: "Die Antwort an den Interessenten zurückgeben.",
-          input_schema: { type: "object", properties: {
-            antwort: { type: "string", description: "Text der WhatsApp-Antwort an den Interessenten" },
-            eskalieren: { type: "boolean", description: "true, wenn das Team übernehmen soll" },
-            grund: { type: "string", description: "Kurze interne Notiz auf Deutsch" },
-            sprache: { type: "string", enum: ["de", "en"] },
-          }, required: ["antwort", "eskalieren", "grund", "sprache"] },
-        }],
-        tool_choice: { type: "tool", name: "antwort_senden" },
-      }),
-    });
-    const j = await r.json();
-    if (!r.ok) return json({ error: "KI-Fehler: " + JSON.stringify(j).slice(0, 300) }, 502);
-    let out: any = (j.content || []).find((x: any) => x.type === "tool_use")?.input || null;
+    const TOOLS = [{
+      name: "antwort_senden",
+      description: "Die Antwort an den Interessenten zurückgeben (immer als letzter Schritt).",
+      input_schema: { type: "object", properties: {
+        antwort: { type: "string", description: "Text der WhatsApp-Antwort an den Interessenten" },
+        eskalieren: { type: "boolean", description: "true, wenn das Team übernehmen soll" },
+        grund: { type: "string", description: "Kurze interne Notiz auf Deutsch" },
+        sprache: { type: "string", enum: ["de", "en"] },
+      }, required: ["antwort", "eskalieren", "grund", "sprache"] },
+    }, {
+      name: "ferienwohnung_verfuegbarkeit",
+      description: "Live aus Elev8: welche Ferienwohnungen (Kurzaufenthalte, Airbnb/Booking) für diese Daten frei sind, inkl. Gesamtpreis mit allen Gebühren und Taxen. Nur für Ferienwohnungen verwenden, nicht für WG-Zimmer oder Zwischennutzung.",
+      input_schema: { type: "object", properties: {
+        check_in: { type: "string", description: "Anreise YYYY-MM-DD" },
+        check_out: { type: "string", description: "Abreise YYYY-MM-DD" },
+        erwachsene: { type: "integer" }, kinder: { type: "integer" },
+      }, required: ["check_in", "check_out"] },
+    }];
+    let j: any = null; let elev8: any = null;
+    for (let runde = 0; runde < 3; runde++) {
+      const letzte = runde === 2;
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": c.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: c.anthropic_model, max_tokens: 1200, system, messages: msgs, tools: TOOLS,
+          tool_choice: letzte ? { type: "tool", name: "antwort_senden" } : { type: "any" } }),
+      });
+      j = await r.json();
+      if (!r.ok) return json({ error: "KI-Fehler: " + JSON.stringify(j).slice(0, 300) }, 502);
+      const abfrage = (j.content || []).find((x: any) => x.type === "tool_use" && x.name === "ferienwohnung_verfuegbarkeit");
+      if (!abfrage) break;
+      let ergebnis: unknown;
+      try {
+        elev8 = elev8 || await elev8Verbinden();
+        const a = abfrage.input || {};
+        ergebnis = await elev8.tool("search_available_listings", { check_in_date: a.check_in, check_out_date: a.check_out,
+          number_of_adults: Math.max(1, +a.erwachsene || 1), number_of_children: Math.max(0, +a.kinder || 0) });
+      } catch (e) { ergebnis = { fehler: "Verfügbarkeit konnte nicht abgefragt werden: " + String((e as Error)?.message || e).slice(0, 200) + ". Dann eskalieren." }; }
+      msgs.push({ role: "assistant", content: j.content });
+      msgs.push({ role: "user", content: [{ type: "tool_result", tool_use_id: abfrage.id, content: JSON.stringify(ergebnis).slice(0, 12000) }] });
+    }
+    let out: any = (j.content || []).find((x: any) => x.type === "tool_use" && x.name === "antwort_senden")?.input || null;
     if (!out || typeof out.antwort !== "string") {
       // Rückfall: Freitext oder JSON im Text
       const text = (j.content || []).map((x: any) => x.text || "").join("").trim();
