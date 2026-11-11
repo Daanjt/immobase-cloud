@@ -38,7 +38,8 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const [laden, setLaden] = useState(true);
   const [filter, setFilter] = useState("offen");
   const [suche, setSuche] = useState("");
-  const [aktiv, setAktiv] = useState(null);
+  // Direktlink aus der Benachrichtigungs-Mail: ?seite=whatsapp&chat=41791234567
+  const [aktiv, setAktiv] = useState(() => { try { const q = new URLSearchParams(window.location.search).get("chat"); if (q) { window.history.replaceState(null, "", window.location.pathname); return "+" + q.replace(/[^\d]/g, ""); } } catch (e) {} return null; });
   const [verlauf, setVerlauf] = useState([]);
   const [text, setText] = useState("");
   const [vorschlag, setVorschlag] = useState(null);

@@ -1,7 +1,7 @@
 function MainApp({rolle}) {
   const sichtbareSeiten = seitenFuerRolle(rolle);
   const [navOffen, setNavOffen] = useState(() => { try { return JSON.parse(localStorage.getItem("immobase_nav_offen")||"{}")||{}; } catch(_) { return {}; } });
-  const [page, setPage] = useState(() => { try { const s = localStorage.getItem("immobase_page"); if (s && sichtbareSeiten.some(x=>x.id===s)) return s; } catch(e){} return sichtbareSeiten[0]?.id || "dashboard"; });
+  const [page, setPage] = useState(() => { try { const q = new URLSearchParams(window.location.search).get("seite"); if (q && sichtbareSeiten.some(x=>x.id===q)) return q; } catch(e){} try { const s = localStorage.getItem("immobase_page"); if (s && sichtbareSeiten.some(x=>x.id===s)) return s; } catch(e){} return sichtbareSeiten[0]?.id || "dashboard"; });
   const [navTarget, setNavTarget] = useState(null);
   useEffect(() => { try { localStorage.setItem("immobase_page", page); } catch(e){} }, [page]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
