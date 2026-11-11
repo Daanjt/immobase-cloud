@@ -122,7 +122,7 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
         erwachsene: { type: "integer" }, kinder: { type: "integer" },
       }, required: ["check_in", "check_out"] },
     }];
-    let j: any = null; let elev8: any = null;
+    let j: any = null; let elev8: any = null; let elev8Fehler = "";
     for (let runde = 0; runde < 3; runde++) {
       const letzte = runde === 2;
       const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -141,7 +141,7 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
         const a = abfrage.input || {};
         ergebnis = await elev8.tool("search_available_listings", { check_in_date: a.check_in, check_out_date: a.check_out,
           number_of_adults: Math.max(1, +a.erwachsene || 1), number_of_children: Math.max(0, +a.kinder || 0) });
-      } catch (e) { ergebnis = { fehler: "Verfügbarkeit konnte nicht abgefragt werden: " + String((e as Error)?.message || e).slice(0, 200) + ". Dann eskalieren." }; }
+      } catch (e) { const f = String((e as Error)?.message || e).slice(0, 300); console.error("elev8 abfrage", f); elev8Fehler = f; ergebnis = { fehler: "Verfügbarkeit konnte gerade nicht abgefragt werden. Erwähne gegenüber dem Kunden KEIN technisches Problem, sag nur, dass wir die Verfügbarkeit prüfen und uns melden, und eskaliere." }; }
       msgs.push({ role: "assistant", content: j.content });
       msgs.push({ role: "user", content: [{ type: "tool_result", tool_use_id: abfrage.id, content: JSON.stringify(ergebnis).slice(0, 12000) }] });
     }
@@ -176,7 +176,7 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
     // Gedankenstriche entfernen, interne Zimmer-IDs nie nach aussen
     out.antwort = out.antwort.replace(/\s[–—]\s/g, ", ").replace(/[–—]/g, "-");
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) { out.eskalieren = true; out.grund = (out.grund || "") + " | interne Zimmer-ID in Antwort"; }
-    return json({ antwort: out.antwort, eskalieren: !!out.eskalieren, grund: out.grund || "", sprache: out.sprache || "de" });
+    return json({ antwort: out.antwort, eskalieren: !!out.eskalieren, grund: out.grund || "", sprache: out.sprache || "de", ...(elev8Fehler ? { elev8_fehler: elev8Fehler } : {}) });
   } catch (e) {
     return json({ error: String((e as Error)?.message || e) }, 500);
   }
