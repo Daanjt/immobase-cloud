@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return ok();
   const roh = await req.text();
   const sb = createClient(URL_, KEY);
-  const { data: cfg } = await sb.from("app_config").select("key,value").in("key", ["ycloud_webhook_secret", "whatsapp_testnummern"]);
+  const { data: cfg } = await sb.from("app_config").select("key,value").in("key", ["ycloud_webhook_secret", "whatsapp_testnummern", "whatsapp_ki_live"]);
   const c: Record<string, string> = Object.fromEntries((cfg || []).map((r: any) => [r.key, r.value]));
   // Signatur pruefen: YCloud-Signature: t=TIMESTAMP,s=HEX(HMAC_SHA256(secret, t + "." + body))
   if (c.ycloud_webhook_secret) {
@@ -48,9 +48,10 @@ Deno.serve(async (req) => {
   const { error: dup } = await sb.from("wa_nachrichten").insert({ richtung: "ein", telefon: tel, name: m.customerProfile?.name || null, text: text || `[${m.type}]`, typ: m.type, wamid: m.wamid || m.id, roh: ev });
   if (dup) return ok({ dup: true }); // schon verarbeitet (YCloud wiederholt Webhooks)
 
-  // Testphase: nur Testnummern bekommen eine automatische KI-Antwort
+  // Live (app_config.whatsapp_ki_live = "true"): alle bekommen eine KI-Antwort. Sonst nur die Testnummern.
+  const live = String(c.whatsapp_ki_live || "").toLowerCase() === "true";
   const test = String(c.whatsapp_testnummern || "").split(/[,;\s]+/).map(normTelefon).filter(Boolean);
-  if (!test.includes(tel) || !text || !waKey()) return ok({ gespeichert: true });
+  if ((!live && !test.includes(tel)) || !text || !waKey()) return ok({ gespeichert: true });
   // KI pausiert: im Posteingang ausgeschaltet oder ein Mensch hat in den letzten 6 Stunden geantwortet
   const { data: chat } = await sb.from("wa_chats").select("ki_aus").eq("telefon", tel).maybeSingle();
   if (chat?.ki_aus) return ok({ gespeichert: true, ki: "aus" });
