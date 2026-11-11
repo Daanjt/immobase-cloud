@@ -154,8 +154,26 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
           const { data: alleB } = await sb.from("elev8_bookings").select("listing_name").gte("departure", new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10));
           const namen = [...new Set([...(alle || []), ...(alleB || [])].map((x: any) => x.listing_name).filter(Boolean))];
           const belegt = new Set([...(bk || []).filter((x: any) => !x.cancelled && !/cancel/i.test(String(x.status || ""))), ...(bl || [])].map((x: any) => x.listing_name));
-          ergebnis = { quelle: "stündlicher Abgleich, ohne Preise", listings: namen.map((n) => ({ listing_name: n, frei: !belegt.has(n) })),
-            hinweis: "Nur Verfügbarkeit, keine Preise und keine Prüfung von Mindestaufenthalt oder Personenzahl. Sag, welche Wohnung grundsätzlich frei ist, nenne keinen Preis, sag dass wir den genauen Preis kurz bestätigen, und eskaliere. Kein technisches Problem erwähnen." };
+          // Preise aus dem täglichen Abgleich (Nachtpreise + Putzgebühr + Kurtaxe)
+          const personen = Math.max(1, +a.erwachsene || 1) + Math.max(0, +a.kinder || 0);
+          const naechte: string[] = [];
+          for (let d = new Date(ci + "T00:00:00Z"); d < new Date(co + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 1)) naechte.push(d.toISOString().slice(0, 10));
+          const [{ data: pr }, { data: gb }] = await Promise.all([
+            sb.from("elev8_preise").select("listing_name, datum, preis").gte("datum", ci).lt("datum", co),
+            sb.from("elev8_gebuehren").select("listing_name, putzgebuehr, kurtaxe_pp_nacht"),
+          ]);
+          const listings = namen.map((n) => {
+            const frei = !belegt.has(n);
+            if (!frei || !naechte.length) return { listing_name: n, frei };
+            const p = new Map((pr || []).filter((x: any) => x.listing_name === n).map((x: any) => [String(x.datum).slice(0, 10), +x.preis]));
+            if (naechte.some((d) => !p.has(d))) return { listing_name: n, frei, preis: "nicht bekannt" };
+            const g: any = (gb || []).find((x: any) => x.listing_name === n) || {};
+            const unterkunft = naechte.reduce((t, d) => t + (p.get(d) || 0), 0);
+            const putz = +g.putzgebuehr || 0, kurtaxe = (+g.kurtaxe_pp_nacht || 0) * personen * naechte.length;
+            return { listing_name: n, frei, naechte: naechte.length, unterkunft, putzgebuehr: putz, kurtaxe, total_price: Math.round(unterkunft + putz + kurtaxe) };
+          });
+          ergebnis = { quelle: "Abgleich aus Elev8 (Belegung stündlich, Preise täglich)", listings,
+            hinweis: "total_price ist der Gesamtpreis in CHF inkl. Reinigung und Kurtaxe. Nenne ihn als Preis (z.B. 'insgesamt CHF 1'383 inkl. Reinigung und Kurtaxe'). Ohne total_price keinen Preis nennen, sondern sagen, dass wir ihn bestätigen. Mindestaufenthalt und maximale Personenzahl sind nicht geprüft: sag, dass wir die Buchung gerne bestätigen bzw. vorbereiten, und eskaliere bei Buchungswunsch. Kein technisches Problem erwähnen." };
         } catch (e2) { ergebnis = { fehler: "Keine Verfügbarkeit abrufbar. Kein technisches Problem erwähnen, nur sagen, dass wir die Verfügbarkeit prüfen und uns melden, und eskalieren." }; }
       }
       msgs.push({ role: "assistant", content: j.content });
