@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.whatsapp-eingang]
 verify_jwt = false
+
+[functions.mail-anhang-ablegen]
+verify_jwt = false
