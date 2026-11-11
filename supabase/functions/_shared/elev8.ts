@@ -40,9 +40,10 @@ export class Elev8 {
 export async function elev8Verbinden(): Promise<Elev8> {
   const env = Deno.env.toObject();
   const namen = Object.keys(env).filter((k) => /ELEV8/i.test(k) && env[k]).sort((a, b) => (a === "ELEV8_MCP_KEY" ? -1 : b === "ELEV8_MCP_KEY" ? 1 : 0));
+  const versuche: string[] = [];
   for (const n of namen) for (const mode of ["xapikey", "bearer"] as const) {
     const c = new Elev8(env[n].trim(), mode);
-    try { await c.init(); return c; } catch { /* naechster */ }
+    try { await c.init(); return c; } catch (e) { versuche.push(`${n}/${mode}: ${String((e as Error).message).slice(0, 120)}`); }
   }
-  throw new Error("Keine Verbindung zu Elev8");
+  throw new Error("Keine Verbindung zu Elev8 (" + (namen.length ? versuche.join(" | ") : "kein ELEV8-Secret") + ")");
 }
