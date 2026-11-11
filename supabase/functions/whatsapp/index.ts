@@ -61,6 +61,14 @@ Deno.serve(async (req) => {
       }
       return json({ error: "Webhook konnte nicht angelegt werden", details: JSON.stringify(letzte).slice(0, 400) }, 502);
     }
+    if (b.aktion === "konto") {
+      // WhatsApp-Business-Konto(en) bei YCloud: Besitzer, Status, Zahlungsmethode
+      const key = waKey(); if (!key) return json({ error: "YCLOUD_API_KEY fehlt" }, 400);
+      const h = { "X-API-Key": key };
+      const waba = await fetch("https://api.ycloud.com/v2/whatsapp/businessAccounts?limit=10", { headers: h }).then((r) => r.json()).catch((e) => ({ fehler: String(e) }));
+      const nummern = await fetch("https://api.ycloud.com/v2/whatsapp/phoneNumbers?limit=10", { headers: h }).then((r) => r.json()).catch((e) => ({ fehler: String(e) }));
+      return json({ waba, nummern });
+    }
     if (b.aktion === "nachricht_status") {
       // Zustellstatus der letzten gesendeten Nachrichten direkt bei YCloud nachschauen
       const key = waKey(); if (!key) return json({ error: "YCLOUD_API_KEY fehlt" }, 400);
