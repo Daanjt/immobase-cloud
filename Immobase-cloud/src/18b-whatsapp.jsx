@@ -20,6 +20,17 @@ async function waFn(body) {
   if (!res.ok || j.error) throw new Error(j.error || `Fehler ${res.status}`);
   return j;
 }
+// Bild, Audio, Video oder Datei aus dem privaten Bucket "whatsapp" anzeigen
+function WaMedium({ m }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => { let weg = false; supabase.storage.from("whatsapp").createSignedUrl(m.medien_pfad, 3600).then(({ data }) => { if (!weg && data) setUrl(data.signedUrl); }); return () => { weg = true; }; }, [m.medien_pfad]);
+  if (!url) return <div style={{ fontSize: 12, color: "#8a8174" }}>Lädt…</div>;
+  const mime = m.medien_mime || "";
+  if (mime.startsWith("image/")) return <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ maxWidth: "100%", maxHeight: 320, borderRadius: 6, display: "block" }} /></a>;
+  if (mime.startsWith("audio/")) return <audio controls src={url} style={{ maxWidth: 260 }} />;
+  if (mime.startsWith("video/")) return <video controls src={url} style={{ maxWidth: "100%", maxHeight: 320, borderRadius: 6 }} />;
+  return <a href={url} target="_blank" rel="noreferrer" style={{ color: "#3a5f8a" }}>📄 {m.medien_name || "Datei öffnen"}</a>;
+}
 const WA_QUELLE = { ki: "🤖 KI automatisch", ki_fehler: "⚠ KI-Fehler", handy: "📱 vom Handy", immobase: "💻 ImmoBase", immobase_ki: "💻 ImmoBase (KI-Vorschlag)", vorlage: "📋 Vorlage" };
 
 function WhatsAppPage({ tenants, bewerber, navigateTo }) {
@@ -32,6 +43,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const [text, setText] = useState("");
   const [vorschlag, setVorschlag] = useState(null);
   const [busy, setBusy] = useState("");
+  const dateiRef = React.useRef(null);
   const endeRef = React.useRef(null);
 
   // Telefonnummer -> Mieter / Bewerber
@@ -49,7 +61,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   };
   const ladeVerlauf = async (tel) => {
     if (!tel) return;
-    const { data } = await supabase.from("wa_nachrichten").select("id, richtung, text, typ, quelle, ki_eskalieren, ki_grund, created_at, name").eq("telefon", tel).order("created_at", { ascending: true }).limit(300);
+    const { data } = await supabase.from("wa_nachrichten").select("id, richtung, text, typ, quelle, ki_eskalieren, ki_grund, created_at, name, medien_pfad, medien_mime, medien_name").eq("telefon", tel).order("created_at", { ascending: true }).limit(300);
     setVerlauf(data || []);
   };
   useEffect(() => { ladeChats(); const iv = setInterval(ladeChats, 15000); return () => clearInterval(iv); }, []);
@@ -107,6 +119,23 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
     setBusy("");
   };
 
+  const dateiSenden = async (f) => {
+    if (!f || !aktiv) return;
+    if (f.size > 16 * 1024 * 1024) { toast("Datei zu gross (max. 16 MB)", "error"); return; }
+    setBusy("datei");
+    try {
+      const name = f.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+      const pfad = `${aktiv.replace("+", "")}/aus-${Date.now()}-${name}`;
+      const { error } = await supabase.storage.from("whatsapp").upload(pfad, f, { contentType: f.type || "application/octet-stream" });
+      if (error) throw new Error("Upload fehlgeschlagen: " + error.message);
+      await waFn({ aktion: "senden_datei", telefon: aktiv, pfad, mime: f.type || "", name: f.name, caption: text.trim() });
+      setText(""); setVorschlag(null); toast("Datei gesendet");
+      await ladeVerlauf(aktiv); ladeChats();
+    } catch (e) { toast(e.message, "error"); }
+    setBusy("");
+    if (dateiRef.current) dateiRef.current.value = "";
+  };
+
   const Liste = (
     <div style={{ flex: "0 0 320px", minWidth: 0, maxWidth: "100%" }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
@@ -160,7 +189,10 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
           const aus = m.richtung === "aus";
           return (
             <div key={m.id} style={{ alignSelf: aus ? "flex-end" : "flex-start", maxWidth: "85%", background: aus ? (m.quelle === "ki_fehler" ? "#fbeae6" : "#d9fdd3") : "#fff", borderRadius: 8, padding: "7px 10px", fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", boxShadow: "0 1px 1px rgba(0,0,0,.06)" }}>
-              {m.typ && m.typ !== "text" && m.typ !== "template" && !m.text ? `[${m.typ}]` : (m.text || `[${m.typ || "?"}]`)}
+              {m.medien_pfad && <div style={{ marginBottom: m.text && !/^(📷|🎬|🎤|📄|Sticker)/.test(m.text) ? 4 : 0 }}><WaMedium m={m} /></div>}
+              {m.medien_pfad && /^(📷 Bild|🎬 Video|🎤 Sprachnachricht|📄 |Sticker)/.test(m.text || "") ? null
+                : m.typ === "unsupported" ? <span style={{ color: "#8a8174", fontStyle: "italic" }}>Nachricht von WhatsApp nicht übermittelt</span>
+                : (m.text || `[${m.typ || "?"}]`)}
               <div style={{ fontSize: 10.5, color: "#8a8174", marginTop: 3, textAlign: "right" }}>{aus && WA_QUELLE[m.quelle] ? WA_QUELLE[m.quelle] + " · " : ""}{waZeit(m.created_at)}</div>
               {aus && m.ki_eskalieren && <div style={{ fontSize: 10.5, color: "#a4442e", marginTop: 2 }}>⚠ an euch weitergeleitet{m.ki_grund ? `: ${m.ki_grund}` : ""}</div>}
             </div>);
@@ -175,6 +207,8 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
         <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
           <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} onClick={kiVorschlag}>{busy === "ki" ? "KI denkt…" : "🤖 KI-Vorschlag"}</button>
           <button className="btn btn-p btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen || !text.trim()} onClick={senden}>{busy === "senden" ? "Sendet…" : "Senden"}</button>
+          <input ref={dateiRef} type="file" accept="image/jpeg,image/png,video/mp4,application/pdf,.doc,.docx,.xls,.xlsx" style={{ display: "none" }} onChange={e => dateiSenden(e.target.files && e.target.files[0])} />
+          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} title="Bild, Video oder PDF senden. Der Text im Feld wird als Bildunterschrift mitgeschickt." onClick={() => dateiRef.current && dateiRef.current.click()}>{busy === "datei" ? "Sendet…" : "📎 Datei"}</button>
           {text && <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy} onClick={() => { setText(""); setVorschlag(null); }}>Verwerfen</button>}
         </div>
       </div>
