@@ -1,3 +1,5 @@
+// Auto-WhatsApp-Knopf erst zeigen, wenn die Meta-Vorlage genehmigt und der Testmodus aus ist
+const WA_AUTO_AKTIV = false;
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
 // ── Geteilte Vertrags-Helfer (Top-Level: Versand UND Download nutzen denselben Weg) ──
 function daanDatumStr() {
@@ -1777,7 +1779,7 @@ www.dthomes.ch`;
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp-Nachricht senden" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp</button>
-                <button className="btn btn-sm" onClick={(e)=>waAutoB(b,e)} title="Interesse automatisch per WhatsApp anfragen (offizielle Vorlage, ImmoBase sendet direkt)" style={{background:"#fff",color:"#3d6b45",borderColor:"#4e7d55"}}>📲 Auto-WhatsApp{b.whatsapp_followup_sent_at?" ✓":""}</button>
+                {WA_AUTO_AKTIV && <button className="btn btn-sm" onClick={(e)=>waAutoB(b,e)} title="Interesse automatisch per WhatsApp anfragen (offizielle Vorlage, ImmoBase sendet direkt)" style={{background:"#fff",color:"#3d6b45",borderColor:"#4e7d55"}}>📲 Auto-WhatsApp{b.whatsapp_followup_sent_at?" ✓":""}</button>}
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#f0ebe1",color:"#3a352d",borderColor:"#d8d0c0"}}>↻ Als Nachmieter übernehmen</button>}
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
