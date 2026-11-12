@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.mail-anhang-ablegen]
 verify_jwt = false
+
+[functions.outlook-anhang]
+verify_jwt = false
