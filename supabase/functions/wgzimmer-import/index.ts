@@ -118,10 +118,20 @@ Deno.serve(async (req) => {
   const flt = encodeURIComponent(`from/emailAddress/address eq 'no-reply@wgzimmer.ch' and receivedDateTime ge ${since}`);
   let url: string | null = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${flt}&$select=id,subject,receivedDateTime,body,internetMessageId&$top=50`;
   const msgs: any[] = [];
+  // Graph liefert ab und zu kurzzeitig 429/5xx ohne Meldung: bis zu 3 Versuche, bevor es als Fehler gilt
+  const graphGet = async (u: string) => {
+    let r: Response = new Response(null, { status: 599 }); let d: any = {};
+    for (let i = 0; i < 3; i++) {
+      r = await fetch(u, { headers: { Authorization: `Bearer ${tok}` } });
+      d = await r.json().catch(() => ({}));
+      if (r.ok || (r.status !== 429 && r.status < 500)) break;
+      await new Promise((ok) => setTimeout(ok, 2000 * (i + 1)));
+    }
+    return { r, d };
+  };
   while (url && msgs.length < 300) {
-    const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${tok}` } });
-    const d: any = await r.json();
-    if (!r.ok) return json({ error: "graph_failed", detail: d?.error?.message || "" }, 500);
+    const { r, d } = await graphGet(url);
+    if (!r.ok) return json({ error: "graph_failed", status: r.status, detail: d?.error?.message || d?.error?.code || "" }, 500);
     msgs.push(...(d.value || []));
     url = d["@odata.nextLink"] || null;
   }
@@ -129,8 +139,7 @@ Deno.serve(async (req) => {
   const flt2 = encodeURIComponent(`from/emailAddress/address eq 'info@weegee.ch' and receivedDateTime ge ${since}`);
   let url2: string | null = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${flt2}&$select=id,subject,receivedDateTime,body,internetMessageId&$top=50`;
   while (url2 && msgs.length < 400) {
-    const r: Response = await fetch(url2, { headers: { Authorization: `Bearer ${tok}` } });
-    const d: any = await r.json();
+    const { r, d } = await graphGet(url2);
     if (!r.ok) break;
     for (const m of (d.value || [])) { m._q = "weegee"; msgs.push(m); }
     url2 = d["@odata.nextLink"] || null;
