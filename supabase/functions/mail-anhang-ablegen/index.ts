@@ -38,6 +38,9 @@ Deno.serve(async (req) => {
     if (ue) return json({ error: "Upload: " + ue.message }, 500);
     const { data: d, error: de } = await sb.from("documents").insert({ entity_type: et, entity_id: eid, category: kat, filename: name, storage_path: pfad, file_size: bytes.length, mime_type: a.contentType || null, uploaded_by: String(b.uploaded_by || "daan.theijse@dthomes.ch") }).select("id").maybeSingle();
     if (de) return json({ error: "DB: " + de.message }, 500);
-    return json({ ok: true, id: d?.id, pfad, groesse: bytes.length, betreff: msg.subject });
+    // optional: kurzlebiger Download-Link (1 Stunde)
+    let link: string | null = null;
+    if (b.link) { const { data: su } = await sb.storage.from("documents").createSignedUrl(pfad, 3600); link = su?.signedUrl || null; }
+    return json({ ok: true, id: d?.id, pfad, groesse: bytes.length, betreff: msg.subject, link });
   } catch (e) { return json({ error: String((e as Error).message || e) }, 500); }
 });
