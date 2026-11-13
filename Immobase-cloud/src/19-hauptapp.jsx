@@ -227,7 +227,7 @@ function MainApp({rolle}) {
           </button>
         </div>
       </div>
-      <div className="main">{(window.__IB_DATA=data, null)}<div key={page} className="seite-anim"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle !== "operations"} navigateTo={navigateTo} navTarget={navTarget}/></div></div>
+      <div className="main">{(window.__IB_DATA=data, null)}<div key={page} className="seite-anim"><Page {...data} rolle={rolle} benutzerMail={benutzerMail} istAdmin={rolle === "admin"} navigateTo={navigateTo} navTarget={navTarget}/></div></div>
       {pwOpen && <PasswortAendern onClose={()=>setPwOpen(false)}/>}
       {pkOpen && <PasskeysVerwalten onClose={()=>setPkOpen(false)}/>}
       <PasskeyAngebot/>
@@ -441,7 +441,8 @@ function KommunikationTab({empfaenger, zielgruppe}) {
 
 const ROLLEN_LABELS = {
   admin: "Admin (Vollzugriff)",
-  operations: "Operations (Vermietung, ohne Finanzen und Hauptmiete)",
+  operations: "Operations (alle Wohnungen ausser Airbnb, ohne Finanzen und Hauptmiete)",
+  vermietung: "Vermietung (nur freie Wohnungen und Zimmer)",
 };
 
 function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {

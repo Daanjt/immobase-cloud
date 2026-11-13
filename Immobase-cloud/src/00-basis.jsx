@@ -576,5 +576,6 @@ const NATIONALITAETEN = [...NATIONALITAETEN_TOP, ...NATIONALITAETEN_REST];
 
 
 // Operations sieht Wohnungen und Parkplaetze nur ueber Ansichten ohne Hauptmiete/Einkauf (Datenbank-Views)
-function aptQuelle(){ return window.__ibRolle==="operations" ? "apartments_ops" : "apartments"; }
-function ppQuelle(){ return window.__ibRolle==="operations" ? "parkplaetze_ops" : "parkplaetze"; }
+// Vermietung (nur freie Wohnungen/Zimmer) nutzt dieselben Ansichten, die Datenbank filtert zusaetzlich
+function aptQuelle(){ return (window.__ibRolle==="operations"||window.__ibRolle==="vermietung") ? "apartments_ops" : "apartments"; }
+function ppQuelle(){ return (window.__ibRolle==="operations"||window.__ibRolle==="vermietung") ? "parkplaetze_ops" : "parkplaetze"; }
