@@ -1,4 +1,5 @@
-// Leitet eine Schadenmeldung aus dem Mieterportal per E-Mail an die Ansprechperson der Liegenschaft weiter.
+// Leitet eine Schadenmeldung (id) oder mehrere Meldungen derselben Wohnung als Sammelmeldung (ids)
+// per E-Mail an die Ansprechperson der Liegenschaft weiter.
 // Aufruf nur aus ImmoBase (Admin). Text und Empfänger kommen aus dem Dialog in ImmoBase,
 // die Fotos der Meldung werden als Anhang mitgeschickt.
 // Die Mail kommt persönlich von Daan: zuerst über sein Outlook (Microsoft Graph, landet in "Gesendet"),
@@ -66,20 +67,27 @@ Deno.serve(async (req) => {
     const cc = String(b.cc || "").split(/[;,]/).map((x: string) => x.trim()).filter(Boolean);
     if (!an.length || !an.every(emailOk) || !cc.every(emailOk)) return json({ error: "Bitte eine gültige E-Mail-Adresse angeben." }, 400);
     if (!String(b.text || "").trim()) return json({ error: "Der Text ist leer." }, 400);
-    const { data: s } = await sb.from("schadenmeldungen").select("id, status, fotos").eq("id", b.id).maybeSingle();
-    if (!s) return json({ error: "Meldung nicht gefunden." }, 404);
+    // Einzelmeldung (id) oder Sammelmeldung (ids, in der Reihenfolge wie im Mailtext nummeriert)
+    const ids: number[] = (Array.isArray(b.ids) && b.ids.length ? b.ids : [b.id]).map((x: unknown) => Number(x)).filter((x: number) => x > 0);
+    if (!ids.length) return json({ error: "Meldung nicht gefunden." }, 404);
+    const { data: rows } = await sb.from("schadenmeldungen").select("id, status, fotos").in("id", ids);
+    const liste = ids.map((id) => (rows || []).find((r: any) => r.id === id)).filter(Boolean) as any[];
+    if (liste.length !== ids.length) return json({ error: "Meldung nicht gefunden." }, 404);
+    const sammel = liste.length > 1;
 
     const anhaenge: any[] = [];
     let gesamt = 0, ausgelassen = 0;
     if (b.fotos !== false) {
-      for (const [i, pfad] of ((s.fotos || []) as string[]).entries()) {
-        const { data: blob } = await sb.storage.from("documents").download(pfad);
-        if (!blob) { ausgelassen++; continue; }
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        if (gesamt + bytes.length > MAX_ANHANG) { ausgelassen++; continue; }
-        gesamt += bytes.length;
-        const ext = (pfad.split(".").pop() || "jpg").toLowerCase();
-        anhaenge.push({ filename: `Foto_${i + 1}.${ext}`, content: b64(bytes), content_type: blob.type || "image/jpeg" });
+      for (const [n, s] of liste.entries()) {
+        for (const [i, pfad] of ((s.fotos || []) as string[]).entries()) {
+          const { data: blob } = await sb.storage.from("documents").download(pfad);
+          if (!blob) { ausgelassen++; continue; }
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          if (gesamt + bytes.length > MAX_ANHANG) { ausgelassen++; continue; }
+          gesamt += bytes.length;
+          const ext = (pfad.split(".").pop() || "jpg").toLowerCase();
+          anhaenge.push({ filename: sammel ? `Meldung${n + 1}_Foto_${i + 1}.${ext}` : `Foto_${i + 1}.${ext}`, content: b64(bytes), content_type: blob.type || "image/jpeg" });
+        }
       }
     }
     const betreff = String(b.betreff || "Schadenmeldung").slice(0, 200);
@@ -99,10 +107,13 @@ Deno.serve(async (req) => {
       });
       if (!r.ok) return json({ error: "Versand fehlgeschlagen: " + (await r.text()).slice(0, 200) }, 502);
     }
-    const upd: Record<string, unknown> = { weitergeleitet_an: an.join(", "), weitergeleitet_at: new Date().toISOString() };
-    if (s.status === "neu") upd.status = "in_arbeit";
-    await sb.from("schadenmeldungen").update(upd).eq("id", s.id);
-    return json({ ok: true, fotos: anhaenge.length, ausgelassen, weg, outlook_grund: weg === "resend" ? ol.grund : undefined });
+    const jetzt = new Date().toISOString();
+    for (const s of liste) {
+      const upd: Record<string, unknown> = { weitergeleitet_an: an.join(", "), weitergeleitet_at: jetzt, updated_at: jetzt };
+      if (s.status === "neu") upd.status = "in_arbeit";
+      await sb.from("schadenmeldungen").update(upd).eq("id", s.id);
+    }
+    return json({ ok: true, meldungen: liste.length, fotos: anhaenge.length, ausgelassen, weg, outlook_grund: weg === "resend" ? ol.grund : undefined });
   } catch (e) {
     console.error("schaden-weiterleiten", e);
     return json({ error: String((e as Error)?.message || e) }, 500);
