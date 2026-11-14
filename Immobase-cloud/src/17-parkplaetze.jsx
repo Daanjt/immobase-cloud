@@ -776,7 +776,7 @@ const ROLLEN_SEITEN = {
   admin: null,
   operations: ["dashboard","bewerber","mieter","todos","schaeden","kuendigungen","wohnungen","zimmer","nachvermietung","uebergaben","parkplaetze","reinigung"],
   // Vermietung: nur freie bzw. frei werdende Zimmer und Wohnungen, die Bewerber dafuer und die neuen Mieter bis zum Einzug
-  vermietung: ["bewerber","zimmer","wohnungen","mieter"],
+  vermietung: ["bewerber","zimmer","wohnungen","nachvermietung","mieter"],
 };
 
 function seitenFuerRolle(rolle) {
