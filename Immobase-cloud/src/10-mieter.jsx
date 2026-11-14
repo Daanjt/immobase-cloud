@@ -134,7 +134,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
   const [search,setSearch]=useState("");
   const vmRechte = useVmRechte([tenants, rooms]);
   const [vermittlerListe, setVermittlerListe] = useState([]);
-  useEffect(() => { if (istAdmin) supabase.from("employees").select("vorname,nachname,email,aktiv").then(({ data }) => setVermittlerListe((data || []).filter(e => e.email && e.aktiv !== false))); }, [istAdmin]);
+  useEffect(() => { supabase.from("employees").select("vorname,nachname,email,aktiv").then(({ data }) => setVermittlerListe((data || []).filter(e => e.vorname && e.aktiv !== false))); }, []);
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
@@ -674,7 +674,6 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
       noDebt:!!form.noDebt,
       bemerkung:form.bemerkung,
       owner:form.owner||null,
-      ...(istAdmin ? { vermittelt_von: form.vermittelt_von || null } : {}),
     });
     // Selection auf neue ID setzen falls geändert
     if (form.id !== originalId) {
@@ -1118,21 +1117,13 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
             </div>
           </div>
           <div className="fg">
-            <label className="fl">👤 Bearbeitet von</label>
-            <select className="fi" value={form.owner||""} onChange={F("owner")}>
+            <label className="fl">👤 Vermittelt von{istAdmin?" (zählt für den Lohn)":""}</label>
+            <select className="fi" value={form.owner||""} onChange={F("owner")} disabled={!istAdmin}>
               <option value="">-</option>
-              <option value="Daan">Daan</option>
-              <option value="Tijn">Tijn</option>
+              {(vermittlerListe||[]).map(e=><option key={e.email} value={e.vorname}>{e.vorname}</option>)}
+              {form.owner && !(vermittlerListe||[]).some(e=>e.vorname===form.owner) && <option value={form.owner}>{form.owner}</option>}
             </select>
           </div>
-          {istAdmin && <div className="fg">
-            <label className="fl">🧾 Vermittelt von (zählt für den Lohn)</label>
-            <select className="fi" value={form.vermittelt_von||""} onChange={F("vermittelt_von")}>
-              <option value="">-</option>
-              {(vermittlerListe||[]).map(e=><option key={e.email} value={String(e.email).toLowerCase()}>{[e.vorname,e.nachname].filter(Boolean).join(" ")}</option>)}
-              {form.vermittelt_von && !(vermittlerListe||[]).some(e=>String(e.email).toLowerCase()===form.vermittelt_von) && <option value={form.vermittelt_von}>{form.vermittelt_von}</option>}
-            </select>
-          </div>}
         </div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Daten</div>
