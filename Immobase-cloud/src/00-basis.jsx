@@ -578,4 +578,14 @@ const NATIONALITAETEN = [...NATIONALITAETEN_TOP, ...NATIONALITAETEN_REST];
 // Operations sieht Wohnungen und Parkplaetze nur ueber Ansichten ohne Hauptmiete/Einkauf (Datenbank-Views)
 // Vermietung (nur freie Wohnungen/Zimmer) nutzt dieselben Ansichten, die Datenbank filtert zusaetzlich
 function aptQuelle(){ return (window.__ibRolle==="operations"||window.__ibRolle==="vermietung") ? "apartments_ops" : "apartments"; }
+// Rolle Vermietung: welche Zimmer/Mieter sie bearbeiten darf (die Datenbank prueft das zusaetzlich)
+const istVermietung = () => window.__ibRolle === "vermietung";
+function useVmRechte(deps){
+  const [r, setR] = useState(null);
+  useEffect(() => {
+    if (!istVermietung()) { setR(null); return; }
+    supabase.rpc("vm_rechte").then(({ data }) => setR({ zimmer: new Set((data && data.zimmer) || []), mieter: new Set((data && data.mieter) || []) }));
+  }, deps || []);
+  return r;
+}
 function ppQuelle(){ return (window.__ibRolle==="operations"||window.__ibRolle==="vermietung") ? "parkplaetze_ops" : "parkplaetze"; }

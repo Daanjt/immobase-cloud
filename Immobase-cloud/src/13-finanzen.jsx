@@ -531,3 +531,55 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
   );
 }
 
+
+// ─── LOHN: Vermietungen pro Person (nur Admin) ─────────────────────────────
+// Zaehlt unterschriebene Mietvertraege (ohne Parkplatz und Verlaengerung) nach Monat der Unterschrift
+// und nach der Person, die den Mieter in ImmoBase angelegt hat (tenants.vermittelt_von).
+function LohnPage(){
+  const [rows, setRows] = useState(null);
+  const [offen, setOffen] = useState(null);
+  useEffect(() => { supabase.rpc("lohn_vermietungen").then(({ data, error }) => setRows(error ? [] : (data || []))); }, []);
+  if (rows === null) return <div><div className="pt">Lohn</div><div className="ps">Lädt…</div></div>;
+  const monatKey = (d) => d ? String(d).slice(0, 7) : "ohne Datum";
+  const monatLabel = (k) => { if (k === "ohne Datum") return k; const [y, m] = k.split("-"); return new Date(+y, +m - 1, 1).toLocaleDateString("de-CH", { month: "long", year: "numeric" }); };
+  const personen = [...new Set(rows.map((r) => r.vermittler_name || "Unbekannt"))].sort((a, b) => a.localeCompare(b, "de"));
+  const monate = [...new Set(rows.map((r) => monatKey(r.unterschrieben_am)))].sort().reverse();
+  const zaehl = (m, p) => rows.filter((r) => monatKey(r.unterschrieben_am) === m && (r.vermittler_name || "Unbekannt") === p).length;
+  const jetzt = monatKey(new Date().toISOString());
+  const th = { padding: "8px 10px", fontSize: 10.5, letterSpacing: ".12em", textTransform: "uppercase", color: "#8a8174", fontWeight: 600, textAlign: "right", borderBottom: "1px solid #e1d8c5" };
+  const td = { padding: "9px 10px", fontSize: 13, textAlign: "right", borderBottom: "1px solid #f0eadd" };
+  return (
+    <div>
+      <div className="pt">Lohn</div>
+      <div className="ps">Vermietete Zimmer und Wohnungen pro Person · gezählt werden vom Mieter unterschriebene Mietverträge, nach Monat der Unterschrift</div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "16px 0" }}>
+        {personen.map((p) => <div key={p} className="sc" style={{ minWidth: 150 }}><div className="sl">{p}</div><div className="sv" style={{ fontSize: 24 }}>{zaehl(jetzt, p)}</div><div className="sn">diesen Monat · total {rows.filter((r) => (r.vermittler_name || "Unbekannt") === p).length}</div></div>)}
+      </div>
+      <div className="card" style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr><th style={{ ...th, textAlign: "left" }}>Monat</th>{personen.map((p) => <th key={p} style={th}>{p}</th>)}<th style={th}>Total</th></tr></thead>
+          <tbody>
+            {monate.map((m) => (
+              <React.Fragment key={m}>
+                <tr onClick={() => setOffen(offen === m ? null : m)} style={{ cursor: "pointer", background: offen === m ? "#faf8f3" : "transparent" }}>
+                  <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{offen === m ? "▾" : "▸"} {monatLabel(m)}</td>
+                  {personen.map((p) => <td key={p} style={td}>{zaehl(m, p) || "–"}</td>)}
+                  <td style={{ ...td, fontWeight: 600 }}>{rows.filter((r) => monatKey(r.unterschrieben_am) === m).length}</td>
+                </tr>
+                {offen === m && rows.filter((r) => monatKey(r.unterschrieben_am) === m).sort((a, b) => String(a.unterschrieben_am).localeCompare(String(b.unterschrieben_am))).map((r) => (
+                  <tr key={r.vertrag_id} style={{ background: "#faf8f3" }}>
+                    <td colSpan={personen.length + 2} style={{ ...td, textAlign: "left", fontSize: 12, color: "#5a5448", paddingLeft: 28 }}>
+                      {r.unterschrieben_am ? new Date(r.unterschrieben_am).toLocaleDateString("de-CH") : "–"} · <b>{r.mieter}</b> · {r.objekt}{r.adresse ? `, ${r.adresse}` : ""} · {r.vermittler_name || "Unbekannt"}
+                    </td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+            {!monate.length && <tr><td colSpan={personen.length + 2} style={{ ...td, textAlign: "left", color: "#8a8174" }}>Noch keine unterschriebenen Verträge.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 10, lineHeight: 1.5 }}>Zugeordnet wird automatisch der Person, die den Mieter in ImmoBase angelegt hat (z.B. beim Zuteilen eines Bewerbers). Bisherige Mieter sind nach dem Feld „Owner“ Daan oder Tijn zugeordnet.</div>
+    </div>
+  );
+}

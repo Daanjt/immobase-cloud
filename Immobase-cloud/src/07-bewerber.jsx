@@ -484,7 +484,12 @@ function HandoverConfirmButton({protocol, onDone}){
     )}
   </>);
 }
-function CountersignButton({contract, onDone, onSigned, light}){
+// Gegenzeichnen darf nur Admin (auch serverseitig geprueft); alle anderen sehen nur den Status
+function CountersignButton(props){
+  if (window.__ibRolle !== "admin") return <span style={{fontSize:10.5,padding:"4px 10px",borderRadius:6,whiteSpace:"nowrap",background:props.light?"transparent":"#e6eef6",color:props.light?"#fefcf7":"#2c4a6e",border:"1px solid "+(props.light?"#fefcf7":"#b0c8e0")}}>Wartet auf Gegenzeichnung durch D&amp;T</span>;
+  return <CountersignButtonAdmin {...props}/>;
+}
+function CountersignButtonAdmin({contract, onDone, onSigned, light}){
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -1785,12 +1790,12 @@ www.dthomes.ch`;
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
                 {b.status!=="Zugeteilt"&&b.status!=="Abgelehnt"&&(<button className="btn btn-gr btn-sm" onClick={()=>setZuteilModal(true)}>🏠 Zimmer zuteilen</button>)}
                 {b.status!=="Abgelehnt"&&b.status!=="Zugeteilt"&&<button className="btn btn-r btn-sm" onClick={()=>setStatus(b.id,"Abgelehnt")}>✗ Ablehnen</button>}
-                <button className="btn btn-sm" onClick={()=>{
+                {window.__ibRolle==="admin" && <button className="btn btn-sm" onClick={()=>{
                   if(confirm(`Bewerbung von ${b.vorname} ${b.nachname} wirklich endgültig löschen?\n\nDie Bewerbung wird komplett aus der Datenbank entfernt - dieser Vorgang kann nicht rückgängig gemacht werden.`)){
                     deleteBewerber(b.id);
                     setSel(null);
                   }
-                }} style={{background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0"}}>🗑 Löschen</button>
+                }} style={{background:"#fefcf7",color:"#9b4a3e",border:"1px solid #e0bcb0"}}>🗑 Löschen</button>}
               </div>
             </div>
             

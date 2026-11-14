@@ -747,6 +747,7 @@ const PAGES=[
   {id:"zahlungen",icon:"💰",label:"Zahlungen",group:"finanzen"},
   {id:"finanzen",icon:"📊",label:"Finanzen",group:"finanzen"},
   {id:"auslagen",icon:"💳",label:"Geschäftskarte",group:"finanzen"},
+  {id:"lohn",icon:"🧾",label:"Lohn",group:"finanzen"},
   {id:"pipeline",icon:"📇",label:"Pipeline",group:"akquise"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch",group:"akquise"},
   {id:"marktradar",icon:"🔭",label:"Marktradar",group:"akquise"},

@@ -132,6 +132,7 @@ function MieterSchluessel({tenant, updateTenant, istWohnung}) {
 
 function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContracts,withdrawContract,updateTenant,insertTenant,renameTenantId,deleteTenant,restoreTenant,purgeTenant,deletedTenants,loadDeleted,convertTenantToBewerber,updateRoom,documents,uploadDocument,getDocumentUrl,deleteDocument,protokolle,insertProtokoll,updateProtokoll,deleteProtokoll,navigateTo,navTarget,handoverProtocols,loadHandoverProtocols,startHandoverProtocol,cancelHandoverProtocol,acceptHandoverProtocol,extendHandoverDeadline,deleteHandoverProtocol,resendHandoverInvite,istAdmin=true}){
   const [search,setSearch]=useState("");
+  const vmRechte = useVmRechte([tenants, rooms]);
   const [sel,setSel]=useState(null);
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
@@ -685,7 +686,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
           <div className="pt">Mieter</div>
           <div className="ps">{viewMode==="ehemalig"?`${ehemalige.length} ehemalige Mieter`:viewMode==="zukuenftig"?`${zukuenftige.length} zukünftige Mieter`:`${aktive.length} aktive Mieter`}</div>
         </div>
-        {viewMode==="aktiv" && <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>}
+        {viewMode==="aktiv" && !istVermietung() && <button className="btn btn-p" onClick={()=>{setNewForm({id:nextTenantId(),kautionOpt:"3x"});setAdding(true);}}>+ Neuer Mieter</button>}
       </div>
       
       {/* TAB-TOGGLE: Aktive / Zukünftige / Ehemalige */}
@@ -699,9 +700,9 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
         <button onClick={()=>{setViewMode("ehemalig");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="ehemalig"?600:400,color:viewMode==="ehemalig"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="ehemalig"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
           📦 Ehemalige ({ehemalige.length})
         </button>
-        <button onClick={()=>{setViewMode("papierkorb");setSel(null);loadDeleted&&loadDeleted();}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="papierkorb"?600:400,color:viewMode==="papierkorb"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="papierkorb"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
+        {!istVermietung() && <button onClick={()=>{setViewMode("papierkorb");setSel(null);loadDeleted&&loadDeleted();}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="papierkorb"?600:400,color:viewMode==="papierkorb"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="papierkorb"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
           🗑 Papierkorb ({(deletedTenants||[]).length})
-        </button>
+        </button>}
       </div>
       {viewMode==="papierkorb" && (
         <div style={{maxWidth:640}}>
@@ -756,15 +757,16 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
           <div className="card" style={{margin:0}}>
             <div className="detail-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:12,flexWrap:"wrap"}}>
               <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:"1 1 auto"}}><Av name={tenant.vorname} size={40}/><div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#1f1d18",wordBreak:"break-word"}}>{tenant.vorname} {tenant.nachname}</div><div style={{fontSize:11,color:"#8a8478",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><span>{tenant.id}</span>{tenant.owner&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:tenant.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:tenant.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em"}}>👤 {tenant.owner}</span>}{tenant.status==="archiviert"&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:3,background:"#e8e3d8",color:"#5a5249",letterSpacing:".05em"}}>📦 ARCHIVIERT</span>}</div></div></div>
+              {(()=>{ const vm=istVermietung(); const darf=!vm||(vmRechte&&vmRechte.mieter.has(tenant.id)); if(vm&&!darf) return <div style={{fontSize:11.5,color:"#8a8174"}}>Mitbewohner · nur Ansicht</div>; return (
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
                 {<button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>}
-                {<button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>}
+                {!vm && <button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>}
                 {<button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>}
-                {tenant.status!=="archiviert" && (
+                {!vm && tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
                 )}
-                {convertTenantToBewerber && (
+                {!vm && convertTenantToBewerber && (
                   <button className="btn btn-g btn-sm" title="Diesen Mieter zurueck in die Bewerber-Sektion verschieben" onClick={async()=>{
                     const name = `${tenant.vorname} ${tenant.nachname}`;
                     const myContracts = (contracts||[]).filter(c=>c.tenantId===tenant.id);
@@ -781,7 +783,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                     } catch(e) { alert("Fehler: " + (e.message||e)); }
                   }} style={{color:"#3a4d66",borderColor:"#c0cdde"}}>↩ Zu Bewerber</button>
                 )}
-                {tenant.status==="archiviert" ? (
+                {vm ? null : tenant.status==="archiviert" ? (
                   <>
                     <button className="btn btn-p btn-sm" onClick={async()=>{
                       if (!confirm(`${tenant.vorname} ${tenant.nachname} wieder als aktiven Mieter reaktivieren?\n\nDanach kannst du ihn/sie einem Zimmer zuteilen.`)) return;
@@ -817,6 +819,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                   }} style={{color:"#9b6a4a",borderColor:"#d4c7a8"}}>📦 Archivieren</button>
                 )}
               </div>
+              ); })()}
             </div>
             {tenant.status==="archiviert" && (
               <div style={{background:"#f5efe4",border:"1px solid #d4c7a8",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a5249",lineHeight:1.5}}>

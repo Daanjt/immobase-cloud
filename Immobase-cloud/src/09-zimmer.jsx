@@ -1,6 +1,7 @@
 // ─── ZIMMER ──────────────────────────────────────────────────────────────────
 function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant,navigateTo,navTarget,istAdmin=true}){
   const [filter,setFilter]=useState("alle");
+  const vmRechte = useVmRechte([rooms, tenants]);
   const [art,setArt]=useState("alle");
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
@@ -198,11 +199,11 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
                     <td data-label="Mieter">{t?<button onClick={()=>navigateTo&&navigateTo("mieter",t.id)} style={{background:"none",border:"none",color:"#1a1814",cursor:"pointer",padding:0,textDecoration:"underline",fontFamily:"inherit",fontSize:"inherit"}}>{t.vorname} {t.nachname}</button>:"-"}</td>
                     <td style={{textAlign:"right",whiteSpace:"nowrap"}}>
                       {!r.occupied&&<button className="btn btn-p btn-sm" onClick={()=>openAssign(r)} style={{marginRight:4}}>+ Zuteilen</button>}
-                      {(()=>{ const ov=r.ausschreibOverride||"auto"; const an=ov==="ja"||(!r.occupied&&ov!=="nein");
+                      {(!vmRechte || vmRechte.zimmer.has(r.id)) && (()=>{ const ov=r.ausschreibOverride||"auto"; const an=ov==="ja"||(!r.occupied&&ov!=="nein");
                         const ziel = an ? (r.occupied?"auto":"nein") : (r.occupied?"ja":"auto");
                         return <button className="btn btn-g btn-sm" style={{marginRight:4}} title={an?"Nicht mehr auf der Website zeigen":"Auf der Website ausschreiben (auch wenn das Zimmer noch belegt ist)"}
                           onClick={async()=>{ if(!an && r.occupied && !confirm(`${objektLabel(r.id)} auf der Website ausschreiben, obwohl es noch belegt ist?`)) return; await updateRoom(r.id,{ausschreibOverride:ziel}); toast(an?"Nicht mehr ausgeschrieben":"Auf der Website ausgeschrieben"); }}>{an?"✕ Ausschreibung beenden":"📣 Ausschreiben"}</button>; })()}
-                      <button className="btn btn-g btn-sm" onClick={()=>openEdit(r)}>✏ Bearbeiten</button>
+                      {!istVermietung() && <button className="btn btn-g btn-sm" onClick={()=>openEdit(r)}>✏ Bearbeiten</button>}
                     </td>
                   </tr>
                 );

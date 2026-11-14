@@ -130,6 +130,25 @@ function PdfPreview({url}){
 }
 
 // ─── MediaManager: Fotos + Matterport URL ───────────────────────────────
+// Nur ansehen (fuer Rollen ohne Bearbeitungsrecht an Wohnungen)
+function MedienAnsicht({apt}){
+  const [gross, setGross] = useState(null);
+  const url = (p) => `${SUPABASE_URL}/storage/v1/object/public/assets/${p}`;
+  const fotos = (apt.photos || []).filter((p) => p && p.path && !p.hidden);
+  return (
+    <div>
+      {!fotos.length && <div className="empty">Noch keine Fotos.</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:8}}>
+        {fotos.map((p, i) => String(p.path).toLowerCase().endsWith(".pdf")
+          ? <a key={i} href={url(p.path)} target="_blank" rel="noopener" style={{display:"flex",alignItems:"center",justifyContent:"center",height:120,border:"1px solid #e1d8c5",borderRadius:6,fontSize:12,color:"#5a5448",background:"#faf8f3"}}>📐 Grundriss (PDF)</a>
+          : <img key={i} src={url(p.path)} alt={`Foto ${i + 1}`} onClick={() => setGross(url(p.path))} style={{width:"100%",height:120,objectFit:"cover",borderRadius:6,border:"1px solid #e1d8c5",cursor:"zoom-in"}}/>)}
+      </div>
+      {(apt.matterportUrl||apt.matterport_url) && <div style={{marginTop:10,fontSize:12.5}}><a href={apt.matterportUrl||apt.matterport_url} target="_blank" rel="noopener">🧭 3D-Rundgang öffnen</a></div>}
+      {gross && <div onClick={() => setGross(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,cursor:"zoom-out"}}><img src={gross} style={{maxWidth:"92vw",maxHeight:"90vh",borderRadius:6}}/></div>}
+    </div>
+  );
+}
+
 function MediaManager({apt, editApt, rooms}){
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
