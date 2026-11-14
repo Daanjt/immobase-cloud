@@ -109,7 +109,7 @@ function passkeyFehlerText(error){
 (function(){
   var TEXTE = {
     "finalize-handover": "Protokoll wird erstellt…", "countersign-contract": "Vertrag wird gegengezeichnet…",
-    "send-contract-email": "Vertrag wird gesendet…", "send-handover-invite": "Einladung wird gesendet…",
+    "send-contract-email": "Vertrag wird gesendet…", "send-handover-invite": "Einladung wird gesendet…", "handover-einladen": "Einladung wird gesendet…",
     "send-mahnung": "Mahnung wird erstellt…", "send-kautionsabrechnung": "Abrechnung wird gesendet…",
     "send-message": "Nachricht wird gesendet…", "send-campaign": "Kampagne wird verarbeitet…",
     "outlook-send": "E-Mail wird gesendet…", "draft-reply": "Antwort wird vorbereitet…",

@@ -1026,7 +1026,7 @@ function useSupabaseData() {
     
     // Trigger Einladungs-Email an Mieter (fire-and-forget, blockiert nicht wenn fehlschlaegt)
     if (data?.id && data?.mieter_email) {
-      supabase.functions.invoke("send-handover-invite", { body: { protocolId: data.id } })
+      supabase.functions.invoke("handover-einladen", { body: { protocolId: data.id } })
         .then(({ error: emailError }) => {
           if (emailError) console.warn("send-handover-invite failed:", emailError);
           else console.log("Einladungs-Email versendet an", data.mieter_email);
@@ -1041,7 +1041,7 @@ function useSupabaseData() {
   
   async function resendHandoverInvite(id) {
     try {
-      const { data, error } = await supabase.functions.invoke("send-handover-invite", { body: { protocolId: id } });
+      const { data, error } = await supabase.functions.invoke("handover-einladen", { body: { protocolId: id } });
       if (error || (data && data.error)) alert("E-Mail konnte nicht gesendet werden: " + ((error && error.message) || (data && data.error) || "unbekannt"));
       else alert("Einladung wurde gesendet.");
     } catch (e) { alert("E-Mail konnte nicht gesendet werden: " + (e.message || e)); }

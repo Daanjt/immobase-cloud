@@ -173,10 +173,10 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           onClick={()=>setTab("einzug")} 
           style={tab==="einzug" ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE}
         >🔑 Einzug {offeneSchluesselUebergaben.length > 0 && <span style={{marginLeft:6,padding:"2px 8px",background:tab==="einzug"?"#1a1814":"#c5cda8",color:"#fefcf7",borderRadius:10,fontSize:10,fontWeight:700}}>{offeneSchluesselUebergaben.length}</span>}</button>
-        <button 
+        {!istVermietung() && <button 
           onClick={()=>setTab("auszug")} 
           style={tab==="auszug" ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE}
-        >📅 Auszug {reminders.length > 0 && <span style={{marginLeft:6,padding:"2px 8px",background:tab==="auszug"?"#1a1814":"#c5cda8",color:"#fefcf7",borderRadius:10,fontSize:10,fontWeight:700}}>{reminders.length}</span>}</button>
+        >📅 Auszug {reminders.length > 0 && <span style={{marginLeft:6,padding:"2px 8px",background:tab==="auszug"?"#1a1814":"#c5cda8",color:"#fefcf7",borderRadius:10,fontSize:10,fontWeight:700}}>{reminders.length}</span>}</button>}
       </div>
       
       {/* EINZUG */}
