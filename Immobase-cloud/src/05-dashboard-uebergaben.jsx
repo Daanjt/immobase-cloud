@@ -1223,3 +1223,39 @@ function BelegungOps({wgApts, wgAptsZukunft, rooms, ppZeilen, ppZukunft, navigat
     </div>
   );
 }
+
+// Dashboard für die Vermietung: Wohnungen mit Mietdauer und Belegung, ohne Beträge
+function VermietungDashboard({apts, rooms, tenants, navigateTo}){
+  const heute = new Date(); heute.setHours(0,0,0,0);
+  const liste = (apts||[]).filter(a => a.type !== "Airbnb" && !a.pipeline).sort((a,b) => natSort(a.id, b.id));
+  const mieterVon = (r) => (tenants||[]).find(t => t.id === r.tenantId) || null;
+  const zeile = (a) => {
+    const rs = (rooms||[]).filter(r => r.aptId === a.id);
+    const frei = rs.filter(r => !r.occupied || !r.tenantId);
+    const bald = rs.map(r => ({ r, t: mieterVon(r) })).filter(x => x.r.occupied && x.t && parseD(x.t.auszug) && parseD(x.t.auszug) >= heute);
+    const belegt = rs.length - frei.length;
+    const beginn = parseD(a.mietbeginn); const zukunft = beginn && beginn > heute;
+    return (
+      <tr key={a.id} onClick={() => navigateTo && navigateTo("wohnungen", a.id)} style={{cursor:"pointer"}}>
+        <td style={{fontWeight:600,whiteSpace:"nowrap"}}>{a.id} <TypeBadge type={aptKat(a)}/></td>
+        <td style={{fontSize:11.5,color:"#8a8174"}}>{a.adresse}{a.stockwerk ? ` · ${a.stockwerk}` : ""}{a.zimmer ? ` · ${a.zimmer} Zi.` : ""}</td>
+        <td data-label="Ab" style={{fontSize:11.5,color:zukunft?"#3d4f2f":"#4a4439",fontWeight:zukunft?600:400}}>{a.mietbeginn || "-"}</td>
+        <td data-label="Bis" style={{fontSize:11.5}}>{a.mietende ? a.mietende : <span style={{color:"#5a6e4a"}}>unbefristet</span>}</td>
+        <td data-label="Belegung" style={{minWidth:150}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:"1 1 0",minWidth:60}}><Prog val={belegt} max={rs.length}/></div><span style={{fontSize:10.5,color:frei.length?"#b8843e":"#8a8174",whiteSpace:"nowrap"}}>{belegt}/{rs.length}{frei.length ? ` · ${frei.length} frei` : ""}</span></div>
+          {bald.map(x => <div key={x.r.id} style={{fontSize:10.5,color:"#8a8174",marginTop:3}}>{x.r.name || x.r.id} frei ab {(() => { const d = parseD(x.t.auszug); d.setDate(d.getDate()+1); return d.toLocaleDateString("de-CH"); })()}</div>)}
+        </td>
+      </tr>);
+  };
+  const kopf = <thead><tr><th>Wohnung</th><th>Adresse</th><th>Ab</th><th>Bis</th><th>Belegung</th></tr></thead>;
+  return (
+    <div>
+      <div className="pt">Dashboard</div><div className="ps" style={{marginBottom:16}}>Wohnungen mit freien oder frei werdenden Zimmern</div>
+      <div className="card finance-card-compact" style={{marginBottom:24}}>
+        <div className="ct">Wohnungen und Belegung</div>
+        {liste.length === 0 ? <div style={{fontSize:12,color:"#8a8174",padding:"10px 0"}}>Aktuell keine freien Zimmer.</div> :
+        <div className="finance-scroll-table-wrap"><div className="finance-scroll-table"><table>{kopf}<tbody>{liste.map(zeile)}</tbody></table></div></div>}
+      </div>
+    </div>
+  );
+}
