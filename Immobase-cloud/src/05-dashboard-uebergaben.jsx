@@ -1232,7 +1232,7 @@ function VermietungDashboard({apts, rooms, tenants, navigateTo}){
   const zeile = (a) => {
     const rs = (rooms||[]).filter(r => r.aptId === a.id);
     const frei = rs.filter(r => !r.occupied || !r.tenantId);
-    const bald = rs.map(r => ({ r, t: mieterVon(r) })).filter(x => x.r.occupied && x.t && parseD(x.t.auszug) && parseD(x.t.auszug) >= heute);
+    const bald = rs.map(r => ({ r, t: mieterVon(r) })).filter(x => x.r.occupied && x.t && parseD(x.t.auszug) && parseD(x.t.auszug) >= heute && (parseD(x.t.auszug) - heute) <= 45*86400000);
     const belegt = rs.length - frei.length;
     const beginn = parseD(a.mietbeginn); const zukunft = beginn && beginn > heute;
     return (
