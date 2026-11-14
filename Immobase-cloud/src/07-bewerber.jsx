@@ -780,6 +780,8 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
 }
 
 function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
+  const [mitarbeiterNamen, setMitarbeiterNamen] = useState([]);
+  useEffect(() => { supabase.from("employees").select("vorname,aktiv").then(({ data }) => setMitarbeiterNamen((data || []).filter(e => e.vorname && e.aktiv !== false).map(e => e.vorname))); }, []);
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("info");
   const [zuteilModal,setZuteilModal]=useState(false);
@@ -2032,7 +2034,7 @@ www.dthomes.ch`;
             <div className="mt">✏ Bewerber bearbeiten</div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Status & Zuständigkeit</div>
-            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Bearbeitet von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">-</option><option value="Daan">Daan</option><option value="Tijn">Tijn</option></select></div></div>
+            <div className="frow"><div className="fg"><label className="fl">Status</label><select className="fi" value={editForm.status||"Neu"} onChange={EF("status")}><option value="Neu">Neu</option><option value="Zugeteilt">Zugeteilt</option><option value="Abgelehnt">Abgelehnt</option></select></div><div className="fg"><label className="fl">👤 Vermittelt von</label><select className="fi" value={editForm.owner||""} onChange={EF("owner")}><option value="">-</option>{(mitarbeiterNamen.length?mitarbeiterNamen:["Daan","Tijn"]).map(n=><option key={n} value={n}>{n}</option>)}{editForm.owner&&!mitarbeiterNamen.includes(editForm.owner)&&!["Daan","Tijn"].includes(editForm.owner)&&<option value={editForm.owner}>{editForm.owner}</option>}</select></div></div>
 
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Persönliche Angaben</div>
             <div className="frow"><div className="fg"><label className="fl">Vorname</label><input className="fi" value={editForm.vorname||""} onChange={EF("vorname")}/></div><div className="fg"><label className="fl">Nachname</label><input className="fi" value={editForm.nachname||""} onChange={EF("nachname")}/></div></div>
