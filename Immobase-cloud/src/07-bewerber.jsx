@@ -877,7 +877,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
   }, [navTarget]);
 
   // Bewerbungen laufen ueber die Webseite (WG-Zimmer), nicht mehr ueber bewerbung.dthomes.ch
-  const formLink = "https://www.dthomes.ch/zimmer";
+  const formLinks = [["WG-Zimmer","https://www.dthomes.ch/zimmer"],["Wohnungen","https://www.dthomes.ch/wohnungen"]];
 
   const b=bewerber.find(x=>x.id===sel);
   const freeRooms=rooms.filter(r=>!r.occupied);
@@ -1105,7 +1105,7 @@ function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,upd
     setZuteilModal(false);setSelZimmer(null);setSel(null);
   }
 
-  function copyLink(){navigator.clipboard.writeText(formLink).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}
+  function copyLink(link){navigator.clipboard.writeText(link).then(()=>{setCopied(link);setTimeout(()=>setCopied(false),2000);});}
 
   function openEdit(){
     if(!b)return;
@@ -1688,11 +1688,13 @@ www.dthomes.ch`;
       
       <div className="card" style={{marginBottom:20}}>
         <div className="ct">📋 Bewerbungs-Link (Webseite)</div>
-        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Diesen Link an potenzielle Mieter senden. Dort sehen sie alle freien Zimmer mit Bildern und können sich direkt bewerben. Bewerbungen erscheinen automatisch hier.</div>
-        <div className="link-box">
-          <span className="link-text">{formLink}</span>
-          <button className="btn btn-p btn-sm" onClick={copyLink}>{copied?"✓ Kopiert!":"Link kopieren"}</button>
-        </div>
+        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Den passenden Link an potenzielle Mieter senden. Dort sehen sie die freien WG-Zimmer bzw. ganzen Wohnungen mit Bildern und können sich direkt bewerben. Bewerbungen erscheinen automatisch hier.</div>
+        {formLinks.map(([label, link]) => (
+          <div key={link} className="link-box" style={{marginBottom:8}}>
+            <span className="link-text"><strong style={{fontWeight:600,marginRight:8}}>{label}</strong>{link}</span>
+            <button className="btn btn-p btn-sm" onClick={()=>copyLink(link)}>{copied===link?"✓ Kopiert!":"Link kopieren"}</button>
+          </div>
+        ))}
       </div>
       {/* Umschalter Liste / Übersicht, per Wischen umschaltbar */}
       <div style={{display:"flex",gap:6,marginBottom:14}}>
