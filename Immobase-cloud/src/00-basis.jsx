@@ -584,7 +584,7 @@ function useVmRechte(deps){
   const [r, setR] = useState(null);
   useEffect(() => {
     if (!istVermietung()) { setR(null); return; }
-    supabase.rpc("vm_rechte").then(({ data }) => setR({ zimmer: new Set((data && data.zimmer) || []), mieter: new Set((data && data.mieter) || []) }));
+    supabase.rpc("vm_rechte").then(({ data }) => setR({ zimmer: new Set((data && data.zimmer) || []), mieter: new Set((data && data.mieter) || []), neu: new Set((data && data.neu) || []) }));
   }, deps || []);
   return r;
 }

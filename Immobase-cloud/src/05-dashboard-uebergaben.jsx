@@ -13,8 +13,11 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   //   "waiting" = Protokoll laeuft (sent/in_progress)
   //   "review" = Protokoll eingereicht (submitted, wartet auf Admin-Akzeptanz)
   //   "done" = accepted / auto_accepted
+  const vmRechte = useVmRechte([tenants]);
   const einzuegeMitStatus = tenants
     .filter(t => (t.status||"aktiv") === "aktiv")
+    // Vermietung: nur die eigenen neuen Mieter (bis die Rechte geladen sind: keine)
+    .filter(t => !istVermietung() || (vmRechte && vmRechte.neu.has(t.id)))
     .map(t => {
       const room = rooms.find(r => r.tenantId === t.id) || (t.roomId ? rooms.find(r => r.id === t.roomId) : null);
       if (!room) return null;
