@@ -24,9 +24,9 @@ function AirbnbKalender({ bookings, monat, setMonat, nurWohnung }){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <button style={btn} onClick={()=>nav(-1)} aria-label="Vorheriger Monat">‹</button>
-          <span style={{fontSize:13,fontWeight:600,minWidth:120,textAlign:"center",textTransform:"capitalize"}}>{titel}</span>
+          <span style={{fontSize:13,fontWeight:600,width:128,textAlign:"center",textTransform:"capitalize",whiteSpace:"nowrap"}}>{titel}</span>
           <button style={btn} onClick={()=>nav(1)} aria-label="Nächster Monat">›</button>
-          {(mo.getMonth()!==heute.getMonth()||mo.getFullYear()!==heute.getFullYear()) && <button style={{...btn,fontSize:11}} onClick={()=>setMo(new Date(heute.getFullYear(),heute.getMonth(),1))}>Heute</button>}
+          <button style={{...btn,fontSize:11,visibility:(mo.getMonth()!==heute.getMonth()||mo.getFullYear()!==heute.getFullYear())?"visible":"hidden"}} onClick={()=>setMo(new Date(heute.getFullYear(),heute.getMonth(),1))}>Heute</button>
         </div>
       </div>
       <div className="abkal-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(280px, 100%), 1fr))",gap:16}}>
@@ -465,7 +465,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
             <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(abMo.getFullYear(),abMo.getMonth()-1,1))} aria-label="Vorheriger Monat">‹</button>
               <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(abMo.getFullYear(),abMo.getMonth()+1,1))} aria-label="Nächster Monat">›</button>
-              {!abIstHeute && <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(now.getFullYear(),now.getMonth(),1))}>Heute</button>}
+              {<button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,color:"var(--ink)",visibility:abIstHeute?"hidden":"visible"}} onClick={()=>setAbMo(new Date(now.getFullYear(),now.getMonth(),1))}>Heute</button>}
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
