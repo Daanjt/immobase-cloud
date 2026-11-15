@@ -460,9 +460,9 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
               ))}
             </div>
           )}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",textTransform:"capitalize"}}>{abSel?listingName(abSel):"Alle Airbnbs"} · {abCur.full}{abCur.future?" · Prognose":""}</div>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"nowrap",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",textTransform:"capitalize",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{abCur.full}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(abMo.getFullYear(),abMo.getMonth()-1,1))} aria-label="Vorheriger Monat">‹</button>
               <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(abMo.getFullYear(),abMo.getMonth()+1,1))} aria-label="Nächster Monat">›</button>
               {!abIstHeute && <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(now.getFullYear(),now.getMonth(),1))}>Heute</button>}
