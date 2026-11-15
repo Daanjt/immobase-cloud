@@ -65,7 +65,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     const room = rooms.find(r => r.id === assigning.id);
     const bruttomiete = room?.miete || 0;
     const strom = 25;
-    const kautionBetrag = (bruttomiete + strom) * kautionMonate;
+    const kautionBetrag = Math.round((bruttomiete + strom) * kautionMonate * 100) / 100;
     
     // Copy ALL bewerber fields, then override tenant-specific ones
     const newTenant = {
@@ -119,7 +119,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     const bruttomiete = room?.miete || 0;
     const strom = 25;
     const kautionMonate = old.kautionMonate || 3;
-    const kautionBetrag = (bruttomiete + strom) * kautionMonate;
+    const kautionBetrag = Math.round((bruttomiete + strom) * kautionMonate * 100) / 100;
     
     try {
       // Reaktiviere alten Mieter + neue Zimmer-Daten + neuer Einzug

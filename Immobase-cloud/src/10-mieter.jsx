@@ -224,7 +224,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
       kautionMonate = +t.kautionMonate;
       aufschlag = kautionMonate === 0 ? 150 : kautionMonate === 1 ? 100 : kautionMonate === 2 ? 50 : 0;
     }
-    const kautionBetrag = (bruttomiete + strom) * kautionMonate;
+    const kautionBetrag = Math.round((bruttomiete + strom) * kautionMonate * 100) / 100;
     const total = bruttomiete + strom + aufschlag;
     
     // Build bewerber-like object from tenant
@@ -1475,7 +1475,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 setTvData(p=>{
                   const bruttomiete = room ? +room.miete : p.bruttomiete;
                   const nettomiete = bruttomiete - (p.nebenkosten||100);
-                  const kautionBetrag = (bruttomiete + (p.strom||25)) * (p.kautionMonate||0);
+                  const kautionBetrag = Math.round((bruttomiete + (p.strom||25)) * (p.kautionMonate||0) * 100) / 100;
                   const total = bruttomiete + (p.strom||25) + (p.aufschlag||0);
                   const neu = {
                     ...p,
@@ -1592,7 +1592,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                   <label key={opt.monate} style={{padding:"12px 14px",background:sel?"#f5efe4":"#fefcf7",border:`1px solid ${sel?"#1a1814":"#e1d8c5"}`,borderRadius:8,cursor:"pointer",fontSize:12.5,display:"block"}} onClick={()=>{
                     const brutto = +tvData.bruttomiete || 0;
                     const strom = +tvData.strom || 25;
-                    const newBetrag = (brutto + strom) * opt.monate;
+                    const newBetrag = Math.round((brutto + strom) * opt.monate * 100) / 100;
                     setTvData(p=>({
                       ...p,
                       kautionMonate:opt.monate,
