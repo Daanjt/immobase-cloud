@@ -468,7 +468,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
               {!abIstHeute && <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(now.getFullYear(),now.getMonth(),1))}>Heute</button>}
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(abCur.auslastung*100)}%</div>
@@ -481,11 +481,6 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600,marginBottom:8}}>Marge</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",lineHeight:1}}>{abCur.marge>=0?"+":""}{chf(Math.round(abCur.marge))}</div>
             </div>
-          </div>
-          <div style={{border:"1px solid var(--line-soft)",borderRadius:10,padding:"8px 14px",marginBottom:20,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(180px, 100%), 1fr))",columnGap:24}}>
-            {[["Nächte belegt",`${abCur.occNights} von ${abCur.availNights}`],["Ø Preis pro Nacht",abCur.occNights?chf(Math.round(abCur.adr)):"-"],["Buchungen",String(Math.round(abCur.anz*10)/10)],["Plattform-Kommission",chf(Math.round(abCur.kommission))],["Hauptmiete",chf(Math.round(abCur.miete))],...(abCur.moeblierung?[["Möbelmiete",chf(Math.round(abCur.moeblierung))]]:[]),["Reinigung",chf(Math.round(abCur.putzen))],["Mietwäsche",chf(Math.round(abCur.waesche))]].map(([l,v])=>(
-              <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"3px 0",color:"var(--muted)"}}><span>{l}</span><span style={{color:"var(--ink)"}}>{v}</span></div>
-            ))}
           </div>
           <AirbnbKalender bookings={smoobuBookings} monat={abMo} setMonat={setAbMo} nurWohnung={abSel} />
           <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
