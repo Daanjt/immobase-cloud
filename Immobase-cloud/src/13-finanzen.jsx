@@ -1,12 +1,13 @@
 // ─── FINANZEN (Monats-KPIs) ──────────────────────────────────────────────────
 // Belegungskalender Airbnb: pro Wohnung ein Monatsraster, belegte Nächte farbig nach Kanal
-function AirbnbKalender({ bookings }){
+function AirbnbKalender({ bookings, monat, setMonat, nurWohnung }){
   const heute = new Date(); heute.setHours(0,0,0,0);
-  const [mo, setMo] = useState(()=>new Date(heute.getFullYear(), heute.getMonth(), 1));
+  const [moLokal, setMoLokal] = useState(()=>new Date(heute.getFullYear(), heute.getMonth(), 1));
+  const mo = monat || moLokal; const setMo = setMonat || setMoLokal;
   const KANAL = { "Airbnb":["#e8a598","Airbnb"], "Booking.com":["#9fb5d6","Booking.com"], "Direct booking":["#a9c29a","Direkt"], "Website":["#a9c29a","Direkt"] };
   const farbe = bk => bk.isBlocked ? ["#d8d2c8","Blockiert"] : (KANAL[bk.channelName] || ["#c9b28e", bk.channelName||"Andere"]);
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const aktiv = (bookings||[]).filter(b=>!b.cancelled && b.arrival && b.departure);
+  const aktiv = (bookings||[]).filter(b=>!b.cancelled && b.arrival && b.departure && (!nurWohnung || b.apartmentId===nurWohnung));
   const wohnungen = [...new Map(aktiv.map(b=>[b.apartmentId, (b.apartmentName||"").replace(/^D&T Homes\s*/,"")||String(b.apartmentId)])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
   const tage = new Date(mo.getFullYear(), mo.getMonth()+1, 0).getDate();
   const offset = (new Date(mo.getFullYear(), mo.getMonth(), 1).getDay()+6)%7;
@@ -80,6 +81,9 @@ function AirbnbKalender({ bookings }){
 
 function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] }){
   const [openTbl, setOpenTbl] = useState({});
+  // Airbnb: Auswahl der Wohnung (null = alle) und des Monats, gemeinsam fuer Kennzahlen, Kalender und Balken
+  const [abSel, setAbSel] = useState(null);
+  const [abMo, setAbMo] = useState(()=>{ const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const curMonthRef = useRef({});
   // Wiederverwendbare Callback-Ref: zentriert den aktuellen Monat horizontal
   // im jeweiligen Balken-Container. Der aktuelle Balken traegt data-current.
@@ -230,9 +234,13 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
   const LAUNDRY_PER_GUEST = 12.5;
   // Reinigung pro Buchung: bis September 2026 CHF 100, ab Oktober 2026 CHF 120 (massgebend ist das Abreisedatum = Reinigungstag)
   const putzVon = (bk) => { const d = bk && bk.departure ? new Date(bk.departure) : null; return (d && d >= new Date(2026,9,1)) ? 120 : 100; };
-  const airbnbFin = (s, e, eNext) => {
+  const abListings = [...new Map((smoobuBookings||[]).filter(b=>b.apartmentId).map(b=>[b.apartmentId, String(b.apartmentName||b.apartmentId).replace(/^D&T Homes\s*/,"")])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  const listingName = (id) => (abListings.find(x=>x[0]===id)||[null,id])[1];
+  // Wohnung (ImmoBase) zum Elev8-Listing: Strassenname im Listing-Namen = Anfang der Adresse
+  const aptPasst = (a, sel) => { const n=String(listingName(sel)||"").toLowerCase().trim(); return !!n && String(a.adresse||"").toLowerCase().startsWith(n); };
+  const airbnbFin = (s, e, eNext, sel=null) => {
     let occNights=0, umsatz=0, putzen=0, waesche=0, anz=0, kommission=0;
-    abBookings.forEach(bk=>{
+    (sel ? abBookings.filter(b=>b.apartmentId===sel) : abBookings).forEach(bk=>{
       const tot = Math.max(1, bk.nights || Math.round((new Date(bk.departure)-new Date(bk.arrival))/86400000));
       const no = nightsOverlap(bk.arrival, bk.departure, s, eNext);
       if (no>0){
@@ -249,7 +257,7 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
     // ab August 2026 CHF 758.40 + 8.1% MWST = CHF 819.83/Mt. (Verlaengerung bis 31.01.2027, Angebot Carlos 24.07.2026)
     const moeblFeldegg = (monatStart) => (monatStart >= new Date(2026,7,1)) ? Math.round(758.40*1.081*100)/100 : 900;
     let miete=0, moeblierung=0, availNights=0;
-    abApts.forEach(a=>{
+    (sel ? abApts.filter(a=>aptPasst(a, sel)) : abApts).forEach(a=>{
       const ab=parseDMY(a.mietbeginn), bis=parseDMY(a.mietende);
       if((!ab||ab<=e)&&(!bis||bis>=s)){ miete+=(+a.miete||0); if(/feldegg/i.test(a.adresse||"")) moeblierung += moeblFeldegg(s); }
       // Verfuegbare Naechte: nur solange die Wohnung im Monat tatsaechlich gemietet war
@@ -266,14 +274,18 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
   { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+6, 1);
     while (new Date(cy,cm,1) <= endD){
       const s=new Date(cy,cm,1); const e=new Date(cy,cm+1,0,23,59,59,999); const eNext=new Date(cy,cm+1,1);
-      const f=airbnbFin(s,e,eNext);
+      const f=airbnbFin(s,e,eNext,abSel);
       const fut = new Date(cy,cm,1) > new Date(now.getFullYear(),now.getMonth(),1);
-      abMonths.push({ label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f, marge: floorFut(f.marge, fut),
+      abMonths.push({ key:`${cy}-${cm}`, label:s.toLocaleDateString("de-CH",{month:"short",year:"2-digit"}), full:s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}), ...f, marge: floorFut(f.marge, fut),
         future: fut, current: cy===now.getFullYear()&&cm===now.getMonth() });
       cm++; if(cm>11){cm=0;cy++;}
     }
   }
-  const abCur = abMonths.find(m=>m.current)||abMonths[0];
+  const abSelKey = `${abMo.getFullYear()}-${abMo.getMonth()}`;
+  const abCur = (()=>{ const s=new Date(abMo.getFullYear(),abMo.getMonth(),1), e=new Date(abMo.getFullYear(),abMo.getMonth()+1,0,23,59,59,999), eNext=new Date(abMo.getFullYear(),abMo.getMonth()+1,1);
+    const fut = s > new Date(now.getFullYear(),now.getMonth(),1); const f=airbnbFin(s,e,eNext,abSel);
+    return { ...f, marge: floorFut(f.marge, fut), future: fut, full: s.toLocaleDateString("de-CH",{month:"long",year:"numeric"}) }; })();
+  const abIstHeute = abMo.getFullYear()===now.getFullYear() && abMo.getMonth()===now.getMonth();
   // Gesamt (WG + Airbnb), seit Dezember 2025
   const combinedMonths = [];
   { let cy=2025, cm=10; const endD=new Date(now.getFullYear(), now.getMonth()+6, 1);
@@ -441,31 +453,51 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
         <>
           <div style={{border:"1px solid var(--line)",borderRadius:12,padding:"20px 18px",marginBottom:20,background:"var(--surface)",boxShadow:"0 1px 3px rgba(160,136,100,.10)"}}>
           <SectionHead title="Airbnb" sub="Serviced Apartments, aus Elev8, alle Kanäle. Marge = Umsatz minus Plattform-Kommission (bei Direktbuchungen keine; für neue Buchungen geschätzt: Airbnb 16.76%, Booking.com 15%), Hauptmiete, Möbelmiete Myotaku Feldeggstrasse (bis Juli 2026 CHF 900, ab August CHF 819.83 pro Monat inkl. MWST), Reinigung (CHF 100 pro Buchung, ab Oktober 2026 CHF 120) und Mietwäsche (CHF 12.50 pro Gast). Umsatz und Kosten sind anteilig auf die Übernachtungen im jeweiligen Monat verteilt." />
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:20}}>
+          {abListings.length>1 && (
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+              {[[null,"Alle"],...abListings].map(([id,name])=>(
+                <button key={id||"alle"} onClick={()=>setAbSel(id)} className={`btn btn-sm ${abSel===id?"btn-p":"btn-g"}`}>{name}</button>
+              ))}
+            </div>
+          )}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",textTransform:"capitalize"}}>{abSel?listingName(abSel):"Alle Airbnbs"} · {abCur.full}{abCur.future?" · Prognose":""}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(abMo.getFullYear(),abMo.getMonth()-1,1))} aria-label="Vorheriger Monat">‹</button>
+              <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(abMo.getFullYear(),abMo.getMonth()+1,1))} aria-label="Nächster Monat">›</button>
+              {!abIstHeute && <button style={{border:"1px solid var(--line)",background:"var(--surface)",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,color:"var(--ink)"}} onClick={()=>setAbMo(new Date(now.getFullYear(),now.getMonth(),1))}>Heute</button>}
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(150px, 100%), 1fr))",gap:10,marginBottom:10}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung / Mt.</div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"var(--muted)",fontWeight:600,marginBottom:8}}>Auslastung</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{Math.round(abCur.auslastung*100)}%</div>
             </div>
             <div style={{background:"var(--surface)",border:"1px solid var(--line-soft)",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"#3d4f2f",fontWeight:600,marginBottom:8}}>Umsatz / Mt.</div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:"#3d4f2f",fontWeight:600,marginBottom:8}}>Umsatz</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:"var(--ink)",lineHeight:1}}>{chf(Math.round(abCur.umsatz))}</div>
             </div>
             <div style={{background:abCur.marge>=0?"var(--green-soft)":"#f7e4e0",borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600,marginBottom:8}}>Marge / Mt.</div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:".2em",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",fontWeight:600,marginBottom:8}}>Marge</div>
               <div style={{fontSize:21,fontWeight:400,fontFamily:"'Manrope',sans-serif",color:abCur.marge>=0?"#3d4f2f":"#9b4a3e",lineHeight:1}}>{abCur.marge>=0?"+":""}{chf(Math.round(abCur.marge))}</div>
             </div>
           </div>
-          <AirbnbKalender bookings={smoobuBookings} />
+          <div style={{border:"1px solid var(--line-soft)",borderRadius:10,padding:"8px 14px",marginBottom:20,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(180px, 100%), 1fr))",columnGap:24}}>
+            {[["Nächte belegt",`${abCur.occNights} von ${abCur.availNights}`],["Ø Preis pro Nacht",abCur.occNights?chf(Math.round(abCur.adr)):"-"],["Buchungen",String(Math.round(abCur.anz*10)/10)],["Plattform-Kommission",chf(Math.round(abCur.kommission))],["Hauptmiete",chf(Math.round(abCur.miete))],...(abCur.moeblierung?[["Möbelmiete",chf(Math.round(abCur.moeblierung))]]:[]),["Reinigung",chf(Math.round(abCur.putzen))],["Mietwäsche",chf(Math.round(abCur.waesche))]].map(([l,v])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"3px 0",color:"var(--muted)"}}><span>{l}</span><span style={{color:"var(--ink)"}}>{v}</span></div>
+            ))}
+          </div>
+          <AirbnbKalender bookings={smoobuBookings} monat={abMo} setMonat={setAbMo} nurWohnung={abSel} />
           <div style={{fontSize:10.5,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Auslastung pro Monat</div>
           <div ref={zentriereAktuellen} style={{display:"flex",alignItems:"flex-end",gap:4,height:H+52,boxSizing:"border-box",paddingTop:6,marginBottom:22,overflowX:"auto",paddingBottom:2}}>
             {abMonths.map((m,i)=>{
               const pct=Math.round(m.auslastung*100);
               const h=Math.max(2, Math.round(m.auslastung*H));
               return (
-                <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: ${pct}% · Umsatz ${chf(Math.round(m.umsatz))} · ${m.nights} Nächte · ADR ${chf(Math.round(m.adr))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                <div key={i} onClick={()=>setAbMo(new Date(+m.key.split("-")[0],+m.key.split("-")[1],1))} data-current={m.current?"1":undefined} title={`${m.full}: ${pct}% · Umsatz ${chf(Math.round(m.umsatz))} · ${m.occNights} Nächte · ADR ${chf(Math.round(m.adr))}`} style={{cursor:"pointer",flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
                   <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2}}>{pct}</div>
                   <div style={{width:"68%",height:h,background:m.future?"#e2c9a8":"#c08a3e",borderRadius:"3px 3px 0 0"}}/>
-                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:(m.key===abSelKey)?700:400,textDecoration:(m.key===abSelKey)?"underline":"none",marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
                 </div>
               );
             })}
@@ -475,10 +507,10 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
             {(()=>{ const mx=Math.max(1,...abMonths.map(m=>m.umsatz)); return abMonths.map((m,i)=>{
               const h=Math.max(2,Math.round(m.umsatz/mx*H));
               return (
-                <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: ${chf(Math.round(m.umsatz))} · ${Math.round(m.anz)} Buchungen · ADR ${chf(Math.round(m.adr))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                <div key={i} onClick={()=>setAbMo(new Date(+m.key.split("-")[0],+m.key.split("-")[1],1))} data-current={m.current?"1":undefined} title={`${m.full}: ${chf(Math.round(m.umsatz))} · ${Math.round(m.anz)} Buchungen · ADR ${chf(Math.round(m.adr))}`} style={{cursor:"pointer",flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
                   <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.umsatz)}</div>
                   <div style={{width:"68%",height:h,background:m.future?"#bcd0c0":"#5a8a6a",borderRadius:"3px 3px 0 0"}}/>
-                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:(m.key===abSelKey)?700:400,textDecoration:(m.key===abSelKey)?"underline":"none",marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
                 </div>
               );
             }); })()}
@@ -488,10 +520,10 @@ function FinanzenSection({ tenants, apts, rooms, smoobuBookings, parkplaetze=[] 
             {(()=>{ const mx=Math.max(1,...abMonths.map(m=>Math.abs(m.marge))); return abMonths.map((m,i)=>{
               const h=Math.max(2,Math.round(Math.abs(m.marge)/mx*H)); const neg=m.marge<0;
               return (
-                <div key={i} data-current={m.current?"1":undefined} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} · Umsatz ${chf(Math.round(m.umsatz))} · Kommission ${chf(Math.round(m.kommission))} · Miete ${chf(Math.round(m.miete))} · Möbl. ${chf(Math.round(m.moeblierung))} · Putzen ${chf(Math.round(m.putzen))} · Wäsche ${chf(Math.round(m.waesche))}`} style={{flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                <div key={i} onClick={()=>setAbMo(new Date(+m.key.split("-")[0],+m.key.split("-")[1],1))} data-current={m.current?"1":undefined} title={`${m.full}: Marge ${m.marge>=0?"+":""}${chf(Math.round(m.marge))} · Umsatz ${chf(Math.round(m.umsatz))} · Kommission ${chf(Math.round(m.kommission))} · Miete ${chf(Math.round(m.miete))} · Möbl. ${chf(Math.round(m.moeblierung))} · Putzen ${chf(Math.round(m.putzen))} · Wäsche ${chf(Math.round(m.waesche))}`} style={{cursor:"pointer",flex:"1 0 30px",minWidth:30,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
                   <div style={{fontSize:8,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginBottom:2,whiteSpace:"nowrap"}}>{kfmt(m.marge)}</div>
                   <div style={{width:"68%",height:h,background:neg?(m.future?"#e0bcb0":"#9b4a3e"):(m.future?"#c5cda8":"#5a6e4a"),borderRadius:"3px 3px 0 0"}}/>
-                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:m.current?700:400,marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
+                  <div style={{fontSize:8.5,color:m.current?"var(--ink)":"var(--muted)",fontWeight:(m.key===abSelKey)?700:400,textDecoration:(m.key===abSelKey)?"underline":"none",marginTop:4,whiteSpace:"nowrap"}}>{m.label}</div>
                 </div>
               );
             }); })()}
