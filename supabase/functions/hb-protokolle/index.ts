@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     for (const m of mails) {
       const imid = m.internetMessageId;
       const { data: schon } = await sb.from("verwaltung_protokolle").select("status").eq("internet_message_id", imid).maybeSingle();
-      if (schon && schon.status === "ok") continue;
+      if (schon && ["ok", "manuell", "test"].includes(schon.status) && !b.erneut) continue;
       const log = async (status: string, info: Record<string, unknown>) => {
         await sb.from("verwaltung_protokolle").upsert({ internet_message_id: imid, betreff: m.subject, empfangen: m.receivedDateTime, status, ...info, aktualisiert: new Date().toISOString() });
         ergebnis.push({ betreff: m.subject, status, ...info });
