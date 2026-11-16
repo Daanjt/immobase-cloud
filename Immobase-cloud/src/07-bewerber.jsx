@@ -779,7 +779,58 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   );
 }
 
-function Bewerber({bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
+// Suchabo: Interessenten, die sich auf dthomes.ch fuer neue Zimmer/Wohnungen eintragen (nur Admin)
+function SuchaboListe(){
+  const [rows,setRows]=useState(null);
+  const [q,setQ]=useState("");
+  const [nurAktiv,setNurAktiv]=useState(true);
+  const laden=()=>supabase.from("suchabos").select("id,email,art,max_miete,sprache,aktiv,created_at,letzter_versand,anzahl_mails,abgemeldet_at").order("created_at",{ascending:false}).then(({data,error})=>setRows(error?[]:(data||[])));
+  useEffect(()=>{ laden(); },[]);
+  const dat=(x)=>x?new Date(x).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit",year:"numeric"}):"–";
+  const chf=(n)=>n?"bis CHF "+Number(n).toLocaleString("de-CH").replace(/[’,]/g,"'"):"jede Miete";
+  const abmelden=async(r)=>{ if(!confirm(`${r.email} vom Suchabo abmelden?`))return; await supabase.from("suchabos").update({aktiv:false,abgemeldet_at:new Date().toISOString()}).eq("id",r.id); laden(); };
+  const loeschen=async(r)=>{ if(!confirm(`${r.email} endgültig löschen?`))return; await supabase.from("suchabos").delete().eq("id",r.id); laden(); };
+  if(rows===null) return <div className="card"><div style={{fontSize:13,color:"#8a8478"}}>Lädt…</div></div>;
+  const aktiv=rows.filter(r=>r.aktiv);
+  const sicht=rows.filter(r=>(!nurAktiv||r.aktiv)&&(!q||r.email.toLowerCase().includes(q.toLowerCase())));
+  const kachel=(zahl,label)=>(<div style={{flex:"1 1 120px",background:"var(--bg2,#f6f1e8)",borderRadius:10,padding:"12px 14px"}}><div style={{fontSize:22,fontWeight:600}}>{zahl}</div><div style={{fontSize:12,color:"#8a8478"}}>{label}</div></div>);
+  return (
+    <div className="card">
+      <div className="ct">📬 Suchabo</div>
+      <div style={{fontSize:12.5,color:"#8a8478",marginBottom:12}}>Wer sich auf dthomes.ch/zimmer oder /wohnungen einträgt, bekommt automatisch eine Mail, sobald etwas Passendes neu frei wird (höchstens eine pro Tag).</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+        {kachel(aktiv.length,"aktiv")}
+        {kachel(aktiv.filter(r=>r.art==="zimmer").length,"WG-Zimmer")}
+        {kachel(aktiv.filter(r=>r.art==="wohnung").length,"Wohnungen")}
+        {kachel(rows.reduce((a,r)=>a+(r.anzahl_mails||0),0),"Mails verschickt")}
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+        <input className="fi" placeholder="🔎 E-Mail suchen…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:"1 1 200px"}}/>
+        <label style={{fontSize:12.5,display:"flex",gap:6,alignItems:"center",cursor:"pointer"}}><input type="checkbox" checked={nurAktiv} onChange={e=>setNurAktiv(e.target.checked)}/>nur aktive</label>
+      </div>
+      {sicht.length===0 ? <div style={{fontSize:13,color:"#8a8478",padding:"10px 0"}}>Noch niemand eingetragen.</div> : (
+        <div style={{overflowX:"auto"}}>
+          <style>{`.sabo-tbl{border-collapse:collapse}.sabo-tbl th,.sabo-tbl td{padding:9px 10px;border-bottom:1px solid var(--line,#e8e2d6);vertical-align:middle}.sabo-tbl th{font-size:11px;color:#8a8478;font-weight:500;text-transform:uppercase;letter-spacing:.04em}`}</style>
+          <table className="sabo-tbl" style={{width:"100%",fontSize:13}}>
+            <thead><tr><th style={{textAlign:"left"}}>E-Mail</th><th style={{textAlign:"left"}}>Sucht</th><th style={{textAlign:"left"}}>Miete</th><th style={{textAlign:"left"}}>Seit</th><th style={{textAlign:"left"}}>Letzte Mail</th><th style={{textAlign:"right"}}>Mails</th><th></th></tr></thead>
+            <tbody>{sicht.map(r=>(
+              <tr key={r.id} style={{opacity:r.aktiv?1:.5}}>
+                <td><a href={`mailto:${r.email}`} style={{color:"inherit"}}>{r.email}</a>{r.sprache==="en"&&<span style={{fontSize:10.5,color:"#8a8478",marginLeft:6}}>EN</span>}{!r.aktiv&&<span style={{fontSize:10.5,color:"#9b4a3e",marginLeft:6}}>abgemeldet {dat(r.abgemeldet_at)}</span>}</td>
+                <td>{r.art==="wohnung"?"Wohnung":"WG-Zimmer"}</td>
+                <td style={{whiteSpace:"nowrap"}}>{chf(r.max_miete)}</td>
+                <td style={{whiteSpace:"nowrap"}}>{dat(r.created_at)}</td>
+                <td style={{whiteSpace:"nowrap"}}>{dat(r.letzter_versand)}</td>
+                <td style={{textAlign:"right"}}>{r.anzahl_mails||0}</td>
+                <td style={{textAlign:"right",whiteSpace:"nowrap"}}>{r.aktiv?<button className="btn btn-g btn-sm" onClick={()=>abmelden(r)}>Abmelden</button>:<button className="btn btn-g btn-sm" onClick={()=>loeschen(r)}>Löschen</button>}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Bewerber({istAdmin,bewerber,rooms,tenants,apts,updateBewerber,deleteBewerber,updateRoom,insertTenant,navTarget,documents,uploadDocument,getDocumentUrl,deleteDocument,migrateDocumentsToTenant,contracts,withdrawContract,deleteContract,loadContracts}){
   const [mitarbeiterNamen, setMitarbeiterNamen] = useState([]);
   useEffect(() => { supabase.from("employees").select("vorname,aktiv").then(({ data }) => setMitarbeiterNamen((data || []).filter(e => e.vorname && e.aktiv !== false).map(e => e.vorname))); }, []);
   const [sel,setSel]=useState(null);
@@ -1700,9 +1751,10 @@ www.dthomes.ch`;
       <div style={{display:"flex",gap:6,marginBottom:14}}>
         <button className={`btn btn-sm ${ansicht==="liste"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("liste")}>Liste</button>
         <button className={`btn btn-sm ${ansicht==="uebersicht"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("uebersicht")}>Übersicht</button>
+        {istAdmin && <button className={`btn btn-sm ${ansicht==="suchabo"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("suchabo")}>Suchabo</button>}
       </div>
-      <div onTouchStart={e=>{touchX.current=e.touches[0].clientX;}} onTouchEnd={e=>{ if(touchX.current==null)return; const dx=e.changedTouches[0].clientX-touchX.current; touchX.current=null; if(Math.abs(dx)>60) setAnsicht(dx<0?"uebersicht":"liste"); }}>
-      {ansicht==="uebersicht" ? (
+      <div onTouchStart={e=>{touchX.current=e.touches[0].clientX;}} onTouchEnd={e=>{ if(touchX.current==null)return; const dx=e.changedTouches[0].clientX-touchX.current; touchX.current=null; if(Math.abs(dx)>60 && ansicht!=="suchabo") setAnsicht(dx<0?"uebersicht":"liste"); }}>
+      {ansicht==="suchabo" && istAdmin ? <SuchaboListe/> : ansicht==="uebersicht" ? (
         <BewerberUebersicht bewerber={bewerber} apts={apts} rooms={rooms} tenants={tenants} contracts={contracts} withdrawContract={withdrawContract} updateBewerber={updateBewerber} onSelectBewerber={(id)=>{ setNachmieterFor(null); setSel(id); setAnsicht("liste"); }} onWohnung={()=>{ setNachmieterFor(null); setBewSearch(""); setFilterStatus("Neu"); setAnsicht("liste"); }} />
       ) : (
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:16}}>
