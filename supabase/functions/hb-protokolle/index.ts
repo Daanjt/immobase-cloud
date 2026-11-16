@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       const datum = (String(text).match(/(\d{2})\.(\d{2})\.(\d{4})/) || []);
       const tag = datum.length ? `${datum[3]}-${datum[2]}-${datum[1]}` : String(m.receivedDateTime).slice(0, 10);
       const art = /rückgabe|auszug|abgabe/i.test(m.subject) ? "Rueckgabe" : "Uebergabe";
-      const name = `${art}sprotokoll_HB_${String(apt.adresse).replace(/[^\wäöüÄÖÜ]+/g, "_")}_W${String(apt.refnr).replace(/\W+/g, "")}_${tag}.pdf`;
+      const name = `${art}protokoll_HB_${String(apt.adresse).replace(/[^\wäöüÄÖÜ]+/g, "_")}_W${String(apt.refnr).replace(/\W+/g, "")}_${tag}.pdf`;
       const pfad = `apartment/${apt.id}/${Date.now()}_${name}`;
       const { error: ue } = await sb.storage.from("documents").upload(pfad, pdf.bytes, { contentType: "application/pdf" });
       if (ue) { await log("fehler", { apt_id: apt.id, info: { upload: ue.message } }); continue; }
