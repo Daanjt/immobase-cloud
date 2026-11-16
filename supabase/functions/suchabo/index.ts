@@ -127,15 +127,15 @@ function mailText(abo: any, treffer: any[]) {
   const zeilen = Object.values(gruppen).map((g: any) => {
     const a = g.apt, ort = String(a.ort || "").trim();
     const zi = a.zimmer ? String(a.zimmer) : "";
-    const ab = g.sofort ? (en ? "available now" : "ab sofort") : (en ? "from " : "ab ") + fmt(g.ab);
+    const ab = g.sofort ? (en ? "available now" : "sofort frei") : (en ? "available from " : "frei ab ") + fmt(g.ab);
     let titel: string, preis = "";
     if (abo.art === "wohnung") {
       titel = en ? `${zi ? zi + "-room " : ""}apartment on ${strasse(a.adresse)}, ${ort}` : `${zi ? zi + "-Zimmer-" : ""}Wohnung an der ${strasse(a.adresse)}, ${ort}`;
       if (g.miete) preis = `${chf(g.miete)}${en ? " / month" : " / Monat"}`;
     } else {
-      const anz = en ? (g.n === 1 ? "1 room free" : `${g.n} rooms free`) : (g.n === 1 ? "1 Zimmer frei" : `${g.n} Zimmer frei`);
+      const anz = en ? (g.n === 1 ? "1 free room" : `${g.n} free rooms`) : (g.n === 1 ? "1 freies Zimmer" : `${g.n} freie Zimmer`);
       titel = en ? `${zi ? zi + "-room " : ""}shared flat on ${strasse(a.adresse)}, ${ort}` : `${zi ? zi + "-Zimmer-" : ""}WG an der ${strasse(a.adresse)}, ${ort}`;
-      preis = anz + (g.miete ? (en ? ` from ${chf(g.miete)} / month` : ` ab ${chf(g.miete)} / Monat`) : "");
+      preis = anz + (g.miete ? " · " + (g.n > 1 ? (en ? "from " : "ab ") : "") + chf(g.miete) + (en ? " / month" : " / Monat") : "");
     }
     return `${titel}\n${[preis, ab].filter(Boolean).join(" · ")}\n${link(a, abo.art, en)}`;
   });
