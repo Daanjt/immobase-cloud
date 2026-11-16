@@ -65,3 +65,9 @@ verify_jwt = false
 
 [functions.suchabo]
 verify_jwt = false
+
+[functions.send-handover-pdf]
+verify_jwt = false
+
+[functions.send-handover-invite]
+verify_jwt = false
