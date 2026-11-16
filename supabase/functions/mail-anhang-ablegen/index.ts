@@ -1,10 +1,13 @@
 // mail-anhang-ablegen: Anhang einer Outlook-Mail (Microsoft Graph, App-only) als Dokument in ImmoBase ablegen.
 // POST {internet_message_id, anhang, entity_type, entity_id, category, filename?}  -> Bucket "documents" + Tabelle documents
+// Mit aus_link:true statt anhang: laedt das PDF ueber den Download-Link im Mailtext (z.B. Protokoll-Mails von
+// Verwaltungsportalen ohne Anhang). Nur Links auf bekannte Portale (VERWALTUNGS_PORTALE), nur echte PDFs.
 // Nur Admin oder Service-Key.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+const VERWALTUNGS_PORTALE = [/(^|\.)wwportal\.ch$/i];
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
@@ -14,7 +17,7 @@ Deno.serve(async (req) => {
   const imid = String(b.internet_message_id || "").trim();
   const anhang = String(b.anhang || "").trim();
   const et = String(b.entity_type || ""), eid = String(b.entity_id || ""), kat = String(b.category || "");
-  if (!imid || (!b.nur_liste && (!anhang || !et || !eid || !kat))) return json({ error: "internet_message_id, anhang, entity_type, entity_id und category nötig" }, 400);
+  if (!imid || (!b.nur_liste && ((!anhang && !b.aus_link) || !et || !eid || !kat))) return json({ error: "internet_message_id, anhang, entity_type, entity_id und category nötig" }, 400);
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   try {
     const { data: cfg } = await sb.from("app_config").select("key,value").in("key", ["graph_tenant_id", "graph_client_id", "graph_client_secret", "graph_mailbox"]);
@@ -28,6 +31,25 @@ Deno.serve(async (req) => {
     const ms = await fetch(`${box}/messages?$filter=${encodeURIComponent(`internetMessageId eq '${imid.replace(/'/g, "''")}'`)}&$select=id,subject`, { headers: H }).then((r) => r.json());
     const msg = (ms.value || [])[0];
     if (!msg) return json({ error: "Mail nicht gefunden" }, 404);
+    if (b.aus_link) {
+      const m = await fetch(`${box}/messages/${msg.id}?$select=body`, { headers: H }).then((r) => r.json());
+      const hrefs = [...String(m?.body?.content || "").matchAll(/href="([^"]+)"/gi)].map((x) => x[1].replace(/&amp;/g, "&"));
+      const ziel = hrefs.find((h) => { try { const u = new URL(h); return u.protocol === "https:" && VERWALTUNGS_PORTALE.some((re) => re.test(u.hostname)); } catch { return false; } });
+      if (!ziel) return json({ error: "Kein Download-Link eines bekannten Verwaltungsportals in der Mail" }, 404);
+      const r = await fetch(ziel, { redirect: "follow" });
+      if (!r.ok) return json({ error: `Download fehlgeschlagen (HTTP ${r.status})` }, 502);
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      if (bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF") return json({ error: "Link liefert kein PDF" }, 422);
+      const cd = r.headers.get("content-disposition") || "";
+      const dname = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i) || [])[1];
+      const name = String(b.filename || (dname ? decodeURIComponent(dname) : "Protokoll.pdf")).replace(/[^\w.\-äöüÄÖÜ]+/g, "_");
+      const pfad = `${et}/${eid}/${Date.now()}_${name}`;
+      const { error: ue } = await sb.storage.from("documents").upload(pfad, bytes, { contentType: "application/pdf" });
+      if (ue) return json({ error: "Upload: " + ue.message }, 500);
+      const { data: d, error: de } = await sb.from("documents").insert({ entity_type: et, entity_id: eid, category: kat, filename: name, storage_path: pfad, file_size: bytes.length, mime_type: "application/pdf", uploaded_by: String(b.uploaded_by || "daan.theijse@dthomes.ch") }).select("id").maybeSingle();
+      if (de) return json({ error: "DB: " + de.message }, 500);
+      return json({ ok: true, id: d?.id, pfad, groesse: bytes.length, betreff: msg.subject, quelle: new URL(ziel).hostname });
+    }
     const at = await fetch(`${box}/messages/${msg.id}/attachments`, { headers: H }).then((r) => r.json());
     // nur Anhänge auflisten (kein Fehler, damit die Systemprüfung nicht anschlägt)
     if (b.nur_liste) return json({ ok: true, betreff: msg.subject, anhaenge: (at.value || []).map((x: any) => x.name) });
