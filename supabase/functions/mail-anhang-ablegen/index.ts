@@ -36,10 +36,26 @@ Deno.serve(async (req) => {
       const hrefs = [...String(m?.body?.content || "").matchAll(/href="([^"]+)"/gi)].map((x) => x[1].replace(/&amp;/g, "&"));
       const ziel = hrefs.find((h) => { try { const u = new URL(h); return u.protocol === "https:" && VERWALTUNGS_PORTALE.some((re) => re.test(u.hostname)); } catch { return false; } });
       if (!ziel) return json({ error: "Kein Download-Link eines bekannten Verwaltungsportals in der Mail" }, 404);
-      const r = await fetch(ziel, { redirect: "follow" });
+      const istPdf = (x: Uint8Array) => x.length > 4 && String.fromCharCode(...x.slice(0, 4)) === "%PDF";
+      let r = await fetch(ziel, { redirect: "follow" });
       if (!r.ok) return json({ error: `Download fehlgeschlagen (HTTP ${r.status})` }, 502);
-      const bytes = new Uint8Array(await r.arrayBuffer());
-      if (bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF") return json({ error: "Link liefert kein PDF" }, 422);
+      let bytes = new Uint8Array(await r.arrayBuffer());
+      // Portal liefert zuerst eine Seite: darin den eigentlichen PDF-Link suchen (gleicher Host)
+      if (!istPdf(bytes)) {
+        const seite = new TextDecoder().decode(bytes);
+        const basis = new URL(r.url || ziel);
+        const kand = [...seite.matchAll(/(?:href|src|data-url|action)\s*=\s*["']([^"']+)["']|["'](\/[^"']*(?:\.pdf|download|file|document)[^"']*)["']/gi)]
+          .map((x) => (x[1] || x[2] || "").replace(/&amp;/g, "&")).filter(Boolean)
+          .map((h) => { try { return new URL(h, basis).toString(); } catch { return ""; } })
+          .filter((h) => h && new URL(h).hostname === basis.hostname && h !== ziel && /pdf|download|file|document/i.test(h));
+        for (const k of kand.slice(0, 6)) {
+          const r2 = await fetch(k, { redirect: "follow" });
+          if (!r2.ok) continue;
+          const b2 = new Uint8Array(await r2.arrayBuffer());
+          if (istPdf(b2)) { r = r2; bytes = b2; break; }
+        }
+        if (!istPdf(bytes)) return json({ error: "Link liefert kein PDF", typ: r.headers.get("content-type"), kandidaten: kand.slice(0, 6), seite: seite.replace(/\s+/g, " ").slice(0, 1500) }, 422);
+      }
       const cd = r.headers.get("content-disposition") || "";
       const dname = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i) || [])[1];
       const name = String(b.filename || (dname ? decodeURIComponent(dname) : "Protokoll.pdf")).replace(/[^\w.\-äöüÄÖÜ]+/g, "_");
