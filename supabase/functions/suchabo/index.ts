@@ -67,7 +67,7 @@ async function freieInserate(sb: any) {
   const h = heute();
   const [{ data: rooms, error: e1 }, { data: apts, error: e2 }] = await Promise.all([
     sb.from("rooms").select("id,apt_id,occupied,miete,ausschreib_override,mieter_auszug,nachmieter_gesetzt"),
-    sb.from("apartments").select("id,type,adresse,plz,ort,zimmer,mietbeginn,mietende,ausschreiben,nicht_ausschreiben,vermietungsart").eq("type", "WG"),
+    sb.from("apartments").select("id,type,adresse,plz,ort,zimmer,stockwerk,photos,mietbeginn,mietende,ausschreiben,nicht_ausschreiben,vermietungsart").eq("type", "WG"),
   ]);
   if (e1 || e2) throw new Error((e1 || e2).message);
   const amap: Record<string, any> = {};
@@ -113,6 +113,59 @@ function passt(abo: any, x: any) {
   return true;
 }
 
+
+// ---------- Mail-Layout ----------
+const LOGO = "https://mieter.dthomes.ch/dt-logo.png";
+const STORAGE = `${URL_}/storage/v1/object/public/assets/`;
+const FARBE = { paper: "#FBFAF6", ink: "#1C1B17", soft: "#54503F", espresso: "#211E19", cream: "#EAE3D5", sand: "#EAE1D2", line: "#E4DDD0" };
+const SERIF = "Georgia,'Times New Roman',serif";
+const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+const e = (x: unknown) => String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const PRIO: Record<string, number> = { aussen: 0, aussenansicht: 0, aussicht: 1, balkon: 2, kueche: 3, "küche": 3, wohnen: 4, wohnzimmer: 4, eingang: 6, flur: 6, bad: 8, wc: 9 };
+function titelbild(a: any): string | null {
+  const ph = (Array.isArray(a.photos) ? a.photos : []).filter((p: any) => p && p.path && !p.hidden && (p.category || "") !== "grundriss" && /\.(jpe?g|png|webp|heic)$/i.test(p.path));
+  if (!ph.length) return null;
+  const prio = (c: string) => (c || "").startsWith("room:") ? 5 : (PRIO[c || ""] ?? 7);
+  ph.sort((x: any, y: any) => ((y.favorite ? 1 : 0) - (x.favorite ? 1 : 0)) || prio(x.category) - prio(y.category) || (x.sort_order || 0) - (y.sort_order || 0));
+  return `https://wsrv.nl/?url=${encodeURIComponent(STORAGE + ph[0].path)}&w=1040&h=620&fit=cover&a=attention&output=jpg&q=78`;
+}
+function knopf(href: string, label: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${FARBE.espresso}" style="border-radius:999px;"><a href="${e(href)}" style="display:inline-block;padding:12px 26px;font-family:${SANS};font-size:14px;font-weight:600;color:${FARBE.cream};text-decoration:none;border-radius:999px;">${e(label)}</a></td></tr></table>`;
+}
+function karte(k: any, en: boolean) {
+  const bild = k.bild ? `<tr><td style="padding:0;"><a href="${e(k.link)}" style="text-decoration:none;"><img src="${e(k.bild)}" width="520" alt="${e(k.titel)}" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:14px 14px 0 0;"></a></td></tr>` : "";
+  const chips = k.chips.map((c: string) => `<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 11px;border-radius:999px;background:${FARBE.sand};font-family:${SANS};font-size:12.5px;color:${FARBE.ink};white-space:nowrap;">${e(c)}</span>`).join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;background:#ffffff;border:1px solid ${FARBE.line};border-radius:14px;border-collapse:separate;">
+${bild}<tr><td style="padding:20px 22px 22px;">
+<div style="font-family:${SANS};font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:${FARBE.soft};margin:0 0 6px;">${e(k.ort)}</div>
+<div style="font-family:${SERIF};font-size:21px;line-height:1.3;color:${FARBE.ink};margin:0 0 12px;"><a href="${e(k.link)}" style="color:${FARBE.ink};text-decoration:none;">${e(k.titel)}</a></div>
+<div style="margin:0 0 12px;">${chips}</div>
+${knopf(k.link, en ? "View and apply" : "Ansehen und bewerben")}
+</td></tr></table>`;
+}
+function huelle(o: { en: boolean; vorschau: string; titel: string; intro: string; inhalt: string; abmelden: string; grund: string }) {
+  const { en } = o;
+  return `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${e(o.titel)}</title></head>
+<body style="margin:0;padding:0;background:${FARBE.paper};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${e(o.vorschau)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${FARBE.paper};"><tr><td align="center" style="padding:32px 14px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+<tr><td align="center" style="padding:0 0 26px;"><a href="${WEB}${en ? "/en" : ""}"><img src="${LOGO}" width="96" alt="D&amp;T Homes" style="display:block;width:96px;height:auto;border:0;"></a></td></tr>
+<tr><td style="padding:0 20px 22px;">
+<div style="font-family:${SERIF};font-size:28px;line-height:1.25;color:${FARBE.ink};margin:0 0 10px;">${e(o.titel)}</div>
+<div style="font-family:${SANS};font-size:15px;line-height:1.6;color:${FARBE.soft};">${o.intro}</div>
+</td></tr>
+<tr><td style="padding:0 20px;">${o.inhalt}</td></tr>
+<tr><td style="padding:6px 20px 0;font-family:${SANS};font-size:14px;line-height:1.6;color:${FARBE.ink};">${en ? "Best regards<br>Your D&amp;T Homes Team" : "Liebe Grüsse<br>Dein D&amp;T Homes Team"}</td></tr>
+<tr><td style="padding:28px 20px 0;"><div style="border-top:1px solid ${FARBE.line};padding-top:18px;font-family:${SANS};font-size:12px;line-height:1.6;color:#8a8174;text-align:center;">
+${e(o.grund)}<br>
+${en ? "Questions?" : "Fragen?"} <a href="mailto:info@dthomes.ch" style="color:#8a8174;">info@dthomes.ch</a> · <a href="https://wa.me/41766887091" style="color:#8a8174;">WhatsApp</a><br><br>
+<a href="${e(o.abmelden)}" style="color:${FARBE.soft};text-decoration:underline;">${en ? "Unsubscribe" : "Suchabo abmelden"}</a>
+<div style="margin-top:10px;">D&amp;T Partners GmbH · <a href="${WEB}" style="color:#8a8174;text-decoration:none;">dthomes.ch</a></div>
+</div></td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 function mailText(abo: any, treffer: any[]) {
   const en = abo.sprache === "en";
   const abmelden = `${WEB}${en ? "/en" : ""}/suchabo?abmelden=${abo.token}`;
@@ -124,6 +177,7 @@ function mailText(abo: any, treffer: any[]) {
     if (x.miete && (!g.miete || x.miete < g.miete)) g.miete = x.miete;
     if (!x.ab) g.sofort = true; else if (!g.ab || x.ab < g.ab) g.ab = x.ab;
   }
+  const karten: any[] = [];
   const zeilen = Object.values(gruppen).map((g: any) => {
     const a = g.apt, ort = String(a.ort || "").trim();
     const zi = a.zimmer ? String(a.zimmer) : "";
@@ -137,24 +191,42 @@ function mailText(abo: any, treffer: any[]) {
       titel = en ? `${zi ? zi + "-room " : ""}shared flat on ${strasse(a.adresse)}, ${ort}` : `${zi ? zi + "-Zimmer-" : ""}WG an der ${strasse(a.adresse)}, ${ort}`;
       preis = anz + (g.miete ? " · " + (g.n > 1 ? (en ? "from " : "ab ") : "") + chf(g.miete) + (en ? " / month" : " / Monat") : "");
     }
-    return `${titel}\n${[preis, ab].filter(Boolean).join(" · ")}\n${link(a, abo.art, en)}`;
+    const zielLink = link(a, abo.art, en);
+    const chips: string[] = [];
+    if (abo.art === "wohnung") { if (g.miete) chips.push(`${chf(g.miete)}${en ? " / month" : " / Monat"}`); }
+    else { chips.push(en ? (g.n === 1 ? "1 free room" : `${g.n} free rooms`) : (g.n === 1 ? "1 freies Zimmer" : `${g.n} freie Zimmer`)); if (g.miete) chips.push((g.n > 1 ? (en ? "from " : "ab ") : "") + chf(g.miete) + (en ? " / month" : " / Monat")); }
+    chips.push(g.sofort ? (en ? "Available now" : "Sofort frei") : (en ? "From " : "Frei ab ") + fmt(g.ab));
+    karten.push({ ort, titel: titel.replace(/, [^,]*$/, ""), chips, link: zielLink, bild: titelbild(a) });
+    return `${titel}\n${[preis, ab].filter(Boolean).join(" · ")}\n${zielLink}`;
   });
   const n = zeilen.length;
+  const abmeldenUrl = abmelden;
+  const htmlOf = (titelH: string, introH: string, vorschau: string) => huelle({ en, vorschau, titel: titelH, intro: introH, inhalt: karten.map((k) => karte(k, en)).join(""), abmelden: abmeldenUrl,
+    grund: en ? "You're receiving this email because you set up a listing alert on dthomes.ch." : "Du erhältst diese Mail, weil du auf dthomes.ch ein Suchabo eingerichtet hast." });
   if (en) return {
+    html: htmlOf(abo.art === "wohnung" ? (n === 1 ? "A new apartment for you" : "New apartments for you") : (n === 1 ? "A new room for you" : "New rooms for you"),
+      "Matching your listing alert, this just became available. Free places often go quickly, so it's best to apply right away.",
+      abo.art === "wohnung" ? "A new apartment matching your search is available." : "New rooms matching your search are available."),
     betreff: abo.art === "wohnung" ? (n === 1 ? "New apartment available at D&T Homes" : "New apartments available at D&T Homes") : (n === 1 ? "New room available at D&T Homes" : "New rooms available at D&T Homes"),
     text: `Hi,\n\n${n === 1 ? (abo.art === "wohnung" ? "A new apartment matching your search is" : "A shared flat with a free room matching your search is") : (abo.art === "wohnung" ? "New apartments matching your search are" : "Shared flats with free rooms matching your search are")} now available:\n\n${zeilen.join("\n\n")}\n\nFree places often go quickly, so apply directly via the link if you're interested.\n\nBest regards\nYour D&T Homes Team\n\nYou're receiving this email because you signed up for listing alerts on dthomes.ch. Unsubscribe: ${abmelden}`,
   };
   return {
+    html: htmlOf(abo.art === "wohnung" ? (n === 1 ? "Eine neue Wohnung für dich" : "Neue Wohnungen für dich") : (treffer.length === 1 ? "Ein neues Zimmer für dich" : "Neue Zimmer für dich"),
+      "Passend zu deinem Suchabo ist gerade frei geworden. Freie Plätze sind oft schnell weg, bewirb dich am besten direkt.",
+      abo.art === "wohnung" ? "Passend zu deinem Suchabo ist eine neue Wohnung frei." : "Passend zu deinem Suchabo sind neue Zimmer frei."),
     betreff: abo.art === "wohnung" ? (n === 1 ? "Neue Wohnung frei bei D&T Homes" : "Neue Wohnungen frei bei D&T Homes") : (n === 1 ? "Neues Zimmer frei bei D&T Homes" : "Neue Zimmer frei bei D&T Homes"),
     text: `Hallo,\n\n${abo.art === "wohnung" ? (n === 1 ? "Passend zu deinem Suchabo ist neu eine Wohnung frei:" : "Passend zu deinem Suchabo sind neue Wohnungen frei:") : "Passend zu deinem Suchabo sind neue Zimmer frei:"}\n\n${zeilen.join("\n\n")}\n\nFreie Plätze sind oft schnell weg. Wenn dich etwas interessiert, bewirb dich am besten direkt über den Link.\n\nLiebe Grüsse\nDein D&T Homes Team\n\nDu erhältst diese Mail, weil du auf dthomes.ch ein Suchabo eingerichtet hast. Abmelden: ${abmelden}`,
   };
 }
 
-async function senden(to: string, betreff: string, text: string, sprache: string) {
-  const r = await fetch(`${URL_}/functions/v1/send-message`, {
+async function senden(to: string, betreff: string, text: string, html: string, abmelden: string) {
+  const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ to, betreff, text, sprache, ohneBcc: true }),
+    headers: { Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: "D&T Homes <noreply@dthomes.ch>", to: [to], reply_to: "info@dthomes.ch", subject: betreff, html, text,
+      headers: { "List-Unsubscribe": `<${abmelden}>` },
+    }),
   });
   if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 300)}`);
 }
@@ -199,7 +271,18 @@ Deno.serve(async (req) => {
     const m = en
       ? { betreff: "Your listing alert at D&T Homes", text: `Hi,\n\nThanks for signing up! As soon as a new ${was}${wo}${bis} becomes available at D&T Homes, we'll send you an email.\n\nYou can see everything that's free right now at ${WEB}/en/${art === "wohnung" ? "wohnungen" : "zimmer"}.\n\nBest regards\nYour D&T Homes Team\n\nUnsubscribe at any time: ${abmelden}` }
       : { betreff: "Dein Suchabo bei D&T Homes", text: `Hallo,\n\ndanke für deine Anmeldung! Sobald bei D&T Homes ${art === "wohnung" ? "eine neue Wohnung" : "ein neues Zimmer"}${wo}${bis} frei wird, schicken wir dir eine Mail.\n\nAlles, was aktuell frei ist, findest du auf ${WEB}/${art === "wohnung" ? "wohnungen" : "zimmer"}.\n\nLiebe Grüsse\nDein D&T Homes Team\n\nJederzeit abmelden: ${abmelden}` };
-    try { await senden(email, m.betreff, m.text, sprache); } catch (_e) { /* Abo gilt trotzdem */ }
+    const listeUrl = `${WEB}${en ? "/en" : ""}/${art === "wohnung" ? "wohnungen" : "zimmer"}`;
+    const filter = [art === "wohnung" ? (en ? "Apartments" : "Wohnungen") : (en ? "Shared-flat rooms" : "WG-Zimmer"), orte.length ? orte.join(", ") : (en ? "All locations" : "Alle Orte"), max_miete ? (en ? "Up to " : "Bis ") + chf(max_miete) : (en ? "Any rent" : "Jede Miete")];
+    const box = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;background:#ffffff;border:1px solid ${FARBE.line};border-radius:14px;border-collapse:separate;"><tr><td style="padding:20px 22px 22px;">
+<div style="font-family:${SANS};font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:${FARBE.soft};margin:0 0 10px;">${en ? "Your alert" : "Dein Suchabo"}</div>
+<div style="margin:0 0 14px;">${filter.map((c) => `<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 11px;border-radius:999px;background:${FARBE.sand};font-family:${SANS};font-size:12.5px;color:${FARBE.ink};white-space:nowrap;">${e(c)}</span>`).join("")}</div>
+${knopf(listeUrl, art === "wohnung" ? (en ? "See available apartments" : "Aktuell freie Wohnungen") : (en ? "See available rooms" : "Aktuell freie Zimmer"))}
+</td></tr></table>`;
+    const html = huelle({ en, vorschau: en ? "We'll let you know as soon as something new becomes available." : "Wir melden uns, sobald etwas Passendes frei wird.",
+      titel: en ? "Your listing alert is active" : "Dein Suchabo ist aktiv",
+      intro: e(en ? `Thanks for signing up! As soon as a new ${was}${wo}${bis} becomes available at D&T Homes, you'll get an email from us.` : `Danke für deine Anmeldung! Sobald bei D&T Homes ${art === "wohnung" ? "eine neue Wohnung" : "ein neues Zimmer"}${wo}${bis} frei wird, bekommst du eine Mail von uns.`),
+      inhalt: box, abmelden, grund: en ? "You're receiving this email because you set up a listing alert on dthomes.ch." : "Du erhältst diese Mail, weil du auf dthomes.ch ein Suchabo eingerichtet hast." });
+    try { await senden(email, m.betreff, m.text, html, abmelden); } catch (_e) { /* Abo gilt trotzdem */ }
     return json({ ok: true });
   }
 
@@ -228,7 +311,7 @@ Deno.serve(async (req) => {
     for (const p of plan) {
       const m = mailText(p.abo, p.treffer);
       try {
-        await senden(p.abo.email, m.betreff, m.text, p.abo.sprache);
+        await senden(p.abo.email, m.betreff, m.text, m.html, `${WEB}${p.abo.sprache === "en" ? "/en" : ""}/suchabo?abmelden=${p.abo.token}`);
         await sb.from("suchabos").update({ letzter_versand: new Date().toISOString(), anzahl_mails: (p.abo.anzahl_mails || 0) + 1 }).eq("id", p.abo.id);
         ergebnis.push({ abo: p.abo.id, status: "sent", treffer: p.treffer.length });
       } catch (e) {
