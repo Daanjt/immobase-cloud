@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { mailStil } from "../_shared/mailstil.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -77,7 +78,7 @@ ${inhalt}
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: FROM_EMAIL, to: [t.email], bcc: [BCC], reply_to: REPLY_TO, subject: T("Deine Kautionsabrechnung bei D&T Homes", "Your deposit statement from D&T Homes"), html, attachments: b64 ? [{ filename: "logo.png", content: b64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [] }),
+      body: JSON.stringify({ from: FROM_EMAIL, to: [t.email], bcc: [BCC], reply_to: REPLY_TO, subject: T("Deine Kautionsabrechnung bei D&T Homes", "Your deposit statement from D&T Homes"), html: mailStil(html), attachments: b64 ? [{ filename: "logo.png", content: b64, content_type: "image/png", content_id: "dt-logo", disposition: "inline" }] : [] }),
     });
     const rd = await resp.json();
     if (!resp.ok) return j({ error: rd }, 500);

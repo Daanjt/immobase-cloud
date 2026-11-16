@@ -12,6 +12,7 @@ import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { qrInhalt, qrPng, b64 as qrB64 } from "../_shared/qrrechnung.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { mailStil } from "../_shared/mailstil.ts";
 
 // Neutraler Swiss-QR (nur Konto, ohne Betrag/Zahler/Mitteilung) fuer bereits verschickte Mails,
 // die das Bild ueber die oeffentliche URL laden. Neue Mails bekommen einen QR pro Mieter (siehe unten).
@@ -187,7 +188,7 @@ function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logo
   const box = (titel, rows) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 22px;"><tr><td bgcolor="#faf8f3" style="background:#faf8f3;border-left:3px solid #1a1814;padding:16px 18px;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${titel}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;font-size:13px;color:#1a1814;border-collapse:collapse;">${rows}</table></td></tr></table>`;
   const linksHtml = downloadLinks.map((l) => `<a href="${l.url}" style="display:inline-block;background:#1a1814;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;margin:4px 6px 4px 0;">📄 ${esc(en ? String(l.label).replace("Vertrag herunterladen", "Download contract").replace("Anfangsmietzins", "Initial rent form").replace("Untermietvertrag", "Sublease agreement").replace("(signiert)", "(signed)") : l.label)}</a>`).join("");
   const schritt = (nr, titel, inhalt) => `<div style="margin:22px 0 0;padding-top:20px;border-top:1px solid #f0eadd;"><span style="display:inline-block;background:#1a1814;color:#fff;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;font-size:12px;font-weight:600;margin-right:8px;">${nr}</span><span style="font-size:15px;font-weight:600;">${titel}</span><div style="font-size:14px;color:#3a352d;line-height:1.6;margin:10px 0 0;">${inhalt}</div></div>`;
-  const shell = (eyebrow, inhalt) => `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
+  const shell = (eyebrow, inhalt) => mailStil(`<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
@@ -196,7 +197,7 @@ ${inhalt}
 <p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${T("Bei Fragen:", "Questions?")} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${T("oder per WhatsApp", "or via WhatsApp")} <a href="https://wa.me/41766887091" style="color:#5a5448;">+41 76 688 70 91</a>.</p>
 </div>
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch &middot; ${T("Vertragsnr.", "Contract no.")} ${esc(vertragId)}</div>
-</div></body></html>`;
+</div></body></html>`);
 
   if (contract.contract_type === "parkplatz") {
     const pp = data.parkplatz || {};

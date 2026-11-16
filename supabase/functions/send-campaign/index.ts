@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { mailStil } from "../_shared/mailstil.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -132,7 +133,7 @@ serve(async (req) => {
     const { group, subject, text, test_email, exclude, include_future, recipients: inRecip, attachments: inAtt, design: inDesign, preview } = await req.json();
     if (!subject || !text) return j({ error: "Betreff und Text erforderlich" }, 400);
     const design: Design = inDesign && typeof inDesign === "object" ? inDesign : {};
-    if (preview) return j({ html: huelle(String(preview === true ? "Vorname" : preview), text, LOGO_URL, design) });
+    if (preview) return j({ html: mailStil(huelle(String(preview === true ? "Vorname" : preview), text, LOGO_URL, design)) });
 
     const sb = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -184,7 +185,7 @@ serve(async (req) => {
         const resp = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: FROM_EMAIL, to: [r.email], ...(design.ohne_bcc ? {} : { bcc: [BCC] }), reply_to: REPLY_TO, subject, html: huelle(r.vorname, text, logoSrc, r.button_url ? { ...design, button_url: r.button_url } : design), attachments }),
+          body: JSON.stringify({ from: FROM_EMAIL, to: [r.email], ...(design.ohne_bcc ? {} : { bcc: [BCC] }), reply_to: REPLY_TO, subject, html: mailStil(huelle(r.vorname, text, logoSrc, r.button_url ? { ...design, button_url: r.button_url } : design)), attachments }),
         });
         if (resp.ok) sent++; else { failed.push(r.email); }
         await new Promise(res => setTimeout(res, 120)); // leichte Drosselung

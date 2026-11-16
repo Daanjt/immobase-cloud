@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { mailStil } from "../_shared/mailstil.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -146,7 +147,7 @@ ${tabelle}
 ⚠️ ${T(`Bitte überweise den Gesamtbetrag innert 10 Tagen, spätestens bis zum <strong>${frist}</strong>. Sollte auch danach keine Zahlung eingehen, behalten wir uns weitere rechtliche Schritte vor.`, `Please transfer the total amount within 10 days, by <strong>${frist}</strong> at the latest. If no payment is received after that, we reserve the right to take further legal steps.`)}
 </div>`;
 
-  return huelle(stufe === 1 ? inhalt1 : inhalt2, eyebrow, logoSrc, en);
+  return mailStil(huelle(stufe === 1 ? inhalt1 : inhalt2, eyebrow, logoSrc, en));
 }
 
 serve(async (req) => {

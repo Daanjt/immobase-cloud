@@ -7,6 +7,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { waSenden, telefonVon } from "../_shared/whatsapp.ts";
+import { mailStil } from "../_shared/mailstil.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -360,7 +361,7 @@ ${abschlussBox(en)}
 <a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${fotos > 0 ? T("Protokoll jetzt abschliessen", "Finish protocol now") : T("Jetzt Protokoll ausfüllen", "Complete protocol now")}</a>
 </div>
 <p style="font-size:12px;color:#6e6a62;margin:0;">${T("Oder kopiere diesen Link:", "Or copy this link:")}<br><span style="color:#1a1814;word-break:break-all;">${url}</span></p>`;
-  return shell(inhalt, title, logoSrc, en);
+  return mailStil(shell(inhalt, title, logoSrc, en));
 }
 
 function buildAutoAcceptHtml(name: string, deadline: string, logoSrc: string, en: boolean, mitPdf: boolean) {
@@ -371,7 +372,7 @@ function buildAutoAcceptHtml(name: string, deadline: string, logoSrc: string, en
 ✓ ${T("Da du keine Mängel gemeldet hast, gilt die Wohnung ab jetzt als in einwandfreiem Zustand übernommen.", "As you have not reported any defects, the apartment is now deemed to have been handed over in perfect condition.")}${mitPdf ? " " + T("Anbei findest du das Protokoll als PDF für deine Unterlagen.", "Attached you will find the protocol as a PDF for your records.") : ""}
 </div>
 <p style="font-size:14px;margin:0 0 18px;">${T("Wichtig: Verdeckte Mängel, die bei der Übernahme trotz sorgfältiger Prüfung nicht erkennbar waren (z.B. Schimmel hinter Möbeln), kannst du weiterhin innert 10 Tagen ab Entdeckung an", "Important: hidden defects that were not visible at handover despite careful inspection (e.g. mould behind furniture) can still be reported within 10 days of discovery to")} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${T("melden (Art. 256 OR).", "(Art. 256 Swiss Code of Obligations).")}</p>`;
-  return shell(inhalt, T("Übernahmeprotokoll", "Handover protocol"), logoSrc, en);
+  return mailStil(shell(inhalt, T("Übernahmeprotokoll", "Handover protocol"), logoSrc, en));
 }
 
 async function sendEmail(to: string, subject: string, htmlBauer: (logoSrc: string) => string, attachments?: Array<{ filename: string, content: string }>) {

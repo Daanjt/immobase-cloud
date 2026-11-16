@@ -1,6 +1,7 @@
 // Versendet eine Nachricht aus den ImmoBase-Vorlagen im einheitlichen D&T-Mail-Design.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { istTeamOderServer, istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { mailStil } from "../_shared/mailstil.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = "D&T Homes <noreply@dthomes.ch>";
@@ -66,7 +67,7 @@ serve(async (req) => {
     const pers = !!persoenlich;
     if (pers && !(await istAdminOderServer(req))) return verweigert(CORS);
     const logoB64 = pers ? null : await ladeLogo();
-    const html = pers ? schlicht(text) : huelle(textZuHtml(text), logoB64 ? "cid:dt-logo" : LOGO_URL, en);
+    const html = pers ? schlicht(text) : mailStil(huelle(textZuHtml(text), logoB64 ? "cid:dt-logo" : LOGO_URL, en));
     const toList = String(to).split(/[;,]/).map((x) => x.trim()).filter(Boolean);
     const ccList = cc ? String(cc).split(/[;,]/).map((x) => x.trim()).filter(Boolean) : [];
     const r = await fetch("https://api.resend.com/emails", {
