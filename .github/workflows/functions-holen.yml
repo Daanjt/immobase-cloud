@@ -1,0 +1,29 @@
+name: Edge Functions aus Supabase ins Repo holen
+# Einmalig/bei Bedarf: laedt Functions, die nur in Supabase liegen, ins Repo (Commit auf main).
+on:
+  workflow_dispatch:
+    inputs:
+      namen:
+        description: "Function-Namen, durch Leerzeichen getrennt"
+        required: true
+permissions:
+  contents: write
+jobs:
+  holen:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: aohcqrxpsqronlcwssrk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+      - name: Herunterladen
+        run: |
+          set -e
+          for f in ${{ github.event.inputs.namen }}; do
+            supabase functions download "$f" --project-ref "$PROJECT_ID" --use-api
+          done
+          git config user.name Daanjt; git config user.email theijse.daan@gmail.com
+          git add supabase/functions
+          git commit -m "Functions aus Supabase ins Repo: ${{ github.event.inputs.namen }}" || echo "nichts neu"
+          git push
