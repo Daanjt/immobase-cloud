@@ -37,7 +37,10 @@ Deno.serve(async (req) => {
       const ziel = hrefs.find((h) => { try { const u = new URL(h); return u.protocol === "https:" && VERWALTUNGS_PORTALE.some((re) => re.test(u.hostname)); } catch { return false; } });
       if (!ziel) return json({ error: "Kein Download-Link eines bekannten Verwaltungsportals in der Mail" }, 404);
       const istPdf = (x: Uint8Array) => x.length > 4 && String.fromCharCode(...x.slice(0, 4)) === "%PDF";
-      let r = await fetch(ziel, { redirect: "follow" });
+      // W&W-Portal (wwportal.ch): die Seite /protocol/download ist eine App, das PDF liegt unter /api/inspection/download
+      let url = ziel;
+      try { const u = new URL(ziel); if (/wwportal\.ch$/i.test(u.hostname) && u.pathname.startsWith("/protocol/download")) url = `${u.origin}/api/inspection/download${u.search}`; } catch { /* */ }
+      let r = await fetch(url, { redirect: "follow" });
       if (!r.ok) return json({ error: `Download fehlgeschlagen (HTTP ${r.status})` }, 502);
       let bytes = new Uint8Array(await r.arrayBuffer());
       // Portal liefert zuerst eine Seite: darin den eigentlichen PDF-Link suchen (gleicher Host)
