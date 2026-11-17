@@ -38,7 +38,7 @@ function EinzugBereit({t, zahlungen, updateTenant, navigateTo}){
 }
 
 // Vor der Vorschau: fehlende Angaben fuer die Einzugsmail direkt hier ergaenzen
-function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef}){
+function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef, sichtbar, onStatus}){
   const istWG = aptKat(apt)==="WG" && room && room.id;
   const [boxen,setBoxen]=useState(null);
   const [lg,setLg]=useState(undefined);
@@ -48,7 +48,6 @@ function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef}){
   const [standorte,setStandorte]=useState({});
   const [neuBox,setNeuBox]=useState({code:"",standort:""});
   const [raum,setRaum]=useState(room||null);
-  const [aktiv,setAktiv]=useState(null);
   const [anfang]=useState(()=>({weg:!(apt?.weg_mieter||"").trim(), lage:!(room?.lage_mieter||"").trim(), grundriss:!room?.grundriss_markiert}));
   useEffect(()=>{ if(!apt) return;
     supabase.from("keyboxes").select("*").eq("apartment_id",apt.id).order("sort").then(({data})=>setBoxen(data||[]));
@@ -64,33 +63,22 @@ function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef}){
     if(keineBox && neuBox.code.trim()){ const {error}=await supabase.from("keyboxes").insert({apartment_id:apt.id,bezeichnung:"Keybox",code:neuBox.code.trim(),standort:neuBox.standort.trim()||null,sort:1}); if(error) throw error; }
     if(hausFehlt && haus.trim() && apt.adresse){ const {error}=await supabase.from("liegenschaften").upsert({adresse:apt.adresse,hausinfos:haus.trim(),updated_at:new Date().toISOString()},{onConflict:"adresse"}); if(error) throw error; }
   };
-  const fehlt = anfang.weg || boxenOhneStandort.length || keineBox || hausFehlt || (istWG && (anfang.lage || anfang.grundriss));
-  if(!apt || boxen===null || lg===undefined) return <div style={{fontSize:12,color:"var(--muted)",margin:"0 0 14px"}}>Prüfe Angaben für die Mail…</div>;
-  if(!fehlt) return null;
+  const geladen = !!apt && boxen!==null && lg!==undefined;
+  const fehlt = !!(anfang.weg || boxenOhneStandort.length || keineBox || hausFehlt || (istWG && (anfang.lage || anfang.grundriss)));
+  useEffect(()=>{ if(onStatus) onStatus(!apt ? false : geladen ? fehlt : null); }, [geladen, fehlt]);
+  if(!sichtbar || !geladen || !fehlt) return null;
   const lab={display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",margin:"10px 0 4px"};
   const inp={width:"100%",padding:"7px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit",background:"#fff"};
-  const punkte=[
-    anfang.weg && {k:"weg", t:"Weg zur Wohnung", ok:!!weg.trim()},
-    (boxenOhneStandort.length||keineBox) && {k:"box", t:"Schlüsselbox", ok: keineBox ? !!neuBox.code.trim() : boxenOhneStandort.every(b=>(standorte[b.id]||"").trim())},
-    istWG && anfang.lage && {k:"lage", t:"Lage Zimmer", ok:!!lage.trim()},
-    istWG && anfang.grundriss && {k:"grundriss", t:"Grundriss", ok:!!(raum&&raum.grundriss_markiert)},
-    hausFehlt && {k:"haus", t:"Hausinfos", ok:!!haus.trim()},
-  ].filter(Boolean);
-  return <div style={{border:"1px solid #ead9b8",background:"#fdf8ee",borderRadius:8,padding:"10px 12px",margin:"0 0 14px"}}>
-    <div style={{fontSize:12,color:"var(--muted)",marginBottom:7}}><b style={{color:"var(--ink)"}}>Fehlt noch für die Mail</b> · antippen zum Ergänzen, wird gespeichert</div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {punkte.map(x=><button key={x.k} type="button" onClick={()=>setAktiv(aktiv===x.k?null:x.k)} style={{fontSize:12,padding:"4px 10px",borderRadius:999,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+(aktiv===x.k?"#1a1814":x.ok?"#cfe0c8":"#e1d0ae"),background:x.ok?"#eef3ec":aktiv===x.k?"#fff":"#fbf1dc",color:x.ok?"#2f5230":"#6b5420"}}>{x.ok?"✓ ":"+ "}{x.t}</button>)}
-    </div>
-    {aktiv==="weg" && <><label style={lab}>So findest du die Wohnung</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={weg} onChange={e=>setWeg(e.target.value)} placeholder="z.B. Eingang im Hinterhof, Lift bis 2. OG, Tür rechts"/></>}
-    {aktiv==="box" && <>
-      {boxenOhneStandort.map(b=><div key={b.id}><label style={lab}>Standort {b.bezeichnung||"Keybox"}</label><input style={inp} value={standorte[b.id]||""} onChange={e=>setStandorte(p=>({...p,[b.id]:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div>)}
-      {keineBox && <><label style={lab}>Code und Standort</label><div style={{display:"flex",gap:8}}>
-        <input style={{...inp,flex:"0 0 90px",fontFamily:"monospace"}} value={neuBox.code} onChange={e=>setNeuBox(p=>({...p,code:e.target.value}))} placeholder="Code" autoComplete="off"/>
-        <input style={inp} value={neuBox.standort} onChange={e=>setNeuBox(p=>({...p,standort:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div></>}
-    </>}
-    {aktiv==="lage" && <><label style={lab}>Lage des Zimmers</label><input style={inp} value={lage} onChange={e=>setLage(e.target.value)} placeholder="z.B. 2. Tür links im Gang"/></>}
-    {aktiv==="grundriss" && <div style={{marginTop:10}}><GrundrissMarker apt={apt} room={raum} onSaved={async f=>{ await updateRoom(room.id,f); setRaum(r=>({...r,...f})); setAktiv(null); }}/></div>}
-    {aktiv==="haus" && <><label style={lab}>Hausinfos für {apt.adresse}</label><textarea rows={3} style={{...inp,resize:"vertical"}} value={haus} onChange={e=>setHaus(e.target.value)} placeholder="z.B. Abfall, Waschküche, Velokeller"/></>}
+  return <div style={{margin:"0 0 14px"}}>
+    <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.5,marginBottom:4}}>Diese Angaben fehlen noch für die Einzugsmail. Sie werden bei der Wohnung, beim Zimmer bzw. bei der Liegenschaft gespeichert. Was leer bleibt, lässt die Mail weg.</div>
+    {anfang.weg && <><label style={lab}>So findest du die Wohnung</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={weg} onChange={e=>setWeg(e.target.value)} placeholder="z.B. Eingang im Hinterhof, Lift bis 2. OG, Tür rechts. An der Klingel steht D&T Homes"/></>}
+    {boxenOhneStandort.map(b=><div key={b.id}><label style={lab}>Standort {b.bezeichnung||"Keybox"}</label><input style={inp} value={standorte[b.id]||""} onChange={e=>setStandorte(p=>({...p,[b.id]:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div>)}
+    {keineBox && <><label style={lab}>Schlüsselbox: Code und Standort</label><div style={{display:"flex",gap:8}}>
+      <input style={{...inp,flex:"0 0 90px",fontFamily:"monospace"}} value={neuBox.code} onChange={e=>setNeuBox(p=>({...p,code:e.target.value}))} placeholder="Code" autoComplete="off"/>
+      <input style={inp} value={neuBox.standort} onChange={e=>setNeuBox(p=>({...p,standort:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div></>}
+    {istWG && anfang.lage && <><label style={lab}>Lage des Zimmers</label><input style={inp} value={lage} onChange={e=>setLage(e.target.value)} placeholder="z.B. 2. Tür links im Gang"/></>}
+    {istWG && anfang.grundriss && <div style={{marginTop:10}}><GrundrissMarker apt={apt} room={raum} onSaved={async f=>{ await updateRoom(room.id,f); setRaum(r=>({...r,...f})); }}/></div>}
+    {hausFehlt && <><label style={lab}>Hausinfos für {apt.adresse}</label><textarea rows={3} style={{...inp,resize:"vertical"}} value={haus} onChange={e=>setHaus(e.target.value)} placeholder="z.B. Abfall, Waschküche, Velokeller"/></>}
   </div>;
 }
 
@@ -158,6 +146,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const zeigeEinzugBereit = (s) => s.daysTilEinzug != null && s.daysTilEinzug >= -7;
   const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
   const [startFor, setStartFor] = useState(null);
+  const [startSchritt, setStartSchritt] = useState(1);
+  const [datenFehlt, setDatenFehlt] = useState(null);
+  useEffect(()=>{ setStartSchritt(1); setDatenFehlt(null); }, [startFor]);
   const [refKeyInfo, setRefKeyInfo] = useState(null);
   useEffect(()=>{
     if(!startFor||!startFor.apt||!startFor.apt.id){ setRefKeyInfo(null); return; }
@@ -479,11 +470,12 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       {startFor && (
         <div className="ov-x" onClick={()=>!starting&&setStartFor(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
           <div className="modal-x klein" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:12,padding:"20px 20px 0",maxWidth:420,width:"100%",maxHeight:"calc(100vh - 32px)",overflowY:"auto",boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
-            <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:4}}>Protokoll starten</div>
+            <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)",marginBottom:4}}>{startSchritt===2 ? "Angaben für die Einzugsmail" : "Protokoll starten"}</div>
             <div style={{fontSize:12,color:"var(--muted)",marginBottom:16,lineHeight:1.5}}>
               <MieterLink id={startFor.tenant.id}>{startFor.tenant.vorname} {startFor.tenant.nachname}</MieterLink> · <ZimmerLink id={startFor.room?.id}>{startFor.room?.id||"-"}</ZimmerLink> · <WohnungLink id={startFor.apt?.id}>{startFor.apt?.adresse||"-"}</WohnungLink><br/>
               Der Mieter erhält einen Link und hat 14 Tage Zeit, das Protokoll auszufüllen.
             </div>
+            {startSchritt===1 && <>
             {refKeyInfo && (refKeyInfo.erhNormal!=null || refKeyInfo.erhExtra!=null) && (
               <div style={{background:"#f3f6f0",border:"1px solid #d9e2d2",borderRadius:6,padding:"8px 10px",marginBottom:12,fontSize:12,color:"#3a5230"}}>
                 <div style={{fontWeight:600,marginBottom:2}}>Für diese Wohnung erhalten</div>
@@ -507,10 +499,15 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <input type="checkbox" checked={mitEinzugsinfo} onChange={e=>setMitEinzugsinfo(e.target.checked)} style={{marginTop:2}}/>
               <span><b>🔑 Einzugsinfo mitschicken</b><br/><span style={{color:"var(--muted)"}}>Schlüsselbox (Standort, Code, Bild) und Hausinfos kommen in dieselbe Mail.{startFor.tenant && !startFor.tenant.kautionEingegangenAm && Number(startFor.tenant.kautionMonate)!==0 ? " Achtung: Kaution noch nicht eingegangen." : ""}</span></span>
             </label>
-            {mitEinzugsinfo && <EinzugsDatenCheck key={startFor.tenant?.id} apt={startFor.apt} room={startFor.room} updateApt={updateApt} updateRoom={updateRoom} speichernRef={einzugsDatenRef}/>}
+            </>}
+            {mitEinzugsinfo && <EinzugsDatenCheck key={startFor.tenant?.id} apt={startFor.apt} room={startFor.room} updateApt={updateApt} updateRoom={updateRoom} speichernRef={einzugsDatenRef} sichtbar={startSchritt===2} onStatus={setDatenFehlt}/>}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",position:"sticky",bottom:0,background:"var(--surface)",padding:"10px 0 16px",borderTop:"1px solid var(--line)"}}>
-              <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
-              <button className="btn btn-sm" disabled={starting}
+              {startSchritt===2
+                ? <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartSchritt(1)}>Zurück</button>
+                : <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>}
+              {startSchritt===1 && mitEinzugsinfo && datenFehlt!==false
+                ? <button className="btn btn-sm" disabled={datenFehlt===null} onClick={()=>setStartSchritt(2)}>{datenFehlt===null ? "Prüfe…" : "Weiter"}</button>
+                : <button className="btn btn-sm" disabled={starting}
                 onClick={async ()=>{
                   setStarting(true);
                   try {
@@ -554,7 +551,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     alert("Fehler: " + (e.message || e));
                   }
                   setStarting(false);
-                }}>{starting ? "Bereite vor..." : "Weiter zur Vorschau"}</button>
+                }}>{starting ? "Bereite vor..." : "Weiter zur Vorschau"}</button>}
             </div>
           </div>
         </div>
