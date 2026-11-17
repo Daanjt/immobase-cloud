@@ -229,108 +229,89 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
         >📅 Auszug {reminders.length > 0 && <span style={{marginLeft:6,padding:"2px 8px",background:tab==="auszug"?"#1a1814":"#c5cda8",color:"#fefcf7",borderRadius:10,fontSize:10,fontWeight:700}}>{reminders.length}</span>}</button>}
       </div>
       
-      {/* EINZUG */}
-      {tab === "einzug" && (
+      {/* EINZUG: eine Zeile pro Einzug, alle Schritte nebeneinander */}
+      {tab === "einzug" && (()=>{
+        const st = (t) => {
+          const ez = parseD(t.einzug);
+          const em = ez ? zahlungen.find(z => z.tenant_id === t.id && z.jahr === ez.getFullYear() && z.monat === ez.getMonth()+1) : null;
+          const keineKaution = Number(t.kautionMonate) === 0;
+          return { kaution: keineKaution || !!t.kautionEingegangenAm, keineKaution, miete: !!(em && em.status === "bezahlt"), mieteInfo: em ? `${em.monat}/${em.jahr}: ${em.status}` : "Noch keine Zahlung für den Einzugsmonat erfasst", infos: !!t.einzugsinfoGesendetAt };
+        };
+        const aktuell = einzuegeMitStatus.filter(e => e.kategorie !== "done" || (e.daysTilEinzug != null && e.daysTilEinzug >= -7))
+          .sort((a,b) => (a.einzugDate ? a.einzugDate.getTime() : 9e15) - (b.einzugDate ? b.einzugDate.getTime() : 9e15));
+        const fertig = einzuegeMitStatus.filter(e => !aktuell.includes(e));
+        const Punkt = ({ok, titel, onClick, txt}) => (
+          <span title={titel} onClick={onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:24,height:24,padding:txt?"0 9px":0,borderRadius:12,fontSize:11.5,fontWeight:600,
+            background: ok ? "#e3ecd8" : "#f3eee4", color: ok ? "#3a5230" : "#a39a8a", cursor: onClick ? "pointer" : "default", whiteSpace:"nowrap"}}>{txt || (ok ? "✓" : "–")}</span>
+        );
+        const th = {textAlign:"left",fontSize:10,fontWeight:600,color:"#8a8478",textTransform:"uppercase",letterSpacing:".12em",padding:"0 10px 8px",whiteSpace:"nowrap"};
+        const td = {padding:"11px 10px",borderTop:"1px solid #ece5d8",verticalAlign:"middle",fontSize:12.5};
+        const wann = (d) => d == null ? "" : d === 0 ? "heute" : d > 0 ? `in ${d} T.` : `vor ${-d} T.`;
+        return (
         <div>
-          <div style={{marginBottom:16,fontSize:13,color:"#4a4439",lineHeight:1.5}}>
-            Alle Mieter mit Zimmer-Zuteilung und ihr aktueller Übernahmeprotokoll-Status.
+          {aktuell.length === 0 ? (
+            <div style={{padding:"32px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:10,color:"#8a8174",fontSize:13}}>Keine anstehenden Einzüge.</div>
+          ) : (
+          <div style={{background:"#fefcf7",border:"1px solid #e6dfd1",borderRadius:12,padding:"14px 8px 4px",overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
+              <thead><tr>
+                <th style={th}>Einzug</th><th style={th}>Mieter</th>
+                <th style={{...th,textAlign:"center"}}>Kaution</th><th style={{...th,textAlign:"center"}}>1. Miete</th><th style={{...th,textAlign:"center"}}>Einzugsinfo</th>
+                <th style={th}>Protokoll</th><th style={th}></th>
+              </tr></thead>
+              <tbody>
+              {aktuell.map(s => {
+                const t = s.tenant, x = st(t);
+                const prot = s.kategorie === "review" ? {txt:"zur Prüfung", ok:false, farbe:"#3a5570"}
+                  : s.kategorie === "waiting" ? {txt: s.latest && s.latest.deadline ? `läuft bis ${new Date(s.latest.deadline).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}` : "läuft", ok:false, farbe:"#7a5c3c"}
+                  : s.kategorie === "done" ? {txt:"✓ erledigt", ok:true, farbe:"#3a5230"} : {txt:"nicht gestartet", ok:false, farbe:"#a39a8a"};
+                const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
+                let aktion;
+                if (s.kategorie === "review") aktion = {txt:"📥 Protokoll prüfen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
+                else if (!x.infos && x.kaution && x.miete) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
+                else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 3)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
+                else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
+                const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
+                return (
+                  <tr key={t.id}>
+                    <td style={{...td,whiteSpace:"nowrap"}}><div style={{fontWeight:600}}>{t.einzug || "–"}</div><div style={{fontSize:11,color: ueberfaellig ? "#9b4a3e" : "#8a8478"}}>{wann(s.daysTilEinzug)}</div></td>
+                    <td style={td}><div style={{fontWeight:600}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></div><div style={{fontSize:11,color:"#8a8478"}}><WohnungLink id={s.apt?.id}>{s.apt?.adresse||"–"}</WohnungLink>{s.room?.id ? ` · ${s.room.id}` : ""}</div></td>
+                    <td style={{...td,textAlign:"center"}}><Punkt ok={x.kaution} txt={x.keineKaution ? "keine" : ""} titel={t.kautionEingegangenAm ? `Eingegangen am ${new Date(t.kautionEingegangenAm).toLocaleDateString("de-CH")}` : x.keineKaution ? "Keine Kaution vereinbart" : "Noch nicht eingegangen (wird über die Evorest-Mail erkannt). Klick = von Hand als eingegangen markieren."}
+                      onClick={(!x.kaution) ? (e)=>{e.stopPropagation(); if(window.confirm(`Kaution von ${t.vorname} als eingegangen markieren?`)) updateTenant(t.id,{kautionEingegangenAm:new Date().toISOString().slice(0,10)});} : undefined}/></td>
+                    <td style={{...td,textAlign:"center"}}><Punkt ok={x.miete} titel={x.mieteInfo}/></td>
+                    <td style={{...td,textAlign:"center"}}><Punkt ok={x.infos} titel={x.infos ? `Gesendet am ${new Date(t.einzugsinfoGesendetAt).toLocaleDateString("de-CH")}` : "Noch nicht gesendet"} onClick={!x.infos ? einzugsinfo : undefined}/></td>
+                    <td style={{...td,whiteSpace:"nowrap",color:prot.farbe,fontSize:12}}>{prot.txt}</td>
+                    <td style={{...td,textAlign:"right",whiteSpace:"nowrap"}}>
+                      <button onClick={aktion.fn} style={{background: aktion.primaer ? "#1a1814" : "transparent", color: aktion.primaer ? "#fefcf7" : "#4a4439", border: aktion.primaer ? "none" : "1px solid #ddd3c2", borderRadius:999, padding:"6px 14px", fontSize:11.5, fontWeight:600, cursor:"pointer"}}>{aktion.txt}</button>
+                      {s.kategorie !== "done" && <button title="Übergabe ohne digitales Protokoll als erledigt markieren" onClick={(e)=>{e.stopPropagation(); if(window.confirm("Übergabe ohne digitales Protokoll als erledigt markieren?")) updateTenant(t.id,{uebergabeStatus:"erledigt", uebergabeNotiz:"Manuell als erledigt markiert"});}} style={{marginLeft:6,background:"transparent",border:"none",color:"#a39a8a",fontSize:11,cursor:"pointer"}}>✓ erledigt</button>}
+                    </td>
+                  </tr>
+                );
+              })}
+              </tbody>
+            </table>
           </div>
-          
-          {/* FAELLIG (todo / waiting / review) */}
-          {offene.length > 0 && (
-            <>
-              <div style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,marginBottom:10}}>Fällig ({offene.length})</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10,marginBottom:24}}>
-                {offene.map(s => {
-                  const catCfg = {
-                    "todo":    {bg:"#fdebe5",border:"#e0bcb0",color:"#9b4a3e",label:"Nicht gestartet",   icon:"⚠️"},
-                    "waiting": {bg:"#fdf2e0",border:"#e8c89c",color:"#7a5c3c",label:"Läuft (Mieter)",     icon:"⏱"},
-                    "review":  {bg:"#e0ecf5",border:"#a8c0d5",color:"#3a5570",label:"Zur Prüfung",       icon:"📥"},
-                  }[s.kategorie];
-                  const dayHint = s.daysTilEinzug != null ? (
-                    s.daysTilEinzug < 0 ? `${Math.abs(s.daysTilEinzug)} T. überfällig` : 
-                    s.daysTilEinzug === 0 ? "Einzug heute" : 
-                    `Einzug in ${s.daysTilEinzug} T.`
-                  ) : "kein Einzug gesetzt";
-                  return (
-                    <div key={s.tenant.id} style={{background:catCfg.bg,border:`1px solid ${catCfg.border}`,borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                        <div style={{fontSize:10,fontWeight:700,color:catCfg.color,letterSpacing:".05em",textTransform:"uppercase"}}>{catCfg.icon} {catCfg.label}</div>
-                        <div style={{fontSize:10,color:catCfg.color,fontWeight:600}}>{dayHint}</div>
-                      </div>
-                      <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}><MieterLink id={s.tenant.id}>{s.tenant.vorname} {s.tenant.nachname}</MieterLink></div>
-                      <div style={{fontSize:11,color:"#4a4439",marginBottom:8}}><ZimmerLink id={s.room?.id}>{s.room?.id||"-"}</ZimmerLink> · <WohnungLink id={s.apt?.id}>{s.apt?.adresse||"-"}</WohnungLink> · Einzug {s.tenant.einzug || "-"}</div>
-                      {schluesselText(s.tenant) && (
-                        <div style={{fontSize:10.5,color:"#4a4439",marginBottom:8}}>🔑 {schluesselText(s.tenant)}</div>
-                      )}
-                      {s.latest && ["sent","in_progress"].includes(s.latest.status) && (
-                        <div style={{fontSize:10.5,color:catCfg.color,marginBottom:8,padding:"3px 6px",background:"rgba(255,255,255,.4)",borderRadius:4}}>
-                          Deadline: {new Date(s.latest.deadline).toLocaleDateString("de-CH")}
-                        </div>
-                      )}
-                      {zeigeEinzugBereit(s) && <EinzugBereit t={s.tenant} zahlungen={zahlungen} updateTenant={updateTenant} navigateTo={navigateTo}/>}
-                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                        <button
-                          onClick={(e)=>{e.stopPropagation(); if(s.kategorie==="todo") oeffneStart(s); else navigateTo&&navigateTo("mieter",s.tenant.id);}}
-                          style={{flex:1,minWidth:0,background:"#1a1814",color:"#fefcf7",border:"none",borderRadius:6,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:".02em"}}
-                          title={s.kategorie==="todo" ? "Protokoll direkt starten" : "Mieter oeffnen"}
-                        >
-                          {s.kategorie === "todo" ? "📋 Protokoll starten" : s.kategorie === "review" ? "📥 Prüfen" : "🔍 Anzeigen"}
-                        </button>
-                        {s.kategorie !== "done" && (
-                          <button
-                            onClick={(e)=>{e.stopPropagation(); if(window.confirm("Übergabe ohne digitales Protokoll als erledigt markieren?")) updateTenant(s.tenant.id, {uebergabeStatus:"erledigt", uebergabeNotiz:"Manuell als erledigt markiert"});}}
-                            style={{background:"transparent",color:"var(--muted)",border:"1px solid var(--line)",borderRadius:6,padding:"7px 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}
-                            title="Ohne digitales Protokoll abschliessen, zum Beispiel bei altem Protokoll auf Papier"
-                          >
-                            ✓ Erledigt
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
           )}
-          
-          {/* ERLEDIGT */}
-          {erledigt.length > 0 && (
-            <details style={{marginTop:4}}>
-              <summary style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,cursor:"pointer",padding:"6px 0"}}>Erledigt ({erledigt.length})</summary>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10,marginTop:10}}>
-                {erledigt.map(s => (
-                  <div key={s.tenant.id} style={{background:"#e8efde",border:"1px solid #c5d5b0",borderRadius:8,padding:"10px 12px",opacity:.88}}>
-                    <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}><MieterLink id={s.tenant.id}>{s.tenant.vorname} {s.tenant.nachname}</MieterLink></div>
-                    <div style={{fontSize:10.5,color:"#4a4439",marginBottom:2}}><ZimmerLink id={s.room?.id}>{s.room?.id||"-"}</ZimmerLink> · <WohnungLink id={s.apt?.id}>{s.apt?.adresse||"-"}</WohnungLink></div>
-                    {schluesselText(s.tenant) && <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>🔑 {schluesselText(s.tenant)}</div>}
-                    {zeigeEinzugBereit(s) && <EinzugBereit t={s.tenant} zahlungen={zahlungen} updateTenant={updateTenant} navigateTo={navigateTo}/>}
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      <button
-                        onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}
-                        style={{fontSize:10.5,padding:"4px 10px",background:"transparent",color:"#3a5230",border:"1px solid #c5d5b0",borderRadius:4,cursor:"pointer"}}
-                      >🔍 Anzeigen</button>
-                      {(s.tenant.uebergabeStatus||"offen")==="erledigt" && (
-                        <button
-                          onClick={(e)=>{e.stopPropagation(); if(window.confirm("Wieder als offen markieren?")) updateTenant(s.tenant.id, {uebergabeStatus:"offen", uebergabeNotiz:""});}}
-                          style={{fontSize:10.5,padding:"4px 10px",background:"transparent",color:"#8a6d4a",border:"1px solid #d8c9ab",borderRadius:4,cursor:"pointer"}}
-                        >Wieder öffnen</button>
-                      )}
-                    </div>
+          <div style={{fontSize:11,color:"#8a8478",margin:"8px 4px 18px",lineHeight:1.5}}>✓ = erledigt · – = offen. Kaution und Einzugsinfo lassen sich per Klick setzen bzw. vorbereiten.</div>
+
+          {fertig.length > 0 && (
+            <details>
+              <summary style={{fontSize:11,color:"#8a8478",textTransform:"uppercase",letterSpacing:".2em",fontWeight:700,cursor:"pointer",padding:"6px 0"}}>Frühere Einzüge ({fertig.length})</summary>
+              <div style={{background:"#fefcf7",border:"1px solid #e6dfd1",borderRadius:12,padding:"4px 14px",marginTop:8}}>
+                {fertig.sort((a,b)=>(b.einzugDate?b.einzugDate.getTime():0)-(a.einzugDate?a.einzugDate.getTime():0)).map(s => (
+                  <div key={s.tenant.id} style={{display:"flex",gap:12,alignItems:"center",padding:"9px 0",borderTop:"1px solid #f0eadd",fontSize:12.5,flexWrap:"wrap"}}>
+                    <span style={{width:84,color:"#8a8478"}}>{s.tenant.einzug||"–"}</span>
+                    <span style={{flex:"1 1 180px",fontWeight:600}}><MieterLink id={s.tenant.id}>{s.tenant.vorname} {s.tenant.nachname}</MieterLink></span>
+                    <span style={{flex:"1 1 180px",color:"#8a8478"}}><WohnungLink id={s.apt?.id}>{s.apt?.adresse||"–"}</WohnungLink></span>
+                    {(s.tenant.uebergabeStatus||"offen")==="erledigt" && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm("Wieder als offen markieren?")) updateTenant(s.tenant.id,{uebergabeStatus:"offen", uebergabeNotiz:""});}} style={{background:"transparent",border:"none",color:"#8a6d4a",fontSize:11,cursor:"pointer"}}>Wieder öffnen</button>}
                   </div>
                 ))}
               </div>
             </details>
           )}
-          
-          {offene.length === 0 && erledigt.length === 0 && (
-            <div style={{padding:"40px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,color:"#8a8174"}}>
-              <div style={{fontSize:32,marginBottom:8,opacity:.5}}>🔑</div>
-              <div style={{fontSize:14,fontWeight:500}}>Keine Mieter mit Zimmer-Zuteilung</div>
-            </div>
-          )}
         </div>
-      )}
+        );
+      })()}
       
       {/* AUSZUG */}
       {tab === "auszug" && (
