@@ -238,7 +238,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           return { kaution: keineKaution || !!t.kautionEingegangenAm, keineKaution, miete: !!(em && em.status === "bezahlt"), mieteInfo: em ? `${em.monat}/${em.jahr}: ${em.status}` : "Noch keine Zahlung für den Einzugsmonat erfasst", infos: !!t.einzugsinfoGesendetAt };
         };
         const aktuell = einzuegeMitStatus.filter(e => e.kategorie !== "done" || (e.daysTilEinzug != null && e.daysTilEinzug >= -7))
-          .sort((a,b) => (a.einzugDate ? a.einzugDate.getTime() : 9e15) - (b.einzugDate ? b.einzugDate.getTime() : 9e15));
+          .sort((a,b) => ((a.kategorie==="review"?0:1) - (b.kategorie==="review"?0:1)) || ((a.einzugDate ? a.einzugDate.getTime() : 9e15) - (b.einzugDate ? b.einzugDate.getTime() : 9e15)));
+        const zurPruefung = aktuell.filter(e => e.kategorie === "review").length;
         const fertig = einzuegeMitStatus.filter(e => !aktuell.includes(e));
         const Punkt = ({ok, titel, onClick, txt}) => (
           <span title={titel} onClick={onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:24,height:24,padding:txt?"0 9px":0,borderRadius:12,fontSize:11.5,fontWeight:600,
@@ -249,6 +250,12 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
         const wann = (d) => d == null ? "" : d === 0 ? "heute" : d > 0 ? `in ${d} T.` : `vor ${-d} T.`;
         return (
         <div>
+          {zurPruefung > 0 && (
+            <div style={{display:"flex",alignItems:"center",gap:10,background:"#e6eef6",border:"1px solid #a8c0d5",borderRadius:10,padding:"11px 14px",marginBottom:12,fontSize:13,color:"#2f4a63"}}>
+              <span style={{fontSize:18}}>📥</span>
+              <span><b>{zurPruefung === 1 ? "1 Übernahmeprotokoll wartet" : `${zurPruefung} Übernahmeprotokolle warten`} auf deine Prüfung.</b> Erst nach dem Bestätigen bekommt der Mieter die PDF-Kopie und das Protokoll ist abgeschlossen.</span>
+            </div>
+          )}
           {aktuell.length === 0 ? (
             <div style={{padding:"32px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:10,color:"#8a8174",fontSize:13}}>Keine anstehenden Einzüge.</div>
           ) : (
@@ -262,18 +269,18 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <tbody>
               {aktuell.map(s => {
                 const t = s.tenant, x = st(t);
-                const prot = s.kategorie === "review" ? {txt:"zur Prüfung", ok:false, farbe:"#3a5570"}
+                const prot = s.kategorie === "review" ? {txt:"eingereicht · bitte prüfen", ok:false, farbe:"#2f4a63"}
                   : s.kategorie === "waiting" ? {txt: s.latest && s.latest.deadline ? `läuft bis ${new Date(s.latest.deadline).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}` : "läuft", ok:false, farbe:"#7a5c3c"}
                   : s.kategorie === "done" ? {txt:"✓ erledigt", ok:true, farbe:"#3a5230"} : {txt:"nicht gestartet", ok:false, farbe:"#a39a8a"};
                 const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
                 let aktion;
-                if (s.kategorie === "review") aktion = {txt:"📥 Protokoll prüfen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
+                if (s.kategorie === "review") aktion = {txt:"📥 Prüfen & abschicken", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
                 else if (!x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 3)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
                 const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
                 return (
-                  <tr key={t.id}>
+                  <tr key={t.id} style={s.kategorie === "review" ? {background:"#eef4fa", boxShadow:"inset 3px 0 0 #3a5570"} : undefined}>
                     <td style={{...td,whiteSpace:"nowrap"}}><div style={{fontWeight:600}}>{t.einzug || "–"}</div><div style={{fontSize:11,color: ueberfaellig ? "#9b4a3e" : "#8a8478"}}>{wann(s.daysTilEinzug)}</div></td>
                     <td style={td}><div style={{fontWeight:600}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></div><div style={{fontSize:11,color:"#8a8478"}}><WohnungLink id={s.apt?.id}>{s.apt?.adresse||"–"}</WohnungLink>{s.room?.id ? ` · ${s.room.id}` : ""}</div></td>
                     <td style={{...td,textAlign:"center"}}><Punkt ok={x.kaution} txt={x.keineKaution ? "keine" : ""} titel={t.kautionEingegangenAm ? `Eingegangen am ${new Date(t.kautionEingegangenAm).toLocaleDateString("de-CH")}` : x.keineKaution ? "Keine Kaution vereinbart" : "Noch nicht eingegangen (wird über die Evorest-Mail erkannt). Klick = von Hand als eingegangen markieren."}
@@ -282,7 +289,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     <td style={{...td,textAlign:"center"}}>{(!x.infos && s.daysTilEinzug != null && s.daysTilEinzug < -7) ? <span title="Schon eingezogen" style={{color:"#c9c0b0",fontSize:11}}>eingezogen</span> : <Punkt ok={x.infos} titel={x.infos ? `Gesendet am ${new Date(t.einzugsinfoGesendetAt).toLocaleDateString("de-CH")}` : "Noch nicht gesendet"} onClick={!x.infos ? einzugsinfo : undefined}/>}</td>
                     <td style={{...td,whiteSpace:"nowrap",color:prot.farbe,fontSize:12}}>{prot.txt}</td>
                     <td style={{...td,textAlign:"right",whiteSpace:"nowrap"}}>
-                      <button onClick={aktion.fn} style={{background: aktion.primaer ? "#1a1814" : "transparent", color: aktion.primaer ? "#fefcf7" : "#4a4439", border: aktion.primaer ? "none" : "1px solid #ddd3c2", borderRadius:999, padding:"6px 14px", fontSize:11.5, fontWeight:600, cursor:"pointer"}}>{aktion.txt}</button>
+                      <button onClick={aktion.fn} style={{background: s.kategorie === "review" ? "#2f4a63" : aktion.primaer ? "#1a1814" : "transparent", color: aktion.primaer ? "#fefcf7" : "#4a4439", border: aktion.primaer ? "none" : "1px solid #ddd3c2", borderRadius:999, padding:"6px 14px", fontSize:11.5, fontWeight:600, cursor:"pointer"}}>{aktion.txt}</button>
                       {s.kategorie !== "done" && <button title="Übergabe ohne digitales Protokoll als erledigt markieren" onClick={(e)=>{e.stopPropagation(); if(window.confirm("Übergabe ohne digitales Protokoll als erledigt markieren?")) updateTenant(t.id,{uebergabeStatus:"erledigt", uebergabeNotiz:"Manuell als erledigt markiert"});}} style={{marginLeft:6,background:"transparent",border:"none",color:"#a39a8a",fontSize:11,cursor:"pointer"}}>✓ erledigt</button>}
                     </td>
                   </tr>
