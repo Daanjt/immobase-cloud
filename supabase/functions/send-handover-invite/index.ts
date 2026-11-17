@@ -136,20 +136,22 @@ Deno.serve(async (req: Request) => {
 
     const logoB64 = await ladeLogo();
     const logoSrc = logoB64 ? "cid:dt-logo" : LOGO_URL;
-    const subject = T("Dein Übernahmeprotokoll bei D&T Homes: bitte innert 14 Tagen ausfüllen", "Your handover protocol at D&T Homes: please complete within 14 days");
+    const subject = einzugBox
+      ? T("Dein Einzug bei D&T Homes: Schlüssel, Infos und Übernahmeprotokoll", "Your move-in at D&T Homes: key, info and handover protocol")
+      : T("Dein Übernahmeprotokoll bei D&T Homes: bitte innert 14 Tagen ausfüllen", "Your handover protocol at D&T Homes: please complete within 14 days");
     const html = `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="UTF-8"><title>${subject}</title></head><body style="margin:0;padding:0;background:#f7f3eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1814;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:30px 24px;">
 <div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="D&amp;T Homes" width="100" style="display:inline-block;width:100px;height:auto;"/></div>
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
 <div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${T("Willkommen", "Welcome")}</div>
 <p style="font-size:14.5px;margin:0 0 14px;">Hi ${name},</p>
-<p style="font-size:14px;margin:0 0 18px;">${T("herzlich willkommen in deinem neuen Zuhause! Wir freuen uns, dass du da bist. Hier ist der Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.", "welcome to your new home! We are glad to have you. Here is the link to your digital <strong>handover protocol</strong>.")}</p>
+${einzugBox ? `<p style="font-size:14px;margin:0 0 18px;">${T(`es ist alles bereit für deinen Einzug${einzug ? ` am <strong>${einzug}</strong>` : ""}! Hier findest du deinen Schlüssel, die wichtigsten Infos zum Haus und den Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.`, `everything is ready for your move-in${einzug ? ` on <strong>${einzug}</strong>` : ""}! Here you will find your key, the most important information about the building and the link to your digital <strong>handover protocol</strong>.`)}</p>` : `<p style="font-size:14px;margin:0 0 18px;">${T("herzlich willkommen in deinem neuen Zuhause! Wir freuen uns, dass du da bist. Hier ist der Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.", "welcome to your new home! We are glad to have you. Here is the link to your digital <strong>handover protocol</strong>.")}</p>`}
 ${(aptAdr || objektZeile || einzug) ? `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;">${aptAdr ? `<div>📍 ${esc(aptAdr)}</div>` : ""}${objektZeile}${einzug ? `<div style="margin-top:4px;color:#5a5044;font-size:12.5px;">${T("Einzug", "Move-in")}: ${einzug}</div>` : ""}</div>` : ""}
 ${einzugBox}${wlanBox}
 <p style="font-size:14px;margin:0 0 18px;">${pruefText}</p>
 ${abschlussBox(en)}
 <div style="background:#fdf7e8;border:1px solid #e8d2a8;border-radius:8px;padding:12px 16px;margin:0 0 22px;font-size:13px;color:#8a6a2e;line-height:1.5;">
-⚠️ ${T(`Du hast <strong>14 Tage</strong> Zeit, das Protokoll auszufüllen. Frist: <strong>${deadline}</strong>. Danach gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.`, `You have <strong>14 days</strong> to complete the protocol. Deadline: <strong>${deadline}</strong>. After that, the apartment is deemed to have been handed over in perfect condition.`)}
+⚠️ ${T(`Du hast ab deinem Einzug <strong>14 Tage</strong> Zeit, das Protokoll auszufüllen. Frist: <strong>${deadline}</strong>. Danach gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.`, `You have <strong>14 days</strong> from your move-in to complete the protocol. Deadline: <strong>${deadline}</strong>. After that, the apartment is deemed to have been handed over in perfect condition.`)}
 </div>
 <div style="text-align:center;margin:28px 0;">
 <a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${T("Übernahmeprotokoll ausfüllen", "Complete handover protocol")}</a>

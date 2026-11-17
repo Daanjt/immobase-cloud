@@ -117,9 +117,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [wgText, setWgText] = useState("");
   const [starting, setStarting] = useState(false);
   const [mitEinzugsinfo, setMitEinzugsinfo] = useState(false);
-  const oeffneStart = (eintrag) => {
+  const oeffneStart = (eintrag, mitInfos) => {
     const t = eintrag.tenant;
-    setMitEinzugsinfo(!t.einzugsinfoGesendetAt && (Number(t.kautionMonate) === 0 || !!t.kautionEingegangenAm));
+    setMitEinzugsinfo(!!mitInfos || (!t.einzugsinfoGesendetAt && (Number(t.kautionMonate) === 0 || !!t.kautionEingegangenAm)));
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
@@ -279,8 +279,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
                 let aktion;
                 if (s.kategorie === "review") aktion = {txt:"📥 Prüfen & abschicken", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
-                else if (!x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
-                else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 3)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
+                else if (s.kategorie === "todo" && x.kaution && x.miete) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart(s, true);}, primaer:true};
+                else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 0)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
+                else if (s.kategorie === "waiting" && !x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
                 const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
                 return (
@@ -465,7 +466,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     alert("Fehler: " + (e.message || e));
                   }
                   setStarting(false);
-                }}>{starting ? "Starte..." : "Protokoll starten"}</button>
+                }}>{starting ? "Sende..." : mitEinzugsinfo ? "Infos & Protokoll senden" : "Protokoll starten"}</button>
             </div>
           </div>
         </div>

@@ -999,7 +999,10 @@ function useSupabaseData() {
   
   async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum, einzugsinfo }) {
     const now = new Date();
-    const deadline = new Date(now.getTime() + 14*24*60*60*1000);
+    // Frist: 14 Tage ab Einzugsdatum; wird erst nach dem Einzug verschickt, 14 Tage ab heute
+    const ez = (() => { const m = String(einzugDatum||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); return m ? new Date(+m[3], +m[2]-1, +m[1], 23, 59) : null; })();
+    const basis = (ez && ez > now) ? ez : now;
+    const deadline = new Date(basis.getTime() + 14*24*60*60*1000);
     const { data, error } = await supabase.from("handover_protocols").insert({
       bewerber_id: bewerberId || null,
       contract_id: contractId || null,
