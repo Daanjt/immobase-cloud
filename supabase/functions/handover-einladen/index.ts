@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return json({ error: "Nicht berechtigt" }, 403);
-  const { protocolId, einzugsinfo } = await req.json().catch(() => ({}));
+  const { protocolId, einzugsinfo, vorschau, html_override, betreff_override } = await req.json().catch(() => ({}));
   if (!protocolId) return json({ error: "Missing protocolId" }, 400);
   const sb = createClient(URL_, KEY);
   const { data: u } = await sb.auth.getUser(token);
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (!p || p.type !== "einzug") return json({ error: "Nicht berechtigt" }, 403);
   }
   const res = await fetch(`${URL_}/functions/v1/send-handover-invite`, {
-    method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ protocolId, einzugsinfo: !!einzugsinfo }),
+    method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ protocolId, einzugsinfo: !!einzugsinfo, vorschau: !!vorschau, html_override, betreff_override }),
   });
   return new Response(await res.text(), { status: res.status, headers: { ...CORS, "Content-Type": "application/json" } });
 });

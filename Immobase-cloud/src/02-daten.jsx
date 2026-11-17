@@ -997,7 +997,7 @@ function useSupabaseData() {
     return () => { document.removeEventListener("visibilitychange", sichtbar); window.removeEventListener("focus", sichtbar); clearInterval(iv); };
   }, []);
   
-  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum, einzugsinfo }) {
+  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum, einzugsinfo, ohneEinladung }) {
     const now = new Date();
     // Frist: 14 Tage ab Einzugsdatum; wird erst nach dem Einzug verschickt, 14 Tage ab heute
     const ez = (() => { const m = String(einzugDatum||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); return m ? new Date(+m[3], +m[2]-1, +m[1], 23, 59) : null; })();
@@ -1032,7 +1032,7 @@ function useSupabaseData() {
     if (error) { console.error("startHandoverProtocol:", error); throw error; }
     
     // Trigger Einladungs-Email an Mieter (fire-and-forget, blockiert nicht wenn fehlschlaegt)
-    if (data?.id && data?.mieter_email) {
+    if (data?.id && data?.mieter_email && !ohneEinladung) {
       supabase.functions.invoke("handover-einladen", { body: { protocolId: data.id, einzugsinfo: !!einzugsinfo } })
         .then(({ error: emailError }) => {
           if (emailError) console.warn("send-handover-invite failed:", emailError);

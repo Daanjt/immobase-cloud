@@ -78,13 +78,13 @@ Deno.serve(async (req: Request) => {
   if (!(await istAdminOderServer(req))) return json({ error: "Nicht berechtigt" }, 403);
 
   try {
-    const { protocolId, einzugsinfo } = await req.json();
+    const { protocolId, einzugsinfo, vorschau, html_override, betreff_override } = await req.json();
     if (!protocolId) return json({ error: "Missing protocolId" }, 400);
     const protocols = await rest(`handover_protocols?id=eq.${encodeURIComponent(protocolId)}&select=*`);
     if (!protocols.length) return json({ error: "Protocol not found" }, 404);
     const p = protocols[0];
     if (!p.mieter_email || !p.mieter_email.includes("@")) return json({ error: "Invalid email address" }, 400);
-    if (p.invite_sent_at && Date.now() - Date.parse(p.invite_sent_at) < 2 * 60 * 1000) return json({ error: "Die Einladung wurde gerade eben schon gesendet." }, 409);
+    if (!vorschau && p.invite_sent_at && Date.now() - Date.parse(p.invite_sent_at) < 2 * 60 * 1000) return json({ error: "Die Einladung wurde gerade eben schon gesendet." }, 409);
 
     let sprache = "de";
     if (p.tenant_id) { const t = await rest(`tenants?id=eq.${encodeURIComponent(p.tenant_id)}&select=sprache`); if (t[0]?.sprache) sprache = t[0].sprache; }
@@ -134,7 +134,7 @@ Deno.serve(async (req: Request) => {
       if (hausinfos) einzugBox += `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Infos zum Haus", "About the building")}</div>${esc(hausinfos).replace(/\n/g, "<br>")}</div>`;
     }
 
-    const logoB64 = await ladeLogo();
+    const logoB64 = vorschau ? null : await ladeLogo();
     const logoSrc = logoB64 ? "cid:dt-logo" : LOGO_URL;
     const subject = einzugBox
       ? T("Dein Einzug bei D&T Homes: Schlüssel, Infos und Übernahmeprotokoll", "Your move-in at D&T Homes: key, info and handover protocol")
@@ -162,10 +162,13 @@ ${abschlussBox(en)}
 <div style="text-align:center;margin-top:22px;font-size:11.5px;color:#8a8174;">D&amp;T Partners GmbH &middot; dthomes.ch</div>
 </div></body></html>`;
 
+    if (vorschau) return json({ ok: true, vorschau: true, subject, html: mailStil(html), einzugsinfo: !!einzugBox, to: p.mieter_email });
+    const endHtml = typeof html_override === "string" && html_override.includes("</") ? html_override.replace(/https:\/\/mieter\.dthomes\.ch\/dt-logo\.png/g, logoB64 ? "cid:dt-logo" : LOGO_URL) : html;
+    const endBetreff = typeof betreff_override === "string" && betreff_override.trim() ? betreff_override.trim().slice(0, 200) : subject;
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "D&T Homes <noreply@dthomes.ch>", to: [p.mieter_email], bcc: ["daan.theijse@dthomes.ch"], reply_to: "info@dthomes.ch", subject, html: mailStil(html), attachments: logoAnhang(logoB64) }),
+      body: JSON.stringify({ from: "D&T Homes <noreply@dthomes.ch>", to: [p.mieter_email], bcc: ["daan.theijse@dthomes.ch"], reply_to: "info@dthomes.ch", subject: endBetreff, html: mailStil(endHtml), attachments: logoAnhang(logoB64) }),
     });
     if (!resendRes.ok) {
       const errText = await resendRes.text();

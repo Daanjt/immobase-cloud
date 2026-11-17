@@ -37,7 +37,7 @@ function EinzugBereit({t, zahlungen, updateTenant, navigateTo}){
   );
 }
 
-function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol}){
+function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol,deleteHandoverProtocol,loadHandoverProtocols}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const [kautionTenant,setKautionTenant]=React.useState(null);
   const [dismissed,setDismissed]=React.useState([]);
@@ -117,6 +117,31 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [wgText, setWgText] = useState("");
   const [starting, setStarting] = useState(false);
   const [mitEinzugsinfo, setMitEinzugsinfo] = useState(false);
+  // Vorschau der Einladungsmail vor dem Versand: {protocolId, tenantId, betreff, html, to, busy, err}
+  const [vorschau, setVorschau] = useState(null);
+  const vorschauFrame = React.useRef(null);
+  async function einladenAufruf(body){
+    const { data, error } = await supabase.functions.invoke("handover-einladen", { body });
+    if (error) { let m = error.message; try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch(_){} throw new Error(m); }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  }
+  async function vorschauAbbrechen(){
+    const v = vorschau; setVorschau(null);
+    if (v && v.protocolId && deleteHandoverProtocol) { try { await deleteHandoverProtocol(v.protocolId); } catch(_){} }
+  }
+  async function vorschauSenden(){
+    const v = vorschau; if (!v) return;
+    setVorschau({...v, busy:true, err:null});
+    try {
+      const doc = vorschauFrame.current && vorschauFrame.current.contentDocument;
+      const html = doc ? "<!DOCTYPE html>" + doc.documentElement.outerHTML : v.html;
+      await einladenAufruf({ protocolId: v.protocolId, einzugsinfo: v.einzugsinfo, html_override: html, betreff_override: v.betreff });
+      if (v.einzugsinfo) await updateTenant(v.tenantId, { einzugsinfoGesendetAt: new Date().toISOString() });
+      if (loadHandoverProtocols) loadHandoverProtocols();
+      setVorschau(null);
+    } catch(e) { setVorschau({...v, busy:false, err: e.message || String(e)}); }
+  }
   const oeffneStart = (eintrag, mitInfos) => {
     const t = eintrag.tenant;
     setMitEinzugsinfo(!!mitInfos || (!t.einzugsinfoGesendetAt && (Number(t.kautionMonate) === 0 || !!t.kautionEingegangenAm)));
@@ -441,7 +466,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       extraTrim && `Extra: ${extraTrim}`,
                       wgTrim && `Gemeinsam (WG): ${wgTrim}`
                     ].filter(Boolean).join("\n");
-                    await startHandoverProtocol({
+                    const neu = await startHandoverProtocol({
                       tenantId: t.id,
                       aptId: startFor.apt?.id,
                       roomId: startFor.room?.id,
@@ -459,14 +484,35 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       schluesselInfo: snapshot || null,
                       schluesselData,
                       einzugsinfo: mitEinzugsinfo,
+                      ohneEinladung: true,
                     });
-                    if (mitEinzugsinfo) await updateTenant(t.id, { einzugsinfoGesendetAt: new Date().toISOString() });
+                    // Protokoll ist angelegt, die Mail geht erst nach der Vorschau raus
+                    const vs = await einladenAufruf({ protocolId: neu.id, einzugsinfo: mitEinzugsinfo, vorschau: true });
+                    setVorschau({ protocolId: neu.id, tenantId: t.id, einzugsinfo: mitEinzugsinfo, betreff: vs.subject, html: vs.html, to: vs.to, busy:false, err:null });
                     setStartFor(null);
                   } catch(e) {
                     alert("Fehler: " + (e.message || e));
                   }
                   setStarting(false);
-                }}>{starting ? "Sende..." : mitEinzugsinfo ? "Infos & Protokoll senden" : "Protokoll starten"}</button>
+                }}>{starting ? "Bereite vor..." : "Weiter zur Vorschau"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {vorschau && (
+        <div style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>!vorschau.busy && vorschauAbbrechen()}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fefcf7",borderRadius:12,width:"min(760px,100%)",maxHeight:"92vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,.25)"}}>
+            <div style={{padding:"16px 20px 10px"}}>
+              <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:19,marginBottom:4}}>Vorschau der Mail</div>
+              <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>An {vorschau.to}. Du kannst den Text unten direkt anklicken und ändern, erst mit «Senden» geht die Mail raus.</div>
+              <input className="fi" value={vorschau.betreff||""} onChange={e=>setVorschau({...vorschau, betreff:e.target.value})} style={{width:"100%",fontSize:13}} aria-label="Betreff"/>
+            </div>
+            <iframe ref={vorschauFrame} title="Vorschau" srcDoc={vorschau.html} onLoad={e=>{ try{ e.target.contentDocument.designMode="on"; }catch(_){} }}
+              style={{flex:1,minHeight:420,border:"none",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",background:"#fbfaf6"}}/>
+            {vorschau.err && <div style={{padding:"8px 20px",fontSize:12.5,color:"#9b4a3e"}}>Konnte nicht gesendet werden: {vorschau.err}</div>}
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"12px 20px"}}>
+              <button className="btn btn-g btn-sm" disabled={vorschau.busy} onClick={vorschauAbbrechen}>Abbrechen</button>
+              <button className="btn btn-sm" disabled={vorschau.busy} onClick={vorschauSenden} style={{background:"#1a1814",color:"#fefcf7"}}>{vorschau.busy ? "Sende..." : "✉ Senden"}</button>
             </div>
           </div>
         </div>
