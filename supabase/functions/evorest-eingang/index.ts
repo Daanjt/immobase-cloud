@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       if (schon && ["ok", "erledigt"].includes(schon.status)) continue;
       const log = async (status: string, info: Record<string, unknown>) => {
         await sb.from("evorest_eingaenge").upsert({ internet_message_id: imid, betreff: m.subject, empfangen: m.receivedDateTime, status, ...info, aktualisiert: new Date().toISOString() });
-        ergebnis.push({ betreff: m.subject, status, ...info });
+        ergebnis.push({ betreff: m.subject, status, neu: !schon, ...info });
       };
       const mm = String(m.subject).match(/-\s*(.+?)\s+in\s+(.+?)\s*$/i);
       if (!mm) { await log("unklar", { info: { grund: "Betreff nicht lesbar" } }); continue; }
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       t.kaution_eingegangen_am = datum;
       await log("ok", { apt_id: apt.id, tenant_id: t.id, info: { ref, datum } });
     }
-    for (const e of ergebnis.filter((x) => x.status !== "ok")) {
+    for (const e of ergebnis.filter((x) => x.status !== "ok" && x.neu)) {
       await sb.from("system_fehler").insert({ app: "edge", bereich: "evorest-eingang", meldung: `Evorest-Kaution nicht zugeordnet: ${e.betreff}`, details: e }).then(() => {}, () => {});
     }
     return json({ ok: true, mails: mails.length, ergebnis });

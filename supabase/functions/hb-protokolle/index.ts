@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       if (schon && ["ok", "manuell", "test"].includes(schon.status) && !b.erneut) continue;
       const log = async (status: string, info: Record<string, unknown>) => {
         await sb.from("verwaltung_protokolle").upsert({ internet_message_id: imid, betreff: m.subject, empfangen: m.receivedDateTime, status, ...info, aktualisiert: new Date().toISOString() });
-        ergebnis.push({ betreff: m.subject, status, ...info });
+        ergebnis.push({ betreff: m.subject, status, neu: !schon, ...info });
       };
       const pdf = await ladePdf(m.body?.content || "");
       if (!pdf) { await log("kein_pdf", {}); continue; }
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       await log("ok", { apt_id: apt.id, document_id: doc?.id ?? null, keller, info: { keller: kellerStatus, verschoben } });
     }
     // Unklare Faelle als Systemfehler melden, damit sie in ImmoBase auftauchen
-    for (const e of ergebnis.filter((x) => x.status !== "ok")) {
+    for (const e of ergebnis.filter((x) => x.status !== "ok" && x.neu)) {
       await sb.from("system_fehler").insert({ app: "edge", bereich: "hb-protokolle", meldung: `H&B-Protokoll nicht zugeordnet (${e.status}): ${e.betreff}`, details: e }).then(() => {}, () => {});
     }
     return json({ ok: true, mails: mails.length, ergebnis });
