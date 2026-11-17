@@ -355,9 +355,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
                 let aktion;
                 if (s.kategorie === "review") aktion = {txt:"📥 Prüfen & abschicken", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
-                else if (s.kategorie === "todo" && x.kaution && x.miete) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart(s, true);}, primaer:true};
-                else if (s.kategorie === "todo" && s.unversendet) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart(s, true);}, primaer:true};
-                else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 0)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
+                else if (s.kategorie === "todo" && ((x.kaution && x.miete) || s.unversendet || s.daysTilEinzug == null || s.daysTilEinzug <= 3)) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart({...s, zahlung:x}, true);}, primaer:(x.kaution && x.miete) || !!s.unversendet || (s.daysTilEinzug != null && s.daysTilEinzug <= 0)};
+                else if (false) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
                 else if (s.kategorie === "waiting" && !x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
                 const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
@@ -500,7 +499,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
             </>)}
             <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:12.5,lineHeight:1.45,margin:"0 0 16px",cursor:"pointer",background:"#f6f1e8",borderRadius:8,padding:"10px 12px"}}>
               <input type="checkbox" checked={mitEinzugsinfo} onChange={e=>setMitEinzugsinfo(e.target.checked)} style={{marginTop:2}}/>
-              <span><b>🔑 Einzugsinfo mitschicken</b><br/><span style={{color:"var(--muted)"}}>Schlüsselbox (Standort, Code, Bild) und Hausinfos kommen in dieselbe Mail.{startFor.tenant && !startFor.tenant.kautionEingegangenAm && Number(startFor.tenant.kautionMonate)!==0 ? " Achtung: Kaution noch nicht eingegangen." : ""}</span></span>
+              <span><b>🔑 Einzugsinfo mitschicken</b><br/><span style={{color:"var(--muted)"}}>Schlüsselbox (Standort, Code, Bild) und Hausinfos kommen in dieselbe Mail.{startFor.zahlung && (!startFor.zahlung.kaution || !startFor.zahlung.miete) ? ` Achtung: ${[!startFor.zahlung.kaution && "Kaution", !startFor.zahlung.miete && "1. Miete"].filter(Boolean).join(" und ")} noch nicht als eingegangen erfasst.` : ""}</span></span>
             </label>
             </>}
             {mitEinzugsinfo && <EinzugsDatenCheck key={startFor.tenant?.id} apt={startFor.apt} room={startFor.room} updateApt={updateApt} updateRoom={updateRoom} speichernRef={einzugsDatenRef} sichtbar={startSchritt===2} onStatus={setDatenFehlt}/>}
