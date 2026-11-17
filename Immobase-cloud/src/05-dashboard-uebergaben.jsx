@@ -37,7 +37,52 @@ function EinzugBereit({t, zahlungen, updateTenant, navigateTo}){
   );
 }
 
-function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol,deleteHandoverProtocol,loadHandoverProtocols}){
+// Vor der Vorschau: fehlende Angaben fuer die Einzugsmail direkt hier ergaenzen
+function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef}){
+  const istWG = aptKat(apt)==="WG" && room && room.id;
+  const [boxen,setBoxen]=useState(null);
+  const [lg,setLg]=useState(undefined);
+  const [weg,setWeg]=useState(apt?.weg_mieter||"");
+  const [lage,setLage]=useState(room?.lage_mieter||"");
+  const [haus,setHaus]=useState("");
+  const [standorte,setStandorte]=useState({});
+  const [neuBox,setNeuBox]=useState({code:"",standort:""});
+  const [raum,setRaum]=useState(room||null);
+  const [anfang]=useState(()=>({weg:!(apt?.weg_mieter||"").trim(), lage:!(room?.lage_mieter||"").trim(), grundriss:!room?.grundriss_markiert}));
+  useEffect(()=>{ if(!apt) return;
+    supabase.from("keyboxes").select("*").eq("apartment_id",apt.id).order("sort").then(({data})=>setBoxen(data||[]));
+    supabase.from("liegenschaften").select("adresse,hausinfos").eq("adresse",apt.adresse||"").maybeSingle().then(({data})=>setLg(data||null));
+  },[apt&&apt.id]);
+  const boxenOhneStandort=(boxen||[]).filter(b=>(b.code||"").trim()&&!(b.standort||"").trim());
+  const keineBox=boxen&&!(boxen||[]).some(b=>(b.code||"").trim());
+  const hausFehlt=lg!==undefined && !((lg&&lg.hausinfos)||"").trim();
+  speichernRef.current = async ()=>{
+    if(anfang.weg && weg.trim()) await updateApt(apt.id,{weg_mieter:weg.trim()});
+    if(istWG && anfang.lage && lage.trim()) await updateRoom(room.id,{lage_mieter:lage.trim()});
+    for(const b of boxenOhneStandort){ const v=(standorte[b.id]||"").trim(); if(v){ const {error}=await supabase.from("keyboxes").update({standort:v,updated_at:new Date().toISOString()}).eq("id",b.id); if(error) throw error; } }
+    if(keineBox && neuBox.code.trim()){ const {error}=await supabase.from("keyboxes").insert({apartment_id:apt.id,bezeichnung:"Keybox",code:neuBox.code.trim(),standort:neuBox.standort.trim()||null,sort:1}); if(error) throw error; }
+    if(hausFehlt && haus.trim() && apt.adresse){ const {error}=await supabase.from("liegenschaften").upsert({adresse:apt.adresse,hausinfos:haus.trim(),updated_at:new Date().toISOString()},{onConflict:"adresse"}); if(error) throw error; }
+  };
+  const fehlt = anfang.weg || boxenOhneStandort.length || keineBox || hausFehlt || (istWG && (anfang.lage || anfang.grundriss));
+  if(!apt || boxen===null || lg===undefined) return <div style={{fontSize:12,color:"var(--muted)",margin:"0 0 14px"}}>Prüfe Angaben für die Mail…</div>;
+  if(!fehlt) return null;
+  const lab={display:"block",fontSize:10,textTransform:"uppercase",letterSpacing:".18em",color:"var(--muted)",margin:"10px 0 4px"};
+  const inp={width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit",background:"#fff"};
+  return <div style={{border:"1px solid #ead9b8",background:"#fdf8ee",borderRadius:8,padding:"12px 14px",margin:"0 0 16px"}}>
+    <div style={{fontSize:12.5,fontWeight:600,marginBottom:2}}>Noch nicht ausgefüllt</div>
+    <div style={{fontSize:11.5,color:"var(--muted)"}}>Was du hier einträgst, wird gespeichert und kommt in die Mail. Leere Felder lässt die Mail weg.</div>
+    {anfang.weg && <><label style={lab}>So findest du die Wohnung</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={weg} onChange={e=>setWeg(e.target.value)} placeholder="z.B. Eingang im Hinterhof, Lift bis 2. OG, Tür rechts. An der Klingel steht D&T Homes"/></>}
+    {boxenOhneStandort.map(b=><div key={b.id}><label style={lab}>Standort {b.bezeichnung||"Keybox"}</label><input style={inp} value={standorte[b.id]||""} onChange={e=>setStandorte(p=>({...p,[b.id]:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div>)}
+    {keineBox && <><label style={lab}>Schlüsselbox (Code und Standort)</label><div style={{display:"flex",gap:8}}>
+      <input style={{...inp,flex:"0 0 110px",fontFamily:"monospace"}} value={neuBox.code} onChange={e=>setNeuBox(p=>({...p,code:e.target.value}))} placeholder="Code" autoComplete="off"/>
+      <input style={inp} value={neuBox.standort} onChange={e=>setNeuBox(p=>({...p,standort:e.target.value}))} placeholder="Standort, z.B. links neben dem Hauseingang"/></div></>}
+    {istWG && anfang.lage && <><label style={lab}>Lage des Zimmers</label><input style={inp} value={lage} onChange={e=>setLage(e.target.value)} placeholder="z.B. 2. Tür links im Gang"/></>}
+    {istWG && anfang.grundriss && <div style={{marginTop:10}}><GrundrissMarker apt={apt} room={raum} onSaved={async f=>{ await updateRoom(room.id,f); setRaum(r=>({...r,...f})); }}/></div>}
+    {hausFehlt && <><label style={lab}>Hausinfos für {apt.adresse}</label><textarea rows={3} style={{...inp,resize:"vertical"}} value={haus} onChange={e=>setHaus(e.target.value)} placeholder="z.B. Abfall, Waschküche, Velokeller"/></>}
+  </div>;
+}
+
+function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,updateApt,handoverProtocols,documents,startHandoverProtocol,deleteHandoverProtocol,loadHandoverProtocols}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const [kautionTenant,setKautionTenant]=React.useState(null);
   const [dismissed,setDismissed]=React.useState([]);
@@ -117,6 +162,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [wgText, setWgText] = useState("");
   const [starting, setStarting] = useState(false);
   const [mitEinzugsinfo, setMitEinzugsinfo] = useState(false);
+  const einzugsDatenRef = useRef(null);
   // Vorschau der Einladungsmail vor dem Versand: {protocolId, tenantId, betreff, html, to, busy, err}
   const [vorschau, setVorschau] = useState(null);
   const vorschauFrame = React.useRef(null);
@@ -449,12 +495,14 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <input type="checkbox" checked={mitEinzugsinfo} onChange={e=>setMitEinzugsinfo(e.target.checked)} style={{marginTop:2}}/>
               <span><b>🔑 Einzugsinfo mitschicken</b><br/><span style={{color:"var(--muted)"}}>Schlüsselbox (Standort, Code, Bild) und Hausinfos kommen in dieselbe Mail.{startFor.tenant && !startFor.tenant.kautionEingegangenAm && Number(startFor.tenant.kautionMonate)!==0 ? " Achtung: Kaution noch nicht eingegangen." : ""}</span></span>
             </label>
+            {mitEinzugsinfo && <EinzugsDatenCheck key={startFor.tenant?.id} apt={startFor.apt} room={startFor.room} updateApt={updateApt} updateRoom={updateRoom} speichernRef={einzugsDatenRef}/>}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
               <button className="btn btn-sm" disabled={starting}
                 onClick={async ()=>{
                   setStarting(true);
                   try {
+                    if (mitEinzugsinfo && einzugsDatenRef.current) await einzugsDatenRef.current();
                     const nCount = Math.max(0, parseInt(normalCount)||0);
                     const t = startFor.tenant;
                     const extraTrim = (extraText||"").trim();
