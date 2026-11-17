@@ -237,7 +237,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
           const ez = parseD(t.einzug);
           const em = ez ? zahlungen.find(z => z.tenant_id === t.id && z.jahr === ez.getFullYear() && z.monat === ez.getMonth()+1) : null;
           const keineKaution = Number(t.kautionMonate) === 0;
-          return { kaution: keineKaution || !!t.kautionEingegangenAm, keineKaution, miete: !!(em && em.status === "bezahlt"), mieteInfo: em ? `${em.monat}/${em.jahr}: ${em.status}` : "Noch keine Zahlung für den Einzugsmonat erfasst", infos: !!t.einzugsinfoGesendetAt };
+          // Garantie (z.B. AOZ) oder Kautionsbestaetigung als Dokument hinterlegt -> Kaution gilt als erledigt
+          const garantie = (documents||[]).some(d => d.entity_type==="tenant" && d.entity_id===t.id && /kautionsbest|garantie|aoz/i.test(`${d.category||""} ${d.filename||""}`));
+          return { kaution: keineKaution || garantie || !!t.kautionEingegangenAm, keineKaution, garantie, miete: !!(em && em.status === "bezahlt"), mieteInfo: em ? `${em.monat}/${em.jahr}: ${em.status}` : "Noch keine Zahlung für den Einzugsmonat erfasst", infos: !!t.einzugsinfoGesendetAt };
         };
         const aktuell = einzuegeMitStatus.filter(e => e.kategorie !== "done" || (e.daysTilEinzug != null && e.daysTilEinzug >= -7))
           .sort((a,b) => ((a.kategorie==="review"?0:1) - (b.kategorie==="review"?0:1)) || ((a.einzugDate ? a.einzugDate.getTime() : 9e15) - (b.einzugDate ? b.einzugDate.getTime() : 9e15)));
@@ -285,7 +287,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                   <tr key={t.id} style={s.kategorie === "review" ? {background:"#eef4fa", boxShadow:"inset 3px 0 0 #3a5570"} : undefined}>
                     <td style={{...td,whiteSpace:"nowrap"}}><div style={{fontWeight:600}}>{t.einzug || "–"}</div><div style={{fontSize:11,color: ueberfaellig ? "#9b4a3e" : "#8a8478"}}>{wann(s.daysTilEinzug)}</div></td>
                     <td style={td}><div style={{fontWeight:600}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></div><div style={{fontSize:11,color:"#8a8478"}}><WohnungLink id={s.apt?.id}>{s.apt?.adresse||"–"}</WohnungLink>{s.room?.id ? ` · ${s.room.id}` : ""}</div></td>
-                    <td style={{...td,textAlign:"center"}}><Punkt ok={x.kaution} txt={x.keineKaution ? "keine" : ""} titel={t.kautionEingegangenAm ? `Eingegangen am ${new Date(t.kautionEingegangenAm).toLocaleDateString("de-CH")}` : x.keineKaution ? "Keine Kaution vereinbart" : "Noch nicht eingegangen (wird über die Evorest-Mail erkannt). Klick = von Hand als eingegangen markieren."}
+                    <td style={{...td,textAlign:"center"}}><Punkt ok={x.kaution} txt={x.keineKaution ? "keine" : (x.garantie && !t.kautionEingegangenAm) ? "Garantie" : ""} titel={x.garantie && !t.kautionEingegangenAm ? "Kautionsbestätigung bzw. Garantie (z.B. AOZ) ist in den Dokumenten hinterlegt" : t.kautionEingegangenAm ? `Eingegangen am ${new Date(t.kautionEingegangenAm).toLocaleDateString("de-CH")}` : x.keineKaution ? "Keine Kaution vereinbart" : "Noch nicht eingegangen (wird über die Evorest-Mail erkannt). Klick = von Hand als eingegangen markieren."}
                       onClick={(!x.kaution) ? (e)=>{e.stopPropagation(); if(window.confirm(`Kaution von ${t.vorname} als eingegangen markieren?`)) updateTenant(t.id,{kautionEingegangenAm:new Date().toISOString().slice(0,10)});} : undefined}/></td>
                     <td style={{...td,textAlign:"center"}}><Punkt ok={x.miete} titel={x.mieteInfo}/></td>
                     <td style={{...td,textAlign:"center"}}>{(!x.infos && s.daysTilEinzug != null && s.daysTilEinzug < -7) ? <span title="Schon eingezogen" style={{color:"#c9c0b0",fontSize:11}}>eingezogen</span> : <Punkt ok={x.infos} titel={x.infos ? `Gesendet am ${new Date(t.einzugsinfoGesendetAt).toLocaleDateString("de-CH")}` : "Noch nicht gesendet"} onClick={!x.infos ? einzugsinfo : undefined}/>}</td>
