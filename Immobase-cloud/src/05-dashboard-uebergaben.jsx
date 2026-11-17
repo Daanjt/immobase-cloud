@@ -268,7 +268,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
                 let aktion;
                 if (s.kategorie === "review") aktion = {txt:"📥 Protokoll prüfen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
-                else if (!x.infos && x.kaution && x.miete) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
+                else if (!x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 3)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
                 const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
@@ -279,7 +279,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     <td style={{...td,textAlign:"center"}}><Punkt ok={x.kaution} txt={x.keineKaution ? "keine" : ""} titel={t.kautionEingegangenAm ? `Eingegangen am ${new Date(t.kautionEingegangenAm).toLocaleDateString("de-CH")}` : x.keineKaution ? "Keine Kaution vereinbart" : "Noch nicht eingegangen (wird über die Evorest-Mail erkannt). Klick = von Hand als eingegangen markieren."}
                       onClick={(!x.kaution) ? (e)=>{e.stopPropagation(); if(window.confirm(`Kaution von ${t.vorname} als eingegangen markieren?`)) updateTenant(t.id,{kautionEingegangenAm:new Date().toISOString().slice(0,10)});} : undefined}/></td>
                     <td style={{...td,textAlign:"center"}}><Punkt ok={x.miete} titel={x.mieteInfo}/></td>
-                    <td style={{...td,textAlign:"center"}}><Punkt ok={x.infos} titel={x.infos ? `Gesendet am ${new Date(t.einzugsinfoGesendetAt).toLocaleDateString("de-CH")}` : "Noch nicht gesendet"} onClick={!x.infos ? einzugsinfo : undefined}/></td>
+                    <td style={{...td,textAlign:"center"}}>{(!x.infos && s.daysTilEinzug != null && s.daysTilEinzug < -7) ? <span title="Schon eingezogen" style={{color:"#c9c0b0",fontSize:11}}>eingezogen</span> : <Punkt ok={x.infos} titel={x.infos ? `Gesendet am ${new Date(t.einzugsinfoGesendetAt).toLocaleDateString("de-CH")}` : "Noch nicht gesendet"} onClick={!x.infos ? einzugsinfo : undefined}/>}</td>
                     <td style={{...td,whiteSpace:"nowrap",color:prot.farbe,fontSize:12}}>{prot.txt}</td>
                     <td style={{...td,textAlign:"right",whiteSpace:"nowrap"}}>
                       <button onClick={aktion.fn} style={{background: aktion.primaer ? "#1a1814" : "transparent", color: aktion.primaer ? "#fefcf7" : "#4a4439", border: aktion.primaer ? "none" : "1px solid #ddd3c2", borderRadius:999, padding:"6px 14px", fontSize:11.5, fontWeight:600, cursor:"pointer"}}>{aktion.txt}</button>
