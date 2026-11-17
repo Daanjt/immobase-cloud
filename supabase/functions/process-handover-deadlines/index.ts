@@ -451,6 +451,7 @@ Deno.serve(async (req: Request) => {
     for (const p of protocols) {
       try {
         if (!p.deadline) continue; // ohne Frist nie automatisch abschliessen
+        if (p.status === "sent" && !p.invite_sent_at) continue; // Mail nie verschickt: keine Erinnerung, kein automatischer Abschluss
         const deadline = new Date(p.deadline);
         if (isNaN(deadline.getTime())) continue;
         const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
