@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     const name = esc((p.mieter_vorname || "").trim() || T("zusammen", "there"));
     const submitDate = formatDate(p.submitted_at, en);
     const aptAdr = p.apt_adresse ? `${p.apt_adresse}${p.apt_plz || p.apt_ort ? ", " : ""}${p.apt_plz || ""} ${p.apt_ort || ""}`.trim() : "";
-    const objektZeile = istWohnung ? T("Ganze Wohnung", "Entire apartment") : (p.room_label ? T(`Zimmer ${p.room_label}`, `Room ${p.room_label}`) : "");
+    const objektZeile = istWohnung ? T("Ganze Wohnung", "Entire apartment") : (p.room_label ? T("Dein Zimmer in der WG", "Your room in the shared flat") : "");
     const photoCount = Array.isArray(p.photos) ? p.photos.length : 0;
     const protName = auszug ? T("Rückgabeprotokoll", "move-out protocol") : T("Übernahmeprotokoll", "handover protocol");
 

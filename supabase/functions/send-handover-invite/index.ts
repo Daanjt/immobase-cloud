@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
     const aptAdr = p.apt_adresse ? `${p.apt_adresse}${p.apt_plz || p.apt_ort ? ", " : ""}${p.apt_plz || ""} ${p.apt_ort || ""}`.trim() : "";
     const zimmer = p.room_label || "";
     const istW = p.objekt_typ === "wohnung";
-    const objektZeile = istW ? `<div style="margin-top:4px;">🏠 ${T("Ganze Wohnung", "Entire apartment")}</div>` : (zimmer ? `<div style="margin-top:4px;">🚪 ${T("Zimmer", "Room")} ${esc(zimmer)}</div>` : "");
+    const objektZeile = istW ? `<div style="margin-top:4px;">🏠 ${T("Ganze Wohnung", "Entire apartment")}</div>` : (zimmer ? `<div style="margin-top:4px;">🚪 ${T("Dein Zimmer in der WG", "Your room in the shared flat")}</div>` : "");
     const wlanBox = istW ? "" : `<div style="background:#eef3ec;border:1px solid #cfe0c8;border-radius:8px;padding:12px 16px;margin:0 0 20px;font-size:13.5px;line-height:1.6;color:#2f5230;">📶 <strong>${T("WLAN", "Wi-Fi")}</strong><br>${T("Verbinde dich mit dem <strong>D&amp;T Homes</strong> WLAN.", "Connect to the <strong>D&amp;T Homes</strong> Wi-Fi.")}<br>${T("Passwort", "Password")}: <strong>Welcome!</strong></div>`;
     const pruefText = istW
       ? T("Bitte prüfe die Wohnung sorgfältig, Raum für Raum, und dokumentiere allfällige Mängel mit Foto und kurzer Beschreibung. Das schützt dich bei der Rückgabe.", "Please check the apartment carefully, room by room, and document any defects with a photo and a short description. This protects you when you move out.")
