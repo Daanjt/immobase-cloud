@@ -33,8 +33,14 @@ Deno.serve(async (req) => {
     const seit = new Date(Date.now() - tage * 86400000).toISOString();
     const { H, box } = await graph(sb);
     const filter = encodeURIComponent(`from/emailAddress/address eq '${ABSENDER}' and receivedDateTime ge ${seit}`);
-    const ms = await fetch(`${box}/messages?$filter=${filter}&$select=id,subject,internetMessageId,receivedDateTime,body&$top=50`, { headers: H }).then((r) => r.json());
-    const mails = (ms.value || []).filter((m: any) => /Einzahlungsbest/i.test(m.subject || ""));
+    const alle: any[] = [];
+    let url: string | null = `${box}/messages?$filter=${filter}&$select=id,subject,internetMessageId,receivedDateTime,body&$top=50`;
+    for (let seite = 0; url && seite < 10; seite++) {
+      const ms: any = await fetch(url, { headers: H }).then((r) => r.json());
+      alle.push(...(ms.value || []));
+      url = ms["@odata.nextLink"] || null;
+    }
+    const mails = alle.filter((m: any) => /Einzahlungsbest/i.test(m.subject || ""));
     const [{ data: apts }, { data: rooms }, { data: tenants }] = await Promise.all([
       sb.from("apartments").select("id,adresse,refnr"),
       sb.from("rooms").select("id,apt_id,tenant_id"),
