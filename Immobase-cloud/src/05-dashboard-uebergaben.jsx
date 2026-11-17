@@ -97,7 +97,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
     if (!ids.length) { setZahlungen([]); return; }
     supabase.from("payments").select("tenant_id,jahr,monat,status").in("tenant_id", ids).then(({ data }) => setZahlungen(data || []));
   }, [einzugIds]);
-  const zeigeEinzugBereit = (s) => !s.tenant.einzugsinfoGesendetAt ? (s.daysTilEinzug == null || s.daysTilEinzug > -45) : (s.daysTilEinzug != null && s.daysTilEinzug > -14);
+  // nur rund um den Einzug zeigen: ab Vertrag bis 7 Tage nach Einzug (danach ist der Mieter laengst drin)
+  const zeigeEinzugBereit = (s) => s.daysTilEinzug != null && s.daysTilEinzug >= -7;
   const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
   const [startFor, setStartFor] = useState(null);
   const [refKeyInfo, setRefKeyInfo] = useState(null);
