@@ -170,7 +170,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
   useEffect(() => {
     if (navTarget && navTarget.type === "mieter" && navTarget.id) {
       setSel(navTarget.id);
-      setTab("info");
+      setTab(window.__kommVorlage && window.__kommVorlage.tenantId===navTarget.id ? "komm" : "info");
       // Wenn der Mieter archiviert ist, automatisch in Archiv-Modus wechseln
       const t = tenants.find(x => x.id === navTarget.id);
       if (t && t.status === "archiviert") setViewMode("ehemalig");
@@ -1059,6 +1059,9 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 sprache: tenant.sprache || "de",
                 istWohnung: aptIstWohnung(apt),
                 aptId: apt?.id || "",
+                tenantId: tenant.id,
+                lgAdresse: apt?.adresse || "",
+                onEinzugsinfoGesendet: () => updateTenant(tenant.id, { einzugsinfoGesendetAt: new Date().toISOString() }),
               };
               return <KommunikationTab key={"t"+tenant.id} empfaenger={empf} zielgruppe="mieter"/>;
             })()}

@@ -84,10 +84,10 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
     setBoxen(data||[]);
   }
   const [bearbeite, setBearbeite] = useState(null);
-  const [entwurfBox, setEntwurfBox] = useState({bezeichnung:"",code:"",notiz:""});
-  function boxBearbeiten(b){ setEntwurfBox({bezeichnung:b.bezeichnung||"",code:b.code||"",notiz:b.notiz||""}); setBearbeite(b.id); }
+  const [entwurfBox, setEntwurfBox] = useState({bezeichnung:"",code:"",standort:"",notiz:""});
+  function boxBearbeiten(b){ setEntwurfBox({bezeichnung:b.bezeichnung||"",code:b.code||"",standort:b.standort||"",notiz:b.notiz||""}); setBearbeite(b.id); }
   async function boxAllesSpeichern(b){
-    const felder={ bezeichnung:(entwurfBox.bezeichnung||"").trim()||"Keybox", code:(entwurfBox.code||"").trim()||null, notiz:(entwurfBox.notiz||"").trim()||null, updated_at:new Date().toISOString() };
+    const felder={ bezeichnung:(entwurfBox.bezeichnung||"").trim()||"Keybox", code:(entwurfBox.code||"").trim()||null, standort:(entwurfBox.standort||"").trim()||null, notiz:(entwurfBox.notiz||"").trim()||null, updated_at:new Date().toISOString() };
     const {error}=await supabase.from("keyboxes").update(felder).eq("id", b.id);
     if(error){ toast("Fehler beim Speichern","error"); return; }
     setBoxen(p=>p.map(x=>x.id===b.id?{...x,...felder}:x)); setBearbeite(null); toast("Gespeichert");
@@ -166,7 +166,8 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
                 <div style={{flex:"1 1 160px",minWidth:0}}><label className="fl">Bezeichnung</label><input className="fi" value={entwurfBox.bezeichnung} placeholder="z.B. Keybox Hauseingang" onChange={e=>setEntwurfBox(x=>({...x,bezeichnung:e.target.value}))}/></div>
                 <div style={{flex:"1 1 200px",minWidth:0}}><label className="fl">Code</label><input className="fi" style={{fontFamily:"monospace",letterSpacing:".12em"}} type="text" autoComplete="off" value={entwurfBox.code} placeholder="z.B. 4711" onChange={e=>setEntwurfBox(x=>({...x,code:e.target.value}))}/></div>
               </div>
-              <div style={{marginTop:8}}><label className="fl">Notiz</label><input className="fi" value={entwurfBox.notiz} placeholder="optional, z.B. welche Schlüssel drin sind" onChange={e=>setEntwurfBox(x=>({...x,notiz:e.target.value}))}/></div>
+              <div style={{marginTop:8}}><label className="fl">Standort (geht an den Mieter)</label><input className="fi" value={entwurfBox.standort} placeholder="z.B. links neben dem Hauseingang, am Velounterstand" onChange={e=>setEntwurfBox(x=>({...x,standort:e.target.value}))}/></div>
+              <div style={{marginTop:8}}><label className="fl">Notiz (intern)</label><input className="fi" value={entwurfBox.notiz} placeholder="optional, z.B. welche Schlüssel drin sind" onChange={e=>setEntwurfBox(x=>({...x,notiz:e.target.value}))}/></div>
               <KeyboxBild box={b} aptId={apt.id} bearbeiten={true} onChange={pfad=>setBoxen(p=>p.map(x=>x.id===b.id?{...x,bild_path:pfad}:x))}/>
               <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" style={{color:"#9b4a3e",width:"auto"}} onClick={()=>boxLoeschen(b)}>Löschen</button>
@@ -179,7 +180,8 @@ function SchluesselManager({apt, rooms, tenants, updateApt}) {
                 <div style={{display:"flex",gap:28,flexWrap:"wrap",minWidth:0}}>
                   <div><div className="fl" style={{marginBottom:3}}>Bezeichnung</div><div style={{fontWeight:600,fontSize:13}}>{b.bezeichnung||"Keybox"}</div></div>
                   <div><div className="fl" style={{marginBottom:3}}>Code</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:"monospace",fontWeight:600,fontSize:15,letterSpacing:".12em"}}>{(b.code||"").trim()||"-"}</span>{b.code && <button className="btn btn-g btn-sm" style={{width:"auto",padding:"2px 8px"}} title="Code kopieren" onClick={()=>codeKopieren(b.code)}>⧉</button>}</div></div>
-                  {(b.notiz||"").trim() && <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Notiz</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{b.notiz}</div></div>}
+                  {(b.standort||"").trim() && <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Standort</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{b.standort}</div></div>}
+                  {(b.notiz||"").trim() && <div style={{minWidth:0}}><div className="fl" style={{marginBottom:3}}>Notiz (intern)</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{b.notiz}</div></div>}
                 </div>
                 <button className="btn btn-g btn-sm" style={{width:"auto",flex:"0 0 auto"}} onClick={()=>boxBearbeiten(b)}>✏ Bearbeiten</button>
               </div>

@@ -1,5 +1,42 @@
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 // ─── ÜBERGABEN (Einzug + Auszug Tab) ─────────────────────────────────────────
+// Einzugs-Status: Kaution und erste Miete eingegangen? Dann Einzugsinfo (Schlüsselbox, Hausinfos) senden.
+function EinzugBereit({t, zahlungen, updateTenant, navigateTo}){
+  const ez = parseD(t.einzug);
+  const ersteMiete = ez ? (zahlungen||[]).find(z => z.tenant_id === t.id && z.jahr === ez.getFullYear() && z.monat === ez.getMonth()+1) : null;
+  const mieteOk = !!(ersteMiete && ersteMiete.status === "bezahlt");
+  const keineKaution = Number(t.kautionMonate) === 0;
+  const kautionOk = keineKaution || !!t.kautionEingegangenAm;
+  const gesendet = t.einzugsinfoGesendetAt ? new Date(t.einzugsinfoGesendetAt) : null;
+  const chip = (ok, txt, titel, onClick) => (
+    <span title={titel} onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:20,fontSize:10.5,fontWeight:600,
+      background: ok ? "#e8efde" : "rgba(255,255,255,.55)", color: ok ? "#3a5230" : "#7a5c3c", border: `1px solid ${ok ? "#c5d5b0" : "#e0d0b8"}`, cursor: onClick ? "pointer" : "default"}}>
+      {ok ? "✓" : "○"} {txt}
+    </span>
+  );
+  const kautionKlick = (!keineKaution && !t.kautionEingegangenAm) ? (e) => { e.stopPropagation(); if (window.confirm("Kaution als eingegangen markieren?")) updateTenant(t.id, { kautionEingegangenAm: new Date().toISOString().slice(0,10) }); } : undefined;
+  const senden = (e) => {
+    e.stopPropagation();
+    if (!(kautionOk && mieteOk) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return;
+    window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" };
+    navigateTo && navigateTo("mieter", t.id);
+  };
+  return (
+    <div style={{marginBottom:8}}>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
+        {chip(kautionOk, keineKaution ? "Keine Kaution" : "Kaution", t.kautionEingegangenAm ? `Eingegangen am ${new Date(t.kautionEingegangenAm).toLocaleDateString("de-CH")}` : (keineKaution ? "" : "Wird über die Evorest-Mail automatisch erkannt. Klick = von Hand als eingegangen markieren."), kautionKlick)}
+        {chip(mieteOk, "1. Miete", ersteMiete ? `Zahlung ${ersteMiete.monat}/${ersteMiete.jahr}: ${ersteMiete.status}` : "Noch keine Zahlung für den Einzugsmonat erfasst")}
+        {chip(!!gesendet, gesendet ? `Infos gesendet ${gesendet.toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}` : "Einzugsinfo", gesendet ? "Einzugsinfo mit Schlüsselbox wurde verschickt" : "")}
+      </div>
+      {!gesendet && (
+        <button onClick={senden} style={{width:"100%",background: (kautionOk && mieteOk) ? "#3a5230" : "transparent", color: (kautionOk && mieteOk) ? "#fefcf7" : "var(--muted)", border: (kautionOk && mieteOk) ? "none" : "1px solid var(--line)", borderRadius:6,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+          🔑 Einzugsinfo senden{(kautionOk && mieteOk) ? "" : " (noch nicht alles bezahlt)"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,handoverProtocols,documents,startHandoverProtocol}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
   const [kautionTenant,setKautionTenant]=React.useState(null);
@@ -52,6 +89,15 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
     });
   
   const offene = einzuegeMitStatus.filter(e => e.kategorie !== "done");
+  // Zahlungen der Einzugsmonate (fuer "erste Miete bezahlt")
+  const [zahlungen, setZahlungen] = useState([]);
+  const einzugIds = einzuegeMitStatus.filter(e => e.daysTilEinzug == null || e.daysTilEinzug > -45).map(e => e.tenant.id).join(",");
+  useEffect(() => {
+    const ids = einzugIds ? einzugIds.split(",") : [];
+    if (!ids.length) { setZahlungen([]); return; }
+    supabase.from("payments").select("tenant_id,jahr,monat,status").in("tenant_id", ids).then(({ data }) => setZahlungen(data || []));
+  }, [einzugIds]);
+  const zeigeEinzugBereit = (s) => !s.tenant.einzugsinfoGesendetAt ? (s.daysTilEinzug == null || s.daysTilEinzug > -45) : (s.daysTilEinzug != null && s.daysTilEinzug > -14);
   const erledigt = einzuegeMitStatus.filter(e => e.kategorie === "done");
   const [startFor, setStartFor] = useState(null);
   const [refKeyInfo, setRefKeyInfo] = useState(null);
@@ -221,6 +267,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                           Deadline: {new Date(s.latest.deadline).toLocaleDateString("de-CH")}
                         </div>
                       )}
+                      {zeigeEinzugBereit(s) && <EinzugBereit t={s.tenant} zahlungen={zahlungen} updateTenant={updateTenant} navigateTo={navigateTo}/>}
                       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                         <button
                           onClick={(e)=>{e.stopPropagation(); if(s.kategorie==="todo") oeffneStart(s); else navigateTo&&navigateTo("mieter",s.tenant.id);}}
@@ -256,6 +303,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     <div style={{fontSize:13,fontWeight:600,color:"#1a1814"}}><MieterLink id={s.tenant.id}>{s.tenant.vorname} {s.tenant.nachname}</MieterLink></div>
                     <div style={{fontSize:10.5,color:"#4a4439",marginBottom:2}}><ZimmerLink id={s.room?.id}>{s.room?.id||"-"}</ZimmerLink> · <WohnungLink id={s.apt?.id}>{s.apt?.adresse||"-"}</WohnungLink></div>
                     {schluesselText(s.tenant) && <div style={{fontSize:10.5,color:"#4a4439",marginBottom:6}}>🔑 {schluesselText(s.tenant)}</div>}
+                    {zeigeEinzugBereit(s) && <EinzugBereit t={s.tenant} zahlungen={zahlungen} updateTenant={updateTenant} navigateTo={navigateTo}/>}
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       <button
                         onClick={(e)=>{e.stopPropagation();navigateTo&&navigateTo("mieter",s.tenant.id);}}

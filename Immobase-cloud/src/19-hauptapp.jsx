@@ -302,8 +302,37 @@ function platzhalterFuellen(text, empfaenger) {
     nachmieter_name: empfaenger.nachmieter_name || "",
     nachmieter_telefon: empfaenger.nachmieter_telefon || "",
     absender: empfaenger.absender || "",
+    keybox: empfaenger.keybox || "",
+    hausinfos: empfaenger.hausinfos || "",
+    mieterportal_link: empfaenger.mieterportal_link || "",
   };
-  return text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
+  const gefuellt = text.replace(/\{(\w+)\}/g, (m, key) => (key in map ? map[key] : m));
+  // Zeilen mit leerem Wert ("Mieterportal: ") und leere Ueberschriften ("Infos zum Haus:" ohne Inhalt) weglassen
+  const zeilen = gefuellt.split("\n");
+  const raus = new Set();
+  zeilen.forEach((z, i) => {
+    if (/^[^\n:]{2,40}:\s*$/.test(z) && (i + 1 >= zeilen.length || !zeilen[i + 1].trim())) raus.add(i);
+  });
+  return zeilen.filter((_, i) => !raus.has(i)).join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// Text fuer {keybox}: Bezeichnung, Standort, Code, Notiz und befristeter Bild-Link pro Schluesselbox
+async function keyboxText(aptId, en) {
+  if (!aptId) return "";
+  const { data } = await supabase.from("keyboxes").select("bezeichnung,standort,code,bild_path").eq("apartment_id", aptId).order("sort").order("created_at");
+  const boxen = (data || []).filter(k => (k.code || "").trim() || k.bild_path);
+  const teile = [];
+  for (const k of boxen) {
+    const name = (k.bezeichnung || "Keybox").trim();
+    const link = k.bild_path ? await keyboxBildLink(k.bild_path, KEYBOX_LINK_TAGE * 86400) : "";
+    teile.push([
+      boxen.length > 1 || !/^keybox$/i.test(name) ? (en ? `Key box (${name})` : `Schlüsselbox (${name})`) : "",
+      (k.standort || "").trim() ? (en ? `Location: ${k.standort.trim()}` : `Standort: ${k.standort.trim()}`) : "",
+      (k.code || "").trim() ? `Code: ${k.code.trim()}` : "",
+      link ? (en ? `Photo: ${link}` : `Bild: ${link}`) : "",
+    ].filter(Boolean).join("\n"));
+  }
+  return teile.join("\n\n");
 }
 
 function KommunikationTab({empfaenger, zielgruppe}) {
@@ -316,6 +345,24 @@ function KommunikationTab({empfaenger, zielgruppe}) {
   const [sprache, setSprache] = useState(empfaenger && empfaenger.sprache==="en" ? "en" : "de");
   const [keyboxen, setKeyboxen] = useState([]);
   const [kbBusy, setKbBusy] = useState(false);
+  const [extra, setExtra] = useState({ hausinfos: "", hausinfos_en: "", mieterportal_link: "", geladen: false });
+  useEffect(() => {
+    if (!empfaenger) return;
+    (async () => {
+      const neu = { hausinfos: "", hausinfos_en: "", mieterportal_link: "", geladen: true };
+      if (empfaenger.lgAdresse) {
+        const { data } = await supabase.from("liegenschaften").select("hausinfos,hausinfos_en").eq("adresse", empfaenger.lgAdresse).maybeSingle();
+        if (data) { neu.hausinfos = (data.hausinfos || "").trim(); neu.hausinfos_en = (data.hausinfos_en || "").trim(); }
+      }
+      if (empfaenger.tenantId) {
+        const { data } = await supabase.from("tenants").select("portal_token,portal_gesperrt").eq("id", empfaenger.tenantId).maybeSingle();
+        if (data && data.portal_token && !data.portal_gesperrt) neu.mieterportal_link = `https://mieter.dthomes.ch/p/${data.portal_token}`;
+      }
+      setExtra(neu);
+    })();
+  }, [empfaenger && empfaenger.tenantId, empfaenger && empfaenger.lgAdresse]);
+  const istEinzugsVorlage = (id) => { const v = (templates || []).find(x => x.id === id); return !!(v && /^Einzug: Schlüsselbox/i.test(v.name || "")); };
+  function einzugsinfoMerken() { if (istEinzugsVorlage(selId) && empfaenger && empfaenger.onEinzugsinfoGesendet) empfaenger.onEinzugsinfoGesendet(); }
   useEffect(() => {
     if (!empfaenger || !empfaenger.aptId) { setKeyboxen([]); return; }
     supabase.from("keyboxes").select("id,bezeichnung,code,bild_path,notiz").eq("apartment_id", empfaenger.aptId).order("sort").order("created_at")
@@ -345,15 +392,28 @@ function KommunikationTab({empfaenger, zielgruppe}) {
         else setTemplates((data||[]).filter(v => (v.zielgruppe === zielgruppe || v.zielgruppe === "beide") && !(empfaenger && empfaenger.istWohnung && v.nur_wg)));
       });
   }, [zielgruppe]);
+  // Vorauswahl einer Vorlage (z.B. aus Übergaben: "Einzugsinfo senden")
+  useEffect(() => {
+    const w = window.__kommVorlage;
+    if (!templates || !extra.geladen || !w || !empfaenger || w.tenantId !== empfaenger.tenantId) return;
+    const v = templates.find(x => (x.name || "").toLowerCase().startsWith(w.name.toLowerCase()));
+    window.__kommVorlage = null;
+    if (v) waehle(v.id);
+  }, [templates, extra]);
 
-  function waehle(id, lang) {
+  async function waehle(id, lang) {
     setSelId(id);
     const spr = lang || sprache;
     const v = (templates||[]).find(x => x.id === id);
     if (v) {
       const { betreff: bet, inhalt: inh } = vorlageTexte(v, spr, empfaenger && empfaenger.istWohnung);
-      setBetreff(platzhalterFuellen(bet||"", empfaenger));
-      setText(platzhalterFuellen(inh||"", empfaenger));
+      const en = spr === "en";
+      let kb = "";
+      if ((inh||"").includes("{keybox}")) { setKbBusy(true); try { kb = await keyboxText(empfaenger.aptId, en); } finally { setKbBusy(false); } }
+      const e2 = { ...empfaenger, keybox: kb, hausinfos: en ? (extra.hausinfos_en || extra.hausinfos) : extra.hausinfos, mieterportal_link: extra.mieterportal_link };
+      setBetreff(platzhalterFuellen(bet||"", e2));
+      setText(platzhalterFuellen(inh||"", e2));
+      if ((inh||"").includes("{keybox}") && !kb) { setMsg({t:"err", m:"Für diese Wohnung ist keine Schlüsselbox mit Code oder Bild erfasst (Wohnung → Schlüssel). Bitte ergänze sie oder schreibe die Angaben von Hand in den Text."}); return; }
       if ((inh||"").includes("{uebergabe_link}") && !empfaenger.uebergabe_link) {
         setMsg({t:"err", m:"Achtung: Diese Vorlage enthält einen Übergabe-Link, aber für diesen Mieter läuft noch kein Übergabeprotokoll. Starte es zuerst im Tab Übergabe."});
       } else {
@@ -380,6 +440,7 @@ function KommunikationTab({empfaenger, zielgruppe}) {
       if (error) { let m=error.message; try{ const j=await error.context.json(); if(j&&j.error) m=j.error; }catch(_){} throw new Error(m); }
       if (data && data.error) throw new Error(data.error);
       setMsg({t:"ok", m:`E-Mail an ${empfaenger.email} verschickt.`});
+      einzugsinfoMerken();
     } catch(err) {
       setMsg({t:"err", m:"Konnte nicht gesendet werden: " + (err.message||err)});
     } finally { setSending(false); }
@@ -426,11 +487,14 @@ function KommunikationTab({empfaenger, zielgruppe}) {
         </button>
         <a href={cleanPhone && text ? waUrl : undefined}
            target="_blank" rel="noopener noreferrer"
-           onClick={e=>{ if(!cleanPhone||!text){ e.preventDefault(); setMsg({t:"err", m:"Für WhatsApp braucht es eine Nummer und Text."}); } }}
+           onClick={e=>{ if(!cleanPhone||!text){ e.preventDefault(); setMsg({t:"err", m:"Für WhatsApp braucht es eine Nummer und Text."}); } else einzugsinfoMerken(); }}
            className="btn"
            style={{flex:1,minWidth:150,justifyContent:"center",textDecoration:"none",background:"#e8efde",color:"#3a5230",border:"1px solid #c5d5b0",display:"inline-flex",alignItems:"center",gap:6,opacity:(cleanPhone&&text)?1:.5}}>
           💬 WhatsApp öffnen
         </a>
+        <button type="button" className="btn" disabled={!text} onClick={async()=>{ try{ await navigator.clipboard.writeText(text); setMsg({t:"ok", m:"Text kopiert."}); einzugsinfoMerken(); }catch(_){ setMsg({t:"err", m:"Kopieren nicht möglich, bitte Text markieren und kopieren."}); } }} style={{flex:"0 0 auto",justifyContent:"center"}}>
+          📋 Kopieren
+        </button>
       </div>
       <div style={{fontSize:10.5,color:"var(--muted-light)",marginTop:10,lineHeight:1.5}}>
         WhatsApp öffnet die App mit vorbereitetem Text, gesendet wird erst mit deinem Tippen dort.
