@@ -294,6 +294,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
       ...(istWohn ? { units: 1 } : {}),
       adresse:form.adresse,plz:form.plz,ort:form.ort,
       stockwerk:form.stockwerk,zimmer:form.zimmer,
+      ...(form.weg_mieter!==undefined ? { weg_mieter:(form.weg_mieter||"").trim()||null } : {}),
       miete:+form.miete||0,kaution:+form.kaution||0,
       kautionType:form.kautionType,refzins:form.refzins,
       mietbeginn:form.mietbeginn,mietende:form.mietende,
@@ -821,6 +822,7 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
           <div className="fg"><label className="fl">Stockwerk</label><select className="fi" value={form.stockwerk||""} onChange={F("stockwerk")}><option value="">- wählen -</option>{STOCKWERK_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           <div className="fg"><label className="fl">Anzahl Zimmer</label><input className="fi" value={form.zimmer||""} onChange={F("zimmer")}/></div>
         </div>
+        <div className="fg"><label className="fl">So findest du die Wohnung (steht in der Einzugsmail)</label><textarea className="fi" rows={2} value={form.weg_mieter||""} onChange={F("weg_mieter")} placeholder="z.B. Eingang im Hinterhof, Lift bis 2. OG, Tür rechts. Name an der Klingel: D&T Homes"/></div>
 
         <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginTop:18,marginBottom:10,fontWeight:500}}>Vermietung</div>
         <div className="fg"><label className="fl">Typ</label><select className="fi" value={(form.type||"WG")==="WG"&&form.vermietungsart==="wohnung"?"Wohnung":(form.type||"WG")} onChange={e=>{const v=e.target.value; setForm(p=>v==="Wohnung"?{...p,type:"WG",vermietungsart:"wohnung"}:{...p,type:v,vermietungsart:"zimmer"});}}><option value="WG">WG (einzelne Zimmer, möbliert)</option><option value="Wohnung">Wohnung (unmöbliert, Zwischennutzung)</option><option value="Airbnb">Airbnb</option></select></div>

@@ -100,8 +100,8 @@ Deno.serve(async (req: Request) => {
     const zimmer = p.room_label || "";
     const istW = p.objekt_typ === "wohnung";
     // Objekt: Wohnung mit Zimmern und Flaeche, bzw. Zimmer mit Grösse, Balkon und Lage (nie die interne Nummer)
-    const aptRow = p.apt_id ? (await rest(`apartments?id=eq.${encodeURIComponent(p.apt_id)}&select=stockwerk,zimmer,flaeche`))[0] || {} : {};
-    const roomRow = (!istW && p.room_id) ? (await rest(`rooms?id=eq.${encodeURIComponent(p.room_id)}&select=groesse,balkon,lage_mieter`))[0] || {} : {};
+    const aptRow = p.apt_id ? (await rest(`apartments?id=eq.${encodeURIComponent(p.apt_id)}&select=stockwerk,zimmer,flaeche,weg_mieter`))[0] || {} : {};
+    const roomRow = (!istW && p.room_id) ? (await rest(`rooms?id=eq.${encodeURIComponent(p.room_id)}&select=groesse,balkon,lage_mieter,grundriss_markiert`))[0] || {} : {};
     const qmTxt = (v: unknown) => { const t = String(v ?? "").trim(); return !t ? "" : /m²|m2/i.test(t) ? t.replace(/m2/i, "m²") : `${t} m²`; };
     const objektTeile = istW
       ? [aptRow.zimmer ? `${aptRow.zimmer} ${T("Zimmer", "rooms")}` : "", qmTxt(aptRow.flaeche)].filter(Boolean)
@@ -110,6 +110,11 @@ Deno.serve(async (req: Request) => {
       ? `<div style="margin-top:4px;">🏠 ${T("Deine Wohnung", "Your apartment")}${objektTeile.length ? ": " + esc(objektTeile.join(", ")) : ""}</div>`
       : (zimmer ? `<div style="margin-top:4px;">🚪 ${T("Dein Zimmer", "Your room")}${objektTeile.length ? ": " + esc(objektTeile.join(", ")) : ""}</div>` : "");
     const stockTxt = String(aptRow.stockwerk || "").trim();
+    const wegTxt = String(aptRow.weg_mieter || "").trim();
+    const grundrissBox = roomRow.grundriss_markiert
+      ? `<div style="margin:0 0 20px;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Dein Zimmer im Grundriss", "Your room on the floor plan")}</div><img src="${SUPABASE_URL}/storage/v1/object/public/assets/${String(roomRow.grundriss_markiert).split("/").map(encodeURIComponent).join("/")}" alt="${T("Grundriss", "Floor plan")}" width="520" style="display:block;width:100%;max-width:520px;height:auto;border:1px solid #e4ddd0;border-radius:12px;"></div>`
+      : "";
+    const wegZeile = wegTxt ? `<div style="margin-top:6px;">🧭 ${T("So findest du die Wohnung", "How to find the apartment")}: ${esc(wegTxt).replace(/\n/g, "<br>")}</div>` : "";
     const wlanBox = istW ? "" : `<div style="background:#eef3ec;border:1px solid #cfe0c8;border-radius:8px;padding:12px 16px;margin:0 0 20px;font-size:13.5px;line-height:1.6;color:#2f5230;">📶 ${T("WLAN", "Wi-Fi")}<br>${T("Verbinde dich mit dem WLAN «D&amp;T Homes».", "Connect to the Wi-Fi «D&amp;T Homes».")}<br>${T("Passwort", "Password")}: <strong>Welcome!</strong></div>`;
     const pruefText = istW
       ? T("Bitte prüfe die Wohnung sorgfältig, Raum für Raum, und dokumentiere allfällige Mängel mit Foto und kurzer Beschreibung. Das schützt dich bei der Rückgabe.", "Please check the apartment carefully, room by room, and document any defects with a photo and a short description. This protects you when you move out.")
@@ -146,7 +151,11 @@ Deno.serve(async (req: Request) => {
         const tt = await rest(`tenants?id=eq.${encodeURIComponent(p.tenant_id)}&select=portal_token,portal_gesperrt`);
         if (tt[0]?.portal_token && !tt[0]?.portal_gesperrt) {
           const pl = `${BASE_URL}/p/${tt[0].portal_token}`;
-          portalBox = `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Dein Mieterportal", "Your tenant portal")}</div>${T("Im Mieterportal hast du alles rund um deine Miete an einem Ort: den QR-Code zum Bezahlen der Miete, deinen Vertrag und weitere Dokumente sowie die Infos zum Haus. Dort meldest du Schäden, bestellst dein Namensschild für Briefkasten und Klingel, fragst Endreinigung, Umzugshilfe oder einen Parkplatz an und kannst später auch kündigen oder einen Nachmieter vorschlagen.", "Your tenant portal has everything about your rental in one place: the QR code for paying your rent, your contract and other documents, and the building info. There you can report damage, order your name sign for the mailbox and doorbell, request a final cleaning, moving help or a parking space, and later give notice or propose a successor.")}<div style="margin-top:8px;"><a href="${pl}" style="color:#1a1814;font-weight:600;">${T("Zum Mieterportal", "Open tenant portal")}</a></div></div>`;
+          portalBox = `<div style="background:#211E19;border-radius:16px;padding:20px 22px;margin:0 0 20px;color:#EAE3D5;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.3;color:#FBFAF6;margin-bottom:8px;">${T("Dein Mieterportal", "Your tenant portal")}</div>
+<div style="font-size:14px;line-height:1.6;color:#EAE3D5;margin-bottom:16px;">${T("Miete bezahlen, Dokumente, Schäden melden, Namensschild bestellen und später auch kündigen: alles an einem Ort.", "Pay rent, find your documents, report damage, order your name sign and later give notice: all in one place.")}</div>
+<a href="${pl}" style="display:inline-block;background:#FBFAF6;color:#211E19;text-decoration:none;padding:11px 24px;border-radius:999px;font-size:14px;font-weight:600;">${T("Zum Mieterportal", "Open tenant portal")}</a>
+</div>`;
         }
       }
       einzugBox = keyBox + hausBox + portalBox;
@@ -164,7 +173,8 @@ Deno.serve(async (req: Request) => {
 <div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${T("Willkommen", "Welcome")}</div>
 <p style="font-size:14.5px;margin:0 0 14px;">Hi ${name},</p>
 ${einzugBox ? `<p style="font-size:14px;margin:0 0 18px;">${T(`es ist alles bereit für deinen Einzug!${keyBox ? " Dein Schlüssel liegt in der Schlüsselbox, so kannst du ganz selbstständig rein." : ""} Unten findest du alles für deinen Start: das Übernahmeprotokoll, das WLAN, die Infos zum Haus und dein Mieterportal.`, `everything is ready for your move-in!${keyBox ? " Your key is in the key box, so you can let yourself in." : ""} Below you will find everything for your start: the handover protocol, the Wi-Fi, the building info and your tenant portal.`)}</p>` : `<p style="font-size:14px;margin:0 0 18px;">${T("herzlich willkommen in deinem neuen Zuhause! Wir freuen uns, dass du da bist. Hier ist der Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.", "welcome to your new home! We are glad to have you. Here is the link to your digital <strong>handover protocol</strong>.")}</p>`}
-${(aptAdr || objektZeile) ? `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;">${aptAdr ? `<div>📍 ${esc(aptAdr)}${stockTxt ? `, ${esc(stockTxt)}` : ""}</div>` : ""}${objektZeile}</div>` : ""}
+${(aptAdr || objektZeile) ? `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;">${aptAdr ? `<div>📍 ${esc(aptAdr)}${stockTxt ? `, ${esc(stockTxt)}` : ""}</div>` : ""}${objektZeile}${wegZeile}</div>` : ""}
+${grundrissBox}
 ${einzugBox ? keyBox : wlanBox}
 <p style="font-size:14px;margin:0 0 18px;">${einzugBox ? T("Sobald du drin bist, füllst du das digitale Übernahmeprotokoll aus: Halte darin alle Mängel fest, die du siehst, am besten mit Foto. Das schützt dich bei der Rückgabe.", "Once you are inside, please complete the digital handover protocol: record any defects you see, ideally with a photo. This protects you when you move out.") : pruefText}</p>
 ${abschlussBox(en)}

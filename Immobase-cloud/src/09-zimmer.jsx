@@ -1,4 +1,85 @@
 // ─── ZIMMER ──────────────────────────────────────────────────────────────────
+// Zimmer im Grundriss markieren: Klick auf den Grundriss setzt die Markierung,
+// daraus wird ein Bild erstellt, das in der Einzugsmail mitgeht.
+function GrundrissMarker({apt, room, onSaved}){
+  const [offen,setOffen]=useState(false);
+  const [bild,setBild]=useState(null);
+  const [fehler,setFehler]=useState("");
+  const [pos,setPos]=useState(room.grundriss_pos||null);
+  const [speichert,setSpeichert]=useState(false);
+  const gr=((apt&&apt.photos)||[]).find(ph=>ph&&ph.category==="grundriss"&&ph.path);
+  const pubUrl=(pfad)=>`${SUPABASE_URL}/storage/v1/object/public/assets/${pfad}`;
+  async function oeffnen(){
+    setOffen(true); setFehler("");
+    if(bild||!gr) return;
+    try{
+      if(/\.pdf$/i.test(gr.path)) setBild(await _renderPdfPreviewAdmin(pubUrl(gr.path)));
+      else setBild(pubUrl(gr.path));
+    }catch(e){ setFehler("Grundriss konnte nicht geladen werden."); }
+  }
+  function klick(e){
+    const r=e.currentTarget.getBoundingClientRect();
+    setPos({x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height});
+  }
+  async function speichern(){
+    if(!pos||!bild) return;
+    setSpeichert(true); setFehler("");
+    try{
+      const img=await new Promise((res,rej)=>{const i=new Image(); i.crossOrigin="anonymous"; i.onload=()=>res(i); i.onerror=rej; i.src=bild;});
+      const max=1400, sk=Math.min(1, max/Math.max(img.naturalWidth,img.naturalHeight));
+      const c=document.createElement("canvas"); c.width=Math.round(img.naturalWidth*sk); c.height=Math.round(img.naturalHeight*sk);
+      const ctx=c.getContext("2d");
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+      ctx.drawImage(img,0,0,c.width,c.height);
+      const x=pos.x*c.width, y=pos.y*c.height, rad=Math.max(18, Math.round(Math.min(c.width,c.height)*0.06));
+      ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fillStyle="rgba(214,69,46,0.28)"; ctx.fill();
+      ctx.lineWidth=Math.max(3,rad*0.14); ctx.strokeStyle="#d6452e"; ctx.stroke();
+      const fs=Math.max(14, Math.round(rad*0.6)); ctx.font=`700 ${fs}px sans-serif`;
+      const txt="Dein Zimmer", tw=ctx.measureText(txt).width, pad=fs*0.45;
+      let lx=Math.min(Math.max(x-tw/2-pad, 4), c.width-tw-pad*2-4), ly=y+rad+8;
+      if(ly+fs+pad*2>c.height-4) ly=y-rad-8-fs-pad*2;
+      ctx.fillStyle="#d6452e"; ctx.fillRect(lx,ly,tw+pad*2,fs+pad*2);
+      ctx.fillStyle="#fff"; ctx.textBaseline="top"; ctx.fillText(txt,lx+pad,ly+pad);
+      const blob=await new Promise(res=>c.toBlob(res,"image/png"));
+      const pfad=`rooms/${room.id}/grundriss-${Date.now()}.png`;
+      const {error}=await supabase.storage.from("assets").upload(pfad,blob,{contentType:"image/png",upsert:true});
+      if(error) throw error;
+      if(room.grundriss_markiert){ try{ await supabase.storage.from("assets").remove([room.grundriss_markiert]); }catch(_){} }
+      await onSaved({grundriss_markiert:pfad, grundriss_pos:pos});
+      setOffen(false);
+    }catch(e){ setFehler("Speichern hat nicht geklappt: "+(e.message||e)); }
+    setSpeichert(false);
+  }
+  async function entfernen(){
+    if(!room.grundriss_markiert) return;
+    try{ await supabase.storage.from("assets").remove([room.grundriss_markiert]); }catch(_){}
+    await onSaved({grundriss_markiert:null, grundriss_pos:null}); setPos(null);
+  }
+  return <div className="fg">
+    <label className="fl">Zimmer im Grundriss (geht mit der Einzugsmail)</label>
+    {room.grundriss_markiert && !offen && <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+      <img src={pubUrl(room.grundriss_markiert)} alt="" style={{width:120,borderRadius:6,border:"1px solid #e1d8c5"}}/>
+      <button className="btn btn-sm" onClick={oeffnen}>Ändern</button>
+      <button className="btn btn-sm" onClick={entfernen}>Entfernen</button>
+    </div>}
+    {!room.grundriss_markiert && !offen && (gr
+      ? <button className="btn btn-sm" onClick={oeffnen}>📐 Zimmer im Grundriss markieren</button>
+      : <div style={{fontSize:12,color:"#8a8478"}}>Für diese Wohnung ist noch kein Grundriss hinterlegt.</div>)}
+    {offen && <div>
+      <div style={{fontSize:12,color:"#6e6a62",marginBottom:6}}>Klicke auf das Zimmer im Grundriss.</div>
+      {bild ? <div onClick={klick} style={{position:"relative",cursor:"crosshair",border:"1px solid #e1d8c5",borderRadius:6,overflow:"hidden"}}>
+        <img src={bild} alt="Grundriss" style={{display:"block",width:"100%"}} draggable={false}/>
+        {pos && <div style={{position:"absolute",left:`${pos.x*100}%`,top:`${pos.y*100}%`,width:36,height:36,marginLeft:-18,marginTop:-18,borderRadius:"50%",background:"rgba(214,69,46,.28)",border:"3px solid #d6452e",pointerEvents:"none"}}/>}
+      </div> : !fehler && <div style={{fontSize:12,color:"#8a8478"}}>Grundriss wird geladen…</div>}
+      <div style={{display:"flex",gap:8,marginTop:8}}>
+        <button className="btn btn-sm btn-p" disabled={!pos||!bild||speichert} onClick={speichern}>{speichert?"Speichert…":"Markierung speichern"}</button>
+        <button className="btn btn-sm" onClick={()=>setOffen(false)}>Abbrechen</button>
+      </div>
+    </div>}
+    {fehler && <div style={{fontSize:12,color:"#9b4a3e",marginTop:6}}>{fehler}</div>}
+  </div>;
+}
+
 function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTenant,updateTenant,navigateTo,navTarget,istAdmin=true}){
   const [filter,setFilter]=useState("alle");
   const vmRechte = useVmRechte([rooms, tenants]);
@@ -222,6 +303,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
           <div className="fg"><label className="fl">Miete CHF/Mt.</label><input className="fi" type="number" value={form.miete||""} onChange={F("miete")}/></div>
         </div>
         <div className="fg"><label className="fl">Lage für Mieter (steht in der Einzugsmail)</label><input className="fi" value={form.lage_mieter||""} onChange={F("lage_mieter")} placeholder="z.B. 2. Tür links im Gang, mit Balkon"/></div>
+        <GrundrissMarker key={form.id} apt={apts.find(a=>a.id===form.aptId)} room={form} onSaved={async (f)=>{ await updateRoom(form.id,f); setForm(p=>({...p,...f})); }}/>
         {(() => { const t = form.tenantId ? tenants.find(x => x.id === form.tenantId) : null; if (!t) return null; const mz = (t.mietzins != null && t.mietzins !== "") ? +t.mietzins : null; return <div style={{fontSize:11.5,color:"#6e6a62",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"8px 12px",marginBottom:12}}>Der Preis gilt für den nächsten Mieter (Website und neue Verträge). <MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink> zahlt weiter {mz != null ? `CHF ${mz}` : "den bisherigen Mietzins"}{t.auszug ? ` bis zum Auszug am ${t.auszug}` : ""}.</div>; })()}
         <div className="fg">
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
