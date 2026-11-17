@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
     const qmTxt = (v: unknown) => { const t = String(v ?? "").trim(); return !t ? "" : /m²|m2/i.test(t) ? t.replace(/m2/i, "m²") : `${t} m²`; };
     const objektTeile = istW
       ? [aptRow.zimmer ? `${aptRow.zimmer} ${T("Zimmer", "rooms")}` : "", qmTxt(aptRow.flaeche)].filter(Boolean)
-      : [qmTxt(roomRow.groesse), roomRow.balkon ? T("mit Balkon", "with balcony") : "", String(roomRow.lage_mieter || "").trim()].filter(Boolean);
+      : [roomRow.balkon ? T("mit Balkon", "with balcony") : "", String(roomRow.lage_mieter || "").trim()].filter(Boolean);
     const stockTxt = String(aptRow.stockwerk || "").trim();
     const wegTxt = String(aptRow.weg_mieter || "").trim();
     const infoBox = (titel: string, inhalt: string) => `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${titel}</div>${inhalt}</div>`;
@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
           const pl = `${BASE_URL}/p/${tt[0].portal_token}`;
           portalBox = `<div style="background:#211E19;border-radius:16px;padding:20px 22px;margin:0 0 20px;color:#EAE3D5;">
 <div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.3;color:#FBFAF6;margin-bottom:8px;">${T("Dein Mieterportal", "Your tenant portal")}</div>
-<div style="font-size:14px;line-height:1.6;color:#EAE3D5;margin-bottom:16px;">${T("Miete bezahlen, Dokumente, Schäden melden, Namensschild bestellen und später auch kündigen: alles an einem Ort.", "Pay rent, find your documents, report damage, order your name sign and later give notice: all in one place.")}</div>
+<div style="font-size:14px;line-height:1.6;color:#EAE3D5;margin-bottom:16px;">${istW ? T("Miete bezahlen, Dokumente, Schäden melden, Namensschild bestellen und später auch kündigen: alles an einem Ort.", "Pay rent, find your documents, report damage, order your name sign and later give notice: all in one place.") : T("Miete bezahlen, Dokumente, Schäden melden und später auch kündigen: alles an einem Ort.", "Pay rent, find your documents, report damage and later give notice: all in one place.")}</div>
 <a href="${pl}" style="display:inline-block;background:#FBFAF6;color:#211E19;text-decoration:none;padding:11px 24px;border-radius:999px;font-size:14px;font-weight:600;">${T("Zum Mieterportal", "Open tenant portal")}</a>
 </div>`;
         }
