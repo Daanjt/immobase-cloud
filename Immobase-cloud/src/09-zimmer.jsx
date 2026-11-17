@@ -45,6 +45,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
       groesse:formatGroesse(form.groesse),
       balkon:!!form.balkon,
       moebliert:!!form.moebliert,
+      lage_mieter:(form.lage_mieter||"").trim()||null,
     });
     setEditing(false);
   }
@@ -220,6 +221,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
           <div className="fg"><label className="fl">Größe</label><input className="fi" value={form.groesse||""} onChange={F("groesse")} placeholder="z.B. 14 (m² wird automatisch ergänzt)"/></div>
           <div className="fg"><label className="fl">Miete CHF/Mt.</label><input className="fi" type="number" value={form.miete||""} onChange={F("miete")}/></div>
         </div>
+        <div className="fg"><label className="fl">Lage für Mieter (steht in der Einzugsmail)</label><input className="fi" value={form.lage_mieter||""} onChange={F("lage_mieter")} placeholder="z.B. 2. Tür links im Gang, mit Balkon"/></div>
         {(() => { const t = form.tenantId ? tenants.find(x => x.id === form.tenantId) : null; if (!t) return null; const mz = (t.mietzins != null && t.mietzins !== "") ? +t.mietzins : null; return <div style={{fontSize:11.5,color:"#6e6a62",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:6,padding:"8px 12px",marginBottom:12}}>Der Preis gilt für den nächsten Mieter (Website und neue Verträge). <MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink> zahlt weiter {mz != null ? `CHF ${mz}` : "den bisherigen Mietzins"}{t.auszug ? ` bis zum Auszug am ${t.auszug}` : ""}.</div>; })()}
         <div className="fg">
           <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
