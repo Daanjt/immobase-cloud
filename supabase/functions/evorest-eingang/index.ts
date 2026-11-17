@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     const seit = new Date(Date.now() - tage * 86400000).toISOString();
     const { H, box } = await graph(sb);
     const filter = encodeURIComponent(`from/emailAddress/address eq '${ABSENDER}' and receivedDateTime ge ${seit}`);
-    const ms = await fetch(`${box}/messages?$filter=${filter}&$select=id,subject,internetMessageId,receivedDateTime&$top=50`, { headers: H }).then((r) => r.json());
+    const ms = await fetch(`${box}/messages?$filter=${filter}&$select=id,subject,internetMessageId,receivedDateTime,body&$top=50`, { headers: H }).then((r) => r.json());
     const mails = (ms.value || []).filter((m: any) => /Einzahlungsbest/i.test(m.subject || ""));
     const [{ data: apts }, { data: rooms }, { data: tenants }] = await Promise.all([
       sb.from("apartments").select("id,adresse,refnr"),
@@ -59,6 +59,24 @@ Deno.serve(async (req) => {
       const ids = new Set<string>((rooms || []).filter((r: any) => r.apt_id === apt.id && r.tenant_id).map((r: any) => r.tenant_id));
       (tenants || []).forEach((t: any) => { if ((t.room_id && raumIds.has(t.room_id)) || t.apt_id === apt.id) ids.add(t.id); });
       const mailTag = new Date(m.receivedDateTime);
+      // 1. Wahl: Name des Hauptmieters aus der Mail ("Hauptmieter: Nachname Vorname")
+      const plain = String(m.body?.content || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+      const hm = (plain.match(/Hauptmieter:\s*([^:]+?)\s+(?:IBAN|Mitmieter|Objekt|Adresse|$)/i) || [])[1] || "";
+      const nn = (x: string) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const hmTeile = nn(hm).split(/[\s,]+/).filter(Boolean);
+      const perName = hmTeile.length ? (tenants || []).filter((t: any) => ids.has(t.id) && (t.status || "aktiv") !== "archiviert" && nn(t.vorname) && nn(t.nachname)
+        && nn(t.vorname).split(/\s+/).every((w) => hmTeile.includes(w)) && nn(t.nachname).split(/\s+/).every((w) => hmTeile.includes(w))) : [];
+      if (perName.length === 1) {
+        const t = perName[0];
+        if (!t.kaution_eingegangen_am) {
+          const datum = String(m.receivedDateTime).slice(0, 10);
+          await sb.from("tenants").update({ kaution_eingegangen_am: datum }).eq("id", t.id);
+          t.kaution_eingegangen_am = datum;
+        }
+        await log("ok", { apt_id: apt.id, tenant_id: t.id, info: { ref, ueber: "name", datum: t.kaution_eingegangen_am } });
+        continue;
+      }
+      // 2. Wahl: einziger Mieter dieser Wohnung mit offener Kaution und Einzug in der Naehe
       const kand = (tenants || []).filter((t: any) => ids.has(t.id) && (t.status || "aktiv") !== "archiviert" && !t.kaution_eingegangen_am && Number(t.kaution_monate ?? 1) !== 0)
         .filter((t: any) => { const e = pd(t.einzug); if (!e) return false; const d = (e.getTime() - mailTag.getTime()) / 86400000; return d > -90 && d < 120; });
       if (kand.length !== 1) { await log("unklar", { apt_id: apt.id, info: { ref, adresse: adr, kandidaten: kand.map((t: any) => t.id) } }); continue; }
