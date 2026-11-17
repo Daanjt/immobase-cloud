@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
       : T("Bitte prüfe die Wohnung und das Zimmer sorgfältig und dokumentiere allfällige Mängel mit Foto und kurzer Beschreibung. Das schützt dich bei der Rückgabe.", "Please check the apartment and your room carefully and document any defects with a photo and a short description. This protects you when you move out.");
 
     // Optional: Einzugsinfo (Schluesselbox mit Standort, Code, Bild + Hausinfos) gleich mitschicken
-    let einzugBox = "";
+    let einzugBox = "", keyBox = "", hausBox = "", portalBox = "";
     if (einzugsinfo && p.apt_id) {
       const kbs = await rest(`keyboxes?apartment_id=eq.${encodeURIComponent(p.apt_id)}&select=bezeichnung,standort,code,bild_path&order=sort.asc`);
       const zeilen: string[] = [];
@@ -130,8 +130,16 @@ Deno.serve(async (req: Request) => {
         const lg = await rest(`liegenschaften?adresse=eq.${encodeURIComponent(p.apt_adresse)}&select=hausinfos,hausinfos_en`);
         hausinfos = String((en ? (lg[0]?.hausinfos_en || lg[0]?.hausinfos) : lg[0]?.hausinfos) || "").trim();
       }
-      if (zeilen.length) einzugBox += `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Dein Schlüssel", "Your key")}</div>${zeilen.join('<div style="height:8px"></div>')}</div>`;
-      if (hausinfos) einzugBox += `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Infos zum Haus", "About the building")}</div>${esc(hausinfos).replace(/\n/g, "<br>")}</div>`;
+      if (zeilen.length) keyBox = `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Dein Schlüssel", "Your key")}</div><div style="margin-bottom:6px;">${T("Dein Schlüssel liegt in dieser Schlüsselbox:", "Your key is in this key box:")}</div>${zeilen.join('<div style="height:8px"></div>')}</div>`;
+      if (hausinfos) hausBox = `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Infos zum Haus", "About the building")}</div>${esc(hausinfos).replace(/\n/g, "<br>")}</div>`;
+      if (p.tenant_id) {
+        const tt = await rest(`tenants?id=eq.${encodeURIComponent(p.tenant_id)}&select=portal_token,portal_gesperrt`);
+        if (tt[0]?.portal_token && !tt[0]?.portal_gesperrt) {
+          const pl = `${BASE_URL}/p/${tt[0].portal_token}`;
+          portalBox = `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Dein Mieterportal", "Your tenant portal")}</div>${T("Im Mieterportal findest du den QR-Code für die Miete und die Infos zum Haus, und dort meldest du auch Schäden.", "In your tenant portal you will find the QR code for your rent and the building info, and you can report damage there.")}<div style="margin-top:8px;"><a href="${pl}" style="color:#1a1814;font-weight:600;">${T("Zum Mieterportal", "Open tenant portal")}</a></div></div>`;
+        }
+      }
+      einzugBox = keyBox + hausBox + portalBox;
     }
 
     const logoB64 = vorschau ? null : await ladeLogo();
@@ -145,10 +153,10 @@ Deno.serve(async (req: Request) => {
 <div style="background:#fff;border:1px solid #e1d8c5;border-radius:14px;padding:30px 28px;">
 <div style="font-size:10px;color:#8a8174;letter-spacing:.25em;text-transform:uppercase;margin-bottom:12px;">${T("Willkommen", "Welcome")}</div>
 <p style="font-size:14.5px;margin:0 0 14px;">Hi ${name},</p>
-${einzugBox ? `<p style="font-size:14px;margin:0 0 18px;">${T(`es ist alles bereit für deinen Einzug! Hier findest du deinen Schlüssel, die wichtigsten Infos zum Haus und den Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.`, `everything is ready for your move-in! Here you will find your key, the most important information about the building and the link to your digital <strong>handover protocol</strong>.`)}</p>` : `<p style="font-size:14px;margin:0 0 18px;">${T("herzlich willkommen in deinem neuen Zuhause! Wir freuen uns, dass du da bist. Hier ist der Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.", "welcome to your new home! We are glad to have you. Here is the link to your digital <strong>handover protocol</strong>.")}</p>`}
+${einzugBox ? `<p style="font-size:14px;margin:0 0 18px;">${T(`es ist alles bereit für deinen Einzug!${keyBox ? " Dein Schlüssel liegt in der Schlüsselbox, so kannst du ganz selbstständig rein." : ""} Unten findest du alles für deinen Start: das <strong>Übernahmeprotokoll</strong>, das WLAN, die Infos zum Haus und dein Mieterportal.`, `everything is ready for your move-in!${keyBox ? " Your key is in the key box, so you can let yourself in." : ""} Below you will find everything for your start: the <strong>handover protocol</strong>, the Wi-Fi, the building info and your tenant portal.`)}</p>` : `<p style="font-size:14px;margin:0 0 18px;">${T("herzlich willkommen in deinem neuen Zuhause! Wir freuen uns, dass du da bist. Hier ist der Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.", "welcome to your new home! We are glad to have you. Here is the link to your digital <strong>handover protocol</strong>.")}</p>`}
 ${(aptAdr || objektZeile) ? `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;">${aptAdr ? `<div>📍 ${esc(aptAdr)}</div>` : ""}${objektZeile}</div>` : ""}
-${einzugBox}${wlanBox}
-<p style="font-size:14px;margin:0 0 18px;">${pruefText}</p>
+${einzugBox ? keyBox : wlanBox}
+<p style="font-size:14px;margin:0 0 18px;">${einzugBox ? T("<strong>Sobald du drin bist</strong>, füllst du das digitale Übernahmeprotokoll aus: Halte darin alle Mängel fest, die du siehst, am besten mit Foto. Das schützt dich bei der Rückgabe.", "<strong>Once you are inside</strong>, please complete the digital handover protocol: record any defects you see, ideally with a photo. This protects you when you move out.") : pruefText}</p>
 ${abschlussBox(en)}
 <div style="background:#fdf7e8;border:1px solid #e8d2a8;border-radius:8px;padding:12px 16px;margin:0 0 22px;font-size:13px;color:#8a6a2e;line-height:1.5;">
 ⚠️ ${T(`Du hast ab deinem Einzug <strong>14 Tage</strong> Zeit, das Protokoll auszufüllen. Frist: <strong>${deadline}</strong>. Danach gilt die Wohnung automatisch als in einwandfreiem Zustand übernommen.`, `You have <strong>14 days</strong> from your move-in to complete the protocol. Deadline: <strong>${deadline}</strong>. After that, the apartment is deemed to have been handed over in perfect condition.`)}
@@ -156,6 +164,7 @@ ${abschlussBox(en)}
 <div style="text-align:center;margin:28px 0;">
 <a href="${url}" style="display:inline-block;background:#1a1814;color:#fff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.02em;">${T("Übernahmeprotokoll ausfüllen", "Complete handover protocol")}</a>
 </div>
+${einzugBox ? wlanBox + hausBox + portalBox : ""}
 <p style="font-size:12px;color:#6e6a62;margin:24px 0 0;padding-top:18px;border-top:1px solid #f0eadd;">${T("Oder kopiere diesen Link in deinen Browser:", "Or copy this link into your browser:")}<br><span style="color:#1a1814;word-break:break-all;">${url}</span></p>
 <p style="font-size:12px;color:#6e6a62;margin:14px 0 0;">${T("Bei Fragen:", "Questions?")} <a href="mailto:info@dthomes.ch" style="color:#5a5448;">info@dthomes.ch</a> ${T("oder per WhatsApp", "or via WhatsApp")} <a href="https://wa.me/41766887091" style="color:#5a5448;">+41 76 688 70 91</a>.</p>
 </div>
