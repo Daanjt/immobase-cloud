@@ -195,7 +195,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   }
   const oeffneStart = (eintrag, mitInfos) => {
     const t = eintrag.tenant;
-    setMitEinzugsinfo(!!mitInfos || (!t.einzugsinfoGesendetAt && (Number(t.kautionMonate) === 0 || !!t.kautionEingegangenAm)));
+    setMitEinzugsinfo(true); // Infos und Protokoll gehen immer zusammen raus
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
@@ -355,8 +355,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
                 let aktion;
                 if (s.kategorie === "review") aktion = {txt:"📥 Prüfen & abschicken", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
-                else if (s.kategorie === "todo" && ((x.kaution && x.miete) || s.unversendet || s.daysTilEinzug == null || s.daysTilEinzug <= 3)) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart({...s, zahlung:x}, true);}, primaer:(x.kaution && x.miete) || !!s.unversendet || (s.daysTilEinzug != null && s.daysTilEinzug <= 0)};
-                else if (false) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
+                else if (s.kategorie === "todo") aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart({...s, zahlung:x}, true);}, primaer:(x.kaution && x.miete) || !!s.unversendet || (s.daysTilEinzug != null && s.daysTilEinzug <= 0)};
                 else if (s.kategorie === "waiting" && !x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
                 const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
@@ -497,10 +496,11 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <textarea value={wgText} onChange={e=>setWgText(e.target.value)} rows={2} placeholder="z.B. 1x Keller, 1x Waschküche"
                 style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
             </>)}
-            <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:12.5,lineHeight:1.45,margin:"0 0 16px",cursor:"pointer",background:"#f6f1e8",borderRadius:8,padding:"10px 12px"}}>
-              <input type="checkbox" checked={mitEinzugsinfo} onChange={e=>setMitEinzugsinfo(e.target.checked)} style={{marginTop:2}}/>
-              <span><b>🔑 Einzugsinfo mitschicken</b><br/><span style={{color:"var(--muted)"}}>Schlüsselbox (Standort, Code, Bild) und Hausinfos kommen in dieselbe Mail.{startFor.zahlung && (!startFor.zahlung.kaution || !startFor.zahlung.miete) ? ` Achtung: ${[!startFor.zahlung.kaution && "Kaution", !startFor.zahlung.miete && "1. Miete"].filter(Boolean).join(" und ")} noch nicht als eingegangen erfasst.` : ""}</span></span>
-            </label>
+            {startFor.zahlung && (!startFor.zahlung.kaution || !startFor.zahlung.miete) && (
+              <div style={{fontSize:12.5,lineHeight:1.45,margin:"0 0 16px",background:"#fdf1e8",border:"1px solid #ecc9b0",color:"#8a4a2a",borderRadius:8,padding:"10px 12px"}}>
+                ⚠️ {[!startFor.zahlung.kaution && "Kaution", !startFor.zahlung.miete && "1. Miete"].filter(Boolean).join(" und ")} noch nicht als eingegangen erfasst. Die Mail enthält den Code der Schlüsselbox.
+              </div>
+            )}
             </>}
             {mitEinzugsinfo && <EinzugsDatenCheck key={startFor.tenant?.id} apt={startFor.apt} room={startFor.room} updateApt={updateApt} updateRoom={updateRoom} speichernRef={einzugsDatenRef} sichtbar={startSchritt===2} onStatus={setDatenFehlt}/>}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",position:"sticky",bottom:0,background:"var(--surface)",padding:"10px 0 16px",borderTop:"1px solid var(--line)"}}>
