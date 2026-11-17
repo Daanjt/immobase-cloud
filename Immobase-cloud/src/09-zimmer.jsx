@@ -67,9 +67,9 @@ function GrundrissMarker({apt, room, onSaved}){
       : <div style={{fontSize:12,color:"#8a8478"}}>Für diese Wohnung ist noch kein Grundriss hinterlegt.</div>)}
     {offen && <div>
       <div style={{fontSize:12,color:"#6e6a62",marginBottom:6}}>Klicke auf das Zimmer im Grundriss.</div>
-      {bild ? <div onClick={klick} style={{position:"relative",cursor:"crosshair",border:"1px solid #e1d8c5",borderRadius:6,overflow:"hidden"}}>
-        <img src={bild} alt="Grundriss" style={{display:"block",width:"100%"}} draggable={false}/>
-        {pos && <div style={{position:"absolute",left:`${pos.x*100}%`,top:`${pos.y*100}%`,width:36,height:36,marginLeft:-18,marginTop:-18,borderRadius:"50%",background:"rgba(214,69,46,.28)",border:"3px solid #d6452e",pointerEvents:"none"}}/>}
+      {bild ? <div onClick={klick} style={{position:"relative",cursor:"crosshair",border:"1px solid #e1d8c5",borderRadius:6,overflow:"hidden",width:"fit-content",maxWidth:"100%"}}>
+        <img src={bild} alt="Grundriss" style={{display:"block",maxWidth:"100%",maxHeight:320,width:"auto"}} draggable={false}/>
+        {pos && <div style={{position:"absolute",left:`${pos.x*100}%`,top:`${pos.y*100}%`,width:26,height:26,marginLeft:-13,marginTop:-13,borderRadius:"50%",background:"rgba(214,69,46,.28)",border:"3px solid #d6452e",pointerEvents:"none"}}/>}
       </div> : !fehler && <div style={{fontSize:12,color:"#8a8478"}}>Grundriss wird geladen…</div>}
       <div style={{display:"flex",gap:8,marginTop:8}}>
         <button className="btn btn-sm btn-p" disabled={!pos||!bild||speichert} onClick={speichern}>{speichert?"Speichert…":"Markierung speichern"}</button>
