@@ -116,8 +116,10 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
   const [extraText, setExtraText] = useState("");
   const [wgText, setWgText] = useState("");
   const [starting, setStarting] = useState(false);
+  const [mitEinzugsinfo, setMitEinzugsinfo] = useState(false);
   const oeffneStart = (eintrag) => {
     const t = eintrag.tenant;
+    setMitEinzugsinfo(!t.einzugsinfoGesendetAt && (Number(t.kautionMonate) === 0 || !!t.kautionEingegangenAm));
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
@@ -415,6 +417,10 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <textarea value={wgText} onChange={e=>setWgText(e.target.value)} rows={2} placeholder="z.B. 1x Keller, 1x Waschküche"
                 style={{width:"100%",padding:"8px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,marginBottom:16,fontFamily:"inherit",resize:"vertical"}}/>
             </>)}
+            <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:12.5,lineHeight:1.45,margin:"0 0 16px",cursor:"pointer",background:"#f6f1e8",borderRadius:8,padding:"10px 12px"}}>
+              <input type="checkbox" checked={mitEinzugsinfo} onChange={e=>setMitEinzugsinfo(e.target.checked)} style={{marginTop:2}}/>
+              <span><b>🔑 Einzugsinfo mitschicken</b><br/><span style={{color:"var(--muted)"}}>Schlüsselbox (Standort, Code, Bild) und Hausinfos kommen in dieselbe Mail.{startFor.tenant && !startFor.tenant.kautionEingegangenAm && Number(startFor.tenant.kautionMonate)!==0 ? " Achtung: Kaution noch nicht eingegangen." : ""}</span></span>
+            </label>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button className="btn btn-g btn-sm" disabled={starting} onClick={()=>setStartFor(null)}>Abbrechen</button>
               <button className="btn btn-sm" disabled={starting}
@@ -449,7 +455,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                       einzugDatum: t.einzug || null,
                       schluesselInfo: snapshot || null,
                       schluesselData,
+                      einzugsinfo: mitEinzugsinfo,
                     });
+                    if (mitEinzugsinfo) await updateTenant(t.id, { einzugsinfoGesendetAt: new Date().toISOString() });
                     setStartFor(null);
                   } catch(e) {
                     alert("Fehler: " + (e.message || e));

@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
   if (!(await istAdminOderServer(req))) return json({ error: "Nicht berechtigt" }, 403);
 
   try {
-    const { protocolId } = await req.json();
+    const { protocolId, einzugsinfo } = await req.json();
     if (!protocolId) return json({ error: "Missing protocolId" }, 400);
     const protocols = await rest(`handover_protocols?id=eq.${encodeURIComponent(protocolId)}&select=*`);
     if (!protocols.length) return json({ error: "Protocol not found" }, 404);
@@ -105,6 +105,35 @@ Deno.serve(async (req: Request) => {
       ? T("Bitte prüfe die Wohnung sorgfältig, Raum für Raum, und dokumentiere allfällige Mängel mit Foto und kurzer Beschreibung. Das schützt dich bei der Rückgabe.", "Please check the apartment carefully, room by room, and document any defects with a photo and a short description. This protects you when you move out.")
       : T("Bitte prüfe die Wohnung und das Zimmer sorgfältig und dokumentiere allfällige Mängel mit Foto und kurzer Beschreibung. Das schützt dich bei der Rückgabe.", "Please check the apartment and your room carefully and document any defects with a photo and a short description. This protects you when you move out.");
 
+    // Optional: Einzugsinfo (Schluesselbox mit Standort, Code, Bild + Hausinfos) gleich mitschicken
+    let einzugBox = "";
+    if (einzugsinfo && p.apt_id) {
+      const kbs = await rest(`keyboxes?apartment_id=eq.${encodeURIComponent(p.apt_id)}&select=bezeichnung,standort,code,bild_path&order=sort.asc`);
+      const zeilen: string[] = [];
+      for (const k of (kbs || []).filter((k: any) => (k.code || "").trim() || k.bild_path)) {
+        let bild = "";
+        if (k.bild_path) {
+          const r = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/documents/${k.bild_path}`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 30 * 86400 }) });
+          const j = r.ok ? await r.json() : null;
+          if (j && j.signedURL) bild = `${SUPABASE_URL}/storage/v1${j.signedURL}`;
+        }
+        const name = String(k.bezeichnung || "Keybox").trim();
+        zeilen.push([
+          (kbs.length > 1 || !/^keybox$/i.test(name)) ? `<div style="font-weight:600;">${esc(name)}</div>` : "",
+          (k.standort || "").trim() ? `<div>📍 ${T("Standort", "Location")}: ${esc(k.standort.trim())}</div>` : "",
+          (k.code || "").trim() ? `<div>🔢 Code: <strong style="letter-spacing:.12em;">${esc(k.code.trim())}</strong></div>` : "",
+          bild ? `<div><a href="${bild}" style="color:#1a1814;">${T("Bild der Schlüsselbox ansehen", "View photo of the key box")}</a></div>` : "",
+        ].filter(Boolean).join(""));
+      }
+      let hausinfos = "";
+      if (p.apt_adresse) {
+        const lg = await rest(`liegenschaften?adresse=eq.${encodeURIComponent(p.apt_adresse)}&select=hausinfos,hausinfos_en`);
+        hausinfos = String((en ? (lg[0]?.hausinfos_en || lg[0]?.hausinfos) : lg[0]?.hausinfos) || "").trim();
+      }
+      if (zeilen.length) einzugBox += `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Dein Schlüssel", "Your key")}</div>${zeilen.join('<div style="height:8px"></div>')}</div>`;
+      if (hausinfos) einzugBox += `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;"><div style="font-size:10px;color:#8a8174;letter-spacing:.22em;text-transform:uppercase;margin-bottom:8px;">${T("Infos zum Haus", "About the building")}</div>${esc(hausinfos).replace(/\n/g, "<br>")}</div>`;
+    }
+
     const logoB64 = await ladeLogo();
     const logoSrc = logoB64 ? "cid:dt-logo" : LOGO_URL;
     const subject = T("Dein Übernahmeprotokoll bei D&T Homes: bitte innert 14 Tagen ausfüllen", "Your handover protocol at D&T Homes: please complete within 14 days");
@@ -116,7 +145,7 @@ Deno.serve(async (req: Request) => {
 <p style="font-size:14.5px;margin:0 0 14px;">Hi ${name},</p>
 <p style="font-size:14px;margin:0 0 18px;">${T("herzlich willkommen in deinem neuen Zuhause! Wir freuen uns, dass du da bist. Hier ist der Link zu deinem digitalen <strong>Übernahmeprotokoll</strong>.", "welcome to your new home! We are glad to have you. Here is the link to your digital <strong>handover protocol</strong>.")}</p>
 ${(aptAdr || objektZeile || einzug) ? `<div style="background:#faf8f3;border-left:3px solid #1a1814;padding:14px 18px;margin:0 0 20px;font-size:13.5px;line-height:1.7;">${aptAdr ? `<div>📍 ${esc(aptAdr)}</div>` : ""}${objektZeile}${einzug ? `<div style="margin-top:4px;color:#5a5044;font-size:12.5px;">${T("Einzug", "Move-in")}: ${einzug}</div>` : ""}</div>` : ""}
-${wlanBox}
+${einzugBox}${wlanBox}
 <p style="font-size:14px;margin:0 0 18px;">${pruefText}</p>
 ${abschlussBox(en)}
 <div style="background:#fdf7e8;border:1px solid #e8d2a8;border-radius:8px;padding:12px 16px;margin:0 0 22px;font-size:13px;color:#8a6a2e;line-height:1.5;">
@@ -149,7 +178,13 @@ ${abschlussBox(en)}
       method: "PATCH", headers: { ...H, "Content-Type": "application/json", Prefer: "return=minimal" },
       body: JSON.stringify({ invite_sent_at: new Date().toISOString(), invite_email_error: null }),
     });
-    return json({ ok: true, emailId: resendData.id, url, to: p.mieter_email });
+    if (einzugBox && p.tenant_id) {
+      await fetch(`${SUPABASE_URL}/rest/v1/tenants?id=eq.${encodeURIComponent(p.tenant_id)}`, {
+        method: "PATCH", headers: { ...H, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ einzugsinfo_gesendet_at: new Date().toISOString() }),
+      });
+    }
+    return json({ ok: true, emailId: resendData.id, url, to: p.mieter_email, einzugsinfo: !!einzugBox });
   } catch (err) {
     console.error("send-handover-invite error:", err);
     return json({ error: String((err as Error).message || err) }, 500);

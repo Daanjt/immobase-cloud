@@ -997,7 +997,7 @@ function useSupabaseData() {
     return () => { document.removeEventListener("visibilitychange", sichtbar); window.removeEventListener("focus", sichtbar); clearInterval(iv); };
   }, []);
   
-  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum }) {
+  async function startHandoverProtocol({ bewerberId, contractId, aptId, roomId, mieterEmail, mieterVorname, mieterNachname, tenantId, schluesselInfo, schluesselData, mieterGeburtsdatum, mieterNationalitaet, mieterTelefon, mieterAdresse, aptAdresse, aptPlz, aptOrt, roomLabel, einzugDatum, einzugsinfo }) {
     const now = new Date();
     const deadline = new Date(now.getTime() + 14*24*60*60*1000);
     const { data, error } = await supabase.from("handover_protocols").insert({
@@ -1030,7 +1030,7 @@ function useSupabaseData() {
     
     // Trigger Einladungs-Email an Mieter (fire-and-forget, blockiert nicht wenn fehlschlaegt)
     if (data?.id && data?.mieter_email) {
-      supabase.functions.invoke("handover-einladen", { body: { protocolId: data.id } })
+      supabase.functions.invoke("handover-einladen", { body: { protocolId: data.id, einzugsinfo: !!einzugsinfo } })
         .then(({ error: emailError }) => {
           if (emailError) console.warn("send-handover-invite failed:", emailError);
           else console.log("Einladungs-Email versendet an", data.mieter_email);
