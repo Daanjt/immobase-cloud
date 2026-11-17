@@ -71,11 +71,11 @@ function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef, sich
   const inp={width:"100%",padding:"7px 10px",border:"1px solid var(--line)",borderRadius:6,fontSize:13,fontFamily:"inherit",background:"#fff"};
   return <div style={{margin:"0 0 14px"}}>
     <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.5,marginBottom:4}}>Diese Angaben fehlen noch für die Einzugsmail. Sie werden bei der Wohnung, beim Zimmer bzw. bei der Liegenschaft gespeichert. Was leer bleibt, lässt die Mail weg.</div>
-    {anfang.weg && <><label style={lab}>So findest du die Wohnung</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={weg} onChange={e=>setWeg(e.target.value)} placeholder="z.B. Eingang im Hinterhof, Lift bis 2. OG, Tür rechts. An der Klingel steht D&T Homes"/></>}
     {boxenOhneStandort.map(b=><div key={b.id}><label style={lab}>Standort {b.bezeichnung||"Keybox"}</label><input style={inp} value={standorte[b.id]||""} onChange={e=>setStandorte(p=>({...p,[b.id]:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div>)}
     {keineBox && <><label style={lab}>Schlüsselbox: Code und Standort</label><div style={{display:"flex",gap:8}}>
       <input style={{...inp,flex:"0 0 90px",fontFamily:"monospace"}} value={neuBox.code} onChange={e=>setNeuBox(p=>({...p,code:e.target.value}))} placeholder="Code" autoComplete="off"/>
       <input style={inp} value={neuBox.standort} onChange={e=>setNeuBox(p=>({...p,standort:e.target.value}))} placeholder="z.B. links neben dem Hauseingang"/></div></>}
+    {anfang.weg && <><label style={lab}>So findest du die Wohnung</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={weg} onChange={e=>setWeg(e.target.value)} placeholder="z.B. Eingang im Hinterhof, Lift bis 2. OG, Tür rechts. An der Klingel steht D&T Homes"/></>}
     {istWG && anfang.lage && <><label style={lab}>Lage des Zimmers</label><input style={inp} value={lage} onChange={e=>setLage(e.target.value)} placeholder="z.B. 2. Tür links im Gang"/></>}
     {istWG && anfang.grundriss && <div style={{marginTop:10}}><GrundrissMarker apt={apt} room={raum} onSaved={async f=>{ await updateRoom(room.id,f); setRaum(r=>({...r,...f})); }}/></div>}
     {hausFehlt && <><label style={lab}>Hausinfos für {apt.adresse}</label><textarea rows={3} style={{...inp,resize:"vertical"}} value={haus} onChange={e=>setHaus(e.target.value)} placeholder="z.B. Abfall, Waschküche, Velokeller"/></>}
