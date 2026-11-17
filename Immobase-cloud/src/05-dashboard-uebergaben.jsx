@@ -109,7 +109,9 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       const sorted = [...myHandovers].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
       const latest = sorted[0];
       let kategorie;
-      if (!latest) kategorie = "todo";
+      // Angelegt, aber die Mail ging nie raus (z.B. Vorschau geschlossen): gilt als nicht gestartet
+      const unversendet = latest && latest.status === "sent" && !latest.inviteSentAt ? latest : null;
+      if (!latest || unversendet) kategorie = "todo";
       else if (["sent","in_progress"].includes(latest.status)) kategorie = "waiting";
       else if (latest.status === "submitted") kategorie = "review";
       else if (["accepted","auto_accepted"].includes(latest.status)) kategorie = "done";
@@ -120,7 +122,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
       if (!istLaufend && ((t.uebergabeStatus||"offen")==="erledigt" || hatAltesProtokoll)) kategorie = "done";
       const einzugDate = parseD(t.einzug);
       const daysTilEinzug = einzugDate ? Math.ceil((einzugDate - heute) / (1000*60*60*24)) : null;
-      return { tenant: t, room, apt, einzugDate, daysTilEinzug, kategorie, latest };
+      return { tenant: t, room, apt, einzugDate, daysTilEinzug, kategorie, latest, unversendet };
     })
     .filter(Boolean)
     .sort((a, b) => {
@@ -349,11 +351,12 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 const t = s.tenant, x = st(t);
                 const prot = s.kategorie === "review" ? {txt:"eingereicht · bitte prüfen", ok:false, farbe:"#2f4a63"}
                   : s.kategorie === "waiting" ? {txt: s.latest && s.latest.deadline ? `läuft bis ${new Date(s.latest.deadline).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}` : "läuft", ok:false, farbe:"#7a5c3c"}
-                  : s.kategorie === "done" ? {txt:"✓ erledigt", ok:true, farbe:"#3a5230"} : {txt:"nicht gestartet", ok:false, farbe:"#a39a8a"};
+                  : s.kategorie === "done" ? {txt:"✓ erledigt", ok:true, farbe:"#3a5230"} : s.unversendet ? {txt:"Mail noch nicht verschickt", ok:false, farbe:"#9b4a3e"} : {txt:"nicht gestartet", ok:false, farbe:"#a39a8a"};
                 const einzugsinfo = (e) => { e.stopPropagation(); if (!(x.kaution && x.miete) && !window.confirm("Kaution oder erste Miete sind noch nicht als eingegangen erfasst. Einzugsinfo trotzdem vorbereiten?")) return; window.__kommVorlage = { tenantId: t.id, name: "Einzug: Schlüsselbox" }; navigateTo && navigateTo("mieter", t.id); };
                 let aktion;
                 if (s.kategorie === "review") aktion = {txt:"📥 Prüfen & abschicken", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:true};
                 else if (s.kategorie === "todo" && x.kaution && x.miete) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart(s, true);}, primaer:true};
+                else if (s.kategorie === "todo" && s.unversendet) aktion = {txt:"🔑 Infos & Protokoll senden", fn:(e)=>{e.stopPropagation(); oeffneStart(s, true);}, primaer:true};
                 else if (s.kategorie === "todo" && (s.daysTilEinzug == null || s.daysTilEinzug <= 0)) aktion = {txt:"📋 Protokoll starten", fn:(e)=>{e.stopPropagation(); oeffneStart(s);}, primaer:true};
                 else if (s.kategorie === "waiting" && !x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
@@ -512,6 +515,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                   setStarting(true);
                   try {
                     if (mitEinzugsinfo && einzugsDatenRef.current) await einzugsDatenRef.current();
+                    if (startFor.unversendet && deleteHandoverProtocol) { try { await deleteHandoverProtocol(startFor.unversendet.id); } catch(_){} }
                     const nCount = Math.max(0, parseInt(normalCount)||0);
                     const t = startFor.tenant;
                     const extraTrim = (extraText||"").trim();
