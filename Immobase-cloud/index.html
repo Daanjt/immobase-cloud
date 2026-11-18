@@ -1403,6 +1403,24 @@ select:not([multiple]):focus{outline:none;border-color:#8a7d63;box-shadow:0 0 0 
 select:not([multiple]):disabled{cursor:default;opacity:.6}
 select:not([multiple]) option{color:var(--ink);background:#fff}
 select::-ms-expand{display:none}
+
+/* ── Kachel-Stil wie die Übergaben-Übersicht: weiche Karten, ruhige Beschriftung, runde Knöpfe ── */
+.card{border-color:#e6dfd1;border-radius:14px;padding:24px 26px}
+.ct{font-size:16px;font-weight:600;letter-spacing:0;padding-bottom:12px;margin-bottom:16px}
+.sg{background:transparent;border:none;gap:12px}
+.sc{border:1px solid #e6dfd1;border-radius:14px}
+.sc:hover{background:#fffdf8}
+.sl{font-size:10px;letter-spacing:.14em;font-weight:600;color:#8a8478}
+.sv{font-weight:400}
+.fl{font-size:10px;letter-spacing:.12em;font-weight:600;color:#8a8478}
+.btn{border-radius:999px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;padding:9px 18px}
+.btn-sm{font-size:11.5px;padding:6px 14px}
+.btn-g:hover{border-color:#cbbfa6;background:#fffdf8}
+.btn-p:hover{opacity:.9}
+.modal{border-radius:16px}
+.mt{font-size:20px;font-weight:600;letter-spacing:0}
+.empty{font-style:normal;background:#fefcf7;border:1px dashed #e1d8c5;border-radius:12px}
+@media (max-width:720px){.sg{gap:10px}.card{border-radius:12px!important}}
 </style>
 </head>
 <body>
