@@ -592,7 +592,7 @@ function useSupabaseData() {
   
   async function loadProtokolle() {
     try {
-      const {data, error} = await supabase.from("uebergabe_protokolle").select("*").order("created_at", {ascending: false});
+      const {data, error} = await supabase.from("uebergabe_protokolle").select("id,tenant_id,apt_id,room_id,datum,schluessel_nr,extra_schluessel,bemerkungen,custom_raume,signed_at,status,created_at,updated_at,email_sent_at,pdf_storage_path,schluessel_data").order("created_at", {ascending: false});
       if (error) {
         console.warn("Protokolle-Tabelle nicht eingerichtet (SQL-Setup ausführen):", error.message);
         return;
@@ -912,7 +912,7 @@ function useSupabaseData() {
   
   async function loadHandoverProtocols() {
     try {
-      const { data, error } = await supabase.from("handover_protocols").select("*").order("started_at", { ascending: false });
+      const { data, error } = await supabase.from("handover_protocols").select("id,token,contract_id,bewerber_id,tenant_id,apt_id,room_id,type,status,started_at,deadline,opened_at,submitted_at,auto_accepted_at,closed_at,mieter_email,mieter_vorname,mieter_nachname,photos,mangel_notes,hat_unterschrift,reminder_7d_sent_at,reminder_12d_sent_at,auto_accept_email_sent_at,bemerkung,created_at,updated_at,schluessel_info,schluessel_uebergeben_am,mieter_geburtsdatum,mieter_nationalitaet,mieter_telefon,mieter_adresse,apt_adresse,apt_plz,apt_ort,room_label,einzug_datum,custom_raeume,invite_sent_at,invite_email_error,pdf_email_sent_at,schluessel_data,objekt_typ").order("started_at", { ascending: false }); // ohne Unterschrift-Bild (gross), nur Flag
       if (error) throw error;
       setHandoverProtocols((data || []).map(h => ({
         id: h.id,
@@ -935,7 +935,7 @@ function useSupabaseData() {
         mieterNachname: h.mieter_nachname,
         photos: h.photos || [],
         mangelNotes: h.mangel_notes,
-        tenantSignature: h.tenant_signature,
+        tenantSignature: h.hat_unterschrift ? "✓ unterschrieben" : null,
         bemerkung: h.bemerkung,
         createdAt: h.created_at,
         updatedAt: h.updated_at,
