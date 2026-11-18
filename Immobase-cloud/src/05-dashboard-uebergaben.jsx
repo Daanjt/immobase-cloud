@@ -439,7 +439,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               <div style={{fontSize:11}}>Mieter mit Auszugsdatum erscheinen hier ab 90 Tagen vorher.</div>
             </div>
           ) : (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(280px, 100%), 1fr))",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(min(300px, 100%), 1fr))",gap:12}}>
               {kautionTenant && <div className="ov-x" onClick={()=>setKautionTenant(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"36px 14px",overflowY:"auto"}}>
                 <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"#f7f3eb",borderRadius:16,maxWidth:560,width:"100%"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px 4px"}}>
@@ -452,19 +452,20 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               {reminders.map(r => {
                 const cat = reminderCat(r.daysLeft, r.aptEndsToo);
                 return (
-                  <div key={r.tenant.id} onClick={()=>setKautionTenant(r.tenant)} style={{background:cat.bg,border:`1px solid ${cat.border}`,borderRadius:8,padding:"12px 14px",transition:"all .15s",cursor:"pointer"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                      <div style={{fontSize:10,fontWeight:700,color:cat.color,letterSpacing:".05em",textTransform:"uppercase"}}>{r.kautionOffen ? "Kautionsabrechnung offen" : (cat.icon+" "+cat.label)}</div>
-                      <div style={{fontSize:10,color:cat.color,fontWeight:600}}>{r.kautionOffen ? "ausgezogen" : (r.daysLeft < 0 ? `${Math.abs(r.daysLeft)} T. überfällig` : `in ${r.daysLeft} Tagen`)}</div>
+                  <div key={r.tenant.id} onClick={()=>setKautionTenant(r.tenant)} style={{background:"#fefcf7",border:"1px solid #e6dfd1",borderRadius:12,padding:"14px 16px",cursor:"pointer",display:"flex",flexDirection:"column",boxShadow: r.kautionOffen ? "inset 3px 0 0 #9b4a3e" : r.daysLeft <= 7 ? "inset 3px 0 0 #b8843e" : "none"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10}}>
+                      <div style={{fontWeight:600,fontSize:14.5,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><MieterLink id={r.tenant.id}>{r.tenant.vorname} {r.tenant.nachname}</MieterLink></div>
+                      <div style={{textAlign:"right",flexShrink:0,fontSize:12}}><b>{r.tenant.auszug || "–"}</b><div style={{fontSize:11,color: (r.kautionOffen || r.daysLeft < 0) ? "#9b4a3e" : "#8a8478"}}>{r.kautionOffen ? "ausgezogen" : (r.daysLeft < 0 ? `${Math.abs(r.daysLeft)} T. überfällig` : `in ${r.daysLeft} T.`)}</div></div>
                     </div>
-                    <div style={{fontSize:14,fontWeight:600,color:"#1a1814",marginBottom:2}}><MieterLink id={r.tenant.id}>{r.tenant.vorname} {r.tenant.nachname}</MieterLink></div>
-                    <div style={{fontSize:11,color:"#4a4439",marginBottom:6}}><ZimmerLink id={r.room?.id}>{r.room?.id||"-"}</ZimmerLink> · <WohnungLink id={r.apt?.id}>{r.apt?.adresse||"-"}</WohnungLink> · {r.tenant.auszug}</div>
-                    {r.aptEndsToo && (
-                      <div style={{fontSize:10,color:"#5a5a5a",background:"rgba(0,0,0,.05)",padding:"4px 8px",borderRadius:4,marginBottom:8,display:"inline-block",fontWeight:600,letterSpacing:".02em"}}>
-                        📅 Hauptmietvertrag endet {r.apt?.mietende}
-                      </div>
-                    )}
-                    <div style={{fontSize:10,color:cat.color,fontStyle:"italic",lineHeight:1.4,marginBottom:10}}>→ {"Anklicken zum Abrechnen der Kaution"}</div>
+                    <div style={{fontSize:12,color:"#8a8478",marginTop:2}}><WohnungLink id={r.apt?.id}>{r.apt?.adresse||"–"}</WohnungLink>{r.room?.id ? <> · <ZimmerLink id={r.room.id}>{r.room.id}</ZimmerLink></> : ""}</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,margin:"10px 0 12px"}}>
+                      <span style={{fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:999,background: r.kautionOffen ? "#fdebe5" : cat.bg,color: r.kautionOffen ? "#9b4a3e" : cat.color}}>{r.kautionOffen ? "Kautionsabrechnung offen" : cat.label}</span>
+                      {r.aptEndsToo && <span style={{fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:999,background:"#efeae0",color:"#6e6656"}}>Hauptmietvertrag endet {r.apt?.mietende}</span>}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginTop:"auto"}}>
+                      <button onClick={(e)=>{e.stopPropagation(); setKautionTenant(r.tenant);}} style={{flex:1,background: r.kautionOffen ? "#1a1814" : "transparent",color: r.kautionOffen ? "#fefcf7" : "#4a4439",border: r.kautionOffen ? "none" : "1px solid #ddd3c2",borderRadius:999,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>💰 Kaution abrechnen</button>
+                      <button onClick={(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",r.tenant.id);}} style={{background:"transparent",border:"none",color:"#8a8478",fontSize:12,cursor:"pointer",padding:"8px 4px"}}>Details</button>
+                    </div>
                     {false && <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       {!r.aptEndsToo && (
                         <button 
@@ -825,18 +826,18 @@ function Dashboard({istAdmin=true,parkVertraege=[],loadParkVertraege,parkplaetze
       {istAdmin && (<>
       {/* TOTAL OVERVIEW - 3-column hero */}
       <div className="dash-hero" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
-        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-          <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Total Ausgaben / Mt.</div>
+        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:14,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(160,136,100,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+          <div style={{fontSize:9,color:"#8a8174",textTransform:"uppercase",letterSpacing:".14em",fontWeight:600,marginBottom:12}}>Total Ausgaben / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:300,color:"#1a1814",lineHeight:1,marginBottom:6}}>{chf(totalAusgaben)}</div>
           <div style={{fontSize:11,color:"#8a8174",letterSpacing:".05em"}}>{wgApts.filter(a=>aptKat(a)==="WG").length} WG · {wgApts.filter(a=>aptKat(a)==="Wohnung").length} Wohnungen · {airbnbApts.length} Airbnb{pk.anzahl>0?` · ${pk.anzahl} Parkpl.`:""}</div>
         </div>
-        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:margeHeute>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${margeHeute>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:8,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-          <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Marge aktuell / Mt.</div>
+        <div onClick={()=>navigateTo&&navigateTo("wohnungen",null)} style={{background:margeHeute>=0?"#e8eadb":"#f0dcd5",border:`1px solid ${margeHeute>=0?"#c5cda8":"#e0bcb0"}`,borderRadius:14,padding:"24px 26px",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+          <div style={{fontSize:9,color:"#5a6e4a",textTransform:"uppercase",letterSpacing:".14em",fontWeight:600,marginBottom:12}}>Marge aktuell / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:margeHeute>=0?"#3d4f2f":"#9b4a3e",lineHeight:1,marginBottom:6}}>{margeHeute>=0?"+":""}{chf(margeHeute)}</div>
           <div style={{fontSize:11,color:"#5a6e4a",letterSpacing:".05em"}}>WGs + Wohnungen{pk.anzahl>0?" + Parkplätze":""}, ohne Airbnb</div>
         </div>
-        <div onClick={()=>navigateTo&&navigateTo("zimmer",null)} style={{background:"#1a1814",borderRadius:8,padding:"24px 26px",color:"#fefcf7",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.2)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-          <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".3em",fontWeight:500,marginBottom:14}}>Marge maximal / Mt.</div>
+        <div onClick={()=>navigateTo&&navigateTo("zimmer",null)} style={{background:"#1a1814",borderRadius:14,padding:"24px 26px",color:"#fefcf7",cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.2)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+          <div style={{fontSize:9,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".14em",fontWeight:600,marginBottom:12}}>Marge maximal / Mt.</div>
           <div style={{fontFamily:"'Manrope',sans-serif",fontSize:32,fontWeight:400,color:"#fefcf7",lineHeight:1,marginBottom:6}}>+{chf(margeMax)}</div>
           <div style={{fontSize:11,color:"#b8af9f",letterSpacing:".05em"}}>Bei 100% Belegung</div>
         </div>
