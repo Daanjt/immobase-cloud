@@ -84,6 +84,8 @@ function EinzugsDatenCheck({apt, room, updateApt, updateRoom, speichernRef, sich
 
 function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTenant,updateRoom,updateApt,handoverProtocols,documents,startHandoverProtocol,deleteHandoverProtocol,loadHandoverProtocols}){
   const [tab, setTab] = useState("einzug"); // 'einzug' | 'auszug'
+  const [mobil, setMobil] = useState(() => typeof window !== "undefined" && window.innerWidth < 720);
+  useEffect(() => { const f = () => setMobil(window.innerWidth < 720); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
   const [kautionTenant,setKautionTenant]=React.useState(null);
   const [dismissed,setDismissed]=React.useState([]);
   const heute = new Date();
@@ -328,26 +330,7 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
         const th = {textAlign:"left",fontSize:10,fontWeight:600,color:"#8a8478",textTransform:"uppercase",letterSpacing:".12em",padding:"0 10px 8px",whiteSpace:"nowrap"};
         const td = {padding:"11px 10px",borderTop:"1px solid #ece5d8",verticalAlign:"middle",fontSize:12.5};
         const wann = (d) => d == null ? "" : d === 0 ? "heute" : d > 0 ? `in ${d} T.` : `vor ${-d} T.`;
-        return (
-        <div>
-          {zurPruefung > 0 && (
-            <div style={{display:"flex",alignItems:"center",gap:10,background:"#e6eef6",border:"1px solid #a8c0d5",borderRadius:10,padding:"11px 14px",marginBottom:12,fontSize:13,color:"#2f4a63"}}>
-              <span style={{fontSize:18}}>📥</span>
-              <span><b>{zurPruefung === 1 ? "1 Übernahmeprotokoll wartet" : `${zurPruefung} Übernahmeprotokolle warten`} auf deine Prüfung.</b> Erst nach dem Bestätigen bekommt der Mieter die PDF-Kopie und das Protokoll ist abgeschlossen.</span>
-            </div>
-          )}
-          {aktuell.length === 0 ? (
-            <div style={{padding:"32px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:10,color:"#8a8174",fontSize:13}}>Keine anstehenden Einzüge.</div>
-          ) : (
-          <div style={{background:"#fefcf7",border:"1px solid #e6dfd1",borderRadius:12,padding:"14px 8px 4px",overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
-              <thead><tr>
-                <th style={th}>Einzug</th><th style={th}>Mieter</th>
-                <th style={{...th,textAlign:"center"}}>Kaution</th><th style={{...th,textAlign:"center"}}>1. Miete</th><th style={{...th,textAlign:"center"}}>Einzugsinfo</th>
-                <th style={th}>Protokoll</th><th style={th}></th>
-              </tr></thead>
-              <tbody>
-              {aktuell.map(s => {
+        const einzugEintrag = (s) => {
                 const t = s.tenant, x = st(t);
                 const prot = s.kategorie === "review" ? {txt:"eingereicht · bitte prüfen", ok:false, farbe:"#2f4a63"}
                   : s.kategorie === "waiting" ? {txt: s.latest && s.latest.deadline ? `läuft bis ${new Date(s.latest.deadline).toLocaleDateString("de-CH",{day:"2-digit",month:"2-digit"})}` : "läuft", ok:false, farbe:"#7a5c3c"}
@@ -359,6 +342,25 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                 else if (s.kategorie === "waiting" && !x.infos && x.kaution && x.miete && !(s.daysTilEinzug != null && s.daysTilEinzug < -7)) aktion = {txt:"🔑 Einzugsinfo senden", fn:einzugsinfo, primaer:true};
                 else aktion = {txt:"Öffnen", fn:(e)=>{e.stopPropagation(); navigateTo&&navigateTo("mieter",t.id);}, primaer:false};
                 const ueberfaellig = s.daysTilEinzug != null && s.daysTilEinzug < 0 && s.kategorie === "todo";
+                if (mobil) return (
+                  <div key={t.id} style={{background: s.kategorie === "review" ? "#eef4fa" : "#fefcf7", border:"1px solid " + (s.kategorie === "review" ? "#a8c0d5" : "#e6dfd1"), borderRadius:12, padding:"12px 14px", marginBottom:10, boxShadow: s.kategorie === "review" ? "inset 3px 0 0 #3a5570" : "none"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10}}>
+                      <div style={{fontWeight:600,fontSize:14.5,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><MieterLink id={t.id}>{t.vorname} {t.nachname}</MieterLink></div>
+                      <div style={{textAlign:"right",flexShrink:0,fontSize:12}}><b>{t.einzug || "–"}</b><div style={{fontSize:11,color: ueberfaellig ? "#9b4a3e" : "#8a8478"}}>{wann(s.daysTilEinzug)}</div></div>
+                    </div>
+                    <div style={{fontSize:12,color:"#8a8478",marginTop:2}}><WohnungLink id={s.apt?.id}>{s.apt?.adresse||"–"}</WohnungLink>{s.room?.id ? ` · ${s.room.id}` : ""}</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:"6px 12px",alignItems:"center",margin:"10px 0",fontSize:11.5,color:"#6e6656"}}>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:5}}>Kaution <Punkt ok={x.kaution} txt={x.keineKaution ? "keine" : (x.garantie && !t.kautionEingegangenAm) ? "Garantie" : ""} onClick={(!x.kaution || (x.garantie && !t.kautionEingegangenAm)) ? (e)=>{e.stopPropagation(); if(window.confirm(x.garantie ? `Ist die Kaution für ${t.vorname} (Garantie) inzwischen effektiv eingegangen?` : `Kaution von ${t.vorname} als eingegangen markieren?`)) updateTenant(t.id,{kautionEingegangenAm:new Date().toISOString().slice(0,10)});} : undefined}/></span>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:5}}>1. Miete <Punkt ok={x.miete}/></span>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:5}}>Infos {(!x.infos && s.daysTilEinzug != null && s.daysTilEinzug < -7) ? <span style={{color:"#c9c0b0"}}>eingezogen</span> : <Punkt ok={x.infos}/>}</span>
+                    </div>
+                    <div style={{fontSize:12,color:prot.farbe,marginBottom:10}}>Protokoll: {prot.txt}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <button onClick={aktion.fn} style={{flex:1,background: s.kategorie === "review" ? "#2f4a63" : aktion.primaer ? "#1a1814" : "transparent", color: (s.kategorie === "review" || aktion.primaer) ? "#fefcf7" : "#4a4439", border: (s.kategorie === "review" || aktion.primaer) ? "none" : "1px solid #ddd3c2", borderRadius:999, padding:"10px 14px", fontSize:13, fontWeight:600, cursor:"pointer"}}>{aktion.txt}</button>
+                      {s.kategorie !== "done" && <button onClick={(e)=>{e.stopPropagation(); if(window.confirm("Übergabe ohne digitales Protokoll als erledigt markieren?")) updateTenant(t.id,{uebergabeStatus:"erledigt", uebergabeNotiz:"Manuell als erledigt markiert"});}} style={{background:"transparent",border:"none",color:"#a39a8a",fontSize:12,cursor:"pointer",padding:"8px 4px"}}>✓ erledigt</button>}
+                    </div>
+                  </div>
+                );
                 return (
                   <tr key={t.id} style={s.kategorie === "review" ? {background:"#eef4fa", boxShadow:"inset 3px 0 0 #3a5570"} : undefined}>
                     <td style={{...td,whiteSpace:"nowrap"}}><div style={{fontWeight:600}}>{t.einzug || "–"}</div><div style={{fontSize:11,color: ueberfaellig ? "#9b4a3e" : "#8a8478"}}>{wann(s.daysTilEinzug)}</div></td>
@@ -374,6 +376,28 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
                     </td>
                   </tr>
                 );
+        };
+        return (
+        <div>
+          {zurPruefung > 0 && (
+            <div style={{display:"flex",alignItems:"center",gap:10,background:"#e6eef6",border:"1px solid #a8c0d5",borderRadius:10,padding:"11px 14px",marginBottom:12,fontSize:13,color:"#2f4a63"}}>
+              <span style={{fontSize:18}}>📥</span>
+              <span><b>{zurPruefung === 1 ? "1 Übernahmeprotokoll wartet" : `${zurPruefung} Übernahmeprotokolle warten`} auf deine Prüfung.</b> Erst nach dem Bestätigen bekommt der Mieter die PDF-Kopie und das Protokoll ist abgeschlossen.</span>
+            </div>
+          )}
+          {aktuell.length === 0 ? (
+            <div style={{padding:"32px 20px",textAlign:"center",background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:10,color:"#8a8174",fontSize:13}}>Keine anstehenden Einzüge.</div>
+          ) : (
+          mobil ? <div>{aktuell.map(einzugEintrag)}</div> :
+          <div style={{background:"#fefcf7",border:"1px solid #e6dfd1",borderRadius:12,padding:"14px 8px 4px",overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
+              <thead><tr>
+                <th style={th}>Einzug</th><th style={th}>Mieter</th>
+                <th style={{...th,textAlign:"center"}}>Kaution</th><th style={{...th,textAlign:"center"}}>1. Miete</th><th style={{...th,textAlign:"center"}}>Einzugsinfo</th>
+                <th style={th}>Protokoll</th><th style={th}></th>
+              </tr></thead>
+              <tbody>
+              {aktuell.map(einzugEintrag)}
               })}
               </tbody>
             </table>
