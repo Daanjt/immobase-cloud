@@ -526,15 +526,20 @@ Deno.serve(async (req) => {
     // Vorschau-Modus: die erzeugten PDFs (mit beiden Unterschriften) als base64
     // zurueckgeben. Kein Statuswechsel, keine Mail. Der Admin bestaetigt danach.
     if (isPreview) {
-      return jsonResponse({
-        success: true,
-        preview: true,
-        pdfs: countersignedPdfs.map((sp, idx) => ({
-          name: sp.name || sp.type || `Vertrag ${idx + 1}`,
-          type: sp.type || null,
-          base64: bytesToBase64(countersignedBytesArr[idx]),
-        })),
-      });
+      // Statt grosser base64-Antwort (am Handy instabil): PDF kurz in den Speicher legen, Link zurueckgeben.
+      const pdfs = [];
+      for (let idx = 0; idx < countersignedPdfs.length; idx++) {
+        const sp = countersignedPdfs[idx];
+        const name = sp.name || sp.type || `Vertrag ${idx + 1}`;
+        const pfad = `vorschau/${token}/${Date.now()}-${idx}.pdf`;
+        const { error: upErr } = await supabase.storage.from("contracts").upload(pfad, countersignedBytesArr[idx], { contentType: "application/pdf", upsert: true });
+        if (!upErr) {
+          const { data: su } = await supabase.storage.from("contracts").createSignedUrl(pfad, 3600);
+          if (su?.signedUrl) { pdfs.push({ name, type: sp.type || null, url: su.signedUrl }); continue; }
+        }
+        pdfs.push({ name, type: sp.type || null, base64: bytesToBase64(countersignedBytesArr[idx]) });
+      }
+      return jsonResponse({ success: true, preview: true, pdfs });
     }
 
     // Vertrag auf "signiert" setzen (jetzt beidseitig unterzeichnet und gueltig).

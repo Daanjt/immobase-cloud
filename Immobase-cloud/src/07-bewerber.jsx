@@ -525,7 +525,8 @@ function CountersignButtonAdmin({contract, onDone, onSigned, light}){
       if (data && data.error) throw new Error(data.error);
       if (!data || !Array.isArray(data.pdfs)) throw new Error("Keine Vorschau erhalten");
       const urls = data.pdfs.map(p => {
-        const bin = atob(p.base64);
+        if (p.url) return { name: p.name, url: p.url };
+        const bin = atob(String(p.base64||"").replace(/\s+/g,""));
         const bytes = new Uint8Array(bin.length);
         for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
         const blob = new Blob([bytes], {type:"application/pdf"});
@@ -535,7 +536,7 @@ function CountersignButtonAdmin({contract, onDone, onSigned, light}){
       setActiveIdx(0);
     } catch(e){
       console.error("countersign preview:", e);
-      toast("Vorschau fehlgeschlagen", "error");
+      toast(/expected pattern|JSON|Failed to fetch|Load failed|Netzwerk|Verbindung/i.test(String(e&&e.message||e)) ? "Vorschau fehlgeschlagen: Verbindung zu langsam oder unterbrochen. Bitte nochmals versuchen." : "Vorschau fehlgeschlagen", "error");
     } finally { setBusy(false); }
   }
 
@@ -845,6 +846,7 @@ function Bewerber({istAdmin,bewerber,rooms,tenants,apts,updateBewerber,deleteBew
   const [listMode,setListMode]=useState("bewerber");
   const [bewSort,setBewSort]=useState("neu");
   const [bewSearch,setBewSearch]=useState("");
+  useEffect(()=>{ if((filterStatus==="Abgelehnt" || bewSearch.trim().length>=2) && window.__ibAlleBewerberLaden) window.__ibAlleBewerberLaden(); },[filterStatus,bewSearch]);
   const [ansicht,setAnsicht]=useState("liste");
   const touchX=useRef(null);
   const detailRef = useRef(null);

@@ -17,7 +17,11 @@ function useSupabaseData() {
       supabase.from(aptQuelle()).select("*").order("id"),
       supabase.from("rooms").select("*").order("id"),
       supabase.from("tenants").select("*").is("deleted_at",null).order("id"),
-      supabase.from("applicants").select("*").order("created_at", {ascending:false}),
+      // Alte Absagen (aelter als 90 Tage) erst laden, wenn sie gebraucht werden (Filter "Abgelehnt" oder Suche) – spart am Handy viel Datenvolumen
+      (window.__ibAlleBewerber
+        ? supabase.from("applicants").select("*")
+        : supabase.from("applicants").select("*").or(`status.neq.Abgelehnt,created_at.gte.${new Date(Date.now()-90*86400000).toISOString()}`)
+      ).order("created_at", {ascending:false}),
     ]);
     // Kurzzeitvermietung: Buchungen + Sperrzeiten aus Elev8 (Abgleich per Edge Function elev8-sync)
     Promise.all([
@@ -951,6 +955,11 @@ function useSupabaseData() {
     }
   }
   useEffect(() => { loadHandoverProtocols(); }, []);
+  // Alle Bewerber inkl. alter Absagen nachladen (einmal pro Sitzung)
+  useEffect(() => {
+    window.__ibAlleBewerberLaden = () => { if (window.__ibAlleBewerber) return; window.__ibAlleBewerber = true; loadAll(true); };
+    return () => { delete window.__ibAlleBewerberLaden; };
+  }, []);
   // Runterziehen in der App: Daten still im Hintergrund neu laden (ohne Startbildschirm)
   useEffect(() => {
     // Jede Ladefunktion wird gestoppt, damit bei langsamem Netz sichtbar ist, welche bremst
