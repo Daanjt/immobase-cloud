@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.send-handover-invite]
 verify_jwt = false
+
+[functions.mail-weiterleiten-entwurf]
+verify_jwt = false
