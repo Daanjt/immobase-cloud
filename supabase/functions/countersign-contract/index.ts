@@ -106,12 +106,21 @@ function notificationEmailToDaan(contract, downloadLinks, ip) {
 
 // Willkommens- bzw. Verlaengerungsmail an den Mieter (DE/EN), gleiches Design wie die uebrigen D&T-Mails.
 // Betrag und Referenz der Mietzahlung (gleich in Mail und QR-Rechnung)
+// Moeblierung (nur Zimmer): monatlich zum Mietzins, einmalig separat (wie im Vertrag)
+function moebKosten(vertrag) {
+  const an = vertrag && (vertrag.moebliert === true || vertrag.moebliert === "ja");
+  if (!an) return { mon: 0, einm: 0 };
+  const monatlich = vertrag.moeblierungModus === "monatlich";
+  const betrag = +vertrag.moeblierungPauschale || (monatlich ? 150 : 990);
+  return monatlich ? { mon: betrag, einm: 0 } : { mon: 0, einm: betrag };
+}
+
 function zahlInfo(contract, en) {
   const vertrag = (contract.contract_data || {}).vertrag || contract.contract_data || {};
   const apt = vertrag.apt || {};
   const fullName = `${contract.mieter_vorname || ""} ${contract.mieter_nachname || ""}`.trim();
   const sg = +vertrag.aufschlag || 0;
-  const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
+  const total = (+vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg)) + moebKosten(vertrag).mon;
   const referenz = `${en ? "Rent" : "Miete"} ${apt.adresse || ""} & ${fullName}`;
   return { total, referenz, erste: ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en) };
 }
@@ -171,10 +180,12 @@ function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logo
   const einzugStr = formatLongDate(vertrag.einzug);
   const ersteBelastungStr = (() => { const d = parseD(vertrag.einzug); if (!d) return "-"; d.setMonth(d.getMonth() - 1); d.setDate(25); return lang(d); })();
   const sg = +vertrag.aufschlag || 0;
-  const total = +vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg);
+  const MK = moebKosten(vertrag);
+  const total = (+vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg)) + MK.mon;
   const chf2 = (n) => `CHF\u00a0${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const chfW = (n) => `CHF\u00a0${Number(n || 0).toLocaleString("de-CH")}.-`;
-  const inkl = sg > 0 ? T("inkl. Strom, Nebenkosten und Servicegebühr", "incl. electricity, additional costs and service fee") : T("inkl. Strom und Nebenkosten", "incl. electricity and additional costs");
+  const inklTeile = [T("Strom", "electricity"), T("Nebenkosten", "additional costs")].concat(MK.mon ? [T("Möblierung", "furniture")] : []).concat(sg > 0 ? [T("Servicegebühr", "service fee")] : []);
+  const inkl = `${T("inkl.", "incl.")} ${inklTeile.slice(0, -1).join(", ")} ${T("und", "and")} ${inklTeile[inklTeile.length - 1]}`;
   const mietzinsStr = `${chf2(total)} / ${T("Monat", "month")}`;
   const vertragId = (contract.id || "").substring(0, 8);
   const referenz = `${T("Miete", "Rent")} ${apt.adresse || ""} & ${fullName}`;
@@ -241,9 +252,11 @@ ${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartmen
     (mmV ? rowVoll(T("Mitmieter*in", "Co-tenant"), `${esc(mmName)} (${T("solidarisch", "jointly liable")})`) : "") +
     row(T("Einzug", "Move-in"), esc(einzugStr)) +
     (istWohnung ? row(T("Bruttomiete inkl. NK", "Gross rent incl. add. costs"), chfW(vertrag.bruttomiete)) + row(en ? `Electricity (${persW} ${persW === 1 ? "person" : "persons"})` : `Strom (${persW} ${persW === 1 ? "Person" : "Personen"})`, chfW(vertrag.strom)) : "") +
+    (MK.mon ? row(T("Möblierung (monatlich)", "Furniture (monthly)"), chfW(MK.mon)) : "") +
     (sg > 0 ? row(T("Servicegebühr Kautionsreduktion", "Service fee deposit reduction"), chfW(sg)) : "") +
     `<tr><td width="58%" style="width:58%;padding:10px 8px 2px 0;font-weight:600;border-top:2px solid #1a1814;vertical-align:top;">${T("Mietzins", "Rent")}</td><td width="42%" style="width:42%;padding:10px 0 2px;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${mietzinsStr}</td></tr>` +
-    `<tr><td colspan="2" style="padding:2px 0 0;text-align:right;font-size:11.5px;color:#6e6a62;">${inkl}</td></tr>`;
+    `<tr><td colspan="2" style="padding:2px 0 0;text-align:right;font-size:11.5px;color:#6e6a62;">${inkl}</td></tr>` +
+    (MK.einm ? `<tr><td width="58%" style="width:58%;padding:12px 8px 2px 0;color:#4a4439;vertical-align:top;">${T("Möblierung (einmalig)", "Furniture (one-time)")}</td><td width="42%" style="width:42%;padding:12px 0 2px;text-align:right;vertical-align:top;">${chfW(MK.einm)}</td></tr>` : "");
 
   const kautionText = km > 0
     ? T(`Wir nutzen für Mietkautionen die Schweizer Plattform <strong>Evorest</strong>. Du erhältst eine separate E-Mail von Evorest (registrations@evorest.ch) mit einem persönlichen Link. Dort eröffnest du in wenigen Minuten online dein Kautionskonto und zahlst die Kaution ein. Deine Kaution beträgt <strong>${km} ${km === 1 ? "Monatsmiete" : "Monatsmieten"}${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>. Bitte erledige das vor deinem Einzug. Falls die E-Mail nicht ankommt, schau bitte auch im Spam-Ordner nach.`, `We use the Swiss platform <strong>Evorest</strong> for rental deposits. You will receive a separate email from Evorest (registrations@evorest.ch) with a personal link. There you open your deposit account online in a few minutes and pay in the deposit. Your deposit is <strong>${km} ${km === 1 ? "month's" : "months'"} rent${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>. Please complete this before you move in. If the email does not arrive, please check your spam folder.`)
