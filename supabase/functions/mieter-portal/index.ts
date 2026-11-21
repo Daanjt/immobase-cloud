@@ -753,6 +753,7 @@ function schilderHersteller(apt: any): string | null {
   return null;
 }
 // Einmalige Erinnerung an Mieter ganzer Wohnungen ohne Namensschild (nur Server/Admin). {probe:true} = nur Liste
+// {automatisch:true} (taeglicher Cron): nur wer seit mindestens 14 Tagen eingezogen ist
 async function namensschildErinnerung(req: Request, b: any) {
   if (!(await istAdminOderServer(req))) return fehler("Nicht berechtigt", 403);
   const { data: ts } = await sb.from("tenants").select(MIETER_FELDER).eq("status", "aktiv").is("deleted_at", null).is("archived_at", null).is("namensschild", null);
@@ -760,6 +761,12 @@ async function namensschildErinnerung(req: Request, b: any) {
   for (const t0 of (ts || [])) {
     if (!t0.email || !t0.portal_token || !zugangOk(t0)) continue;
     if (t0.namensschild_erinnert_at && !b.erneut) continue;
+    if (t0.namensschild_bestellt_at) continue;
+    if (b.automatisch) {
+      // Taeglicher Lauf: erst 14 Tage nach Einzug erinnern (Einzug muss bekannt sein)
+      const ez = datumVon(t0.einzug);
+      if (!ez || Date.now() - ez.getTime() < 14 * 86400000) continue;
+    }
     const t = await mitRaum(t0);
     const apt = await ladeApt(t);
     if (apt?.vermietungsart !== "wohnung") continue;
