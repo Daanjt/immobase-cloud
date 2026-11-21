@@ -1,5 +1,5 @@
 // mail-anhang-holen: liest einen Anhang einer Mail im Postfach (graph_mailbox) und gibt ihn als Base64 zurueck.
-// Nur Admin oder Server. Eingabe: { messageId, attachmentId?, name?, ablegen? } (ohne attachmentId: erster Nicht-Inline-Anhang bzw. Name)
+// Nur Admin oder Server. Eingabe: { messageId, attachmentId?, name?, ablegen?, protokollFoto? } (ohne attachmentId: erster Nicht-Inline-Anhang bzw. Name)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
@@ -30,6 +30,13 @@ Deno.serve(async (req) => {
     }
     const a = await fetch(`${box}/${encodeURIComponent(id)}`, { headers: H }).then((x) => x.json());
     if (!a.contentBytes) return json({ error: "kein Inhalt", detail: a?.error?.message }, 502);
+    if (b.protokollFoto && typeof b.protokollFoto === "string" && /^[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/.test(b.protokollFoto)) {
+      // Foto direkt in den Protokoll-Bucket legen (z.B. nachtraeglich gemeldete Maengel)
+      const bin = Uint8Array.from(atob(a.contentBytes), (ch) => ch.charCodeAt(0));
+      const up = await sb.storage.from("handover-photos").upload(b.protokollFoto, bin, { contentType: a.contentType || "image/jpeg", upsert: true });
+      if (up.error) return json({ error: "upload", detail: up.error.message }, 500);
+      return json({ ok: true, name: a.name, path: b.protokollFoto, url: sb.storage.from("handover-photos").getPublicUrl(b.protokollFoto).data.publicUrl });
+    }
     if (b.ablegen) {
       // Kurzlebige Ablage im privaten Bucket, Rueckgabe nur als signierte URL (10 Min.)
       const bin = Uint8Array.from(atob(a.contentBytes), (ch) => ch.charCodeAt(0));
