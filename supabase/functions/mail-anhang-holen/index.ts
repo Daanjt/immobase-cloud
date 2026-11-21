@@ -1,5 +1,5 @@
 // mail-anhang-holen: liest einen Anhang einer Mail im Postfach (graph_mailbox) und gibt ihn als Base64 zurueck.
-// Nur Admin oder Server. Eingabe: { messageId, attachmentId?, name? } (ohne attachmentId: erster Nicht-Inline-Anhang bzw. Name)
+// Nur Admin oder Server. Eingabe: { messageId, attachmentId?, name?, ablegen? } (ohne attachmentId: erster Nicht-Inline-Anhang bzw. Name)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
 
@@ -30,6 +30,15 @@ Deno.serve(async (req) => {
     }
     const a = await fetch(`${box}/${encodeURIComponent(id)}`, { headers: H }).then((x) => x.json());
     if (!a.contentBytes) return json({ error: "kein Inhalt", detail: a?.error?.message }, 502);
+    if (b.ablegen) {
+      // Kurzlebige Ablage im privaten Bucket, Rueckgabe nur als signierte URL (10 Min.)
+      const bin = Uint8Array.from(atob(a.contentBytes), (ch) => ch.charCodeAt(0));
+      const pfad = `vorschau/anhang/${crypto.randomUUID()}/${String(a.name || "anhang").replace(/[^A-Za-z0-9._-]/g, "_")}`;
+      const up = await sb.storage.from("contracts").upload(pfad, bin, { contentType: a.contentType || "application/octet-stream", upsert: true });
+      if (up.error) return json({ error: "upload", detail: up.error.message }, 500);
+      const sg = await sb.storage.from("contracts").createSignedUrl(pfad, 600);
+      return json({ ok: true, name: a.name, url: sg.data?.signedUrl });
+    }
     return json({ ok: true, name: a.name, contentType: a.contentType, base64: a.contentBytes });
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 500);
