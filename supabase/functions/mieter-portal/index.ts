@@ -760,13 +760,16 @@ async function namensschildErinnerung(req: Request, b: any) {
   const ziele: any[] = [];
   for (const t0 of (ts || [])) {
     if (!t0.email || !t0.portal_token || !zugangOk(t0)) continue;
-    if (t0.namensschild_erinnert_at && !b.erneut) continue;
     if (t0.namensschild_bestellt_at) continue;
     if (b.automatisch) {
-      // Taeglicher Lauf: erst 14 Tage nach Einzug erinnern (Einzug muss bekannt sein)
+      // Taeglicher Lauf: erst 14 Tage nach Einzug erinnern (Einzug muss bekannt sein), danach genau einmal.
+      // Eine fruehere (manuelle) Erinnerung vor dieser Frist zaehlt nicht.
       const ez = datumVon(t0.einzug);
-      if (!ez || Date.now() - ez.getTime() < 14 * 86400000) continue;
-    }
+      if (!ez) continue;
+      const frist = ez.getTime() + 14 * 86400000;
+      if (Date.now() < frist) continue;
+      if (t0.namensschild_erinnert_at && new Date(t0.namensschild_erinnert_at).getTime() >= frist) continue;
+    } else if (t0.namensschild_erinnert_at && !b.erneut) continue;
     const t = await mitRaum(t0);
     const apt = await ladeApt(t);
     if (apt?.vermietungsart !== "wohnung") continue;
