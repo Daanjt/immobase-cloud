@@ -13,6 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { hbKontakt } from "../_shared/hbKontakt.ts";
 
 const FLATFOX = "https://flatfox.ch/api/v1/public-listing/";
 const PAGE = 100;
@@ -119,8 +120,57 @@ Deno.serve(async (req) => {
     markt_last_run: new Date().toISOString(),
   }).eq("id", 1);
 
-  return json({ total, scanned, matched: rows.length, inserted, backfill, bereinigung });
+  let hb = null;
+  try { hb = await hbKontakte(supabase, 25); } catch (e) { hb = { fehler: String(e) }; }
+
+  return json({ total, scanned, matched: rows.length, inserted, backfill, bereinigung, hb });
 });
+
+// H&B Real Estate: Ansprechperson (Name, E-Mail) von hbre.ch holen, fuer
+// Marktradar-Eintraege und Pipeline-Deals ohne Kontakt. Pro Lauf begrenzt,
+// damit auch der Bestand nach und nach nachgetragen wird.
+async function hbKontakte(supabase, limit) {
+  const out = { radar: 0, pipeline: 0, geprueft: 0 };
+  const cache = new Map();
+  const hole = async (pk, raw) => {
+    const key = String(pk ?? "");
+    if (key && cache.has(key)) return cache.get(key);
+    out.geprueft++;
+    const k = await hbKontakt(pk, raw);
+    if (key) cache.set(key, k);
+    return k;
+  };
+  const { data: rr } = await supabase.from("markt_radar")
+    .select("id, flatfox_pk, raw, agency_email")
+    .ilike("agency_name", "H&B%").is("agency_contact_name", null)
+    .order("id", { ascending: false }).limit(limit);
+  for (const x of rr ?? []) {
+    const k = await hole(x.flatfox_pk, x.raw);
+    // kein Treffer auf hbre.ch: leer markieren, damit es nicht jeden Lauf erneut versucht wird
+    if (!k) { await supabase.from("markt_radar").update({ agency_contact_name: "" }).eq("id", x.id); continue; }
+    const upd: Record<string, string | null> = { agency_contact_name: k.name ?? "" };
+    if (k.email) upd.agency_email = k.email;
+    const { error } = await supabase.from("markt_radar").update(upd).eq("id", x.id);
+    if (!error) out.radar++;
+  }
+  const { data: pp } = await supabase.from("pipeline")
+    .select("id, flatfox_pk, contact_name, contact_email")
+    .ilike("agency_name", "H&B%").or("contact_email.is.null,contact_name.is.null")
+    .limit(limit);
+  for (const x of pp ?? []) {
+    if (!x.flatfox_pk) continue;
+    const { data: mr } = await supabase.from("markt_radar").select("raw").eq("flatfox_pk", x.flatfox_pk).maybeSingle();
+    const k = await hole(x.flatfox_pk, mr?.raw);
+    if (!k) continue;
+    const upd: Record<string, string> = {};
+    if (!x.contact_name && k.name) upd.contact_name = k.name;
+    if (!x.contact_email && k.email) upd.contact_email = k.email;
+    if (!Object.keys(upd).length) continue;
+    const { error } = await supabase.from("pipeline").update(upd).eq("id", x.id);
+    if (!error) out.pipeline++;
+  }
+  return out;
+}
 
 // Prueft Flatfox-Eintraege (nicht Seitzmeir/Homegate) und entfernt die, die auf
 // Flatfox nicht mehr aktiv sind. Entfernt wird nur bei einer sauberen Antwort
