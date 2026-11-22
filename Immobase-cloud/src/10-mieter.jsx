@@ -697,13 +697,13 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
           Aktive Mieter ({aktive.length})
         </button>
         <button onClick={()=>{setViewMode("zukuenftig");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="zukuenftig"?600:400,color:viewMode==="zukuenftig"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="zukuenftig"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
-          🔜 Zukünftige ({zukuenftige.length})
+          Zukünftige ({zukuenftige.length})
         </button>
         <button onClick={()=>{setViewMode("ehemalig");setSel(null);}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="ehemalig"?600:400,color:viewMode==="ehemalig"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="ehemalig"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
-          📦 Ehemalige ({ehemalige.length})
+          Ehemalige ({ehemalige.length})
         </button>
         {!istVermietung() && <button onClick={()=>{setViewMode("papierkorb");setSel(null);loadDeleted&&loadDeleted();}} style={{background:"transparent",border:"none",padding:"8px 14px",fontSize:12,fontWeight:viewMode==="papierkorb"?600:400,color:viewMode==="papierkorb"?"#1a1814":"#8a8174",cursor:"pointer",borderBottom:viewMode==="papierkorb"?"2px solid #1a1814":"2px solid transparent",marginBottom:-1}}>
-          🗑 Papierkorb ({(deletedTenants||[]).length})
+          Papierkorb ({(deletedTenants||[]).length})
         </button>}
       </div>
       {viewMode==="papierkorb" && (

@@ -134,7 +134,7 @@ function AkqZustaendig({value,team,onChange,ich}){
 }
 
 function AkqPersonFilter({team,value,onChange,ich}){
-  const opts=[["alle","Alle"],["meine","Meine"],["offen","Nicht zugewiesen"]];
+  const opts=[["alle","Alle Personen"],["meine","Meine"],["offen","Nicht zugewiesen"]];
   return (
     <select value={value} onChange={e=>onChange(e.target.value)} style={{border:"1px solid var(--line)",borderRadius:8,padding:"7px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}>
       {opts.map(([v,l])=><option key={v} value={v} disabled={v==="meine"&&!ich}>{l}</option>)}
@@ -322,7 +322,7 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
       <div style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
         <div>
           <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Partner-Pipeline</div>
-          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Verwaltungen und Eigentümer, die wir direkt anschreiben. Wer ist dran, wer wurde schon angeschrieben, wer hat kein Interesse.</div>
+          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Verwaltungen und Eigentümer, die wir für eine Zusammenarbeit anschreiben.</div>
         </div>
         <button onClick={()=>setNeu({typ:"verwaltung"})} style={knopf}>+ Neue Firma</button>
       </div>

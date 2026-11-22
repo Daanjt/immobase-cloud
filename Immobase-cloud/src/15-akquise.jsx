@@ -405,14 +405,12 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
       <div style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
         <div>
           <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Wohnungs-Pipeline</div>
-          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Kontaktierte Objekte, Status und Mailverlauf. Klicke einen Deal für Details.</div>
+          <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Wohnungen, die wir bei Verwaltungen anfragen.</div>
         </div>
         <button onClick={()=>setNewDeal({stage:"neu"})} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"8px 14px",fontSize:13,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>+ Neuer Deal</button>
       </div>
 
-      <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:12,fontSize:12,color:"var(--muted)"}}>
-        <span>Offen: <b style={{color:"var(--ink)"}}>{deals.filter(z=>!["gewonnen","verloren"].includes(z.stage)).length}</b></span>
-      </div>
+      
       {newDeal&&(
         <div className="ov-x" onClick={()=>setNewDeal(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>
           <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--bg)",borderRadius:14,maxWidth:560,width:"100%",maxHeight:"92vh",overflow:"auto",padding:"18px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
