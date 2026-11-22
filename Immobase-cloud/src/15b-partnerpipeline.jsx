@@ -100,7 +100,34 @@ function AkqVerlauf({bereich,dealId,organisation,dealIds,deals,ich,team,neu}){
 
 
 // Vorschau vor dem Senden: zeigt die Mail genau so, wie sie rausgeht (mit Signatur und Anhang)
-function AkqMailVorschau({absender,an,betreff,html,anhang,geplant,nachfass,antwort,meldung,onZurueck,onSenden}){
+// Wurde diese Firma in den letzten 14 Tagen schon angeschrieben (von irgendwem im Team)?
+function useAkqKuerzlichAngeschrieben(firma,aus){
+  const [treffer,setTreffer]=useState(null);
+  useEffect(()=>{
+    if(aus||!firma){ setTreffer([]); return; }
+    const n=akqFirmaNorm(firma); const seit=new Date(Date.now()-14*86400000).toISOString();
+    supabase.from("pipeline").select("id,agency_name,strasse").then(({data})=>{
+      const deals=(data||[]).filter(d=>d.agency_name&&(d.agency_name.toLowerCase().trim()===firma.toLowerCase().trim()||(n&&akqFirmaNorm(d.agency_name)===n)));
+      const ids=deals.map(d=>d.id);
+      const q1=supabase.from("akquise_log").select("*").eq("bereich","partner").eq("typ","mail").eq("organisation",firma).gte("created_at",seit);
+      const q2=ids.length?supabase.from("akquise_log").select("*").eq("bereich","wohnung").eq("typ","mail").in("deal_id",ids).gte("created_at",seit):Promise.resolve({data:[]});
+      const q3=supabase.from("scheduled_mails").select("id,deal_id,organisation,send_at,subject,absender,to_addr").eq("status","pending");
+      Promise.all([q1,q2,q3]).then(([a,b,c])=>{
+        const geplant=(c.data||[]).filter(m=>m.organisation===firma||(m.deal_id&&ids.includes(m.deal_id))).map(m=>({id:"s"+m.id,created_at:m.send_at,text:"Geplant: "+(m.subject||"")+" an "+(m.to_addr||""),von:m.absender,geplant:true}));
+        const alle=[...(a.data||[]),...(b.data||[]).map(r=>{ const d=deals.find(x=>x.id===r.deal_id); return {...r,text:(d&&d.strasse?d.strasse+": ":"")+r.text}; }),...geplant];
+        alle.sort((x,y)=>String(y.created_at).localeCompare(String(x.created_at)));
+        setTreffer(alle);
+      }).catch(()=>setTreffer([]));
+    }).catch(()=>setTreffer([]));
+  },[firma,aus]);
+  return treffer;
+}
+
+function AkqMailVorschau({absender,an,betreff,html,anhang,geplant,nachfass,antwort,meldung,onZurueck,onSenden,firma,team}){
+  const kuerzlich=useAkqKuerzlichAngeschrieben(firma,antwort);
+  const [bestaetigt,setBestaetigt]=useState(false);
+  const warnung=!!(kuerzlich&&kuerzlich.length);
+  const sperre=warnung&&!bestaetigt;
   const zeile=(l,v)=>(<div style={{display:"flex",gap:8,fontSize:12.5,padding:"2px 0"}}><span style={{width:62,flexShrink:0,color:"var(--muted)"}}>{l}</span><span style={{color:"var(--ink)",wordBreak:"break-all"}}>{v}</span></div>);
   return (
     <div style={{marginTop:12,border:"2px solid var(--ink)",borderRadius:10,padding:12,background:"#fff"}}>
@@ -110,11 +137,16 @@ function AkqMailVorschau({absender,an,betreff,html,anhang,geplant,nachfass,antwo
       {anhang&&zeile("Anhang","📎 D&T Homes Pitch.pdf")}
       {geplant&&zeile("Versand",new Date(geplant).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}))}
       {nachfass&&zeile("Nachfass","nach 7 Tagen, falls keine Antwort kommt")}
+      {warnung&&(<div style={{marginTop:8,background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#8a5a1d"}}>
+        <div style={{fontWeight:700,marginBottom:4}}>⚠️ {firma} wurde in den letzten 14 Tagen schon angeschrieben</div>
+        {kuerzlich.slice(0,5).map(r=>(<div key={r.id} style={{padding:"1px 0"}}>{akqDatum(r.created_at)} · {r.von&&r.von!=="system"?akqName(team,r.von)+": ":""}{r.text}</div>))}
+        <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,cursor:"pointer",color:"var(--ink)"}}><input type="checkbox" checked={bestaetigt} onChange={e=>setBestaetigt(e.target.checked)}/> Ich habe das geprüft und will trotzdem senden</label>
+      </div>)}
       <iframe title="vorschau" srcDoc={'<div style="padding:10px">'+html+'</div>'} sandbox="" style={{width:"100%",height:380,border:"1px solid var(--line)",borderRadius:8,marginTop:8,background:"#fff"}}/>
       <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10}}>
         {meldung&&<span style={{fontSize:11.5,color:meldung==="Gesendet"?"#3a5230":"#a4442e"}}>{meldung}</span>}
         <button onClick={onZurueck} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Zurück bearbeiten</button>
-        <button onClick={onSenden} disabled={!an} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:an?"pointer":"default",opacity:an?1:0.5,fontFamily:"'Manrope',sans-serif"}}>{geplant?"Jetzt planen":"Jetzt senden"}</button>
+        <button onClick={onSenden} disabled={!an||sperre||kuerzlich===null} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:(an&&!sperre)?"pointer":"default",opacity:(an&&!sperre&&kuerzlich!==null)?1:0.5,fontFamily:"'Manrope',sans-serif"}}>{geplant?"Jetzt planen":"Jetzt senden"}</button>
       </div>
     </div>
   );
@@ -319,7 +351,7 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
               </div>
             ))}
             {compose&&compose.org===o.organisation&&compose.vorschau&&(
-              <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={akqMailHtml(compose.body,absName)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={!compose.replyTo&&compose.catchup} antwort={!!compose.replyTo} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
+              <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={akqMailHtml(compose.body,absName)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={!compose.replyTo&&compose.catchup} antwort={!!compose.replyTo} firma={compose.org} team={team} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
             )}
             {compose&&compose.org===o.organisation&&!compose.vorschau&&(
               <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>

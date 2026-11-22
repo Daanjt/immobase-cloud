@@ -548,7 +548,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
               </div>
             ))}
             {compose&&compose.vorschau&&(
-              <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={buildHtml(compose.body)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={!compose.replyTo&&compose.catchup!==false} antwort={!!compose.replyTo} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
+              <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={buildHtml(compose.body)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={!compose.replyTo&&compose.catchup!==false} antwort={!!compose.replyTo} firma={(()=>{ const t=compose._t||selected||{}; const f=t.agency_name?firmaVon(t):null; return f?f.name:(t.agency_name||""); })()} team={team} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
             )}
             {compose&&!compose.vorschau&&(
               <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
