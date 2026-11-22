@@ -1459,6 +1459,8 @@ tr:hover td{background:rgba(237,228,211,.55)}
 .leer-auswahl span{font-size:12.5px !important;color:var(--muted-light) !important;letter-spacing:.02em}
 @media (max-width:768px){
   .leer-auswahl{display:none !important}
+  /* Ohne ausgewaehlten Eintrag: Liste in voller Laenge statt im 320px-Kasten */
+  .list-detail:has(> .leer-auswahl) > div:first-child{max-height:none !important;overflow:visible !important;margin-bottom:0 !important}
   .main [style*="Georgia"][style*="font-size: 24px"]{font-size:28px !important}
   .pt{font-size:28px}
   .card{padding:18px 16px}
