@@ -1487,6 +1487,19 @@ tr:hover td{background:rgba(237,228,211,.55)}
 .warn.klickbar,.warn-r.klickbar{cursor:pointer;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;transition:box-shadow .15s,border-color .15s}
 .warn.klickbar:hover{border-color:#d9bf8c;box-shadow:0 2px 8px rgba(31,29,24,.06)}
 .warn .pfeil,.warn-r .pfeil{margin-left:auto;font-weight:600;font-size:11.5px;white-space:nowrap}
+
+/* Einheitliche Schriftgrösse: Suchfelder, Dropdowns, Eingaben und Umschalter gleich gross.
+   Kein iOS-Auto-Zoom nötig zu verhindern: viewport hat maximum-scale=1. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea{font-size:13px !important}
+.seg>button{font-size:13px}
+.seg.klein>button{font-size:12px}
+@media (max-width:768px){
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea, .fi, .fi.bewerber-search,
+  .modal input, .modal select, .modal textarea, .modal-x input, .modal-x select, .modal-x textarea{font-size:14px !important}
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select{min-height:42px !important;padding-top:9px !important;padding-bottom:9px !important}
+  .seg>button{font-size:14px}
+  .seg.klein>button{font-size:13px}
+}
 </style>
 </head>
 <body>

@@ -332,7 +332,7 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suche: Firma, Person, E-Mail …" style={{...inp,flex:1,minWidth:200,width:"auto",padding:"8px 12px",fontSize:13}}/>
         <AkqPersonFilter team={team} value={wer} onChange={setWer} ich={ich}/>
-        <button onClick={()=>setNurAntwort(v=>!v)} style={{...knopf2,background:nurAntwort?"var(--ink)":"var(--surface)",color:nurAntwort?"var(--surface)":"var(--muted)"}}>💬 Antwort offen</button>
+        <div className="seg"><button className={!nurAntwort?"on":""} onClick={()=>setNurAntwort(false)}>Alle Firmen</button><button className={nurAntwort?"on":""} onClick={()=>setNurAntwort(true)}>💬 Antwort offen</button></div>
       </div>
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Lädt …</div>}
       {!loading&&<AkqBoard phasen={STAGES.map(([id,label])=>({id,label,farbe:(AKQ_PHASEN[id]||[])[2]||"#999",ende:id==="kein_interesse"}))} items={[...sichtbar].sort((a,b)=>(b.reply_pending?1:0)-(a.reply_pending?1:0)||String(b.updated_at||"").localeCompare(String(a.updated_at||"")))} phaseVon={x=>x.status||"prospect"} leerText="Keine Firmen in dieser Phase" renderKarte={(x,g,gross)=>{ const si=STAGES.findIndex(z=>z[0]===g.id); const kz=kontakteVon(x.organisation).length; const dz=dealsVon(x.organisation).length; const idle=["angeschrieben","gespraech"].includes(g.id)?dTage(x.updated_at):null; const geplant=scheduled.some(s=>s.organisation===x.organisation); const wv=x.wiedervorlage; return (
