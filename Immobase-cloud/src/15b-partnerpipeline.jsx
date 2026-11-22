@@ -328,7 +328,7 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
           titel={x.organisation}
           untertitel={kz?kontakteVon(x.organisation).map(k=>k.name||k.email).filter(Boolean).slice(0,2).join(", ")+(kz>2?" +"+(kz-2):""):"Noch keine Ansprechperson"}
           schilder={[<AkqTypTag key="t" typ={x.typ}/>, dz?<AkqSchild key="d">🏠 {dz}</AkqSchild>:null, x.kontaktiert_am?<AkqSchild key="k">✉️ {fmtD(x.kontaktiert_am)}</AkqSchild>:null]}
-          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, geplant?<AkqHinweis key="g" farbe="#3a5230" fett>📅 Mail geplant</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, wv?<AkqHinweis key="w" farbe={wv<heute()?"#a4442e":wv===heute()?"#8a6d1e":"#3a4a63"} fett>⏰ {wv<heute()?"Wiedervorlage überfällig":wv===heute()?"Wiedervorlage heute":"Wiedervorlage "+fmtD(wv)}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i" farbe="#b08968">seit {idle} Tagen ruhig</AkqHinweis>:null]}
+          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, geplant?<AkqHinweis key="g" farbe="#3a5230" fett>📅 Mail geplant</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i" farbe="#b08968">seit {idle} Tagen ruhig</AkqHinweis>:null]}
           zustaendig={x.zustaendig?<span style={{display:"flex",alignItems:"center",gap:5}}><AkqChip name={akqName(team,x.zustaendig)}/>{gross&&<span style={{fontSize:12,color:"var(--muted)"}}>{akqName(team,x.zustaendig)}</span>}</span>:<AkqChip leer/>}
           zurueck={si>0?{label:STAGES[si-1][1],onClick:()=>setStage(x,STAGES[si-1][0])}:null}
           weiter={si<STAGES.length-1?{label:STAGES[si+1][1],onClick:()=>setStage(x,STAGES[si+1][0])}:null}/>
@@ -425,9 +425,8 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
                 </div>
               </div>
             )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 150px",gap:10,marginTop:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginTop:14}}>
               <div><label style={LBL2}>Nächster Schritt</label><input key={"ns"+o.organisation} defaultValue={o.naechster_schritt||""} onBlur={e=>{ const v=e.target.value.trim(); if(v!==(o.naechster_schritt||"")) patch(o.organisation,{naechster_schritt:v||null},v?{typ:"schritt",text:"Nächster Schritt: "+v}:null); }} placeholder="z.B. Anrufen und Termin vereinbaren" style={inp}/></div>
-              <div><label style={LBL2}>Wiedervorlage</label><input type="date" key={"wv"+o.organisation} defaultValue={o.wiedervorlage||""} onChange={e=>patch(o.organisation,{wiedervorlage:e.target.value||null},null)} style={inp}/></div>
             </div>
             {o.status==="kein_interesse"&&<div style={{marginTop:10}}><label style={LBL2}>Grund</label><input key={"gr"+o.organisation} defaultValue={o.grund||""} onBlur={e=>{ if(e.target.value!==(o.grund||"")) patch(o.organisation,{grund:e.target.value||null},{typ:"notiz",text:"Grund: "+e.target.value}); }} placeholder="z.B. Untervermietung nicht erlaubt" style={inp}/></div>}
             <textarea key={"no"+o.organisation} defaultValue={o.notizen||""} onBlur={e=>{ if(e.target.value!==(o.notizen||"")) patch(o.organisation,{notizen:e.target.value||null},null); }} placeholder="Notizen zur Firma …" style={{...inp,marginTop:12,minHeight:54,resize:"vertical"}}/>
