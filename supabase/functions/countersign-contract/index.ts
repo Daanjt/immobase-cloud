@@ -122,26 +122,30 @@ function zahlInfo(contract, en) {
   const sg = +vertrag.aufschlag || 0;
   const total = (+vertrag.total || ((+vertrag.bruttomiete || 0) + (+vertrag.strom || 0) + sg)) + moebKosten(vertrag).mon;
   const referenz = `${en ? "Rent" : "Miete"} ${apt.adresse || ""} & ${fullName}`;
-  return { total, referenz, erste: ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en) };
+  return { total, referenz, erste: ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en, moebKosten(vertrag).einm) };
 }
 
-// Einzug unter dem Monat: erster Monat anteilig (Einzug am 16. = halber Monat, sonst nach Tagen), auf 5 Rappen gerundet
-function ersteMiete(einzug, total, adresse, fullName, en) {
+// Einzug unter dem Monat: erster Monat anteilig (Einzug am 16. = halber Monat, sonst nach Tagen), auf 5 Rappen gerundet.
+// Einmalige Moeblierungspauschale (einm) wird vor dem Einzug mit der ersten Miete bezahlt; dann gibt es
+// auch bei Einzug am 1. eine separate erste Zahlung (volle Miete + Pauschale).
+function ersteMiete(einzug, total, adresse, fullName, en, einm = 0) {
   let d = null;
   const t = String(einzug || "").trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(t)) d = new Date(t.slice(0, 10) + "T12:00:00");
   else { const m = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); if (m) d = new Date(+m[3], +m[2] - 1, +m[1], 12); }
-  if (!d || isNaN(d.getTime()) || d.getDate() === 1 || !(total > 0)) return null;
+  einm = +einm || 0;
+  if (!d || isNaN(d.getTime()) || !(total > 0) || (d.getDate() === 1 && !einm)) return null;
   const tag = d.getDate();
   const len = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  const anteil = tag === 16 ? 0.5 : (len - tag + 1) / len;
-  const betrag = Math.round(total * anteil * 20) / 20;
+  const anteil = tag === 1 ? 1 : tag === 16 ? 0.5 : (len - tag + 1) / len;
+  const miete = Math.round(total * anteil * 20) / 20;
+  const betrag = Math.round((miete + einm) * 20) / 20;
   const MDE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   const MEN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monat = (en ? MEN : MDE)[d.getMonth()];
   const folge = (en ? MEN : MDE)[(d.getMonth() + 1) % 12];
-  const referenz = `${en ? "Rent" : "Miete"} ${monat} ${adresse || ""} & ${fullName}`.replace(/\s+/g, " ").trim();
-  return { betrag, referenz, monat, folge, halb: tag === 16, tag };
+  const referenz = `${en ? "Rent" : "Miete"} ${monat}${einm ? (en ? " + furniture" : " + Möblierung") : ""} ${adresse || ""} & ${fullName}`.replace(/\s+/g, " ").trim();
+  return { betrag, miete, einm, voll: tag === 1, referenz, monat, folge, halb: tag === 16, tag };
 }
 
 function confirmationEmailToTenant(contract, downloadLinks, sprache = "de", logoSrc = "https://mieter.dthomes.ch/dt-logo.png", qrSrc = "https://aohcqrxpsqronlcwssrk.supabase.co/storage/v1/object/public/email-assets/dt-qr.png", portalLink = "", hausinfos = "", qrErsteSrc = "") {
@@ -256,7 +260,7 @@ ${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartmen
     (sg > 0 ? row(T("Servicegebühr Kautionsreduktion", "Service fee deposit reduction"), chfW(sg)) : "") +
     `<tr><td width="58%" style="width:58%;padding:10px 8px 2px 0;font-weight:600;border-top:2px solid #1a1814;vertical-align:top;">${T("Mietzins", "Rent")}</td><td width="42%" style="width:42%;padding:10px 0 2px;text-align:right;font-weight:600;border-top:2px solid #1a1814;">${mietzinsStr}</td></tr>` +
     `<tr><td colspan="2" style="padding:2px 0 0;text-align:right;font-size:11.5px;color:#6e6a62;">${inkl}</td></tr>` +
-    (MK.einm ? `<tr><td width="58%" style="width:58%;padding:12px 8px 2px 0;color:#4a4439;vertical-align:top;">${T("Möblierung (einmalig)", "Furniture (one-time)")}</td><td width="42%" style="width:42%;padding:12px 0 2px;text-align:right;vertical-align:top;">${chfW(MK.einm)}</td></tr>` : "");
+    (MK.einm ? `<tr><td width="58%" style="width:58%;padding:12px 8px 2px 0;color:#4a4439;vertical-align:top;">${T("Möblierung (einmalig, mit der ersten Miete)", "Furniture (one-time, with first rent)")}</td><td width="42%" style="width:42%;padding:12px 0 2px;text-align:right;vertical-align:top;">${chfW(MK.einm)}</td></tr>` : "");
 
   const kautionText = km > 0
     ? T(`Wir nutzen für Mietkautionen die Schweizer Plattform <strong>Evorest</strong>. Du erhältst eine separate E-Mail von Evorest (registrations@evorest.ch) mit einem persönlichen Link. Dort eröffnest du in wenigen Minuten online dein Kautionskonto und zahlst die Kaution ein. Deine Kaution beträgt <strong>${km} ${km === 1 ? "Monatsmiete" : "Monatsmieten"}${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>. Bitte erledige das vor deinem Einzug. Falls die E-Mail nicht ankommt, schau bitte auch im Spam-Ordner nach.`, `We use the Swiss platform <strong>Evorest</strong> for rental deposits. You will receive a separate email from Evorest (registrations@evorest.ch) with a personal link. There you open your deposit account online in a few minutes and pay in the deposit. Your deposit is <strong>${km} ${km === 1 ? "month's" : "months'"} rent${kBetrag ? ` (${chfW(kBetrag)})` : ""}</strong>. Please complete this before you move in. If the email does not arrive, please check your spam folder.`)
@@ -266,7 +270,7 @@ ${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartmen
 <tr><td align="center" style="padding:18px 16px 6px;text-align:center;"><img src="${src}" alt="QR" width="140" height="140" style="display:block;margin:0 auto;width:140px;height:140px;background:#fff;border:1px solid #e1d8c5;border-radius:6px;padding:6px;box-sizing:border-box;"></td></tr>
 <tr><td style="font-size:12.5px;line-height:1.6;padding:8px 16px 14px;">${zeilen}</td></tr></table>`;
   const bankBasis = `${bankZeile("Bank", "Graub&uuml;ndner Kantonalbank")}${bankZeile("IBAN", "CH80 0077 4010 5279 2690 0", true)}${bankZeile("BIC/SWIFT", "GRKBCH2270A", true)}`;
-  const ER = ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en);
+  const ER = ersteMiete(vertrag.einzug, total, apt.adresse, fullName, en, MK.einm);
   const zahlungMonat = qrBox(qrSrc, bankBasis + bankZeile(T("Betrag", "Amount"), mietzinsStr) + bankZeile(T("Referenz", "Reference"), esc(referenz)) + (ER ? bankZeile(T("Fällig", "Due"), T(`ab ${ER.folge}, jeweils bis zum 25. des Vormonats`, `from ${ER.folge}, by the 25th of the previous month`)) : ""));
   const zahlungErste = ER ? qrBox(qrErsteSrc || qrSrc, bankBasis + bankZeile(T("Betrag", "Amount"), chf2(ER.betrag)) + bankZeile(T("Referenz", "Reference"), esc(ER.referenz))) : "";
 
@@ -277,9 +281,13 @@ ${box(T("Deine Verlängerung", "Your extension"), rowVoll(T("Wohnung", "Apartmen
   const schritte = [
     schritt(++nr, km > 0 ? T("Kaution einrichten", "Set up your deposit") : T("Kaution", "Deposit"), kautionText),
     schritt(++nr, T("Erste Miete bezahlen und Dauerauftrag einrichten", "Pay your first rent and set up a standing order"), ER
-      ? T(`Da du am ${einzugStr} einziehst, bezahlst du für den ${ER.monat} nur ${ER.halb ? "den halben Monat" : "die Tage ab deinem Einzug"}: <strong>${chf2(ER.betrag)}</strong>. Bitte überweise diesen Betrag vor deinem Einzug. Am einfachsten scannst du den QR-Code mit deiner Banking-App:`, `As you move in on ${einzugStr}, you only pay ${ER.halb ? "half a month" : "for the days from your move-in"} for ${ER.monat}: <strong>${chf2(ER.betrag)}</strong>. Please transfer this amount before you move in. The easiest way is to scan the QR code with your banking app:`)
+      ? (ER.voll
+        ? T(`Bitte überweise vor deinem Einzug die erste Miete für den ${ER.monat} (${chf2(ER.miete)}) zusammen mit der einmaligen Möblierungspauschale (${chf2(ER.einm)}), insgesamt <strong>${chf2(ER.betrag)}</strong>. Am einfachsten scannst du den QR-Code mit deiner Banking-App:`, `Before you move in, please transfer your first rent for ${ER.monat} (${chf2(ER.miete)}) together with the one-time furniture fee (${chf2(ER.einm)}), in total <strong>${chf2(ER.betrag)}</strong>. The easiest way is to scan the QR code with your banking app:`)
+        : ER.einm
+        ? T(`Da du am ${einzugStr} einziehst, bezahlst du für den ${ER.monat} nur ${ER.halb ? "den halben Monat" : "die Tage ab deinem Einzug"} (${chf2(ER.miete)}). Dazu kommt die einmalige Möblierungspauschale (${chf2(ER.einm)}). Bitte überweise den Gesamtbetrag von <strong>${chf2(ER.betrag)}</strong> vor deinem Einzug. Am einfachsten scannst du den QR-Code mit deiner Banking-App:`, `As you move in on ${einzugStr}, you only pay ${ER.halb ? "half a month" : "for the days from your move-in"} for ${ER.monat} (${chf2(ER.miete)}). The one-time furniture fee (${chf2(ER.einm)}) is added to this. Please transfer the total of <strong>${chf2(ER.betrag)}</strong> before you move in. The easiest way is to scan the QR code with your banking app:`)
+        : T(`Da du am ${einzugStr} einziehst, bezahlst du für den ${ER.monat} nur ${ER.halb ? "den halben Monat" : "die Tage ab deinem Einzug"}: <strong>${chf2(ER.betrag)}</strong>. Bitte überweise diesen Betrag vor deinem Einzug. Am einfachsten scannst du den QR-Code mit deiner Banking-App:`, `As you move in on ${einzugStr}, you only pay ${ER.halb ? "half a month" : "for the days from your move-in"} for ${ER.monat}: <strong>${chf2(ER.betrag)}</strong>. Please transfer this amount before you move in. The easiest way is to scan the QR code with your banking app:`))
         + zahlungErste
-        + `<div style="margin:16px 0 0;">${T(`Ab ${ER.folge} gilt die volle Monatsmiete. Bitte richte dafür einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats:`, `From ${ER.folge} the full monthly rent applies. Please set up a standing order for it, due by the 25th of the previous month:`)}</div>` + zahlungMonat
+        + `<div style="margin:16px 0 0;">${ER.voll ? T(`Ab ${ER.folge} bezahlst du nur noch die Monatsmiete. Bitte richte dafür einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats:`, `From ${ER.folge} you only pay the monthly rent. Please set up a standing order for it, due by the 25th of the previous month:`) : T(`Ab ${ER.folge} gilt die volle Monatsmiete. Bitte richte dafür einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats:`, `From ${ER.folge} the full monthly rent applies. Please set up a standing order for it, due by the 25th of the previous month:`)}</div>` + zahlungMonat
       : T("Bitte überweise die erste Miete vor deinem Einzug und richte danach einen Dauerauftrag ein, jeweils fällig bis zum 25. des Vormonats. Am einfachsten scannst du den QR-Code mit deiner Banking-App:", "Please transfer your first rent before you move in and then set up a standing order, due by the 25th of the previous month. The easiest way is to scan the QR code with your banking app:") + zahlungMonat),
     portalLink ? schritt(++nr, T("Dein Mieterportal", "Your tenant portal"), portalText + knopf(portalLink, T("Zum Mieterportal", "Open tenant portal"))) : "",
     schritt(++nr, T("Übernahmeprotokoll", "Handover report"), T("Das Übernahmeprotokoll wird bei uns online eingereicht. Ab deinem Einzug kannst du es im Mieterportal ausfüllen: Halte darin bitte innert 14 Tagen allfällige Mängel mit Fotos fest und reiche es online ein. So bist du beim Auszug auf der sicheren Seite.", "The handover report is submitted online. From your move-in day you can fill it in in the tenant portal: please record any existing defects with photos within 14 days and submit it online. This protects you when you move out.")),
