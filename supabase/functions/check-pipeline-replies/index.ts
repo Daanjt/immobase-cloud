@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { postfachFuer } from "../_shared/graph.ts";
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
   const tok = (await tokRes.json()).access_token;
   if (!tok) return json({ error: "no token" }, 500);
 
-  const { data: deals } = await sb.from("pipeline").select("id,contact_email,stage,kontaktiert_am,last_reply_at")
+  const { data: deals } = await sb.from("pipeline").select("id,contact_email,stage,kontaktiert_am,last_reply_at,zustaendig")
     .in("stage", ["kontaktiert", "antwort"]).not("contact_email", "is", null);
   let flagged = 0;
   for (const d of (deals || [])) {
@@ -40,7 +41,7 @@ Deno.serve(async (req) => {
     if (!email) continue;
     try {
       const flt = `from/emailAddress/address eq '${email.replace(/'/g, "''")}'`;
-      const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${encodeURIComponent(flt)}&$orderby=receivedDateTime desc&$top=6&$select=receivedDateTime,subject,bodyPreview,internetMessageHeaders`;
+      const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(postfachFuer(c, d.zustaendig))}/messages?$filter=${encodeURIComponent(flt)}&$orderby=receivedDateTime desc&$top=6&$select=receivedDateTime,subject,bodyPreview,internetMessageHeaders`;
       const r = await fetch(url, { headers: { Authorization: `Bearer ${tok}` } });
       const j = await r.json();
       const list = (j && Array.isArray(j.value)) ? j.value : [];
@@ -56,5 +57,33 @@ Deno.serve(async (req) => {
       }
     } catch (_) { /* skip deal on error */ }
   }
-  return json({ checked: (deals || []).length, flagged });
+  // Partner-Pipeline: Antworten von angeschriebenen Firmen (Firmen-Mail und alle Kontakte der Firma)
+  let partnerFlagged = 0;
+  const { data: orgs } = await sb.from("org_status").select("organisation,email,status,kontaktiert_am,last_reply_at,zustaendig").in("status", ["angeschrieben", "gespraech"]);
+  for (const o of (orgs || [])) {
+    try {
+      const { data: ks } = await sb.from("kontakte").select("email").eq("organisation", o.organisation).not("email", "is", null);
+      const mails = Array.from(new Set([o.email, ...(ks || []).map((k: any) => k.email)].map((x: any) => String(x || "").trim().toLowerCase()).filter(Boolean))).slice(0, 8);
+      if (!mails.length) continue;
+      const anchor = o.last_reply_at ? new Date(o.last_reply_at).getTime() : (o.kontaktiert_am ? new Date(o.kontaktiert_am + "T00:00:00Z").getTime() : 0);
+      if (!anchor) continue;
+      let neueste: any = null;
+      for (const em of mails) {
+        const flt = `from/emailAddress/address eq '${em.replace(/'/g, "''")}'`;
+        const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(postfachFuer(c, o.zustaendig))}/messages?$filter=${encodeURIComponent(flt)}&$orderby=receivedDateTime desc&$top=4&$select=receivedDateTime,subject,bodyPreview,internetMessageHeaders`;
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${tok}` } });
+        const j = await r.json();
+        const msg = (Array.isArray(j?.value) ? j.value : []).find((mm: any) => mm.receivedDateTime && !isAuto(mm));
+        if (msg && (!neueste || msg.receivedDateTime > neueste.receivedDateTime)) neueste = msg;
+      }
+      if (neueste && new Date(neueste.receivedDateTime).getTime() > anchor) {
+        const upd: any = { reply_pending: true, last_reply_at: neueste.receivedDateTime, updated_at: new Date().toISOString() };
+        if (o.status === "angeschrieben") upd.status = "gespraech";
+        await sb.from("org_status").update(upd).eq("organisation", o.organisation);
+        await sb.from("akquise_log").insert({ bereich: "partner", organisation: o.organisation, typ: "antwort", text: "Antwort erhalten: " + String(neueste.subject || "").slice(0, 140), von: "system" });
+        partnerFlagged++;
+      }
+    } catch (_) { /* Firma bei Fehler ueberspringen */ }
+  }
+  return json({ checked: (deals || []).length, flagged, partner: (orgs || []).length, partnerFlagged });
 });

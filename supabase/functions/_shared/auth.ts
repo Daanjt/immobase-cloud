@@ -43,3 +43,23 @@ export async function istTeamOderServer(req: Request): Promise<boolean> {
   const { data: u } = await sb.from("allowed_users").select("role").ilike("email", email).maybeSingle();
   return !!u;
 }
+
+// Wer ruft auf? Fuer Functions, die mehrere Rollen zulassen und den Aufrufer kennen muessen
+// (z.B. Akquise: Mail aus dem eigenen Postfach). server = Service-Key (pg_cron, andere Functions).
+export async function aufrufer(req: Request): Promise<{ server: boolean; email: string; role: string } | null> {
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return null;
+  if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return { server: true, email: "", role: "server" };
+  try {
+    const pl = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (pl.role === "service_role") return { server: true, email: "", role: "server" };
+    if (pl.role !== "authenticated") return null;
+  } catch (_) { return null; }
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data, error } = await sb.auth.getUser(token);
+  const email = (data?.user?.email || "").toLowerCase();
+  if (error || !email) return null;
+  const { data: u } = await sb.from("allowed_users").select("role").ilike("email", email).maybeSingle();
+  if (!u) return null;
+  return { server: false, email, role: u.role || "" };
+}

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { postfachFuer } from "../_shared/graph.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
@@ -54,11 +55,21 @@ Deno.serve(async (req) => {
           }
         } catch (_) { /* bei Fehler weiter */ }
       }
+      // Partner-Nachfass: nur senden, wenn die Firma noch "angeschrieben" ist
+      if (m.is_followup && m.organisation) {
+        try {
+          const { data: og } = await sb.from("org_status").select("status").eq("organisation", m.organisation).maybeSingle();
+          if (og && og.status && og.status !== "angeschrieben") {
+            await sb.from("scheduled_mails").update({ status: "skipped_stage" }).eq("id", m.id);
+            continue;
+          }
+        } catch (_) { /* bei Fehler weiter */ }
+      }
       // Catch-up: nur senden, wenn keine Antwort seit reply_check_after
       if (m.is_followup && m.reply_check_after) {
         try {
           const flt = `from/emailAddress/address eq '${(m.to_addr||"").replace(/'/g,"''")}' and receivedDateTime ge ${new Date(m.reply_check_after).toISOString()}`;
-          const rr = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/messages?$filter=${encodeURIComponent(flt)}&$top=1&$select=id`, { headers: { Authorization: `Bearer ${tok}` } });
+          const rr = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(postfachFuer(c, m.absender))}/messages?$filter=${encodeURIComponent(flt)}&$top=1&$select=id`, { headers: { Authorization: `Bearer ${tok}` } });
           const rj = await rr.json();
           if (rj && Array.isArray(rj.value) && rj.value.length > 0) {
             await sb.from("scheduled_mails").update({ status: "skipped_reply" }).eq("id", m.id);
@@ -85,13 +96,17 @@ Deno.serve(async (req) => {
       }
       if (atts.length) message.attachments = atts;
 
-      const sr = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(c.graph_mailbox)}/sendMail`, {
+      const sr = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(postfachFuer(c, m.absender))}/sendMail`, {
         method: "POST", headers: { "Authorization": `Bearer ${tok}`, "Content-Type": "application/json" },
         body: JSON.stringify({ message, saveToSentItems: true }),
       });
       if (sr.status === 202) {
         await sb.from("scheduled_mails").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", m.id);
         sent++;
+        try {
+          if (m.deal_id || m.organisation) await sb.from("akquise_log").insert({ bereich: m.organisation ? "partner" : "wohnung", deal_id: m.deal_id || null, organisation: m.organisation || null, typ: "mail", text: (m.is_followup ? "Nachfass-Mail gesendet: " : "Geplante Mail gesendet: ") + String(m.subject || "").slice(0, 140), von: m.absender || "system" });
+          if (m.organisation && !m.is_followup) await sb.from("org_status").update({ status: "angeschrieben", kontaktiert_am: new Date().toISOString().slice(0, 10), updated_at: new Date().toISOString() }).eq("organisation", m.organisation).eq("status", "prospect");
+        } catch (_) { /* Verlauf optional */ }
       } else {
         const t = await sr.text();
         await sb.from("scheduled_mails").update({ status: "error", error: ("HTTP " + sr.status + " " + t).slice(0, 500) }).eq("id", m.id);

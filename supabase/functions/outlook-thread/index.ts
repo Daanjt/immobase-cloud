@@ -2,7 +2,8 @@
 // Outlook-Postfach via Microsoft Graph (App-only, client_credentials).
 // Zugangsdaten liegen in public.app_config (nur per Service-Role lesbar).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { istAdminOderServer, verweigert } from "../_shared/auth.ts";
+import { aufrufer, verweigert } from "../_shared/auth.ts";
+import { postfachFuer } from "../_shared/graph.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -14,10 +15,13 @@ const json = (o: unknown, s = 200) =>
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (!(await istAdminOderServer(req))) return verweigert(cors);
+  const wer = await aufrufer(req);
+  if (!wer || !(wer.server || wer.role === "admin" || wer.role === "akquise")) return verweigert(cors);
   try {
-    const { email } = await req.json().catch(() => ({}));
-    if (!email) return json({ error: "email fehlt" }, 400);
+    // postfach: Postfach der zustaendigen Person (Akquise), sonst Standardpostfach.
+    // pruefePostfach (nur Admin/Server): testet nur, ob die App das Postfach lesen darf.
+    const { email, postfach, pruefePostfach } = await req.json().catch(() => ({}));
+    if (!email && !pruefePostfach) return json({ error: "email fehlt" }, 400);
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: rows } = await sb.from("app_config").select("key,value")
@@ -40,7 +44,14 @@ Deno.serve(async (req) => {
     const tok = await tokRes.json();
     if (!tok.access_token) return json({ error: "auth_failed", detail: tok.error_description || tok.error || "" });
 
-    const mbox = encodeURIComponent(c.graph_mailbox);
+    if (pruefePostfach) {
+      if (!(wer.server || wer.role === "admin")) return verweigert(cors);
+      const pm = postfachFuer(c, pruefePostfach);
+      const pr = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(pm)}/mailFolders/inbox?$select=id`, { headers: { Authorization: `Bearer ${tok.access_token}` } });
+      return json({ postfach: pm, status: pr.status });
+    }
+    const mboxAddr = postfachFuer(c, postfach || c.graph_mailbox);
+    const mbox = encodeURIComponent(mboxAddr);
     const term = encodeURIComponent('"' + String(email).replace(/"/g, "") + '"');
     const url = `https://graph.microsoft.com/v1.0/users/${mbox}/messages?$search=${term}` +
       `&$select=id,subject,from,toRecipients,sentDateTime,receivedDateTime,isDraft,bodyPreview,body&$top=30`;
@@ -48,7 +59,7 @@ Deno.serve(async (req) => {
     const md = await mRes.json();
     if (!mRes.ok) return json({ error: "graph_failed", detail: md?.error?.message || "" });
 
-    const mb = String(c.graph_mailbox).toLowerCase();
+    const mb = mboxAddr.toLowerCase();
     const messages = (md.value ?? [])
       .filter((m: any) => !m.isDraft)
       .map((m: any) => {
@@ -64,7 +75,7 @@ Deno.serve(async (req) => {
         };
       })
       .sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")));
-    return json({ ok: true, messages });
+    return json({ ok: true, postfach: mboxAddr, messages });
   } catch (e) {
     return json({ error: String(e) });
   }
