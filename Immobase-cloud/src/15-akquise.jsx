@@ -533,7 +533,10 @@ function Pipeline({benutzerMail}){
                 {openSched===s.id&&<iframe title="geplante-mail" srcDoc={s.html||('<pre style="font-family:sans-serif;white-space:pre-wrap;font-size:13px;padding:8px;margin:0">'+((s.body||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"))+'</pre>')} sandbox="" style={{width:"100%",height:340,border:"1px solid #cfe0c4",borderRadius:6,background:"#fff",marginTop:8}}/>}
               </div>
             ))}
-            {compose&&(
+            {compose&&compose.vorschau&&(
+              <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={buildHtml(compose.body)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={compose.catchup!==false} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
+            )}
+            {compose&&!compose.vorschau&&(
               <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
                 <select value={compose.tpl||"kalt"} onChange={e=>setTpl(e.target.value)} style={{...inpS,marginBottom:6,fontWeight:600}}><option value="kalt">Vorlage: Kalt · neuer Partner (mit Pitch-Deck)</option><option value="warm">Vorlage: Warm · bestehender Partner</option></select>
                 {compose._sibs&&compose._sibs.length>1&&<label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#3a5230",marginBottom:6,cursor:"pointer",background:"#eef5e8",padding:"6px 8px",borderRadius:6}}><input type="checkbox" checked={!!compose.bundle} onChange={e=>toggleBundle(e.target.checked)} /> 📦 {compose._sibs.length} Objekte dieser Ansprechperson gebündelt anfragen</label>}
@@ -552,7 +555,7 @@ function Pipeline({benutzerMail}){
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   {sendMsg&&<span style={{fontSize:11.5,color:sendMsg==="Gesendet"?"#3a5230":"#a4442e"}}>{sendMsg}</span>}
                   <button onClick={()=>setCompose(null)} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Abbrechen</button>
-                  <button onClick={doSend} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{compose.schedAt?"Planen":"Senden"}</button>
+                  <button onClick={()=>{ if(!compose.to){ setSendMsg("Bitte Empfänger angeben"); return; } setSendMsg(""); setCompose({...compose,vorschau:true}); }} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Vorschau</button>
                 </div>
               </div>
             )}

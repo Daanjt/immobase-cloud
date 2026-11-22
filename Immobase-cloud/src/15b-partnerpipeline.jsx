@@ -83,6 +83,27 @@ function AkqVerlauf({bereich,dealId,organisation,ich,team,neu}){
   );
 }
 
+
+// Vorschau vor dem Senden: zeigt die Mail genau so, wie sie rausgeht (mit Signatur und Anhang)
+function AkqMailVorschau({absender,an,betreff,html,anhang,geplant,nachfass,meldung,onZurueck,onSenden}){
+  const zeile=(l,v)=>(<div style={{display:"flex",gap:8,fontSize:12.5,padding:"2px 0"}}><span style={{width:62,flexShrink:0,color:"var(--muted)"}}>{l}</span><span style={{color:"var(--ink)",wordBreak:"break-all"}}>{v}</span></div>);
+  return (
+    <div style={{marginTop:12,border:"2px solid var(--ink)",borderRadius:10,padding:12,background:"#fff"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"var(--ink)",marginBottom:8}}>Vorschau: so wird die Mail gesendet</div>
+      {zeile("Von",absender)}{zeile("An",an||"(fehlt)")}{zeile("Betreff",betreff||"(kein Betreff)")}
+      {anhang&&zeile("Anhang","📎 D&T Homes Pitch.pdf")}
+      {geplant&&zeile("Versand",new Date(geplant).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}))}
+      {nachfass&&zeile("Nachfass","nach 7 Tagen, falls keine Antwort kommt")}
+      <iframe title="vorschau" srcDoc={'<div style="padding:10px">'+html+'</div>'} sandbox="" style={{width:"100%",height:380,border:"1px solid var(--line)",borderRadius:8,marginTop:8,background:"#fff"}}/>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10}}>
+        {meldung&&<span style={{fontSize:11.5,color:meldung==="Gesendet"?"#3a5230":"#a4442e"}}>{meldung}</span>}
+        <button onClick={onZurueck} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Zurück bearbeiten</button>
+        <button onClick={onSenden} disabled={!an} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:an?"pointer":"default",opacity:an?1:0.5,fontFamily:"'Manrope',sans-serif"}}>{geplant?"Jetzt planen":"Jetzt senden"}</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Partner-Pipeline: Verwaltungen und Eigentümer, die wir direkt anschreiben ──
 function PartnerPipeline({benutzerMail}){
   const STAGES=[["prospect","Neu"],["angeschrieben","Angeschrieben"],["gespraech","Im Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
@@ -264,7 +285,10 @@ function PartnerPipeline({benutzerMail}){
                 <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?")) return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(()=>laden()); }} style={{marginLeft:"auto",...knopf2,padding:"2px 8px",fontSize:11}}>abbrechen</button>
               </div>
             ))}
-            {compose&&compose.org===o.organisation&&(
+            {compose&&compose.org===o.organisation&&compose.vorschau&&(
+              <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={akqMailHtml(compose.body,absName)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={compose.catchup} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
+            )}
+            {compose&&compose.org===o.organisation&&!compose.vorschau&&(
               <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
                 <select value={compose.tpl} onChange={e=>setTpl(e.target.value)} style={{...inp,marginBottom:6,fontWeight:600}}><option value="kalt">Vorlage: Erstkontakt (mit Pitch-Deck)</option><option value="warm">Vorlage: Bestehender Partner</option><option value="nachfass">Vorlage: Nachfassen</option></select>
                 <input value={compose.to} onChange={e=>setCompose({...compose,to:e.target.value})} placeholder="An" style={{...inp,marginBottom:6}}/>
@@ -281,7 +305,7 @@ function PartnerPipeline({benutzerMail}){
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   {sendMsg&&<span style={{fontSize:11.5,color:"#a4442e"}}>{sendMsg}</span>}
                   <button onClick={()=>setCompose(null)} style={{marginLeft:"auto",...knopf2}}>Abbrechen</button>
-                  <button onClick={doSend} style={knopf}>{compose.schedAt?"Planen":"Senden"}</button>
+                  <button onClick={()=>{ if(!compose.to){ setSendMsg("Bitte Empfänger angeben"); return; } setSendMsg(""); setCompose({...compose,vorschau:true}); }} style={knopf}>Vorschau</button>
                 </div>
               </div>
             )}
