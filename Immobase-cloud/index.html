@@ -1424,6 +1424,49 @@ select::-ms-expand{display:none}
 .warn{border-color:#ecd9b4}
 .warn-r{border-color:#e8c4b8}
 @media (max-width:720px){.sg{gap:10px}.card{border-radius:12px!important}}
+
+/* ─── Design-Grundlagen v2 (Nov 2026): ruhiger, einheitlicher, gleiche Farben ─── */
+::selection{background:#e6dcc7;color:var(--ink)}
+html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+.sv, table td, .tabnum{font-variant-numeric:tabular-nums}
+/* Seitentitel: auch Seiten mit eigenem Titel (Pipelines, Kontakte, Radar) wie .pt */
+.main [style*="Georgia"][style*="font-size: 24px"]{font-family:'Manrope',sans-serif !important;font-size:34px !important;font-weight:400 !important;letter-spacing:.01em;line-height:1.15}
+.main [style*="Georgia"]{font-family:'Manrope',sans-serif !important;font-weight:400 !important}
+/* Navigation: Symbole gedämpft, aktiv und beim Darüberfahren farbig */
+.ni{filter:grayscale(1);opacity:.6;transition:filter .2s,opacity .2s}
+.nb:hover .ni,.nb.on .ni{filter:none;opacity:1}
+.nb{border-radius:8px}
+.nb.on::before{left:-14px;top:20%;bottom:20%;width:3px;border-radius:0 3px 3px 0}
+/* Knöpfe: weiche Übergänge, sanftes Drücken, klarer Fokus */
+button{transition:background-color .15s ease,border-color .15s ease,color .15s ease,opacity .15s ease,box-shadow .15s ease,transform .08s ease}
+button:not(:disabled):active{transform:scale(.98)}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid #c9b896;outline-offset:2px;border-radius:6px}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none}
+/* Eingabefelder: einheitlicher Fokus und Platzhalter */
+.main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,.main select:focus,.main textarea:focus,.modal input:focus,.modal select:focus,.modal textarea:focus,.modal-x input:not([type="checkbox"]):not([type="radio"]):focus,.modal-x select:focus,.modal-x textarea:focus{border-color:#b7a789 !important;box-shadow:0 0 0 3px rgba(201,184,150,.22);outline:none}
+.main input::placeholder,.main textarea::placeholder,.modal-x input::placeholder,.modal-x textarea::placeholder{color:var(--muted-light);font-weight:400}
+.main select{cursor:pointer}
+/* Karten: weicher Schatten statt nur Rahmen */
+.card,.sc{box-shadow:0 1px 2px rgba(31,29,24,.04)}
+.card{border-radius:12px}
+.plink,.kcard,.kauto{box-shadow:0 1px 2px rgba(31,29,24,.04)}
+.plink:hover,.kauto:hover{box-shadow:0 2px 8px rgba(31,29,24,.06)}
+/* Tabellen: Zeilen beim Darüberfahren leicht hervorheben, Kopf etwas lesbarer */
+th{font-size:9.5px;letter-spacing:.18em;font-weight:600}
+tr td{transition:background-color .12s ease}
+tr:hover td{background:rgba(237,228,211,.55)}
+/* Leerer Detailbereich (Liste links, Details rechts): dezent, auf dem Handy weg */
+.leer-auswahl{background:transparent !important;border:1px dashed var(--beige-line) !important;box-shadow:none !important}
+.leer-auswahl span{font-size:12.5px !important;color:var(--muted-light) !important;letter-spacing:.02em}
+@media (max-width:768px){
+  .leer-auswahl{display:none !important}
+  .main [style*="Georgia"][style*="font-size: 24px"]{font-size:28px !important}
+  .pt{font-size:28px}
+  .card{padding:18px 16px}
+  .sv{font-size:30px}
+}
+@media (prefers-reduced-motion: reduce){ button{transition:none} button:not(:disabled):active{transform:none} }
 </style>
 </head>
 <body>

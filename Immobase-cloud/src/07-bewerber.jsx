@@ -2022,7 +2022,7 @@ www.dthomes.ch`;
             })()}
           </div>
           </>
-        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
+        ):<div className="card leer-auswahl" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:200}}><span style={{color:"#8a8478",fontSize:12}}>← Bewerber wählen</span></div>}
       </div>
       )}
       </div>

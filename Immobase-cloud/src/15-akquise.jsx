@@ -404,7 +404,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
     <div style={{padding:"8px",maxWidth:1300}}>
       <div style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
         <div>
-          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Pipeline</div>
+          <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:24,color:"var(--ink)"}}>Wohnungs-Pipeline</div>
           <div style={{fontSize:13,color:"var(--muted)",marginTop:4}}>Kontaktierte Objekte, Status und Mailverlauf. Klicke einen Deal für Details.</div>
         </div>
         <button onClick={()=>setNewDeal({stage:"neu"})} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"8px 14px",fontSize:13,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>+ Neuer Deal</button>
@@ -445,7 +445,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suche: Adresse, Verwaltung, Person, E-Mail …" style={{flex:1,minWidth:200,border:"1px solid var(--line)",borderRadius:8,padding:"8px 12px",fontSize:13,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}} />
         <AkqPersonFilter team={team} value={wer} onChange={setWer} ich={ich}/>
-        {[["all","Alle"],["reply","💬 Antwort offen"],["scheduled","📅 Geplant"]].map(([v,l])=>(<button key={v} onClick={()=>setFilt(v)} style={{background:filt===v?"var(--ink)":"var(--surface)",color:filt===v?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"7px 11px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{l}</button>))}
+        {[["all","Alle Deals"],["reply","💬 Antwort offen"],["scheduled","📅 Geplant"]].map(([v,l])=>(<button key={v} onClick={()=>setFilt(v)} style={{background:filt===v?"var(--ink)":"var(--surface)",color:filt===v?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"7px 11px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{l}</button>))}
       </div>
       {!loading&&<AkqBoard phasen={STAGES.map(([id,label])=>({id,label,farbe:({neu:"#8a8174",kontaktiert:"#3a4a63",antwort:"#b5651d",gewonnen:"#3a5230",verloren:"#a4442e"})[id],ende:id==="verloren"||id==="gewonnen"}))} items={[...visibleDeals].sort((a,b)=>(b.reply_pending?1:0)-(a.reply_pending?1:0))} phaseVon={x=>x.stage} leerText="Keine Deals in dieser Phase" renderKarte={(x,g,gross)=>{ const si=STAGES.findIndex(z=>z[0]===g.id); const aktivD=!["gewonnen","verloren"].includes(x.stage); const idle=aktivD?dTage(x.updated_at):null; const f=x.agency_name?firmaVon(x):null; const wv=x.wiedervorlage; return (
         <AkqKarte key={x.id} gross={gross} farbe={g.farbe} onOpen={()=>setSelected(x)}

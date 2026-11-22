@@ -1105,7 +1105,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
             {tab==="portal"&&<MieterPortalTab key={"mp"+tenant.id} tenant={tenant}/>}
             {tab==="drittmeldung"&&<DrittmeldungTab tenant={tenant} updateTenant={updateTenant} documents={documents} uploadDocument={uploadDocument} getDocumentUrl={getDocumentUrl} deleteDocument={deleteDocument}/>}
           </div>
-        ):<div className="card" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
+        ):<div className="card leer-auswahl" style={{margin:0,display:"flex",alignItems:"center",justifyContent:"center",minHeight:180}}><span style={{color:"#8a8478"}}>← Mieter wählen</span></div>}
       </div>
       {editing&&<div className="ov" onClick={e=>e.target===e.currentTarget&&setEditing(false)}><div className="modal" style={{width:640,maxHeight:"90vh",overflowY:"auto"}}>
         <div className="mt">Mieter bearbeiten</div>
