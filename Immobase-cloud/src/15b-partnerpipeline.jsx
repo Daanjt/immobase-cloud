@@ -18,6 +18,15 @@ function akqMailHtml(text,name){ return '<div style="font-family:Aptos,Calibri,H
 function akqLog(row){ return supabase.from("akquise_log").insert(row).then(()=>{}).catch(()=>{}); }
 function akqDatum(iso){ if(!iso) return ""; const d=new Date(iso); return isNaN(d.getTime())?"":d.toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}); }
 
+
+const AKQ_PHASEN={prospect:["Neu","#ece5d8","#6e6a62"],angeschrieben:["Angeschrieben","#eef1f6","#3a4a63"],gespraech:["Im Gespräch","#f2ecdb","#7c6a4e"],partner:["Partner","#e8efde","#3a5230"],kein_interesse:["Kein Interesse","#f6e3df","#a4442e"]};
+function AkqPhaseTag({status}){ const f=AKQ_PHASEN[status||"prospect"]||AKQ_PHASEN.prospect; return <span style={{background:f[1],color:f[2],fontSize:10,padding:"1px 7px",borderRadius:8,fontWeight:600}}>{f[0]}</span>; }
+const AKQ_TYP={verwaltung:["Verwaltung","#eef1f6","#3a4a63"],eigentuemer:["Eigentümer","#e8efde","#3a5230"],andere:["Andere","#f2ecdb","#7c6a4e"]};
+function AkqTypTag({typ}){ const f=AKQ_TYP[typ||"verwaltung"]||AKQ_TYP.andere; return <span style={{background:f[1],color:f[2],fontSize:10,padding:"1px 7px",borderRadius:8,fontWeight:600}}>{f[0]}</span>; }
+// Firmennamen vergleichen (Bilaya = Bilaya Wohnbau AG), gleiche Regeln wie firma_norm in der Datenbank
+function akqFirmaNorm(t){ return String(t||"").toLowerCase().replace(/\b(ag|gmbh|sa|sàrl|ltd|immobilien|immo|verwaltung|verwaltungs|treuhand|und|real estate|wohnbau|management|bau|group|gruppe)\b/g," ").replace(/[^a-z0-9äöüé]+/g," ").trim(); }
+function akqAehnlicheFirmen(name,liste){ const n=akqFirmaNorm(name); if(!n) return []; const erstes=n.split(" ")[0]; return (liste||[]).filter(o=>{ const m=akqFirmaNorm(o); return m===n||(erstes.length>=4&&m.split(" ")[0]===erstes); }); }
+
 function AkqChip({name,leer}){
   if(!name) return leer?<span title="Nicht zugewiesen" style={{fontSize:10,color:"#b9b0a2",border:"1px dashed #d8cfbe",borderRadius:10,padding:"0 7px"}}>offen</span>:null;
   return <span title={"Zuständig: "+name} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:22,height:22,borderRadius:11,background:"#e8e1d3",color:"#4a4439",fontSize:10,fontWeight:700,padding:"0 5px"}}>{akqKuerzel(name)}</span>;
@@ -56,11 +65,17 @@ function akqPasstPerson(filter,zust,ich){
 }
 
 // Verlauf: wer hat wann was gemacht, plus eigene Notizen
-function AkqVerlauf({bereich,dealId,organisation,ich,team,neu}){
+function AkqVerlauf({bereich,dealId,organisation,dealIds,deals,ich,team,neu}){
   const [rows,setRows]=useState(null);
   const [txt,setTxt]=useState("");
-  const laden=()=>{ let q=supabase.from("akquise_log").select("*").eq("bereich",bereich).order("created_at",{ascending:false}).limit(60); q=dealId?q.eq("deal_id",dealId):q.eq("organisation",organisation); q.then(({data})=>setRows(data||[])).catch(()=>setRows([])); };
-  useEffect(()=>{ laden(); },[dealId,organisation,neu]);
+  const idsKey=(dealIds||[]).join(",");
+  const laden=()=>{
+    let q=supabase.from("akquise_log").select("*").eq("bereich",bereich).order("created_at",{ascending:false}).limit(60); q=dealId?q.eq("deal_id",dealId):q.eq("organisation",organisation);
+    const zusatz=(!dealId&&dealIds&&dealIds.length)?supabase.from("akquise_log").select("*").eq("bereich","wohnung").in("deal_id",dealIds).order("created_at",{ascending:false}).limit(60):Promise.resolve({data:[]});
+    Promise.all([q,zusatz]).then(([a,b])=>{ const alle=[...(a.data||[]),...(b.data||[])]; alle.sort((x,y)=>String(y.created_at).localeCompare(String(x.created_at))); setRows(alle.slice(0,80)); }).catch(()=>setRows([]));
+  };
+  useEffect(()=>{ laden(); },[dealId,organisation,neu,idsKey]);
+  const dealName=(id)=>{ const d=(deals||[]).find(x=>x.id===id); return d?("🏠 "+(d.strasse||"Wohnung")+": "):""; };
   const add=()=>{ const t=txt.trim(); if(!t) return; akqLog({bereich,deal_id:dealId||null,organisation:organisation||null,typ:"notiz",text:t,von:ich||null}).then(()=>{ setTxt(""); laden(); }); };
   const ICON={notiz:"📝",mail:"✉️",phase:"➜",zustaendig:"👤",antwort:"💬",schritt:"⏭"};
   return (
@@ -75,7 +90,7 @@ function AkqVerlauf({bereich,dealId,organisation,ich,team,neu}){
       {rows&&rows.map(r=>(
         <div key={r.id} style={{display:"flex",gap:8,padding:"5px 0",borderBottom:"1px solid #f0ebe1",fontSize:12.5,alignItems:"baseline"}}>
           <span style={{flexShrink:0,width:16,textAlign:"center"}}>{ICON[r.typ]||"•"}</span>
-          <span style={{flex:1,color:"var(--ink)",lineHeight:1.45}}>{r.text}</span>
+          <span style={{flex:1,color:"var(--ink)",lineHeight:1.45}}>{!dealId&&r.bereich==="wohnung"?dealName(r.deal_id):""}{r.text}</span>
           <span style={{flexShrink:0,fontSize:10.5,color:"#a0968a",whiteSpace:"nowrap"}}>{r.von&&r.von!=="system"?akqName(team,r.von)+" · ":""}{akqDatum(r.created_at)}</span>
         </div>
       ))}
@@ -106,7 +121,7 @@ function AkqMailVorschau({absender,an,betreff,html,anhang,geplant,nachfass,antwo
 }
 
 // ── Partner-Pipeline: Verwaltungen und Eigentümer, die wir direkt anschreiben ──
-function PartnerPipeline({benutzerMail}){
+function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const STAGES=[["prospect","Neu"],["angeschrieben","Angeschrieben"],["gespraech","Im Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
   const LBL=Object.fromEntries(STAGES);
   const TYP={verwaltung:"Verwaltung",eigentuemer:"Eigentümer",partner:"Partner",andere:"Andere"};
@@ -133,11 +148,14 @@ function PartnerPipeline({benutzerMail}){
   const laden=()=>{
     supabase.from("org_status").select("*").then(({data})=>{ setOrgs(data||[]); setLoading(false); }).catch(()=>setLoading(false));
     supabase.from("kontakte").select("id,name,email,phone,rolle,organisation").then(({data})=>setKs(data||[])).catch(()=>{});
-    supabase.from("pipeline").select("id,agency_name,stage").then(({data})=>setDeals(data||[])).catch(()=>{});
+    supabase.from("pipeline").select("id,agency_name,stage,strasse,ort,zustaendig").then(({data})=>setDeals(data||[])).catch(()=>{});
     supabase.from("scheduled_mails").select("id,organisation,send_at,subject,is_followup,status").eq("status","pending").not("organisation","is",null).then(({data})=>setScheduled(data||[])).catch(()=>{});
   };
   useEffect(()=>{ laden(); const ch=supabase.channel("partner_pipeline").on("postgres_changes",{event:"*",schema:"public",table:"org_status"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   const sel=selName?orgs.find(o=>o.organisation===selName)||null:null;
+  useEffect(()=>{ if(navTarget&&navTarget.type==="partnerpipeline"&&navTarget.id&&orgs.length){ const t=String(navTarget.id).toLowerCase().trim(); const f=orgs.find(x=>x.organisation.toLowerCase().trim()===t)||orgs.find(x=>akqFirmaNorm(x.organisation)===akqFirmaNorm(t)); if(f) setSelName(f.organisation); } },[navTarget,orgs.length]);
+  const [wohnungen,setWohnungen]=useState([]);
+  useEffect(()=>{ setWohnungen([]); if(selName) supabase.rpc("org_wohnungen",{p_org:selName}).then(({data})=>setWohnungen(data||[])).catch(()=>{}); },[selName]);
   const kontakteVon=(org)=>ks.filter(k=>(k.organisation||"").toLowerCase()===String(org||"").toLowerCase());
   const empfaengerVon=(o)=>{ const list=kontakteVon(o.organisation).filter(k=>k.email); if(o.email&&!list.some(k=>(k.email||"").toLowerCase()===o.email.toLowerCase())) list.push({id:"firma",name:"",email:o.email,rolle:"Firmen-Adresse"}); return list; };
   const dealsVon=(org)=>deals.filter(d=>(d.agency_name||"").toLowerCase()===String(org||"").toLowerCase());
@@ -174,8 +192,8 @@ function PartnerPipeline({benutzerMail}){
   const kiAntwort=()=>{ if(!compose||!compose.replyTo) return; setDrafting(true); setSendMsg(""); supabase.functions.invoke("draft-reply",{body:{organisation:compose.org,message_id:compose.replyTo,postfach:compose.postfach}}).then(({data,error})=>{ setDrafting(false); if(error||!data||data.error){ setSendMsg(data&&data.error==="not_configured"?"KI-Antwort nicht aktiv (API-Schlüssel fehlt)":"KI-Entwurf fehlgeschlagen"); return; } setCompose(c=>c?{...c,body:data.draft||""}:c); }).catch(()=>{ setDrafting(false); setSendMsg("KI-Entwurf fehlgeschlagen"); }); };
   const ladeThread=(email)=>{ setOpenMsg(null); if(!email){ setThread({messages:[]}); return; } setThread({loading:true,email}); const o=sel||{}; supabase.functions.invoke("outlook-thread",{body:{email,postfach:o.zustaendig||undefined}}).then(({data,error})=>setThread((error||!data||data.error)?{error:"x",email}:{messages:data.messages||[],email,postfach:data.postfach})).catch(()=>setThread({error:"x",email})); };
   useEffect(()=>{ setCompose(null); setThread(null); if(sel){ const e=empfaengerVon(sel)[0]; if(e) ladeThread(e.email); } },[selName]);
-  const neuSpeichern=()=>{ const n=neu; const name=(n.organisation||"").trim(); if(!name){ alert("Bitte Firmennamen angeben."); return; } if(orgs.some(o=>o.organisation.toLowerCase()===name.toLowerCase())){ alert("Diese Firma gibt es schon."); return; } const row={organisation:name,typ:n.typ||"verwaltung",status:"prospect",email:n.email||null,telefon:n.telefon||null,website:n.website||null,zustaendig:ich||null,updated_at:new Date().toISOString()}; supabase.from("org_status").insert(row).then(({error})=>{ if(error){ toast("Speichern fehlgeschlagen","error"); return; } const fertig=()=>{ akqLog({bereich:"partner",organisation:name,typ:"phase",text:"Firma erfasst",von:ich||null}); setNeu(null); laden(); setSelName(name); }; if(n.kname||n.kemail){ supabase.from("kontakte").insert({name:n.kname||null,email:n.kemail?n.kemail.toLowerCase():null,organisation:name,org_type:n.typ||"verwaltung",rolle:n.krolle||null}).then(fertig); } else fertig(); }); };
-  const kontaktNeu=(o)=>{ const name=prompt("Name der Ansprechperson:"); if(name===null) return; const email=prompt("E-Mail:"); if(email===null) return; if(!name.trim()&&!email.trim()) return; supabase.from("kontakte").insert({name:name.trim()||null,email:email.trim().toLowerCase()||null,organisation:o.organisation,org_type:o.typ||"verwaltung"}).then(({error})=>{ if(error){ toast("Speichern fehlgeschlagen","error"); return; } akqLog({bereich:"partner",organisation:o.organisation,typ:"notiz",text:"Ansprechperson erfasst: "+(name.trim()||email.trim()),von:ich||null}).then(()=>setLogTick(t=>t+1)); laden(); }); };
+  const neuSpeichern=()=>{ const n=neu; const name=(n.organisation||"").trim(); if(!name){ alert("Bitte Firmennamen angeben."); return; } if(orgs.some(o=>o.organisation.toLowerCase()===name.toLowerCase())){ alert("Diese Firma gibt es schon."); return; } const aehnlich=akqAehnlicheFirmen(name,orgs.map(o=>o.organisation)); if(aehnlich.length&&!confirm("Ähnliche Firma schon erfasst: "+aehnlich.join(", ")+".\n\nTrotzdem als neue Firma anlegen?")) return; if(n.kemail&&ks.some(k=>(k.email||"").toLowerCase()===n.kemail.trim().toLowerCase())){ const k=ks.find(k=>(k.email||"").toLowerCase()===n.kemail.trim().toLowerCase()); alert("Die E-Mail "+n.kemail+" gehört schon zu "+(k.name||"einem Kontakt")+(k.organisation?" bei "+k.organisation:"")+"."); return; } const row={organisation:name,typ:n.typ||"verwaltung",status:"prospect",email:n.email||null,telefon:n.telefon||null,website:n.website||null,zustaendig:ich||null,updated_at:new Date().toISOString()}; supabase.from("org_status").insert(row).then(({error})=>{ if(error){ toast("Speichern fehlgeschlagen","error"); return; } const fertig=()=>{ akqLog({bereich:"partner",organisation:name,typ:"phase",text:"Firma erfasst",von:ich||null}); setNeu(null); laden(); setSelName(name); }; if(n.kname||n.kemail){ supabase.from("kontakte").insert({name:n.kname||null,email:n.kemail?n.kemail.toLowerCase():null,organisation:name,org_type:n.typ||"verwaltung",rolle:n.krolle||null}).then(fertig); } else fertig(); }); };
+  const kontaktNeu=(o)=>{ const name=prompt("Name der Ansprechperson:"); if(name===null) return; const email=prompt("E-Mail:"); if(email===null) return; if(!name.trim()&&!email.trim()) return; const dup=email.trim()&&ks.find(k=>(k.email||"").toLowerCase()===email.trim().toLowerCase()); if(dup){ alert("Die E-Mail gehört schon zu "+(dup.name||"einem Kontakt")+(dup.organisation?" bei "+dup.organisation:"")+"."); return; } supabase.from("kontakte").insert({name:name.trim()||null,email:email.trim().toLowerCase()||null,organisation:o.organisation,org_type:o.typ||"verwaltung"}).then(({error})=>{ if(error){ toast("Speichern fehlgeschlagen","error"); return; } akqLog({bereich:"partner",organisation:o.organisation,typ:"notiz",text:"Ansprechperson erfasst: "+(name.trim()||email.trim()),von:ich||null}).then(()=>setLogTick(t=>t+1)); laden(); }); };
   const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",width:"100%",boxSizing:"border-box"};
   const LBL2={fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:"0.4px",textTransform:"uppercase",display:"block",marginBottom:3};
   const knopf={background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"};
@@ -285,7 +303,14 @@ function PartnerPipeline({benutzerMail}){
                   <button onClick={()=>openCompose(o,k)} style={{...knopf,padding:"4px 10px",fontSize:11.5}}>E-Mail</button>
                 </div>
               ))}
-              {dealsVon(o.organisation).length>0&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:8}}>In der Wohnungs-Pipeline: {dealsVon(o.organisation).length} Wohnung(en)</div>}
+              {dealsVon(o.organisation).length>0&&(<div style={{marginTop:12}}>
+                <label style={LBL2}>Wohnungs-Pipeline ({dealsVon(o.organisation).length})</label>
+                {dealsVon(o.organisation).map(dd=>(<div key={dd.id} onClick={()=>navigateTo&&navigateTo("pipeline",dd.id)} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0",borderBottom:"1px solid #f0ebe1",fontSize:12.5,cursor:navigateTo?"pointer":"default"}}><span style={{flex:1,color:"var(--ink)"}}>🏠 {dd.strasse||"Adresse"}{dd.ort?", "+dd.ort:""}</span><span style={{fontSize:10.5,color:"var(--muted)"}}>{({neu:"Neu",kontaktiert:"Kontaktiert",antwort:"Antwort",gewonnen:"Zusage",verloren:"Absage"})[dd.stage]||dd.stage}</span><AkqChip name={dd.zustaendig?akqName(team,dd.zustaendig):""}/>{navigateTo&&<span style={{color:"#3a5230",fontSize:11}}>→</span>}</div>))}
+              </div>)}
+              {wohnungen.length>0&&(<div style={{marginTop:12}}>
+                <label style={LBL2}>Bestehende Wohnungen mit {o.organisation} ({wohnungen.length})</label>
+                {wohnungen.map(w=>(<div key={w.id} onClick={()=>istAdmin&&navigateTo&&navigateTo("wohnungen",w.id)} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0",borderBottom:"1px solid #f0ebe1",fontSize:12.5,cursor:istAdmin?"pointer":"default"}}><span style={{flex:1,color:"var(--ink)"}}>🔑 {w.id} · {w.adresse||""}{w.ort?", "+w.ort:""}</span><span style={{fontSize:10.5,color:"var(--muted)"}}>{w.rolle}{w.mietende?" · bis "+w.mietende:""}</span>{istAdmin&&navigateTo&&<span style={{color:"#3a5230",fontSize:11}}>→</span>}</div>))}
+              </div>)}
             </div>
             {scheduled.filter(s=>s.organisation===o.organisation).map(s=>(
               <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px",fontSize:12,color:"#2f5a2a",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
@@ -324,7 +349,7 @@ function PartnerPipeline({benutzerMail}){
             </div>
             {o.status==="kein_interesse"&&<div style={{marginTop:10}}><label style={LBL2}>Grund</label><input key={"gr"+o.organisation} defaultValue={o.grund||""} onBlur={e=>{ if(e.target.value!==(o.grund||"")) patch(o.organisation,{grund:e.target.value||null},{typ:"notiz",text:"Grund: "+e.target.value}); }} placeholder="z.B. Untervermietung nicht erlaubt" style={inp}/></div>}
             <textarea key={"no"+o.organisation} defaultValue={o.notizen||""} onBlur={e=>{ if(e.target.value!==(o.notizen||"")) patch(o.organisation,{notizen:e.target.value||null},null); }} placeholder="Notizen zur Firma …" style={{...inp,marginTop:12,minHeight:54,resize:"vertical"}}/>
-            <AkqVerlauf bereich="partner" organisation={o.organisation} ich={ich} team={team} neu={logTick}/>
+            <AkqVerlauf bereich="partner" organisation={o.organisation} dealIds={dealsVon(o.organisation).map(x=>x.id)} deals={dealsVon(o.organisation)} ich={ich} team={team} neu={logTick}/>
             <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
               <div style={{fontSize:12,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Mailverlauf{thread&&thread.email?" mit "+thread.email:""}</div>
               {!thread&&<div style={{fontSize:12,color:"#8a8174"}}>Keine E-Mail-Adresse hinterlegt.</div>}

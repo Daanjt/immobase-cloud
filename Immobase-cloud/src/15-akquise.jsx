@@ -140,7 +140,7 @@ function Nachvermietung({apts, rooms, tenants, bewerber, updateRoom, updateTenan
   );
 }
 
-function PortfolioWatch(){
+function PortfolioWatch({navigateTo}){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState("neu");
@@ -195,7 +195,7 @@ function PortfolioWatch(){
               <div style={{fontSize:12.5,color:"var(--muted)",marginTop:5,lineHeight:1.6}}>
                 {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
               </div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.quelle?" · "+(t.quelle==="homegate"?"Homegate":"Flatfox"):""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name&&navigateTo?<a onClick={()=>navigateTo("partnerpipeline",t.agency_name)} title="In der Partner-Pipeline öffnen" style={{cursor:"pointer",color:"#3a5230",textDecoration:"underline"}}>{t.agency_name}</a>:(t.agency_name||"unbekannt")}{t.quelle?" · "+(t.quelle==="homegate"?"Homegate":"Flatfox"):""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
               <button onClick={()=>inPipeline(t)} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12,color:inPl[t.id]==="ok"?"#3a5230":inPl[t.id]==="err"?"#9b4a3e":"var(--muted)",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Manrope',sans-serif"}}>{inPl[t.id]==="ok"?"✓ in Pipeline":inPl[t.id]==="err"?"Fehler":"→ Pipeline"}</button>
@@ -210,7 +210,7 @@ function PortfolioWatch(){
   );
 }
 
-function MarktRadar(){
+function MarktRadar({navigateTo}){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [rubrik,setRubrik]=useState("bef");
@@ -222,7 +222,7 @@ function MarktRadar(){
   };
   useEffect(()=>{
     laden();
-    supabase.from("org_status").select("organisation,status,referenz_kontakt").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt}); setOrgStatus(m); }).catch(()=>{});
+    supabase.from("org_status").select("organisation,status,referenz_kontakt,typ,zustaendig").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt,typ:rr.typ,zustaendig:rr.zustaendig,name:rr.organisation}); setOrgStatus(m); }).catch(()=>{});
     const ch=supabase.channel("markt_radar_page").on("postgres_changes",{event:"*",schema:"public",table:"markt_radar"},laden).subscribe();
     return ()=>{ supabase.removeChannel(ch); };
   },[]);
@@ -277,7 +277,7 @@ function MarktRadar(){
                 {t.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}
                 {t.object_category}{t.zimmer?" · "+t.zimmer+" Zi":""}{t.flaeche?" · "+t.flaeche+" m²":""}{t.preis?" · CHF "+t.preis+" inkl. NK":""}{frei(t)}
               </div>
-              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name||"unbekannt"}{t.agency_contact_name?" · "+t.agency_contact_name:""}{t.agency_email?" · "+t.agency_email:""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
+              <div style={{fontSize:11.5,color:"#a0968a",marginTop:3}}>Inserent: {t.agency_name&&navigateTo?<a onClick={()=>navigateTo("partnerpipeline",t.agency_name)} title="In der Partner-Pipeline öffnen" style={{cursor:"pointer",color:"#3a5230",textDecoration:"underline"}}>{t.agency_name}</a>:(t.agency_name||"unbekannt")}{t.agency_contact_name?" · "+t.agency_contact_name:""}{t.agency_email?" · "+t.agency_email:""}{t.ff_created?" · gefunden "+String(t.ff_created).slice(0,10).split("-").reverse().join("."):""}</div>
               {osBadge(t.agency_name)}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,alignItems:"flex-end"}}>
@@ -294,7 +294,7 @@ function MarktRadar(){
   );
 }
 
-function Pipeline({benutzerMail}){
+function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const ich=String(benutzerMail||"").toLowerCase();
   const team=useAkquiseTeam();
   const [wer,setWer]=useState("alle");
@@ -320,9 +320,12 @@ function Pipeline({benutzerMail}){
   const [sigEdit,setSigEdit]=useState(false);
   const [orgStatus,setOrgStatus]=useState({});
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); ladenScheduled(); };
-  useEffect(()=>{ laden(); supabase.from("app_settings").select("value").eq("key","mail_signature").then(({data})=>{ if(data&&data[0]&&data[0].value) setSig(data[0].value); }).catch(()=>{}); supabase.from("org_status").select("organisation,status,referenz_kontakt").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt}); setOrgStatus(m); }).catch(()=>{}); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
+  useEffect(()=>{ laden(); supabase.from("app_settings").select("value").eq("key","mail_signature").then(({data})=>{ if(data&&data[0]&&data[0].value) setSig(data[0].value); }).catch(()=>{}); supabase.from("org_status").select("organisation,status,referenz_kontakt,typ,zustaendig").then(({data})=>{ const m={}; (data||[]).forEach(rr=>m[(rr.organisation||"").toLowerCase()]={status:rr.status,referenz:rr.referenz_kontakt,typ:rr.typ,zustaendig:rr.zustaendig,name:rr.organisation}); setOrgStatus(m); }).catch(()=>{}); const ch=supabase.channel("pipeline_page").on("postgres_changes",{event:"*",schema:"public",table:"pipeline"},laden).subscribe(); return ()=>{supabase.removeChannel(ch);}; },[]);
   useEffect(()=>{ setOpenMsg(null); setEditForm(null); if(!selected){ setThread(null); return; } if(!selected.contact_email){ setThread({messages:[]}); return; } setThread({loading:true}); supabase.functions.invoke("outlook-thread",{body:{email:selected.contact_email,postfach:selected.zustaendig||undefined}}).then(({data,error})=>{ setThread((error||!data||data.error)?{error:(data&&data.error)||"Fehler"}:{messages:data.messages||[],postfach:data.postfach}); }).catch(()=>setThread({error:"Fehler"})); },[selected&&selected.id]);
   const heute=()=>new Date().toISOString().slice(0,10);
+  useEffect(()=>{ if(navTarget&&navTarget.type==="pipeline"&&navTarget.id&&deals.length){ const f=deals.find(x=>String(x.id)===String(navTarget.id)); if(f) setSelected(f); } },[navTarget,deals.length]);
+  const firmaVon=(d)=>{ const n=(d.agency_name||"").toLowerCase(); if(orgStatus[n]) return orgStatus[n]; const k=Object.keys(orgStatus).find(x=>akqFirmaNorm(x)===akqFirmaNorm(n)&&akqFirmaNorm(n)); return k?orgStatus[k]:null; };
+  const aehnlicheDeals=(d)=>{ const adr=(d.strasse||"").toLowerCase().replace(/\s+/g," ").trim(); return deals.filter(x=>x.id!==d.id&&((d.flatfox_pk&&x.flatfox_pk===d.flatfox_pk)||(adr&&(x.strasse||"").toLowerCase().replace(/\s+/g," ").trim()===adr&&String(x.plz||"")===String(d.plz||"")))); };
   const patch=(id,f)=>{ supabase.from("pipeline").update({...f,updated_at:new Date().toISOString()}).eq("id",id).then(()=>{ setDeals(ds=>ds.map(d=>d.id===id?{...d,...f}:d)); setSelected(s=>s&&s.id===id?{...s,...f}:s); }); };
   const logDeal=(d,typ,text)=>akqLog({bereich:"wohnung",deal_id:d.id,typ,text,von:ich||null}).then(()=>setLogTick(t=>t+1));
   const setZust=(d,v)=>{ patch(d.id,{zustaendig:v||null}); logDeal(d,"zustaendig",v?("Zuständig: "+akqName(team,v)):"Zuständigkeit entfernt"); };
@@ -337,7 +340,7 @@ function Pipeline({benutzerMail}){
     }
   };
   const entfernen=(id)=>{ if(!confirm("Aus der Pipeline entfernen?"))return; supabase.from("pipeline").delete().eq("id",id).then(()=>{setDeals(ds=>ds.filter(d=>d.id!==id)); setSelected(null);}); };
-  const saveNewDeal=()=>{ const nd=newDeal; if(!nd) return; if(!(nd.agency_name||nd.strasse||nd.contact_name)){ alert("Bitte mindestens Verwaltung, Adresse oder Ansprechperson angeben."); return; } const rec={ flatfox_pk:null, source:"manual", agency_name:nd.agency_name||null, contact_name:nd.contact_name||null, contact_email:nd.contact_email||null, strasse:nd.strasse||null, plz:nd.plz||null, ort:nd.ort||null, zimmer:nd.zimmer?Number(nd.zimmer):null, preis:nd.preis?Number(nd.preis):null, befristet:!!nd.befristet, url:nd.url||null, stage:nd.stage||"neu", notizen:nd.notizen||null, zustaendig:ich||null }; supabase.from("pipeline").insert(rec).select().then(({data,error})=>{ if(error){ toast("Anlegen fehlgeschlagen", "error"); return; } setNewDeal(null); if(data&&data[0]){ setDeals(ds=>[data[0],...ds]); akqLog({bereich:"wohnung",deal_id:data[0].id,typ:"phase",text:"Deal erfasst",von:ich||null}); } else laden(); }); };
+  const saveNewDeal=()=>{ const nd=newDeal; if(!nd) return; if(!(nd.agency_name||nd.strasse||nd.contact_name)){ alert("Bitte mindestens Verwaltung, Adresse oder Ansprechperson angeben."); return; } const _dups=nd.strasse?aehnlicheDeals({id:-1,strasse:nd.strasse,plz:nd.plz}):[]; if(_dups.length&&!confirm("Diese Adresse ist schon in der Pipeline ("+_dups.map(x=>(LBL[x.stage]||x.stage)+(x.contact_name?" · "+x.contact_name:"")).join(", ")+").\n\nTrotzdem neuen Deal anlegen?")) return; const rec={ flatfox_pk:null, source:"manual", agency_name:nd.agency_name||null, contact_name:nd.contact_name||null, contact_email:nd.contact_email||null, strasse:nd.strasse||null, plz:nd.plz||null, ort:nd.ort||null, zimmer:nd.zimmer?Number(nd.zimmer):null, preis:nd.preis?Number(nd.preis):null, befristet:!!nd.befristet, url:nd.url||null, stage:nd.stage||"neu", notizen:nd.notizen||null, zustaendig:ich||null }; supabase.from("pipeline").insert(rec).select().then(({data,error})=>{ if(error){ toast("Anlegen fehlgeschlagen", "error"); return; } setNewDeal(null); if(data&&data[0]){ setDeals(ds=>[data[0],...ds]); akqLog({bereich:"wohnung",deal_id:data[0].id,typ:"phase",text:"Deal erfasst",von:ich||null}); } else laden(); }); };
   const patchAbsage=(d,g)=>{ patch(d.id,{verlust_grund:g}); if(d.agency_name && g==="Kein Interesse am Modell") supabase.from("org_status").upsert({organisation:d.agency_name,status:"kein_interesse",grund:g||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(()=>{}); };
   const defaultTpl=(d)=>{ const _os=orgStatus[(d.agency_name||"").toLowerCase()]||{}; return _os.status==="partner"?"warm":"kalt"; };
   const _htmlEsc=(x)=>String(x||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -459,6 +462,7 @@ function Pipeline({benutzerMail}){
                     <div style={{fontSize:11,color:"#a0968a",marginTop:3}}>{x.agency_name||""}{x.contact_name?" · "+x.contact_name:""}</div>
                     {scheduled.some(s=>s.deal_id===x.id)&&<div style={{fontSize:10.5,color:"#3a5230",marginTop:3,fontWeight:600}}>📅 Mail geplant</div>}
                     {x.reply_pending&&<div style={{fontSize:10.5,color:"#b5651d",marginTop:3,fontWeight:700}}>💬 Antwort offen</div>}
+                    {aehnlicheDeals(x).length>0&&<div style={{fontSize:10.5,color:"#8a5a1d",marginTop:3}}>⚠️ Adresse mehrfach in der Pipeline</div>}
                     
                     {cardMeta(x)}
                   </div>
@@ -519,6 +523,11 @@ function Pipeline({benutzerMail}){
               {d.kontaktiert_am&&<div><span style={{color:"var(--muted)"}}>Kontaktiert am:</span> {fmt(d.kontaktiert_am)}</div>}
             </div>
             )}
+            {(()=>{ const f=d.agency_name?firmaVon(d):null; const dup=aehnlicheDeals(d); return (<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+              {f&&(<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12.5,background:"#f6f2ea",border:"1px solid var(--line)",borderRadius:10,padding:"7px 10px"}}><span style={{color:"var(--muted)"}}>Firma:</span><b style={{color:"var(--ink)"}}>{f.name}</b><AkqTypTag typ={f.typ}/><AkqPhaseTag status={f.status}/>{f.zustaendig&&<span style={{fontSize:11,color:"var(--muted)"}}>· {akqName(team,f.zustaendig)}</span>}{navigateTo&&<button onClick={()=>navigateTo("partnerpipeline",f.name)} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Zur Firma →</button>}</div>)}
+              {dup.length>0&&(<div style={{fontSize:12,background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:10,padding:"7px 10px",color:"#8a5a1d"}}>⚠️ Gleiche Wohnung schon in der Pipeline: {dup.map((x,i)=>(<span key={x.id}>{i>0?", ":""}<a onClick={()=>setSelected(x)} style={{cursor:"pointer",textDecoration:"underline"}}>{LBL[x.stage]||x.stage}{x.contact_name?" · "+x.contact_name:""}{x.created_at?" ("+fmt(x.created_at)+")":""}</a></span>))}</div>)}
+              {d.won_apartment_id&&(<div style={{fontSize:12.5,background:"#e8efde",border:"1px solid #cfe0c4",borderRadius:10,padding:"7px 10px",color:"#3a5230",display:"flex",alignItems:"center",gap:6}}>🔑 Als Wohnung {d.won_apartment_id} erfasst{istAdmin&&navigateTo&&<button onClick={()=>navigateTo("wohnungen",d.won_apartment_id)} style={{marginLeft:"auto",background:"none",border:"1px solid #cfe0c4",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Wohnung öffnen →</button>}</div>)}
+            </div>); })()}
             <div style={{marginTop:12}}><label style={LBL2}>Zuständig</label><AkqZustaendig value={d.zustaendig} team={team} ich={ich} onChange={v=>setZust(d,v)}/></div>
             <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
               <button onClick={()=>openCompose(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 18px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>E-Mail</button>
@@ -608,7 +617,7 @@ function Pipeline({benutzerMail}){
   );
 }
 
-function Kontakte(){
+function Kontakte({navigateTo}){
   const TYP=[["verwaltung","Verwaltung"],["eigentuemer","Eigentümer"],["partner","Partner"],["andere","Andere"]];
   const typLabel=(t)=>({verwaltung:"Verwaltung",eigentuemer:"Eigentümer",partner:"Partner",andere:"Andere"}[t]||t);
   const ST=[["prospect","Neu"],["angeschrieben","Angeschrieben"],["gespraech","In Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
@@ -647,7 +656,7 @@ function Kontakte(){
   const firmen=firmNames.filter(org=>{ if(!pass(org,tab))return false; if(q){ const persons=firmKontakte(org).map(k=>(k.name||"")+" "+(k.email||"")+" "+(k.rolle||"")).join(" "); const s=(org+" "+persons+" "+((orgs[org]&&orgs[org].email)||"")).toLowerCase(); if(!s.includes(q.toLowerCase()))return false; } return true; }).sort((a,b)=>a.localeCompare(b));
   const openFirm=(org)=>{ const rr=orgs[org]||{}; setFd({organisation:org,isNew:false,status:rr.status||"prospect",grund:rr.grund||"",typ:rr.typ||firmType(org),adresse:rr.adresse||"",email:rr.email||"",telefon:rr.telefon||"",notizen:rr.notizen||"",website:rr.website||""}); setFirm(org); setCf(null); setBearb(false); };
   const neueFirma=()=>{ setFd({organisation:"",isNew:true,status:"prospect",grund:"",typ:"verwaltung",adresse:"",email:"",telefon:"",notizen:"",website:""}); setFirm("*neu*"); setCf(null); setBearb(true); };
-  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); setBearb(false); toast("Gespeichert"); }); };
+  const saveFirm=()=>{ if(!fd.organisation||!fd.organisation.trim()){alert("Bitte Firmennamen angeben.");return;} if(fd.isNew){ const aeh=akqAehnlicheFirmen(fd.organisation,firmNames); if(aeh.some(x=>x.toLowerCase().trim()===fd.organisation.toLowerCase().trim())){ alert("Diese Firma gibt es schon."); return; } if(aeh.length&&!confirm("Ähnliche Firma schon erfasst: "+aeh.join(", ")+".\n\nTrotzdem als neue Firma anlegen?")) return; } supabase.from("org_status").upsert({organisation:fd.organisation.trim(),status:fd.status,grund:fd.grund||null,typ:fd.typ||null,adresse:fd.adresse||null,email:fd.email||null,telefon:fd.telefon||null,notizen:fd.notizen||null,website:fd.website||null,updated_at:new Date().toISOString()},{onConflict:"organisation"}).then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} const nm=fd.organisation.trim(); setOrgs(m=>({...m,[nm]:{...(m[nm]||{}),organisation:nm,status:fd.status,grund:fd.grund,typ:fd.typ,adresse:fd.adresse,email:fd.email,telefon:fd.telefon,notizen:fd.notizen,website:fd.website}})); setFd({...fd,organisation:nm,isNew:false}); setFirm(nm); setBearb(false); toast("Gespeichert"); }); };
   const mergeFirm=(target)=>{ if(!target||target===fd.organisation)return; if(!confirm('Firma "'+fd.organisation+'" in "'+target+'" zusammenführen? Alle Kontakte werden übernommen.'))return; supabase.from("kontakte").update({organisation:target,updated_at:new Date().toISOString()}).eq("organisation",fd.organisation).then(()=>{ supabase.from("org_status").delete().eq("organisation",fd.organisation).then(()=>{ setFirm(null); setCf(null); setMergeT(""); ladeK(); ladeOrgs(); }); }); };
   const openContact=(k)=>{ if(k){ setCf({...k}); setCfEdit(false); setNote(""); if(k.id) ladeActs(k.id); else setActs([]); } else { setCf({organisation:firm,org_type:(fd&&fd.typ)||"verwaltung"}); setCfEdit(true); setActs([]); setNote(""); } };
   const saveContact=()=>{ const k=cf; if(!k.name&&!k.email){alert("Bitte Name oder E-Mail angeben.");return;} const row={name:k.name||null,email:k.email?k.email.toLowerCase():null,phone:k.phone||null,organisation:fd.organisation,org_type:k.org_type||(fd&&fd.typ)||"verwaltung",rolle:k.rolle||null,verwaltung:k.verwaltung||null,is_partner:!!k.is_partner,notizen:k.notizen||null,updated_at:new Date().toISOString()}; const op=k.id?supabase.from("kontakte").update(row).eq("id",k.id):supabase.from("kontakte").insert(row); op.then(({error})=>{ if(error){toast("Speichern fehlgeschlagen", "error");return;} setCf(null); setCfEdit(false); ladeK(); try{ ladeKontakte(true); }catch(_){} toast("Gespeichert"); }); };
@@ -692,7 +701,7 @@ function Kontakte(){
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}>
               {fd.isNew
                 ? <input value={fd.organisation} onChange={e=>setFd({...fd,organisation:e.target.value})} placeholder="Firmenname" style={{...inp,fontSize:15,fontWeight:600}} />
-                : <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>{fd.organisation} {osTag(fd.status)}</div>}
+                : <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontSize:18,color:"var(--ink)"}}>{fd.organisation} {osTag(fd.status)}{navigateTo&&<button onClick={()=>navigateTo("partnerpipeline",fd.organisation)} style={{marginLeft:8,background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif",verticalAlign:"middle"}}>Partner-Pipeline →</button>}</div>}
               <button onClick={()=>{setFirm(null);setCf(null);}} style={{background:"none",border:"none",fontSize:20,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
             </div>
             {!bearb ? (<div>
