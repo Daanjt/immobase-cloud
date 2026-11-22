@@ -398,7 +398,6 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
               </tr></thead>
               <tbody>
               {aktuell.map(einzugEintrag)}
-              })}
               </tbody>
             </table>
           </div>
