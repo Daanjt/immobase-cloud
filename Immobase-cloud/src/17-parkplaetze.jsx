@@ -748,7 +748,8 @@ const PAGES=[
   {id:"finanzen",icon:"📊",label:"Finanzen",group:"finanzen"},
   {id:"auslagen",icon:"💳",label:"Geschäftskarte",group:"finanzen"},
   {id:"lohn",icon:"🧾",label:"Lohn",group:"finanzen"},
-  {id:"pipeline",icon:"📇",label:"Pipeline",group:"akquise"},
+  {id:"pipeline",icon:"📇",label:"Wohnungs-Pipeline",group:"akquise"},
+  {id:"partnerpipeline",icon:"🤝",label:"Partner-Pipeline",group:"akquise"},
   {id:"portfoliowatch",icon:"📡",label:"Portfolio-Watch",group:"akquise"},
   {id:"marktradar",icon:"🔭",label:"Marktradar",group:"akquise"},
   {id:"bauradar",icon:"🏗️",label:"Bauradar",group:"akquise"},
@@ -778,6 +779,8 @@ const ROLLEN_SEITEN = {
   operations: ["dashboard","bewerber","mieter","todos","schaeden","kuendigungen","wohnungen","zimmer","nachvermietung","uebergaben","parkplaetze","reinigung"],
   // Vermietung: nur freie bzw. frei werdende Zimmer und Wohnungen, die Bewerber dafuer und die neuen Mieter bis zum Einzug
   vermietung: ["dashboard","bewerber","zimmer","wohnungen","nachvermietung","uebergaben","mieter"],
+  // Akquise: Wohnungs- und Partner-Pipeline, Radar und Kontakte; Mails gehen aus dem eigenen @dthomes.ch-Postfach
+  akquise: ["pipeline","partnerpipeline","marktradar","portfoliowatch","bauradar","kontakte"],
 };
 
 function seitenFuerRolle(rolle) {

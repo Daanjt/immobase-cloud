@@ -70,7 +70,7 @@ function MainApp({rolle}) {
 
   const seiteErlaubt = sichtbareSeiten.some(p => p.id === page);
   const Page = seiteErlaubt
-    ? {dashboard:(rolle==="vermietung"?VermietungDashboard:Dashboard),bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,parkplaetze:ParkplaetzePage,namensschilder:NamensschilderPage,kiwissen:KiWissenPage,whatsapp:WhatsAppPage,reinigung:ReinigungPage,schaeden:SchaedenPage,kuendigungen:KuendigungenPage,datencheck:DatencheckPage,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,lohn:LohnPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
+    ? {dashboard:(rolle==="vermietung"?VermietungDashboard:Dashboard),bewerber:Bewerber,nachvermietung:Nachvermietung,portfoliowatch:PortfolioWatch,marktradar:MarktRadar,bauradar:Bauradar,pipeline:Pipeline,partnerpipeline:PartnerPipeline,kontakte:Kontakte,werbung:WerbungTab,dokumente:DokumenteSection,wohnungen:Wohnungen,zimmer:Zimmer,parkplaetze:ParkplaetzePage,namensschilder:NamensschilderPage,kiwissen:KiWissenPage,whatsapp:WhatsAppPage,reinigung:ReinigungPage,schaeden:SchaedenPage,kuendigungen:KuendigungenPage,datencheck:DatencheckPage,mieter:Mieter,uebergaben:Uebergaben,zahlungen:Zahlungen,partner:PartnerPage,todos:TodoPage,finanzen:FinanzenSection,auslagen:AuslagenPage,lohn:LohnPage,passwoerter:PasswoerterPage,zeit:(rolle==="admin"?Zeiterfassung:MitarbeiterZeit)}[page]
     : KeinZugriff;
   const freeCount=data.rooms.filter(r=>!r.occupied).length;
   const nachvermietungOffen=(()=>{
@@ -507,6 +507,7 @@ const ROLLEN_LABELS = {
   admin: "Admin (Vollzugriff)",
   operations: "Operations (alle Wohnungen ausser Airbnb, ohne Finanzen und Hauptmiete)",
   vermietung: "Vermietung (nur freie Wohnungen und Zimmer)",
+  akquise: "Akquise (Pipelines, Radar, Kontakte; Mails aus eigenem Postfach)",
 };
 
 function TeamVerwaltung({onClose, eigeneMail, insertEmployee, employees}) {
