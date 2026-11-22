@@ -37,23 +37,35 @@ function useAkqSchmal(){
 function AkqBoard({phasen,items,phaseVon,renderKarte,leerText}){
   const schmal=useAkqSchmal();
   const [aktiv,setAktiv]=useState(null);
+  const [richtung,setRichtung]=useState(0);
+  const touch=useRef(null);
+  const chipLeiste=useRef(null);
   const gruppen=phasen.map(ph=>({...ph,liste:items.filter(x=>phaseVon(x)===ph.id)}));
   if(schmal){
     const erste=(gruppen.find(g=>g.liste.length&&!g.ende)||gruppen[0]).id;
     const cur=aktiv||erste;
     const g=gruppen.find(x=>x.id===cur)||gruppen[0];
+    const idx=gruppen.findIndex(x=>x.id===g.id);
+    const wechsle=(d)=>{ const n=idx+d; if(n<0||n>=gruppen.length) return; setRichtung(d); setAktiv(gruppen[n].id); setTimeout(()=>{ try{ const el=chipLeiste.current&&chipLeiste.current.querySelector('[data-ph="'+gruppen[n].id+'"]'); if(el) el.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"}); }catch(_){} },0); };
+    const tStart=(e)=>{ const t=e.touches&&e.touches[0]; if(t) touch.current={x:t.clientX,y:t.clientY,zeit:Date.now()}; };
+    const tEnde=(e)=>{ const a=touch.current; touch.current=null; const t=e.changedTouches&&e.changedTouches[0]; if(!a||!t) return; const dx=t.clientX-a.x, dy=t.clientY-a.y; if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5&&Date.now()-a.zeit<800) wechsle(dx<0?1:-1); };
     return (
       <div>
-        <div style={{display:"flex",gap:6,overflowX:"auto",padding:"2px 0 10px",margin:"0 -2px",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
-          {gruppen.map(x=>{ const an=x.id===g.id; return (
-            <button key={x.id} onClick={()=>setAktiv(x.id)} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6,background:an?"var(--ink)":"var(--surface)",color:an?"var(--surface)":"var(--ink)",border:"1px solid "+(an?"var(--ink)":"var(--line)"),borderRadius:20,padding:"7px 12px",fontSize:13,fontWeight:an?700:500,fontFamily:"'Manrope',sans-serif"}}>
+        <div ref={chipLeiste} style={{display:"flex",gap:6,overflowX:"auto",padding:"2px 0 10px",margin:"0 -2px",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
+          {gruppen.map((x,xi)=>{ const an=x.id===g.id; return (
+            <button key={x.id} data-ph={x.id} onClick={()=>{ setRichtung(xi>idx?1:-1); setAktiv(x.id); }} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6,background:an?"var(--ink)":"var(--surface)",color:an?"var(--surface)":"var(--ink)",border:"1px solid "+(an?"var(--ink)":"var(--line)"),borderRadius:20,padding:"7px 12px",fontSize:13,fontWeight:an?700:500,fontFamily:"'Manrope',sans-serif"}}>
               <span style={{width:8,height:8,borderRadius:4,background:x.farbe}}/>{x.label}<span style={{opacity:0.65,fontWeight:500}}>{x.liste.length}</span>
             </button>); })}
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div onTouchStart={tStart} onTouchEnd={tEnde} style={{minHeight:"55vh",touchAction:"pan-y"}}>
+        <div key={g.id} style={{display:"flex",flexDirection:"column",gap:10,animation:richtung?("akqWisch"+(richtung>0?"L":"R")+" .22s ease"):"none"}}>
           {g.liste.map(x=>renderKarte(x,g,true))}
           {g.liste.length===0&&<div style={{fontSize:13,color:"#a0968a",padding:"24px 8px",textAlign:"center"}}>{leerText||"Keine Einträge in dieser Phase"}</div>}
         </div>
+        </div>
+        <div style={{display:"flex",justifyContent:"center",gap:6,padding:"14px 0 4px"}}>{gruppen.map((x,xi)=><span key={x.id} style={{width:xi===idx?18:6,height:6,borderRadius:3,background:xi===idx?"var(--ink)":"#d8cfbe",transition:"width .2s"}}/>)}</div>
+        <div style={{textAlign:"center",fontSize:11,color:"#b9b0a2"}}>Wischen für die nächste Phase</div>
+        <style>{"@keyframes akqWischL{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}@keyframes akqWischR{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}"}</style>
       </div>
     );
   }
