@@ -27,6 +27,80 @@ function AkqTypTag({typ}){ const f=AKQ_TYP[typ||"verwaltung"]||AKQ_TYP.andere; r
 function akqFirmaNorm(t){ return String(t||"").toLowerCase().replace(/\b(ag|gmbh|sa|sàrl|ltd|immobilien|immo|verwaltung|verwaltungs|treuhand|und|real estate|wohnbau|management|bau|group|gruppe)\b/g," ").replace(/[^a-z0-9äöüé]+/g," ").trim(); }
 function akqAehnlicheFirmen(name,liste){ const n=akqFirmaNorm(name); if(!n) return []; const erstes=n.split(" ")[0]; return (liste||[]).filter(o=>{ const m=akqFirmaNorm(o); return m===n||(erstes.length>=4&&m.split(" ")[0]===erstes); }); }
 
+
+// ── Pipeline-Board: Spalten auf dem Computer, Phasen-Reiter mit einer Liste auf dem Handy ──
+function useAkqSchmal(){
+  const [schmal,setSchmal]=useState(()=>typeof window!=="undefined"&&window.innerWidth<760);
+  useEffect(()=>{ const f=()=>setSchmal(window.innerWidth<760); window.addEventListener("resize",f); return ()=>window.removeEventListener("resize",f); },[]);
+  return schmal;
+}
+function AkqBoard({phasen,items,phaseVon,renderKarte,leerText}){
+  const schmal=useAkqSchmal();
+  const [aktiv,setAktiv]=useState(null);
+  const gruppen=phasen.map(ph=>({...ph,liste:items.filter(x=>phaseVon(x)===ph.id)}));
+  if(schmal){
+    const erste=(gruppen.find(g=>g.liste.length&&!g.ende)||gruppen[0]).id;
+    const cur=aktiv||erste;
+    const g=gruppen.find(x=>x.id===cur)||gruppen[0];
+    return (
+      <div>
+        <div style={{display:"flex",gap:6,overflowX:"auto",padding:"2px 0 10px",margin:"0 -2px",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
+          {gruppen.map(x=>{ const an=x.id===g.id; return (
+            <button key={x.id} onClick={()=>setAktiv(x.id)} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6,background:an?"var(--ink)":"var(--surface)",color:an?"var(--surface)":"var(--ink)",border:"1px solid "+(an?"var(--ink)":"var(--line)"),borderRadius:20,padding:"7px 12px",fontSize:13,fontWeight:an?700:500,fontFamily:"'Manrope',sans-serif"}}>
+              <span style={{width:8,height:8,borderRadius:4,background:x.farbe}}/>{x.label}<span style={{opacity:0.65,fontWeight:500}}>{x.liste.length}</span>
+            </button>); })}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {g.liste.map(x=>renderKarte(x,g,true))}
+          {g.liste.length===0&&<div style={{fontSize:13,color:"#a0968a",padding:"24px 8px",textAlign:"center"}}>{leerText||"Keine Einträge in dieser Phase"}</div>}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:10,alignItems:"flex-start"}}>
+      {gruppen.map(g=>(
+        <div key={g.id} style={{minWidth:248,width:248,flexShrink:0,background:"#f3efe6",borderRadius:14,padding:"10px 8px 8px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 6px 10px"}}>
+            <span style={{width:8,height:8,borderRadius:4,background:g.farbe}}/>
+            <span style={{fontSize:12.5,fontWeight:700,color:"var(--ink)",letterSpacing:".01em"}}>{g.label}</span>
+            <span style={{marginLeft:"auto",fontSize:11,fontWeight:600,color:"var(--muted)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:10,padding:"0 7px"}}>{g.liste.length}</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {g.liste.map(x=>renderKarte(x,g,false))}
+            {g.liste.length===0&&<div style={{fontSize:11.5,color:"#b9b0a2",padding:"10px 6px",textAlign:"center",border:"1px dashed #ddd4c3",borderRadius:10}}>leer</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+// Einheitliche Karte: Titel, Untertitel, Schilder, Hinweise, unten Zuständig und Phase verschieben
+function AkqKarte({farbe,titel,untertitel,schilder,hinweise,zustaendig,onOpen,zurueck,weiter,gross}){
+  const knopf={background:"var(--surface)",border:"1px solid var(--line)",borderRadius:8,padding:gross?"6px 10px":"2px 8px",fontSize:gross?12:11,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"};
+  return (
+    <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,boxShadow:"0 1px 2px rgba(31,29,24,.05)",overflow:"hidden",display:"flex"}}>
+      <div style={{width:3,flexShrink:0,background:farbe}}/>
+      <div style={{flex:1,minWidth:0,padding:gross?"12px 13px 10px":"10px 11px 9px"}}>
+        <div onClick={onOpen} style={{cursor:"pointer"}}>
+          <div style={{fontSize:gross?14.5:13.5,fontWeight:700,color:"var(--ink)",lineHeight:1.3}}>{titel}</div>
+          {untertitel&&<div style={{fontSize:gross?12.5:11.5,color:"var(--muted)",marginTop:2,lineHeight:1.35,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{untertitel}</div>}
+          {schilder&&schilder.filter(Boolean).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:7}}>{schilder.filter(Boolean)}</div>}
+          {hinweise&&hinweise.filter(Boolean).length>0&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:7}}>{hinweise.filter(Boolean)}</div>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:9,paddingTop:8,borderTop:"1px solid #f0ebe1"}}>
+          {zustaendig}
+          <span style={{flex:1}}/>
+          {zurueck&&<button onClick={zurueck.onClick} title={"Zurück: "+zurueck.label} style={knopf}>← {gross?zurueck.label:""}</button>}
+          {weiter&&<button onClick={weiter.onClick} title={"Weiter: "+weiter.label} style={{...knopf,color:"var(--ink)",fontWeight:600}}>{gross?weiter.label+" ":""}→</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+function AkqSchild({children,bg,fg}){ return <span style={{background:bg||"#f3efe6",color:fg||"#6e6a62",fontSize:10.5,padding:"2px 8px",borderRadius:10,fontWeight:600,whiteSpace:"nowrap"}}>{children}</span>; }
+function AkqHinweis({children,farbe,fett}){ return <div style={{fontSize:11.5,color:farbe||"var(--muted)",fontWeight:fett?700:500,lineHeight:1.35}}>{children}</div>; }
+
 function AkqChip({name,leer}){
   if(!name) return leer?<span title="Nicht zugewiesen" style={{fontSize:10,color:"#b9b0a2",border:"1px dashed #d8cfbe",borderRadius:10,padding:"0 7px"}}>offen</span>:null;
   return <span title={"Zuständig: "+name} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:22,height:22,borderRadius:11,background:"#e8e1d3",color:"#4a4439",fontSize:10,fontWeight:700,padding:"0 5px"}}>{akqKuerzel(name)}</span>;
@@ -240,8 +314,8 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
         </div>
         <button onClick={()=>setNeu({typ:"verwaltung"})} style={knopf}>+ Neue Firma</button>
       </div>
-      <div style={{display:"flex",gap:0,marginBottom:12,border:"1px solid var(--line)",borderRadius:10,overflow:"hidden",width:"fit-content",maxWidth:"100%"}}>
-        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["andere","Andere"]].filter(([v])=>v!=="andere"||orgs.some(x=>x.typ==="andere")).map(([v,l])=>{ const n=v==="alle"?orgs.length:orgs.filter(x=>(x.typ||"verwaltung")===v).length; const an=typF===v; return <button key={v} onClick={()=>setTypF(v)} style={{background:an?"var(--ink)":"var(--surface)",color:an?"var(--surface)":"var(--ink)",border:"none",borderRight:"1px solid var(--line)",padding:"8px 16px",fontSize:13,fontWeight:an?700:500,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{l} <span style={{opacity:0.6,fontWeight:500}}>{n}</span></button>; })}
+      <div style={{display:"flex",gap:0,marginBottom:12,border:"1px solid var(--line)",borderRadius:10,overflowX:"auto",width:"fit-content",maxWidth:"100%"}}>
+        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["andere","Andere"]].filter(([v])=>v!=="andere"||orgs.some(x=>x.typ==="andere")).map(([v,l])=>{ const n=v==="alle"?orgs.length:orgs.filter(x=>(x.typ||"verwaltung")===v).length; const an=typF===v; return <button key={v} onClick={()=>setTypF(v)} style={{background:an?"var(--ink)":"var(--surface)",color:an?"var(--surface)":"var(--ink)",border:"none",borderRight:"1px solid var(--line)",padding:"8px 16px",fontSize:13,fontWeight:an?700:500,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{l} <span style={{opacity:0.6,fontWeight:500}}>{n}</span></button>; })}
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suche: Firma, Person, E-Mail …" style={{...inp,flex:1,minWidth:200,width:"auto",padding:"8px 12px",fontSize:13}}/>
@@ -249,40 +323,16 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
         <button onClick={()=>setNurAntwort(v=>!v)} style={{...knopf2,background:nurAntwort?"var(--ink)":"var(--surface)",color:nurAntwort?"var(--surface)":"var(--muted)"}}>💬 Antwort offen</button>
       </div>
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Lädt …</div>}
-      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>
-        {STAGES.map(([sid,slbl],si)=>{ const col=sichtbar.filter(x=>(x.status||"prospect")===sid).sort((a,b)=>String(b.updated_at||"").localeCompare(String(a.updated_at||""))); return (
-          <div key={sid} style={{minWidth:232,width:232,flexShrink:0,background:"#f3efe6",borderRadius:12,padding:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"3px 6px 8px"}}>
-              <span style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{slbl}</span>
-              <span style={{fontSize:10.5,color:"var(--muted)"}}>{col.length}</span>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {col.map(x=>{ const kz=kontakteVon(x.organisation).length; const dz=dealsVon(x.organisation).length; const idle=["angeschrieben","gespraech"].includes(sid)?dTage(x.updated_at):null; const geplant=scheduled.some(s=>s.organisation===x.organisation); return (
-                <div key={x.organisation} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 11px"}}>
-                  <div onClick={()=>setSelName(x.organisation)} style={{cursor:"pointer"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",gap:6,alignItems:"flex-start"}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",lineHeight:1.35}}>{x.organisation}</div>
-                      <AkqChip name={x.zustaendig?akqName(team,x.zustaendig):""} leer/>
-                    </div>
-                    <div style={{fontSize:11,color:"#a0968a",marginTop:3}}><TypTag typ={x.typ}/>{kz?" "+kz+" Kontakt"+(kz>1?"e":""):" kein Kontakt"}{dz?" · "+dz+" Wohnung"+(dz>1?"en":""):""}</div>
-                    {x.kontaktiert_am&&<div style={{fontSize:10.5,color:"var(--muted)",marginTop:3}}>Angeschrieben {fmtD(x.kontaktiert_am)}</div>}
-                    {x.reply_pending&&<div style={{fontSize:10.5,color:"#b5651d",marginTop:3,fontWeight:700}}>💬 Antwort offen</div>}
-                    {geplant&&<div style={{fontSize:10.5,color:"#3a5230",marginTop:3,fontWeight:600}}>📅 Mail geplant</div>}
-                    {x.naechster_schritt&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:4}}>⏭ {x.naechster_schritt}</div>}
-                    {x.wiedervorlage&&<div style={{fontSize:10.5,marginTop:3,color:x.wiedervorlage<=heute()?"#a4442e":"#3a4a63",fontWeight:600}}>{x.wiedervorlage<heute()?"überfällig":x.wiedervorlage===heute()?"heute fällig":"Wiedervorlage "+fmtD(x.wiedervorlage)}</div>}
-                    {idle!=null&&idle>=14&&!x.reply_pending&&<div style={{fontSize:10.5,color:"#a0968a",marginTop:3}}>seit {idle} Tagen ruhig</div>}
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-                    <button onClick={()=>{ if(si>0) setStage(x,STAGES[si-1][0]); }} disabled={si===0} style={{background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--muted)",cursor:si===0?"default":"pointer",opacity:si===0?0.35:1}}>←</button>
-                    <button onClick={()=>{ if(si<STAGES.length-1) setStage(x,STAGES[si+1][0]); }} disabled={si===STAGES.length-1} style={{background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--muted)",cursor:si===STAGES.length-1?"default":"pointer",opacity:si===STAGES.length-1?0.35:1}}>→</button>
-                  </div>
-                </div>
-              ); })}
-              {col.length===0&&<div style={{fontSize:11,color:"#b9b0a2",padding:"6px"}}>leer</div>}
-            </div>
-          </div>
-        ); })}
-      </div>
+      {!loading&&<AkqBoard phasen={STAGES.map(([id,label])=>({id,label,farbe:(AKQ_PHASEN[id]||[])[2]||"#999",ende:id==="kein_interesse"}))} items={[...sichtbar].sort((a,b)=>(b.reply_pending?1:0)-(a.reply_pending?1:0)||String(b.updated_at||"").localeCompare(String(a.updated_at||"")))} phaseVon={x=>x.status||"prospect"} leerText="Keine Firmen in dieser Phase" renderKarte={(x,g,gross)=>{ const si=STAGES.findIndex(z=>z[0]===g.id); const kz=kontakteVon(x.organisation).length; const dz=dealsVon(x.organisation).length; const idle=["angeschrieben","gespraech"].includes(g.id)?dTage(x.updated_at):null; const geplant=scheduled.some(s=>s.organisation===x.organisation); const wv=x.wiedervorlage; return (
+        <AkqKarte key={x.organisation} gross={gross} farbe={g.farbe} onOpen={()=>setSelName(x.organisation)}
+          titel={x.organisation}
+          untertitel={kz?kontakteVon(x.organisation).map(k=>k.name||k.email).filter(Boolean).slice(0,2).join(", ")+(kz>2?" +"+(kz-2):""):"Noch keine Ansprechperson"}
+          schilder={[<AkqTypTag key="t" typ={x.typ}/>, dz?<AkqSchild key="d">🏠 {dz}</AkqSchild>:null, x.kontaktiert_am?<AkqSchild key="k">✉️ {fmtD(x.kontaktiert_am)}</AkqSchild>:null]}
+          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, geplant?<AkqHinweis key="g" farbe="#3a5230" fett>📅 Mail geplant</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, wv?<AkqHinweis key="w" farbe={wv<heute()?"#a4442e":wv===heute()?"#8a6d1e":"#3a4a63"} fett>⏰ {wv<heute()?"Wiedervorlage überfällig":wv===heute()?"Wiedervorlage heute":"Wiedervorlage "+fmtD(wv)}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i" farbe="#b08968">seit {idle} Tagen ruhig</AkqHinweis>:null]}
+          zustaendig={x.zustaendig?<span style={{display:"flex",alignItems:"center",gap:5}}><AkqChip name={akqName(team,x.zustaendig)}/>{gross&&<span style={{fontSize:12,color:"var(--muted)"}}>{akqName(team,x.zustaendig)}</span>}</span>:<AkqChip leer/>}
+          zurueck={si>0?{label:STAGES[si-1][1],onClick:()=>setStage(x,STAGES[si-1][0])}:null}
+          weiter={si<STAGES.length-1?{label:STAGES[si+1][1],onClick:()=>setStage(x,STAGES[si+1][0])}:null}/>
+      ); }}/>}
 
       {neu&&(
         <div className="ov-x" onClick={()=>setNeu(null)} style={{position:"fixed",inset:0,background:"rgba(26,24,20,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2000}}>

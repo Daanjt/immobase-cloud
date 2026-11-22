@@ -447,36 +447,16 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
         <AkqPersonFilter team={team} value={wer} onChange={setWer} ich={ich}/>
         {[["all","Alle"],["reply","💬 Antwort offen"],["scheduled","📅 Geplant"]].map(([v,l])=>(<button key={v} onClick={()=>setFilt(v)} style={{background:filt===v?"var(--ink)":"var(--surface)",color:filt===v?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"7px 11px",fontSize:12,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{l}</button>))}
       </div>
-      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>
-        {STAGES.map(([sid,slbl],si)=>{ const col=visibleDeals.filter(z=>z.stage===sid); const wsum=col.reduce((sm,z)=>sm+(Number(z.wert)||0),0); return (
-          <div key={sid} style={{minWidth:232,width:232,flexShrink:0,background:"#f3efe6",borderRadius:12,padding:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"3px 6px 8px"}}>
-              <span style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{slbl}</span>
-              <span style={{fontSize:10.5,color:"var(--muted)"}}>{col.length}</span>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {col.map(x=>(
-                <div key={x.id} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:10,padding:"10px 11px"}}>
-                  <div onClick={()=>setSelected(x)} style={{cursor:"pointer"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",gap:6,alignItems:"flex-start"}}><div style={{fontSize:13,fontWeight:600,color:"var(--ink)",lineHeight:1.35}}>{x.strasse||"Adresse"}, {x.ort}</div><AkqChip name={x.zustaendig?akqName(team,x.zustaendig):""} leer/></div>
-                    <div style={{fontSize:11,color:"#a0968a",marginTop:3}}>{x.agency_name||""}{x.contact_name?" · "+x.contact_name:""}</div>
-                    {scheduled.some(s=>s.deal_id===x.id)&&<div style={{fontSize:10.5,color:"#3a5230",marginTop:3,fontWeight:600}}>📅 Mail geplant</div>}
-                    {x.reply_pending&&<div style={{fontSize:10.5,color:"#b5651d",marginTop:3,fontWeight:700}}>💬 Antwort offen</div>}
-                    {aehnlicheDeals(x).length>0&&<div style={{fontSize:10.5,color:"#8a5a1d",marginTop:3}}>⚠️ Adresse mehrfach in der Pipeline</div>}
-                    
-                    {cardMeta(x)}
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-                    <button onClick={()=>{ if(si>0) setStageFn(x,STAGES[si-1][0]); }} disabled={si===0} style={{background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--muted)",cursor:si===0?"default":"pointer",opacity:si===0?0.3:1}}>◀</button>
-                    <button onClick={()=>{ if(si<STAGES.length-1) setStageFn(x,STAGES[si+1][0]); }} disabled={si===STAGES.length-1} style={{background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--muted)",cursor:si===STAGES.length-1?"default":"pointer",opacity:si===STAGES.length-1?0.3:1}}>▶</button>
-                  </div>
-                </div>
-              ))}
-              {col.length===0&&<div style={{fontSize:11,color:"#b9b0a2",padding:"6px"}}>leer</div>}
-            </div>
-          </div>
-        ); })}
-      </div>
+      {!loading&&<AkqBoard phasen={STAGES.map(([id,label])=>({id,label,farbe:({neu:"#8a8174",kontaktiert:"#3a4a63",antwort:"#b5651d",gewonnen:"#3a5230",verloren:"#a4442e"})[id],ende:id==="verloren"||id==="gewonnen"}))} items={[...visibleDeals].sort((a,b)=>(b.reply_pending?1:0)-(a.reply_pending?1:0))} phaseVon={x=>x.stage} leerText="Keine Deals in dieser Phase" renderKarte={(x,g,gross)=>{ const si=STAGES.findIndex(z=>z[0]===g.id); const aktivD=!["gewonnen","verloren"].includes(x.stage); const idle=aktivD?dTage(x.updated_at):null; const f=x.agency_name?firmaVon(x):null; const wv=x.wiedervorlage; return (
+        <AkqKarte key={x.id} gross={gross} farbe={g.farbe} onOpen={()=>setSelected(x)}
+          titel={(x.strasse||"Adresse")+(x.ort?", "+x.ort:"")}
+          untertitel={[x.agency_name,x.contact_name].filter(Boolean).join(" · ")||"Verwaltung unbekannt"}
+          schilder={[x.zimmer?<AkqSchild key="z">{x.zimmer} Zi</AkqSchild>:null, x.preis?<AkqSchild key="p">CHF {Number(x.preis).toLocaleString("de-CH")}</AkqSchild>:null, x.befristet?<AkqSchild key="b" bg="#eae3d6" fg="#7c6a4e">befristet</AkqSchild>:null, f&&f.status==="partner"?<AkqSchild key="f" bg="#e8efde" fg="#3a5230">Partner</AkqSchild>:null, f&&f.status==="kein_interesse"?<AkqSchild key="f2" bg="#f6e3df" fg="#a4442e">Firma: kein Interesse</AkqSchild>:null]}
+          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, scheduled.some(sm=>sm.deal_id===x.id)?<AkqHinweis key="g" farbe="#3a5230" fett>📅 Mail geplant</AkqHinweis>:null, aehnlicheDeals(x).length>0?<AkqHinweis key="d" farbe="#8a5a1d">⚠️ Adresse mehrfach in der Pipeline</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, wv&&aktivD?<AkqHinweis key="w" farbe={wv<heuteISO()?"#a4442e":wv===heuteISO()?"#8a6d1e":"#3a4a63"} fett>⏰ {wv<heuteISO()?"Wiedervorlage überfällig":wv===heuteISO()?"Wiedervorlage heute":"Wiedervorlage "+fmt(wv)}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i" farbe="#b08968">seit {idle} Tagen ruhig</AkqHinweis>:null, x.won_apartment_id?<AkqHinweis key="a" farbe="#3a5230" fett>🔑 Wohnung {x.won_apartment_id}</AkqHinweis>:null]}
+          zustaendig={x.zustaendig?<span style={{display:"flex",alignItems:"center",gap:5}}><AkqChip name={akqName(team,x.zustaendig)}/>{gross&&<span style={{fontSize:12,color:"var(--muted)"}}>{akqName(team,x.zustaendig)}</span>}</span>:<AkqChip leer/>}
+          zurueck={si>0?{label:STAGES[si-1][1],onClick:()=>setStageFn(x,STAGES[si-1][0])}:null}
+          weiter={si<STAGES.length-1?{label:STAGES[si+1][1],onClick:()=>setStageFn(x,STAGES[si+1][0])}:null}/>
+      ); }}/>}
       {d&&(
         <div className="ov-x" onClick={()=>setSelected(null)} style={{position:"fixed",inset:0,background:"rgba(40,36,30,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:1000,overflow:"auto"}}>
           <div className="modal-x" onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,maxWidth:560,width:"100%",padding:"20px",boxShadow:"0 12px 40px rgba(0,0,0,0.18)"}}>
