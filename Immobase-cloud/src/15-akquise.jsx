@@ -243,14 +243,14 @@ function MarktRadar({navigateTo}){
     const vn=(t.agency_contact_name||"").trim();
     const gruss=vn?("Guten Tag "+vn+","):"Guten Tag,";
     const _os=orgStatus[(t.agency_name||"").toLowerCase()]||{};
-    if(_os.status==="partner"){ const ref=_os.referenz?(" (unter anderem mit "+_os.referenz+")"):""; return [gruss,"","Ich hoffe, es geht dir gut! 🙂","","Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse, diese anzumieten.","","Wir arbeiten bereits mit "+(t.agency_name||"euch")+" zusammen"+ref+" und bieten aktuell mehrere eurer Objekte möbliert an. Wir mieten zu marktüblichen Konditionen an und vermieten möbliert an Studierende und Young Professionals; für euch heisst das ein zuverlässiger Vertragspartner, planbare Mieteinnahmen und kein Leerstand.","","Wäre eine Vermietung an uns auch bei diesem Objekt denkbar? Über eine kurze Rückmeldung freue ich mich.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n"); }
+    if(_os.status==="partner"){ const ref=_os.referenz?(" (unter anderem mit "+_os.referenz+")"):""; return [gruss,"","Ich hoffe, es geht dir gut! 🙂","","Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse, diese anzumieten.","","Wir arbeiten bereits mit "+(t.agency_name||"euch")+" zusammen"+ref+" und bieten aktuell mehrere eurer Objekte möbliert an. Wir mieten zu marktüblichen Konditionen an und vermieten möbliert an Studierende und Young Professionals; für euch heisst das ein zuverlässiger Vertragspartner, planbare Mieteinnahmen und kein Leerstand.","","Wäre eine Vermietung an uns auch bei diesem Objekt denkbar? Über eine kurze Rückmeldung freue ich mich.","","Liebe Grüsse","","Daan Theijse","","D&T Homes","www.dthomes.ch"].join("\n"); }
     const objSatz=t.befristet
       ? "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten. Da die Wohnung befristet vermietet wird, passt sie ideal zu unserem Konzept."
       : "Wir sind auf die freie Wohnung "+obj+" aufmerksam geworden und hätten grosses Interesse daran, diese anzumieten.";
     const nutzen=t.befristet
       ? "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Ausserdem habt ihr die Sicherheit, nach der Befristung direkt mit eurem Projekt zu starten. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig."
       : "Für dich bedeutet das einen einzigen, zuverlässigen Vertragspartner, planbare Mieteinnahmen und keinen Leerstand. Den gesamten operativen Aufwand, von der Vermarktung über die Betreuung der Mieter bis hin zur Rückgabe der Wohnung, übernehmen wir vollständig.";
-    return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung.","","Freundliche Grüsse","Daan Theijse","www.dthomes.ch"].join("\n");
+    return [gruss,"","Ich hoffe, es geht dir gut und das direkte Du ist für dich in Ordnung. 🙂","",objSatz,"","Wir sind D&T Homes aus Zürich und mieten sowohl befristete als auch unbefristete Wohnungen zu marktüblichen Konditionen an. Anschliessend richten wir sie ein und vermieten sie möbliert an Studierende und Young Professionals.","",nutzen,"","Wäre eine Vermietung an uns grundsätzlich denkbar? Gerne stelle ich dir unser Konzept auch persönlich in einem kurzen Gespräch vor.","","Ich freue mich auf deine Rückmeldung.","","Liebe Grüsse","","Daan Theijse","","D&T Homes","www.dthomes.ch"].join("\n");
   };
   const mailto=(t)=>"mailto:"+(t.agency_email||"")+"?subject="+encodeURIComponent(mSubject(t))+"&body="+encodeURIComponent(mBody(t));
   const tabBtn=(id,label)=>(<button onClick={()=>setRubrik(id)} style={{background:rubrik===id?"var(--ink)":"none",color:rubrik===id?"var(--surface)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{label}</button>);
@@ -316,7 +316,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const [filt,setFilt]=useState("all");
   const [editForm,setEditForm]=useState(null);
   const ladenScheduled=()=>supabase.from("scheduled_mails").select("*").eq("status","pending").then(({data})=>setScheduled(data||[]));
-  const [sig,setSig]=useState("Freundliche Grüsse\nDaan Theijse\nD&T Homes\nwww.dthomes.ch");
+  const [sig,setSig]=useState("Liebe Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch");
   const [sigEdit,setSigEdit]=useState(false);
   const [orgStatus,setOrgStatus]=useState({});
   const laden=()=>{ supabase.from("pipeline").select("*").order("updated_at",{ascending:false}).then(({data})=>{setDeals(data||[]);setLoading(false);}).catch(()=>{setDeals([]);setLoading(false);}); ladenScheduled(); };
@@ -346,7 +346,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const _htmlEsc=(x)=>String(x||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const absMail=akqAbsender(ich), absName=akqAbsenderName(team,ich);
   const SIG_HTML=akqSigHtml(absName);
-  const buildHtml=(text)=>'<div style="font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:12pt;color:#000000">'+_htmlEsc(text).replace(/\n/g,"<br>")+'</div>'+SIG_HTML;
+  const buildHtml=(text)=>'<div style="font-family:Aptos,Aptos_EmbeddedFont,Aptos_MSFontService,Calibri,Helvetica,sans-serif;font-size:12pt;color:rgb(0,0,0)">'+_htmlEsc(text).replace(/\n/g,"<br>")+'</div>'+SIG_HTML;
   const _aktivDeal=(x)=>!["gewonnen","verloren"].includes(x.stage);
   const openCompose=(d)=>{ setSendMsg(""); const tpl=defaultTpl(d); const em=(d.contact_email||"").toLowerCase(); const org=(d.agency_name||"").toLowerCase().trim(); const sibsMail=em?deals.filter(x=>x.id===d.id||(_aktivDeal(x)&&(x.contact_email||"").toLowerCase()===em)):[d]; const sibsOrg=org?deals.filter(x=>x.id===d.id||(_aktivDeal(x)&&(((x.agency_name||"").toLowerCase().trim()===org&&x.stage==="neu")||(em&&(x.contact_email||"").toLowerCase()===em)))):sibsMail; const bundle=sibsMail.length>1; setCompose({to:d.contact_email||"",subject:bundle?("Mehrere Mietobjekte · "+sibsMail.length+" Wohnungen"):mSubject(d),body:bundle?mBodyBundle(sibsMail,tpl):mBody(d,tpl),tpl,attach:tpl==="kalt",_t:d,_sibs:sibsMail,_sibsMail:sibsMail,_sibsOrg:sibsOrg,bundle,catchup:true}); };
   const setBundleScope=(scope)=>{ setCompose(c=>{ if(!c) return c; const sibs=scope==="org"?(c._sibsOrg||[c._t]):(c._sibsMail||[c._t]); const on=sibs.length>1; return {...c,_sibs:sibs,bundle:on,body:on?mBodyBundle(sibs,c.tpl):mBody(c._t,c.tpl),subject:on?("Mehrere Mietobjekte · "+sibs.length+" Wohnungen"):mSubject(c._t)}; }); };
@@ -838,7 +838,11 @@ function Bauradar(){
       "Gerne bespreche ich mit Ihnen unverbindlich, ob sich Ihr Objekt dafür eignet.",
       "",
       "Freundliche Grüsse",
-      "Daan Theijse · D&T Homes · daan.theijse@dthomes.ch",
+      "",
+      "Daan Theijse",
+      "",
+      "D&T Homes",
+      "www.dthomes.ch",
     ].join("\n");
     window.open("mailto:?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body));
   }

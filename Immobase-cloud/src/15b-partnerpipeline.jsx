@@ -13,8 +13,8 @@ function akqEigenesPostfach(email){ return /^[a-z0-9._-]+@dthomes\.ch$/.test(Str
 function akqAbsender(email){ return akqEigenesPostfach(email)?String(email).toLowerCase():AKQ_STANDARD_POSTFACH; }
 function akqAbsenderName(team,email){ const a=akqAbsender(email); if(a===AKQ_STANDARD_POSTFACH){ const n=akqName(team,a); return n&&n!=="daan.theijse"?n:"Daan Theijse"; } return akqName(team,a); }
 function akqEsc(x){ return String(x||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function akqSigHtml(name){ return '<div style="font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:12pt;color:#000000"><br><div>Freundliche Gr&uuml;sse</div><br><div>'+akqEsc(name)+'</div><div><a href="http://www.dthomes.ch" style="color:#000000">www.dthomes.ch</a></div><div><img src="https://admin.dthomes.ch/dt-sig-logo.png" width="104" height="104" style="width:104px;height:104px" alt="D&amp;T Homes"></div></div>'; }
-function akqMailHtml(text,name){ return '<div style="font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:12pt;color:#000000">'+akqEsc(text).replace(/\n/g,"<br>")+'</div>'+akqSigHtml(name); }
+function akqSigHtml(name){ const z=(t)=>'<div style="font-family:Aptos,Aptos_EmbeddedFont,Aptos_MSFontService,Calibri,Helvetica,sans-serif;font-size:12pt;color:rgb(0,0,0)">'+t+'</div>'; return '<div>'+z('<br>')+z('Liebe Gr&uuml;sse')+z('<br>')+z(akqEsc(name))+z('<br>')+z('D&amp;T Homes')+z('<a href="http://www.dthomes.ch" style="color:rgb(0,0,0)">www.dthomes.ch</a>')+'</div>'; }
+function akqMailHtml(text,name){ return '<div style="font-family:Aptos,Aptos_EmbeddedFont,Aptos_MSFontService,Calibri,Helvetica,sans-serif;font-size:12pt;color:rgb(0,0,0)">'+akqEsc(text).replace(/\n/g,"<br>")+'</div>'+akqSigHtml(name); }
 function akqLog(row){ return supabase.from("akquise_log").insert(row).then(()=>{}).catch(()=>{}); }
 function akqDatum(iso){ if(!iso) return ""; const d=new Date(iso); return isNaN(d.getTime())?"":d.toLocaleString("de-CH",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}); }
 

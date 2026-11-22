@@ -1249,11 +1249,11 @@ Bitte stelle ausserdem die folgenden Dokumente bereit:
 
 Bei Fragen stehe ich dir gerne zur Verfügung.
 
-Beste Grüsse
+Liebe Grüsse
 
 Daan Theijse
+
 D&T Homes
-info@dthomes.ch
 www.dthomes.ch`;
     } else if (type === "anfangsmietzins") {
       subject = `Anfangsmietzinsformular - ${adresse} (${objektKurz}) | D&T Homes`;
@@ -1270,11 +1270,11 @@ Bitte bewahre dieses Dokument zusammen mit dem Untermietvertrag auf.
 
 Bei Fragen stehe ich dir gerne zur Verfügung.
 
-Beste Grüsse
+Liebe Grüsse
 
 Daan Theijse
+
 D&T Homes
-info@dthomes.ch
 www.dthomes.ch`;
     } else if (type === "beides") {
       subject = `Vertragsunterlagen - ${adresse} (${objektKurz}) | D&T Homes`;
@@ -1298,11 +1298,11 @@ Bitte stelle uns ausserdem die folgenden Dokumente bereit:
 
 Bei Fragen stehe ich dir gerne zur Verfügung.
 
-Beste Grüsse
+Liebe Grüsse
 
 Daan Theijse
+
 D&T Homes
-info@dthomes.ch
 www.dthomes.ch`;
     }
     

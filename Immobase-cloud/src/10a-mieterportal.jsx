@@ -268,7 +268,7 @@ function WeiterleitenDialog({ s, andere = [], tenantVon, apt, liegenschaft, onCl
           ? "Wäre es möglich, dass ihr das anschaut und einen Handwerker organisiert? Wo ein Kontakt angegeben ist, könnt ihr euch direkt für einen Termin melden, sonst meldet euch gerne bei uns für den Zugang."
           : "Wäre es möglich, dass ihr das anschaut und einen Handwerker organisiert? Für den Zugang zur Wohnung meldet euch gerne bei uns.",
       "", "Danke dir im Voraus!", "",
-      "Liebe Grüsse", "Daan Theijse", "Co-Founder | D&T Homes",
+      "Liebe Grüsse", "", "Daan Theijse", "", "D&T Homes", "www.dthomes.ch",
     ].filter((z) => z !== null);
     if (!mehr) {
       const m = liste[0];
