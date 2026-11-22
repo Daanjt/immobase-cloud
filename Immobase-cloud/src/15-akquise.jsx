@@ -299,6 +299,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const team=useAkquiseTeam();
   const [wer,setWer]=useState("alle");
   const [logTick,setLogTick]=useState(0);
+  const [detTab,setDetTab]=useState("verlauf");
   const STAGES=[["neu","Neu"],["kontaktiert","Kontaktiert"],["antwort","Antwort"],["gewonnen","Zusage"],["verloren","Absage"]];
   const LBL=Object.fromEntries(STAGES);
   const [deals,setDeals]=useState([]);
@@ -306,6 +307,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const [loading,setLoading]=useState(true);
   const [stage,setStage]=useState("kontaktiert");
   const [selected,setSelected]=useState(null);
+  useEffect(()=>{ setDetTab("verlauf"); },[selected&&selected.id]);
   const [thread,setThread]=useState(null);
   const [openMsg,setOpenMsg]=useState(null);
   const [compose,setCompose]=useState(null);
@@ -450,7 +452,7 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
           titel={(x.strasse||"Adresse")+(x.ort?", "+x.ort:"")}
           untertitel={[x.agency_name,x.contact_name].filter(Boolean).join(" · ")||"Verwaltung unbekannt"}
           schilder={[x.zimmer?<AkqSchild key="z">{x.zimmer} Zi</AkqSchild>:null, x.preis?<AkqSchild key="p">CHF {Number(x.preis).toLocaleString("de-CH")}</AkqSchild>:null, x.befristet?<AkqSchild key="b" bg="#eae3d6" fg="#7c6a4e">befristet</AkqSchild>:null, f&&f.status==="partner"?<AkqSchild key="f" bg="#e8efde" fg="#3a5230">Partner</AkqSchild>:null, f&&f.status==="kein_interesse"?<AkqSchild key="f2" bg="#f6e3df" fg="#a4442e">Firma: kein Interesse</AkqSchild>:null]}
-          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, scheduled.some(sm=>sm.deal_id===x.id)?<AkqHinweis key="g" farbe="#3a5230" fett>📅 Mail geplant</AkqHinweis>:null, aehnlicheDeals(x).length>0?<AkqHinweis key="d" farbe="#8a5a1d">⚠️ Adresse mehrfach in der Pipeline</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i" farbe="#b08968">seit {idle} Tagen ruhig</AkqHinweis>:null, x.won_apartment_id?<AkqHinweis key="a" farbe="#3a5230" fett>🔑 Wohnung {x.won_apartment_id}</AkqHinweis>:null]}
+          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, scheduled.some(sm=>sm.deal_id===x.id)?<AkqHinweis key="g">📅 Mail geplant</AkqHinweis>:null, aehnlicheDeals(x).length>0?<AkqHinweis key="d">Adresse mehrfach in der Pipeline</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i">seit {idle} Tagen ruhig</AkqHinweis>:null, x.won_apartment_id?<AkqHinweis key="a">🔑 Wohnung {x.won_apartment_id}</AkqHinweis>:null]}
           zustaendig={x.zustaendig?<span style={{display:"flex",alignItems:"center",gap:5}}><AkqChip name={akqName(team,x.zustaendig)}/>{gross&&<span style={{fontSize:12,color:"var(--muted)"}}>{akqName(team,x.zustaendig)}</span>}</span>:<AkqChip leer/>}
           zurueck={si>0?{label:STAGES[si-1][1],onClick:()=>setStageFn(x,STAGES[si-1][0])}:null}
           weiter={si<STAGES.length-1?{label:STAGES[si+1][1],onClick:()=>setStageFn(x,STAGES[si+1][0])}:null}/>
@@ -464,17 +466,45 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
                 <div style={{fontSize:12.5,color:"var(--muted)",marginTop:2}}>{d.zimmer?d.zimmer+" Zi":""}{d.befristet?((d.zimmer?" · ":"")+"befristet"):""}</div>
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-                {!editForm&&<button onClick={()=>setEditForm({...d})} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"4px 10px",fontSize:11.5,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>✎ Bearbeiten</button>}
                 <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
               </div>
             </div>
             <div style={{display:"flex",gap:2,margin:"14px 0 4px"}}>
               {STAGES.map(([sid,slbl],i)=>{ const idx=STAGES.findIndex(z=>z[0]===d.stage); const cur=i===idx; const passed=i<idx; const bg=cur?(sid==="gewonnen"?"#3a5230":sid==="verloren"?"#a4442e":"var(--ink)"):passed?"#d8cfbe":"#ece5d8"; const col=cur?"#fff":"#8a7c66"; return <button key={sid} onClick={()=>setStageFn(d,sid)} title={slbl} style={{flex:1,minWidth:0,border:"none",background:bg,color:col,fontSize:10,fontWeight:cur?700:500,padding:"7px 2px",cursor:"pointer",clipPath:"polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%, 7px 50%)",marginLeft:i===0?0:-7,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{slbl}</button>; })}
             </div>
+            {(()=>{ const f=d.agency_name?firmaVon(d):null; const dup=aehnlicheDeals(d); return (<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+              {f&&(<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12.5,background:"#f6f2ea",border:"1px solid var(--line)",borderRadius:10,padding:"7px 10px"}}><span style={{color:"var(--muted)"}}>Firma:</span><b style={{color:"var(--ink)"}}>{f.name}</b><AkqTypTag typ={f.typ}/><AkqPhaseTag status={f.status}/>{f.zustaendig&&<span style={{fontSize:11,color:"var(--muted)"}}>· {akqName(team,f.zustaendig)}</span>}{navigateTo&&<button onClick={()=>navigateTo("partnerpipeline",f.name)} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Zur Firma →</button>}</div>)}
+              {dup.length>0&&(<div style={{fontSize:12,background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:10,padding:"7px 10px",color:"#8a5a1d"}}>⚠️ Gleiche Wohnung schon in der Pipeline: {dup.map((x,i)=>(<span key={x.id}>{i>0?", ":""}<a onClick={()=>setSelected(x)} style={{cursor:"pointer",textDecoration:"underline"}}>{LBL[x.stage]||x.stage}{x.contact_name?" · "+x.contact_name:""}{x.created_at?" ("+fmt(x.created_at)+")":""}</a></span>))}</div>)}
+              {d.won_apartment_id&&(<div style={{fontSize:12.5,background:"#e8efde",border:"1px solid #cfe0c4",borderRadius:10,padding:"7px 10px",color:"#3a5230",display:"flex",alignItems:"center",gap:6}}>🔑 Als Wohnung {d.won_apartment_id} erfasst{istAdmin&&navigateTo&&<button onClick={()=>navigateTo("wohnungen",d.won_apartment_id)} style={{marginLeft:"auto",background:"none",border:"1px solid #cfe0c4",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Wohnung öffnen →</button>}</div>)}
+            </div>); })()}
+            <div style={{display:"flex",gap:8,alignItems:"flex-end",marginTop:12,flexWrap:"wrap"}}>
+              <div style={{flex:"1 1 200px"}}><label style={LBL2}>Zuständig</label><AkqZustaendig value={d.zustaendig} team={team} ich={ich} onChange={v=>setZust(d,v)}/></div>
+              <button onClick={()=>openCompose(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"9px 18px",fontSize:13,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>✉️ E-Mail schreiben</button>
+            </div>
+            {d.reply_pending&&(
+              <div style={{marginTop:10,fontSize:12,color:"#8a5a1d",background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:8,padding:"8px 11px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span>💬 <strong>Antwort erhalten</strong> · deine Antwort steht noch offen</span>
+                <button onClick={()=>{ supabase.from("pipeline").update({reply_pending:false}).eq("id",d.id).then(()=>{ setDeals(ds=>ds.map(x=>x.id===d.id?{...x,reply_pending:false}:x)); setSelected(s=>s?{...s,reply_pending:false}:s); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#6a604f",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>erledigt</button>
+              </div>
+            )}
+            <AkqDetailTabs tab={detTab} setTab={setDetTab}/>
+            {detTab==="verlauf"?(<div>
+            {scheduled.filter(s=>s.deal_id===d.id).map(s=>(
+              <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px"}}>
+                <div style={{fontSize:12,color:"#2f5a2a",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span onClick={()=>setOpenSched(openSched===s.id?null:s.id)} style={{cursor:"pointer"}}>📅 <strong>Geplant</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject} <span style={{color:"#6a8a5a"}}>{openSched===s.id?"▲ Inhalt":"▼ Inhalt"}</span></span>
+                  <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?"))return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(({error})=>{ if(error){toast("Abbrechen fehlgeschlagen", "error");return;} setScheduled(sc=>sc.filter(x=>x.id!==s.id)); if(openSched===s.id)setOpenSched(null); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#9b4a3e",fontSize:11.5,cursor:"pointer",textDecoration:"underline"}}>abbrechen</button>
+                </div>
+                {openSched===s.id&&<iframe title="geplante-mail" srcDoc={s.html||('<pre style="font-family:sans-serif;white-space:pre-wrap;font-size:13px;padding:8px;margin:0">'+((s.body||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"))+'</pre>')} sandbox="" style={{width:"100%",height:340,border:"1px solid #cfe0c4",borderRadius:6,background:"#fff",marginTop:8}}/>}
+              </div>
+            ))}
+              <div style={{marginTop:scheduled.some(x=>x.deal_id===d.id)?10:0}}><AkqZeitachse thread={thread} bereich="wohnung" dealId={d.id} ich={ich} team={team} neu={logTick} onAntworten={antworten} leerText={d.contact_email?"Noch keine Mails oder Einträge.":"Noch keine E-Mail-Adresse hinterlegt."}/></div>
+            </div>):(<div>
             <div style={{fontSize:12.5,color:"var(--muted)",marginTop:6,lineHeight:1.7}}>
               {d.befristet&&<span style={{background:"#eae3d6",color:"#7c6a4e",fontSize:10,padding:"1px 6px",borderRadius:8,marginRight:6}}>befristet</span>}{d.zimmer?d.zimmer+" Zi":""}{d.preis?" · CHF "+d.preis+" inkl. NK":""}
               {d.url&&<> · <a href={d.url} target="_blank" rel="noreferrer" style={{color:"#3a5230"}}>↗ Inserat</a></>}
             </div>
+              {!editForm&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}><button onClick={()=>setEditForm({...d})} style={{background:"none",border:"1px solid var(--line)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"var(--muted)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>✎ Bearbeiten</button></div>}
             {editForm ? (
               <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,background:"#f6f2ea",border:"1px solid var(--line)",borderRadius:10,padding:"12px"}}>
                 <div style={{gridColumn:"1 / -1"}}><label style={LBL2}>Verwaltung</label><input value={editForm.agency_name||""} onChange={e=>setEditForm({...editForm,agency_name:e.target.value})} style={NDI}/></div>
@@ -501,35 +531,24 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
               {d.kontaktiert_am&&<div><span style={{color:"var(--muted)"}}>Kontaktiert am:</span> {fmt(d.kontaktiert_am)}</div>}
             </div>
             )}
-            {(()=>{ const f=d.agency_name?firmaVon(d):null; const dup=aehnlicheDeals(d); return (<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
-              {f&&(<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12.5,background:"#f6f2ea",border:"1px solid var(--line)",borderRadius:10,padding:"7px 10px"}}><span style={{color:"var(--muted)"}}>Firma:</span><b style={{color:"var(--ink)"}}>{f.name}</b><AkqTypTag typ={f.typ}/><AkqPhaseTag status={f.status}/>{f.zustaendig&&<span style={{fontSize:11,color:"var(--muted)"}}>· {akqName(team,f.zustaendig)}</span>}{navigateTo&&<button onClick={()=>navigateTo("partnerpipeline",f.name)} style={{marginLeft:"auto",background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Zur Firma →</button>}</div>)}
-              {dup.length>0&&(<div style={{fontSize:12,background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:10,padding:"7px 10px",color:"#8a5a1d"}}>⚠️ Gleiche Wohnung schon in der Pipeline: {dup.map((x,i)=>(<span key={x.id}>{i>0?", ":""}<a onClick={()=>setSelected(x)} style={{cursor:"pointer",textDecoration:"underline"}}>{LBL[x.stage]||x.stage}{x.contact_name?" · "+x.contact_name:""}{x.created_at?" ("+fmt(x.created_at)+")":""}</a></span>))}</div>)}
-              {d.won_apartment_id&&(<div style={{fontSize:12.5,background:"#e8efde",border:"1px solid #cfe0c4",borderRadius:10,padding:"7px 10px",color:"#3a5230",display:"flex",alignItems:"center",gap:6}}>🔑 Als Wohnung {d.won_apartment_id} erfasst{istAdmin&&navigateTo&&<button onClick={()=>navigateTo("wohnungen",d.won_apartment_id)} style={{marginLeft:"auto",background:"none",border:"1px solid #cfe0c4",borderRadius:6,padding:"2px 9px",fontSize:11.5,color:"#3a5230",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Wohnung öffnen →</button>}</div>)}
-            </div>); })()}
-            <div style={{marginTop:12}}><label style={LBL2}>Zuständig</label><AkqZustaendig value={d.zustaendig} team={team} ich={ich} onChange={v=>setZust(d,v)}/></div>
-            <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
-              <button onClick={()=>openCompose(d)} style={{background:"var(--ink)",color:"var(--surface)",border:"1px solid var(--ink)",borderRadius:8,padding:"7px 18px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>E-Mail</button>
+            <div style={{marginTop:14}}>
+              <label style={{fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:"0.4px",textTransform:"uppercase",display:"flex",flexDirection:"column",gap:4}}>Nächster Schritt<input defaultValue={d.naechster_schritt||""} onBlur={e=>{if(e.target.value!==(d.naechster_schritt||""))patch(d.id,{naechster_schritt:e.target.value});}} placeholder="z. B. Nachfassen per Telefon" style={inpS} /></label>
+              {d.stage==="verloren"&&(<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
+                <select value="" onChange={e=>{ if(e.target.value) patchAbsage(d,e.target.value); }} style={{...inpS,width:"auto",flex:"1 1 170px"}}><option value="">Absagegrund wählen ...</option>{["Untervermietung nicht erlaubt","Objekt bereits vergeben","Keine Rückmeldung","Kein Interesse am Modell","Konditionen zu hoch","Anderes"].map(g=>(<option key={g} value={g}>{g}</option>))}</select>
+                <input key={d.verlust_grund||"x"} defaultValue={d.verlust_grund||""} onBlur={e=>patchAbsage(d,e.target.value)} placeholder="Grund / Notiz" style={{...inpS,flex:"1 1 170px",width:"auto"}} />
+              </div>)}
             </div>
-            {d.reply_pending&&(
-              <div style={{marginTop:10,fontSize:12,color:"#8a5a1d",background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:8,padding:"8px 11px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span>💬 <strong>Antwort erhalten</strong> · deine Antwort steht noch offen</span>
-                <button onClick={()=>{ supabase.from("pipeline").update({reply_pending:false}).eq("id",d.id).then(()=>{ setDeals(ds=>ds.map(x=>x.id===d.id?{...x,reply_pending:false}:x)); setSelected(s=>s?{...s,reply_pending:false}:s); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#6a604f",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>erledigt</button>
-              </div>
-            )}
-            {scheduled.filter(s=>s.deal_id===d.id).map(s=>(
-              <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px"}}>
-                <div style={{fontSize:12,color:"#2f5a2a",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <span onClick={()=>setOpenSched(openSched===s.id?null:s.id)} style={{cursor:"pointer"}}>📅 <strong>Geplant</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject} <span style={{color:"#6a8a5a"}}>{openSched===s.id?"▲ Inhalt":"▼ Inhalt"}</span></span>
-                  <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?"))return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(({error})=>{ if(error){toast("Abbrechen fehlgeschlagen", "error");return;} setScheduled(sc=>sc.filter(x=>x.id!==s.id)); if(openSched===s.id)setOpenSched(null); }); }} style={{marginLeft:"auto",background:"none",border:"none",color:"#9b4a3e",fontSize:11.5,cursor:"pointer",textDecoration:"underline"}}>abbrechen</button>
-                </div>
-                {openSched===s.id&&<iframe title="geplante-mail" srcDoc={s.html||('<pre style="font-family:sans-serif;white-space:pre-wrap;font-size:13px;padding:8px;margin:0">'+((s.body||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"))+'</pre>')} sandbox="" style={{width:"100%",height:340,border:"1px solid #cfe0c4",borderRadius:6,background:"#fff",marginTop:8}}/>}
-              </div>
-            ))}
+            <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:12,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:52,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
+            <div style={{marginTop:14,display:"flex",justifyContent:"flex-end"}}>
+              <button onClick={()=>entfernen(d.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11.5,cursor:"pointer"}}>aus Pipeline entfernen</button>
+            </div>
+            </div>)}
+            {compose&&(<AkqMailFenster titel={compose.vorschau?"Vorschau":compose.replyTo?"Antwort":"E-Mail schreiben"} onClose={()=>{ setCompose(null); setSendMsg(""); }}>
             {compose&&compose.vorschau&&(
               <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={buildHtml(compose.body)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={!compose.replyTo&&compose.catchup!==false} antwort={!!compose.replyTo} firma={(()=>{ const t=compose._t||selected||{}; const f=t.agency_name?firmaVon(t):null; return f?f.name:(t.agency_name||""); })()} team={team} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
             )}
             {compose&&!compose.vorschau&&(
-              <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
+              <div>
                 {compose.replyTo&&(<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6,fontSize:12,color:"var(--ink)",background:"#eef1f6",padding:"6px 8px",borderRadius:6}}><span>↩ Antwort auf «{compose._bezug&&compose._bezug.subject}»</span><button onClick={kiAntwort} disabled={drafting} style={{marginLeft:"auto",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:6,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>{drafting?"KI schreibt …":"✨ KI-Entwurf"}</button></div>)}
                 {!compose.replyTo&&<select value={compose.tpl||"kalt"} onChange={e=>setTpl(e.target.value)} style={{...inpS,marginBottom:6,fontWeight:600}}><option value="kalt">Vorlage: Kalt · neuer Partner (mit Pitch-Deck)</option><option value="warm">Vorlage: Warm · bestehender Partner</option></select>}
                 {!compose.replyTo&&((compose._sibsMail||[]).length>1||(compose._sibsOrg||[]).length>(compose._sibsMail||[]).length)&&(<div style={{fontSize:12,color:"#3a5230",marginBottom:6,background:"#eef5e8",padding:"6px 8px",borderRadius:6,display:"flex",flexDirection:"column",gap:4}}>
@@ -539,9 +558,9 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
                 </div>)}
                 <input value={compose.to} onChange={e=>setCompose({...compose,to:e.target.value})} placeholder="An" style={{...inpS,marginBottom:6}} />
                 <input value={compose.subject} onChange={e=>setCompose({...compose,subject:e.target.value})} placeholder="Betreff" style={{...inpS,marginBottom:6}} />
-                <textarea value={compose.body} onChange={e=>setCompose({...compose,body:e.target.value})} style={{...inpS,minHeight:170,resize:"vertical",marginBottom:6}} />
+                <textarea value={compose.body} onChange={e=>setCompose({...compose,body:e.target.value})} style={{...inpS,minHeight:280,resize:"vertical",marginBottom:6}} />
                 {compose.attach&&<div style={{fontSize:11.5,color:"#3a5230",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📎 D&T Homes Pitch.pdf wird angehängt</div>}
-                <div style={{marginBottom:6,fontSize:11,color:"var(--muted)",display:"flex",alignItems:"center",gap:6}}>📧 Gesendet von {absMail} mit Signatur «{absName}» · www.dthomes.ch · Logo.{absMail!==ich&&ich?" Du hast kein eigenes D&T-Postfach, deshalb geht die Mail über das Standardpostfach.":""}</div>
+                <div style={{marginBottom:6,fontSize:11,color:"var(--muted)",display:"flex",alignItems:"center",gap:6}}>📧 Gesendet von {absMail} mit deiner Signatur ({absName}, D&T Homes, www.dthomes.ch).{absMail!==ich&&ich?" Du hast kein eigenes D&T-Postfach, deshalb geht die Mail über das Standardpostfach.":""}</div>
                 {!compose.replyTo&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:8,fontSize:12,color:"var(--muted)"}}>
                   <span>🕒 Später senden:</span>
                   <input type="datetime-local" value={compose.schedAt||""} onChange={e=>setCompose({...compose,schedAt:e.target.value})} style={{border:"1px solid var(--line)",borderRadius:6,padding:"5px 8px",fontSize:12,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}} />
@@ -556,45 +575,13 @@ function Pipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
                 </div>
               </div>
             )}
-            <div style={{marginTop:14}}>
-              <label style={{fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:"0.4px",textTransform:"uppercase",display:"flex",flexDirection:"column",gap:4}}>Nächster Schritt<input defaultValue={d.naechster_schritt||""} onBlur={e=>{if(e.target.value!==(d.naechster_schritt||""))patch(d.id,{naechster_schritt:e.target.value});}} placeholder="z. B. Nachfassen per Telefon" style={inpS} /></label>
-              {d.stage==="verloren"&&(<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
-                <select value="" onChange={e=>{ if(e.target.value) patchAbsage(d,e.target.value); }} style={{...inpS,width:"auto",flex:"1 1 170px"}}><option value="">Absagegrund wählen ...</option>{["Untervermietung nicht erlaubt","Objekt bereits vergeben","Keine Rückmeldung","Kein Interesse am Modell","Konditionen zu hoch","Anderes"].map(g=>(<option key={g} value={g}>{g}</option>))}</select>
-                <input key={d.verlust_grund||"x"} defaultValue={d.verlust_grund||""} onBlur={e=>patchAbsage(d,e.target.value)} placeholder="Grund / Notiz" style={{...inpS,flex:"1 1 170px",width:"auto"}} />
-              </div>)}
-            </div>
-            <textarea defaultValue={d.notizen||""} onBlur={e=>{if(e.target.value!==(d.notizen||""))patch(d.id,{notizen:e.target.value});}} placeholder="Notizen ..." style={{width:"100%",marginTop:12,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",minHeight:52,resize:"vertical",boxSizing:"border-box",color:"var(--ink)",background:"var(--surface)"}} />
-            <AkqVerlauf bereich="wohnung" dealId={d.id} ich={ich} team={team} neu={logTick}/>
-            <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
-              <div style={{fontSize:12,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Mailverlauf mit {d.contact_name||d.contact_email||"dem Kontakt"}</div>
-              {(!thread||thread.loading)&&<div style={{fontSize:12,color:"#8a8174"}}>Lädt Mailverlauf ...</div>}
-              {thread&&thread.error==="not_configured"&&<div style={{fontSize:12,color:"#8a8174"}}>Outlook ist noch nicht verbunden.</div>}
-              {thread&&thread.error&&thread.error!=="not_configured"&&<div style={{fontSize:12,color:"#a4442e"}}>Mailverlauf nicht verfügbar.</div>}
-              {thread&&thread.messages&&thread.messages.length===0&&<div style={{fontSize:12,color:"#8a8174"}}>Keine Mails mit dieser Adresse gefunden.</div>}
-              {thread&&thread.messages&&thread.messages.map((m,i)=>(
-                <div key={i} style={{padding:"6px 0",borderBottom:"1px solid #f0ebe1"}}>
-                  <div onClick={()=>setOpenMsg(openMsg===i?null:i)} style={{display:"flex",gap:8,alignItems:"baseline",cursor:"pointer"}}>
-                    <span style={{flexShrink:0,fontSize:9.5,padding:"1px 6px",borderRadius:8,background:m.direction==="gesendet"?"#e8efde":"#eef1f6",color:m.direction==="gesendet"?"#3a5230":"#3a4a63"}}>{m.direction}</span>
-                    <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{fmt(m.date)}</span>
-                    <span style={{flex:1,color:"var(--ink)",fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
-                    {m.direction==="erhalten"&&m.id&&<button onClick={e=>{ e.stopPropagation(); antworten(m); }} style={{flexShrink:0,background:"none",border:"1px solid var(--line)",borderRadius:6,padding:"1px 8px",fontSize:11,color:"var(--ink)",cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>↩ Antworten</button>}
-                    <span style={{flexShrink:0,color:"#b9b0a2",fontSize:11}}>{openMsg===i?"▲":"▼"}</span>
-                  </div>
-                  {openMsg!==i&&m.preview&&<div onClick={()=>setOpenMsg(i)} style={{fontSize:11.5,color:"#8a8174",marginTop:2,lineHeight:1.4,cursor:"pointer"}}>{m.preview}</div>}
-                  {openMsg===i&&<iframe title="mail" srcDoc={m.body||("<div style=\"font-family:sans-serif;font-size:13px;padding:8px\">"+(m.preview||"(kein Inhalt)")+"</div>")} sandbox="" style={{width:"100%",height:300,border:"1px solid var(--line)",borderRadius:6,background:"#fff",marginTop:6}}/>}
-                </div>
-              ))}
-            </div>
-            <div style={{marginTop:14,display:"flex",justifyContent:"flex-end"}}>
-              <button onClick={()=>entfernen(d.id)} style={{background:"none",border:"none",color:"#b9b0a2",fontSize:11.5,cursor:"pointer"}}>aus Pipeline entfernen</button>
-            </div>
+            </AkqMailFenster>)}
           </div>
         </div>
       )}
     </div>
   );
 }
-
 function Kontakte({navigateTo}){
   const TYP=[["verwaltung","Verwaltung"],["eigentuemer","Eigentümer"],["partner","Partner"],["andere","Andere"]];
   const typLabel=(t)=>({verwaltung:"Verwaltung",eigentuemer:"Eigentümer",partner:"Partner",andere:"Andere"}[t]||t);

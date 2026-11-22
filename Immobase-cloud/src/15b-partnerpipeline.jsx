@@ -98,7 +98,7 @@ function AkqKarte({farbe,titel,untertitel,schilder,hinweise,zustaendig,onOpen,zu
           <div style={{fontSize:gross?14.5:13.5,fontWeight:700,color:"var(--ink)",lineHeight:1.3}}>{titel}</div>
           {untertitel&&<div style={{fontSize:gross?12.5:11.5,color:"var(--muted)",marginTop:2,lineHeight:1.35,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{untertitel}</div>}
           {schilder&&schilder.filter(Boolean).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:7}}>{schilder.filter(Boolean)}</div>}
-          {hinweise&&hinweise.filter(Boolean).length>0&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:7}}>{hinweise.filter(Boolean)}</div>}
+          {hinweise&&hinweise.filter(Boolean).length>0&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:7}}>{hinweise.filter(Boolean).slice(0,3)}</div>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,marginTop:9,paddingTop:8,borderTop:"1px solid #f0ebe1"}}>
           {zustaendig}
@@ -238,6 +238,106 @@ function AkqMailVorschau({absender,an,betreff,html,anhang,geplant,nachfass,antwo
   );
 }
 
+
+// ── Zeitachse: Mails als Blasen (nur der neue Text, Zitat/Verlauf abgeschnitten) und Ereignisse dazwischen ──
+function akqMailText(html,preview){
+  try{
+    if(!html) return String(preview||"");
+    const doc=new DOMParser().parseFromString(String(html),"text/html");
+    doc.querySelectorAll("style,script,head,title").forEach(n=>n.remove());
+    const cut=doc.querySelector("#divRplyFwdMsg,#appendonsend,.gmail_quote,blockquote,#mail-editor-reference-message-container,#x_divRplyFwdMsg");
+    if(cut){ let n=cut; while(n){ const nx=n.nextSibling; n.remove(); n=nx; } }
+    doc.querySelectorAll("br").forEach(b=>b.replaceWith("\n"));
+    doc.querySelectorAll("p,div,li,tr,h1,h2,h3").forEach(b=>b.append("\n"));
+    let t=(doc.body&&doc.body.textContent)||"";
+    const zeilen=t.replace(/\r/g,"").split("\n");
+    const stopp=zeilen.findIndex(z=>/^\s*(_{6,}|-{3,}\s*Original|Von:\s|From:\s|Gesendet:\s|Sent:\s|Am .{5,80} schrieb|On .{5,80} wrote)/i.test(z));
+    t=(stopp>0?zeilen.slice(0,stopp):zeilen).join("\n");
+    return t.replace(/ /g," ").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim()||String(preview||"");
+  }catch(_){ return String(preview||""); }
+}
+function AkqMailBlase({m,team,onAntworten}){
+  const [offen,setOffen]=useState(false);
+  const [ganz,setGanz]=useState(false);
+  const raus=m.direction==="gesendet";
+  const text=akqMailText(m.body,m.preview);
+  const lang=text.length>520;
+  const wer=raus?(m.fromName||"D&T"):(m.fromName||m.from||"Kontakt");
+  return (
+    <div style={{display:"flex",justifyContent:raus?"flex-end":"flex-start"}}>
+      <div style={{maxWidth:"88%",minWidth:0,background:raus?"#efe8da":"#fff",border:"1px solid "+(raus?"#e2d7c2":"var(--line)"),borderRadius:raus?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"9px 12px"}}>
+        <div style={{display:"flex",gap:8,alignItems:"baseline",fontSize:11,color:"var(--muted)",marginBottom:4}}>
+          <b style={{color:"var(--ink)",fontWeight:600}}>{wer}</b><span>{akqDatum(m.date)}</span>
+        </div>
+        <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:4,fontWeight:600}}>{m.subject}</div>
+        <div style={{fontSize:13,color:"var(--ink)",whiteSpace:"pre-wrap",lineHeight:1.5,wordBreak:"break-word"}}>{lang&&!offen?text.slice(0,520).trimEnd()+" …":text}</div>
+        <div style={{display:"flex",gap:10,marginTop:6,fontSize:11.5,flexWrap:"wrap"}}>
+          {lang&&<a onClick={()=>setOffen(!offen)} style={{cursor:"pointer",color:"#3a5230"}}>{offen?"weniger":"mehr anzeigen"}</a>}
+          {m.body&&<a onClick={()=>setGanz(!ganz)} style={{cursor:"pointer",color:"var(--muted)"}}>{ganz?"Original schliessen":"Original mit Zitat"}</a>}
+          {!raus&&m.id&&onAntworten&&<a onClick={()=>onAntworten(m)} style={{cursor:"pointer",color:"var(--ink)",fontWeight:600,marginLeft:"auto"}}>↩ Antworten</a>}
+        </div>
+        {ganz&&<iframe title="mail" srcDoc={m.body} sandbox="" style={{width:"100%",height:320,border:"1px solid var(--line)",borderRadius:8,marginTop:6,background:"#fff"}}/>}
+      </div>
+    </div>
+  );
+}
+function AkqZeitachse({thread,bereich,dealId,organisation,dealIds,deals,ich,team,neu,onAntworten,leerText}){
+  const [logs,setLogs]=useState(null);
+  const [txt,setTxt]=useState("");
+  const [tick,setTick]=useState(0);
+  const idsKey=(dealIds||[]).join(",");
+  useEffect(()=>{
+    let q=supabase.from("akquise_log").select("*").eq("bereich",bereich).order("created_at",{ascending:false}).limit(80); q=dealId?q.eq("deal_id",dealId):q.eq("organisation",organisation);
+    const zusatz=(!dealId&&dealIds&&dealIds.length)?supabase.from("akquise_log").select("*").eq("bereich","wohnung").in("deal_id",dealIds).order("created_at",{ascending:false}).limit(80):Promise.resolve({data:[]});
+    Promise.all([q,zusatz]).then(([a,b])=>setLogs([...(a.data||[]),...(b.data||[])])).catch(()=>setLogs([]));
+  },[dealId,organisation,neu,idsKey,tick]);
+  const add=()=>{ const t=txt.trim(); if(!t) return; akqLog({bereich,deal_id:dealId||null,organisation:dealId?null:(organisation||null),typ:"notiz",text:t,von:ich||null}).then(()=>{ setTxt(""); setTick(x=>x+1); }); };
+  const mails=(thread&&thread.messages)||[];
+  const hatMails=mails.length>0;
+  const dealName=(id)=>{ const d=(deals||[]).find(x=>x.id===id); return d?((d.strasse||"Wohnung")+": "):""; };
+  const eintraege=[
+    ...mails.map(m=>({art:"mail",zeit:m.date,m})),
+    ...((logs||[]).filter(r=>!(hatMails&&r.typ==="mail"&&!/geplant|Nachfass/i.test(r.text||""))).map(r=>({art:"log",zeit:r.created_at,r}))),
+  ].sort((a,b)=>String(b.zeit||"").localeCompare(String(a.zeit||"")));
+  const ICON={notiz:"📝",mail:"✉️",phase:"➜",zustaendig:"👤",antwort:"💬",schritt:"⏭"};
+  return (
+    <div>
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        <input value={txt} onChange={e=>setTxt(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") add(); }} placeholder="Notiz, z.B. Telefonat mit …" style={{flex:1,border:"1px solid var(--line)",borderRadius:8,padding:"8px 10px",fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)"}}/>
+        <button onClick={add} style={{background:"var(--surface)",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:8,padding:"6px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>Notiz</button>
+      </div>
+      {thread&&thread.loading&&<div style={{fontSize:12,color:"#8a8174",marginBottom:8}}>Lädt Mails …</div>}
+      {thread&&thread.error&&<div style={{fontSize:12,color:"#a4442e",marginBottom:8}}>Mails konnten nicht geladen werden.</div>}
+      {logs!==null&&eintraege.length===0&&!(thread&&thread.loading)&&<div style={{fontSize:12.5,color:"#a0968a",padding:"18px 4px",textAlign:"center"}}>{leerText||"Noch keine Mails oder Einträge."}</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {eintraege.map((e,i)=> e.art==="mail"
+          ? <AkqMailBlase key={"m"+(e.m.id||i)} m={e.m} team={team} onAntworten={onAntworten}/>
+          : <div key={"l"+e.r.id} style={{display:"flex",gap:6,justifyContent:"center",fontSize:11.5,color:"#9a9080",textAlign:"center",padding:"0 8px",lineHeight:1.4}}>
+              <span>{ICON[e.r.typ]||"•"} {!dealId&&e.r.bereich==="wohnung"?dealName(e.r.deal_id):""}{e.r.text}<span style={{color:"#b9b0a2"}}> · {e.r.von&&e.r.von!=="system"?akqName(team,e.r.von)+", ":""}{akqDatum(e.r.created_at)}</span></span>
+            </div>
+        )}
+      </div>
+    </div>
+  );
+}
+// Fenster für den Mail-Entwurf (auf dem Handy bildschirmfüllend)
+function AkqMailFenster({titel,onClose,children}){
+  return (
+    <div className="ov-x" onClick={onClose} style={{position:"fixed",inset:0,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",zIndex:2100,overflow:"auto"}}>
+      <div className="modal-x" onClick={e=>e.stopPropagation()} style={{maxWidth:640,width:"100%",padding:"18px 20px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10}}>
+          <div style={{fontSize:16,fontWeight:600,color:"var(--ink)"}}>{titel}</div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,color:"var(--muted)",cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function AkqDetailTabs({tab,setTab,anzahl}){
+  return <div className="seg voll" style={{margin:"14px 0 12px"}}><button className={tab==="verlauf"?"on":""} onClick={()=>setTab("verlauf")}>Verlauf{anzahl?<span style={{opacity:.55,marginLeft:5}}>{anzahl}</span>:null}</button><button className={tab==="details"?"on":""} onClick={()=>setTab("details")}>Details</button></div>;
+}
+
 // ── Partner-Pipeline: Verwaltungen und Eigentümer, die wir direkt anschreiben ──
 function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const STAGES=[["prospect","Neu"],["angeschrieben","Angeschrieben"],["gespraech","Im Gespräch"],["partner","Partner"],["kein_interesse","Kein Interesse"]];
@@ -304,12 +404,14 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
   const doSend=()=>{ const c=compose; if(!c) return; if(!c.to){ setSendMsg("Bitte Empfänger angeben"); return; } const html=akqMailHtml(c.body,absName); const att=c.attach?[{name:"D&T Homes Pitch.pdf",url:"https://admin.dthomes.ch/DT_Homes_Pitch.pdf",contentType:"application/pdf"}]:null;
     if(c.schedAt){ const when=new Date(c.schedAt); if(isNaN(when.getTime())||when<=new Date()){ setSendMsg("Sendezeit muss in der Zukunft liegen"); return; } setSendMsg("plane …"); supabase.from("scheduled_mails").insert({organisation:c.org,to_addr:c.to,subject:c.subject,body:c.body,html,attachments:att,send_at:when.toISOString(),status:"pending",absender:absMail}).then(({error})=>{ if(error){ setSendMsg("Planen fehlgeschlagen: "+error.message); return; } if(c.catchup) nachfassPlanen(c,when.getTime()); akqLog({bereich:"partner",organisation:c.org,typ:"mail",text:"Mail geplant für "+when.toLocaleString("de-CH",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+" an "+c.to+": "+c.subject,von:ich||null}).then(()=>setLogTick(t=>t+1)); nachSenden(c,true); setCompose(null); laden(); }); return; }
     setSendMsg("sende …"); const payload={to:c.to,subject:c.subject,body:c.body,html}; if(att) payload.attachments=att; if(c.replyTo){ payload.replyTo=c.replyTo; payload.postfach=c.postfach; }
-    supabase.functions.invoke("outlook-send",{body:payload}).then(({data,error})=>{ if(error||!data||data.error){ setSendMsg((data&&data.error==="not_configured")?"Outlook noch nicht verbunden":"Senden fehlgeschlagen"); return; } akqLog({bereich:"partner",organisation:c.org,typ:"mail",text:"Mail gesendet an "+c.to+": "+c.subject+(data.absender&&data.absender!==ich?" (über "+data.absender+")":""),von:ich||null}).then(()=>setLogTick(t=>t+1)); if(c.catchup) nachfassPlanen(c,Date.now()).then(()=>laden()); nachSenden(c,false); setCompose(null); ladeThread(c.to); }).catch(()=>setSendMsg("Senden fehlgeschlagen")); };
+    supabase.functions.invoke("outlook-send",{body:payload}).then(({data,error})=>{ if(error||!data||data.error){ setSendMsg((data&&data.error==="not_configured")?"Outlook noch nicht verbunden":"Senden fehlgeschlagen"); return; } akqLog({bereich:"partner",organisation:c.org,typ:"mail",text:"Mail gesendet an "+c.to+": "+c.subject+(data.absender&&data.absender!==ich?" (über "+data.absender+")":""),von:ich||null}).then(()=>setLogTick(t=>t+1)); if(c.catchup) nachfassPlanen(c,Date.now()).then(()=>laden()); nachSenden(c,false); setCompose(null); if(sel) ladeAlleThreads(sel); }).catch(()=>setSendMsg("Senden fehlgeschlagen")); };
   const [drafting,setDrafting]=useState(false);
+  const [detTab,setDetTab]=useState("verlauf");
+  const ladeAlleThreads=(o)=>{ const mails=Array.from(new Set(empfaengerVon(o).map(k=>(k.email||"").toLowerCase()).filter(Boolean))); if(!mails.length){ setThread({messages:[]}); return; } setThread({loading:true}); Promise.all(mails.map(em=>supabase.functions.invoke("outlook-thread",{body:{email:em,postfach:o.zustaendig||undefined}}).then(({data})=>data||{}).catch(()=>({})))).then(res=>{ const seen=new Set(); const all=[]; let pf; res.forEach(r=>{ if(r.postfach) pf=r.postfach; (r.messages||[]).forEach(m=>{ if(m.id&&seen.has(m.id)) return; seen.add(m.id); all.push(m); }); }); all.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))); setThread({messages:all,postfach:pf}); }); };
   const antworten=(m)=>{ if(!sel) return; setSendMsg(""); const kk=kontakteVon(sel.organisation).find(k=>(k.email||"").toLowerCase()===(m.from||"").toLowerCase())||{name:m.fromName||"",email:m.from}; setCompose({org:sel.organisation,kontakt:kk,to:m.from||"",subject:/^(aw|re|wg|fw):/i.test(m.subject||"")?m.subject:"AW: "+(m.subject||""),tpl:"antwort",body:"",attach:false,catchup:false,schedAt:"",replyTo:m.id,postfach:(thread&&thread.postfach)||undefined,_bezug:m}); };
   const kiAntwort=()=>{ if(!compose||!compose.replyTo) return; setDrafting(true); setSendMsg(""); supabase.functions.invoke("draft-reply",{body:{organisation:compose.org,message_id:compose.replyTo,postfach:compose.postfach}}).then(({data,error})=>{ setDrafting(false); if(error||!data||data.error){ setSendMsg(data&&data.error==="not_configured"?"KI-Antwort nicht aktiv (API-Schlüssel fehlt)":"KI-Entwurf fehlgeschlagen"); return; } setCompose(c=>c?{...c,body:data.draft||""}:c); }).catch(()=>{ setDrafting(false); setSendMsg("KI-Entwurf fehlgeschlagen"); }); };
   const ladeThread=(email)=>{ setOpenMsg(null); if(!email){ setThread({messages:[]}); return; } setThread({loading:true,email}); const o=sel||{}; supabase.functions.invoke("outlook-thread",{body:{email,postfach:o.zustaendig||undefined}}).then(({data,error})=>setThread((error||!data||data.error)?{error:"x",email}:{messages:data.messages||[],email,postfach:data.postfach})).catch(()=>setThread({error:"x",email})); };
-  useEffect(()=>{ setCompose(null); setThread(null); if(sel){ const e=empfaengerVon(sel)[0]; if(e) ladeThread(e.email); } },[selName]);
+  useEffect(()=>{ setCompose(null); setThread(null); setDetTab("verlauf"); if(sel) ladeAlleThreads(sel); },[selName]);
   const neuSpeichern=()=>{ const n=neu; const name=(n.organisation||"").trim(); if(!name){ alert("Bitte Firmennamen angeben."); return; } if(orgs.some(o=>o.organisation.toLowerCase()===name.toLowerCase())){ alert("Diese Firma gibt es schon."); return; } const aehnlich=akqAehnlicheFirmen(name,orgs.map(o=>o.organisation)); if(aehnlich.length&&!confirm("Ähnliche Firma schon erfasst: "+aehnlich.join(", ")+".\n\nTrotzdem als neue Firma anlegen?")) return; if(n.kemail&&ks.some(k=>(k.email||"").toLowerCase()===n.kemail.trim().toLowerCase())){ const k=ks.find(k=>(k.email||"").toLowerCase()===n.kemail.trim().toLowerCase()); alert("Die E-Mail "+n.kemail+" gehört schon zu "+(k.name||"einem Kontakt")+(k.organisation?" bei "+k.organisation:"")+"."); return; } const row={organisation:name,typ:n.typ||"verwaltung",status:"prospect",email:n.email||null,telefon:n.telefon||null,website:n.website||null,zustaendig:ich||null,updated_at:new Date().toISOString()}; supabase.from("org_status").insert(row).then(({error})=>{ if(error){ toast("Speichern fehlgeschlagen","error"); return; } const fertig=()=>{ akqLog({bereich:"partner",organisation:name,typ:"phase",text:"Firma erfasst",von:ich||null}); setNeu(null); laden(); setSelName(name); }; if(n.kname||n.kemail){ supabase.from("kontakte").insert({name:n.kname||null,email:n.kemail?n.kemail.toLowerCase():null,organisation:name,org_type:n.typ||"verwaltung",rolle:n.krolle||null}).then(fertig); } else fertig(); }); };
   const kontaktNeu=(o)=>{ const name=prompt("Name der Ansprechperson:"); if(name===null) return; const email=prompt("E-Mail:"); if(email===null) return; if(!name.trim()&&!email.trim()) return; const dup=email.trim()&&ks.find(k=>(k.email||"").toLowerCase()===email.trim().toLowerCase()); if(dup){ alert("Die E-Mail gehört schon zu "+(dup.name||"einem Kontakt")+(dup.organisation?" bei "+dup.organisation:"")+"."); return; } supabase.from("kontakte").insert({name:name.trim()||null,email:email.trim().toLowerCase()||null,organisation:o.organisation,org_type:o.typ||"verwaltung"}).then(({error})=>{ if(error){ toast("Speichern fehlgeschlagen","error"); return; } akqLog({bereich:"partner",organisation:o.organisation,typ:"notiz",text:"Ansprechperson erfasst: "+(name.trim()||email.trim()),von:ich||null}).then(()=>setLogTick(t=>t+1)); laden(); }); };
   const inp={border:"1px solid var(--line)",borderRadius:8,padding:"7px 9px",fontSize:12.5,fontFamily:"'Manrope',sans-serif",background:"var(--surface)",color:"var(--ink)",width:"100%",boxSizing:"border-box"};
@@ -326,12 +428,10 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
         </div>
         <button onClick={()=>setNeu({typ:"verwaltung"})} style={knopf}>+ Neue Firma</button>
       </div>
-      <div style={{display:"flex",gap:0,marginBottom:12,border:"1px solid var(--line)",borderRadius:10,overflowX:"auto",width:"fit-content",maxWidth:"100%"}}>
-        {[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"],["andere","Andere"]].filter(([v])=>v!=="andere"||orgs.some(x=>x.typ==="andere")).map(([v,l])=>{ const n=v==="alle"?orgs.length:orgs.filter(x=>(x.typ||"verwaltung")===v).length; const an=typF===v; return <button key={v} onClick={()=>setTypF(v)} style={{background:an?"var(--ink)":"var(--surface)",color:an?"var(--surface)":"var(--ink)",border:"none",borderRight:"1px solid var(--line)",padding:"8px 16px",fontSize:13,fontWeight:an?700:500,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap"}}>{l} <span style={{opacity:0.6,fontWeight:500}}>{n}</span></button>; })}
-      </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Suche: Firma, Person, E-Mail …" style={{...inp,flex:1,minWidth:200,width:"auto",padding:"8px 12px",fontSize:13}}/>
         <AkqPersonFilter team={team} value={wer} onChange={setWer} ich={ich}/>
+        <div className="seg">{[["alle","Alle"],["verwaltung","Verwaltungen"],["eigentuemer","Eigentümer"]].map(([v,l])=>{ const n=v==="alle"?orgs.length:orgs.filter(x=>(x.typ||"verwaltung")===v).length; return <button key={v} className={typF===v?"on":""} onClick={()=>setTypF(v)}>{l}<span style={{opacity:.55,marginLeft:5}}>{n}</span></button>; })}</div>
         <div className="seg"><button className={!nurAntwort?"on":""} onClick={()=>setNurAntwort(false)}>Alle Firmen</button><button className={nurAntwort?"on":""} onClick={()=>setNurAntwort(true)}>💬 Antwort offen</button></div>
       </div>
       {loading&&<div style={{padding:"30px 8px",color:"#8a8174",fontSize:13}}>Lädt …</div>}
@@ -339,8 +439,8 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
         <AkqKarte key={x.organisation} gross={gross} farbe={g.farbe} onOpen={()=>setSelName(x.organisation)}
           titel={x.organisation}
           untertitel={kz?kontakteVon(x.organisation).map(k=>k.name||k.email).filter(Boolean).slice(0,2).join(", ")+(kz>2?" +"+(kz-2):""):"Noch keine Ansprechperson"}
-          schilder={[<AkqTypTag key="t" typ={x.typ}/>, dz?<AkqSchild key="d">🏠 {dz}</AkqSchild>:null, x.kontaktiert_am?<AkqSchild key="k">✉️ {fmtD(x.kontaktiert_am)}</AkqSchild>:null]}
-          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, geplant?<AkqHinweis key="g" farbe="#3a5230" fett>📅 Mail geplant</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i" farbe="#b08968">seit {idle} Tagen ruhig</AkqHinweis>:null]}
+          schilder={[<AkqTypTag key="t" typ={x.typ}/>, x.kontaktiert_am?<AkqSchild key="k">✉️ {fmtD(x.kontaktiert_am)}</AkqSchild>:null]}
+          hinweise={[x.reply_pending?<AkqHinweis key="r" farbe="#b5651d" fett>💬 Antwort offen</AkqHinweis>:null, geplant?<AkqHinweis key="g">📅 Mail geplant</AkqHinweis>:null, x.naechster_schritt?<AkqHinweis key="n">⏭ {x.naechster_schritt}</AkqHinweis>:null, idle!=null&&idle>=14&&!x.reply_pending?<AkqHinweis key="i">seit {idle} Tagen ruhig</AkqHinweis>:null]}
           zustaendig={x.zustaendig?<span style={{display:"flex",alignItems:"center",gap:5}}><AkqChip name={akqName(team,x.zustaendig)}/>{gross&&<span style={{fontSize:12,color:"var(--muted)"}}>{akqName(team,x.zustaendig)}</span>}</span>:<AkqChip leer/>}
           zurueck={si>0?{label:STAGES[si-1][1],onClick:()=>setStage(x,STAGES[si-1][0])}:null}
           weiter={si<STAGES.length-1?{label:STAGES[si+1][1],onClick:()=>setStage(x,STAGES[si+1][0])}:null}/>
@@ -380,20 +480,33 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
             <div style={{display:"flex",gap:2,margin:"14px 0 4px"}}>
               {STAGES.map(([sid,slbl],i)=>{ const idx=STAGES.findIndex(z=>z[0]===(o.status||"prospect")); const cur=i===idx; const passed=i<idx&&sid!=="kein_interesse"; const bg=cur?(sid==="partner"?"#3a5230":sid==="kein_interesse"?"#a4442e":"var(--ink)"):passed?"#d8cfbe":"#ece5d8"; return <button key={sid} onClick={()=>setStage(o,sid)} style={{flex:1,background:bg,color:cur?"#fff":"#6e6a62",border:"none",padding:"6px 2px",fontSize:11,cursor:"pointer",fontFamily:"'Manrope',sans-serif",borderRadius:i===0?"8px 0 0 8px":i===STAGES.length-1?"0 8px 8px 0":0}}>{slbl}</button>; })}
             </div>
-            <div style={{marginTop:12}}><label style={LBL2}>Zuständig</label><AkqZustaendig value={o.zustaendig} team={team} ich={ich} onChange={v=>setZust(o,v)}/></div>
+            <div style={{display:"flex",gap:8,alignItems:"flex-end",marginTop:12,flexWrap:"wrap"}}>
+              <div style={{flex:"1 1 200px"}}><label style={LBL2}>Zuständig</label><AkqZustaendig value={o.zustaendig} team={team} ich={ich} onChange={v=>setZust(o,v)}/></div>
+              <button onClick={()=>{ if(!empfaengerVon(o).length){ kontaktNeu(o); return; } openCompose(o); }} style={{...knopf,padding:"9px 18px",fontSize:13}}>✉️ E-Mail schreiben</button>
+            </div>
             {o.reply_pending&&(
               <div style={{marginTop:10,fontSize:12,color:"#8a5a1d",background:"#fbf0df",border:"1px solid #e6cfa0",borderRadius:8,padding:"8px 11px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span>💬 <strong>Antwort erhalten</strong>{o.last_reply_at?" am "+akqDatum(o.last_reply_at):""}</span>
                 <button onClick={()=>patch(o.organisation,{reply_pending:false},null)} style={{marginLeft:"auto",...knopf2,padding:"3px 10px",fontSize:11}}>erledigt</button>
               </div>
             )}
+            <AkqDetailTabs tab={detTab} setTab={setDetTab}/>
+            {detTab==="verlauf"?(<div>
+            {scheduled.filter(s=>s.organisation===o.organisation).map(s=>(
+              <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px",fontSize:12,color:"#2f5a2a",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <span>📅 <strong>{s.is_followup?"Nachfass geplant":"Geplant"}</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject}</span>
+                <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?")) return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(()=>laden()); }} style={{marginLeft:"auto",...knopf2,padding:"2px 8px",fontSize:11}}>abbrechen</button>
+              </div>
+            ))}
+              <div style={{marginTop:scheduled.some(x=>x.organisation===o.organisation)?10:0}}><AkqZeitachse thread={thread} bereich="partner" organisation={o.organisation} dealIds={dealsVon(o.organisation).map(x=>x.id)} deals={dealsVon(o.organisation)} ich={ich} team={team} neu={logTick} onAntworten={antworten} leerText={empfaengerVon(o).length?"Noch keine Mails oder Einträge.":"Noch keine Ansprechperson mit E-Mail. Unter Details erfassen."}/></div>
+            </div>):(<div>
             <div style={{marginTop:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><label style={LBL2}>Ansprechpersonen</label><button onClick={()=>kontaktNeu(o)} style={{background:"none",border:"none",color:"#3a5230",fontSize:11.5,cursor:"pointer"}}>+ Person</button></div>
               {empfaengerVon(o).length===0&&<div style={{fontSize:12,color:"#a4442e"}}>Noch keine E-Mail-Adresse. Erfasse zuerst eine Ansprechperson.</div>}
               {empfaengerVon(o).map(k=>(
                 <div key={k.id+(k.email||"")} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid #f0ebe1",fontSize:12.5}}>
                   <div style={{flex:1,minWidth:0}}><span style={{color:"var(--ink)",fontWeight:600}}>{k.name||k.rolle||"Firmen-Adresse"}</span><span style={{color:"var(--muted)"}}>{k.name&&k.rolle?" · "+k.rolle:""} · {k.email}</span></div>
-                  <button onClick={()=>ladeThread(k.email)} title="Mailverlauf" style={{...knopf2,padding:"3px 8px",fontSize:11}}>Verlauf</button>
+                  
                   <button onClick={()=>openCompose(o,k)} style={{...knopf,padding:"4px 10px",fontSize:11.5}}>E-Mail</button>
                 </div>
               ))}
@@ -406,24 +519,25 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
                 {wohnungen.map(w=>(<div key={w.id} onClick={()=>istAdmin&&navigateTo&&navigateTo("wohnungen",w.id)} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0",borderBottom:"1px solid #f0ebe1",fontSize:12.5,cursor:istAdmin?"pointer":"default"}}><span style={{flex:1,color:"var(--ink)"}}>🔑 {w.id} · {w.adresse||""}{w.ort?", "+w.ort:""}</span><span style={{fontSize:10.5,color:"var(--muted)"}}>{w.rolle}{w.mietende?" · bis "+w.mietende:""}</span>{istAdmin&&navigateTo&&<span style={{color:"#3a5230",fontSize:11}}>→</span>}</div>))}
               </div>)}
             </div>
-            {scheduled.filter(s=>s.organisation===o.organisation).map(s=>(
-              <div key={s.id} style={{marginTop:10,background:"#eef5e8",border:"1px solid #cfe0c4",borderRadius:8,padding:"8px 11px",fontSize:12,color:"#2f5a2a",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <span>📅 <strong>{s.is_followup?"Nachfass geplant":"Geplant"}</strong> für {new Date(s.send_at).toLocaleString("de-CH",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {s.subject}</span>
-                <button onClick={()=>{ if(!confirm("Geplante Mail abbrechen?")) return; supabase.from("scheduled_mails").delete().eq("id",s.id).then(()=>laden()); }} style={{marginLeft:"auto",...knopf2,padding:"2px 8px",fontSize:11}}>abbrechen</button>
-              </div>
-            ))}
-            {compose&&compose.org===o.organisation&&compose.vorschau&&(
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginTop:14}}>
+              <div><label style={LBL2}>Nächster Schritt</label><input key={"ns"+o.organisation} defaultValue={o.naechster_schritt||""} onBlur={e=>{ const v=e.target.value.trim(); if(v!==(o.naechster_schritt||"")) patch(o.organisation,{naechster_schritt:v||null},v?{typ:"schritt",text:"Nächster Schritt: "+v}:null); }} placeholder="z.B. Anrufen und Termin vereinbaren" style={inp}/></div>
+            </div>
+            {o.status==="kein_interesse"&&<div style={{marginTop:10}}><label style={LBL2}>Grund</label><input key={"gr"+o.organisation} defaultValue={o.grund||""} onBlur={e=>{ if(e.target.value!==(o.grund||"")) patch(o.organisation,{grund:e.target.value||null},{typ:"notiz",text:"Grund: "+e.target.value}); }} placeholder="z.B. Untervermietung nicht erlaubt" style={inp}/></div>}
+            <textarea key={"no"+o.organisation} defaultValue={o.notizen||""} onBlur={e=>{ if(e.target.value!==(o.notizen||"")) patch(o.organisation,{notizen:e.target.value||null},null); }} placeholder="Notizen zur Firma …" style={{...inp,marginTop:12,minHeight:54,resize:"vertical"}}/>
+            </div>)}
+            {compose&&compose.org===o.organisation&&(<AkqMailFenster titel={compose.vorschau?"Vorschau":compose.replyTo?"Antwort":"E-Mail an "+o.organisation} onClose={()=>{ setCompose(null); setSendMsg(""); }}>
+            {compose.vorschau&&(
               <AkqMailVorschau absender={absName+" <"+absMail+">"} an={compose.to} betreff={compose.subject} html={akqMailHtml(compose.body,absName)} anhang={compose.attach} geplant={compose.schedAt||""} nachfass={!compose.replyTo&&compose.catchup} antwort={!!compose.replyTo} firma={compose.org} team={team} meldung={sendMsg} onZurueck={()=>{ setSendMsg(""); setCompose({...compose,vorschau:false}); }} onSenden={doSend}/>
             )}
-            {compose&&compose.org===o.organisation&&!compose.vorschau&&(
-              <div style={{marginTop:12,border:"1px solid var(--line)",borderRadius:10,padding:12,background:"#faf8f3"}}>
+            {!compose.vorschau&&(
+              <div>
                 {compose.replyTo&&(<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6,fontSize:12,color:"var(--ink)",background:"#eef1f6",padding:"6px 8px",borderRadius:6}}><span>↩ Antwort auf «{compose._bezug&&compose._bezug.subject}»</span><button onClick={kiAntwort} disabled={drafting} style={{marginLeft:"auto",...knopf2,padding:"3px 10px",fontSize:11.5}}>{drafting?"KI schreibt …":"✨ KI-Entwurf"}</button></div>)}
                 {!compose.replyTo&&<select value={compose.tpl} onChange={e=>setTpl(e.target.value)} style={{...inp,marginBottom:6,fontWeight:600}}><option value="kalt">Vorlage: Erstkontakt {(o.typ||"verwaltung")==="eigentuemer"?"Eigentümer":"Verwaltung"} (mit Pitch-Deck)</option><option value="warm">Vorlage: Bestehender Partner</option><option value="nachfass">Vorlage: Nachfassen</option></select>}
                 <input value={compose.to} onChange={e=>setCompose({...compose,to:e.target.value})} placeholder="An" style={{...inp,marginBottom:6}}/>
                 <input value={compose.subject} onChange={e=>setCompose({...compose,subject:e.target.value})} placeholder="Betreff" style={{...inp,marginBottom:6}}/>
-                <textarea value={compose.body} onChange={e=>setCompose({...compose,body:e.target.value})} style={{...inp,minHeight:200,resize:"vertical",marginBottom:6}}/>
+                <textarea value={compose.body} onChange={e=>setCompose({...compose,body:e.target.value})} style={{...inp,minHeight:280,resize:"vertical",marginBottom:6}}/>
                 <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--muted)",marginBottom:6,cursor:"pointer"}}><input type="checkbox" checked={!!compose.attach} onChange={e=>setCompose({...compose,attach:e.target.checked})}/> Pitch-Deck anhängen</label>
-                <div style={{marginBottom:6,fontSize:11,color:"var(--muted)"}}>📧 Gesendet von {absMail} mit Signatur «{absName}».{absMail!==ich&&ich?" Du hast kein eigenes D&T-Postfach, deshalb geht die Mail über das Standardpostfach.":""}</div>
+                <div style={{marginBottom:6,fontSize:11,color:"var(--muted)"}}>📧 Gesendet von {absMail} mit deiner Signatur ({absName}, D&T Homes, www.dthomes.ch).{absMail!==ich&&ich?" Du hast kein eigenes D&T-Postfach, deshalb geht die Mail über das Standardpostfach.":""}</div>
                 {!compose.replyTo&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:8,fontSize:12,color:"var(--muted)"}}>
                   <span>🕒 Später senden:</span>
                   <input type="datetime-local" value={compose.schedAt||""} onChange={e=>setCompose({...compose,schedAt:e.target.value})} style={{...inp,width:"auto",padding:"5px 8px",fontSize:12}}/>
@@ -437,30 +551,7 @@ function PartnerPipeline({benutzerMail,navTarget,navigateTo,istAdmin}){
                 </div>
               </div>
             )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginTop:14}}>
-              <div><label style={LBL2}>Nächster Schritt</label><input key={"ns"+o.organisation} defaultValue={o.naechster_schritt||""} onBlur={e=>{ const v=e.target.value.trim(); if(v!==(o.naechster_schritt||"")) patch(o.organisation,{naechster_schritt:v||null},v?{typ:"schritt",text:"Nächster Schritt: "+v}:null); }} placeholder="z.B. Anrufen und Termin vereinbaren" style={inp}/></div>
-            </div>
-            {o.status==="kein_interesse"&&<div style={{marginTop:10}}><label style={LBL2}>Grund</label><input key={"gr"+o.organisation} defaultValue={o.grund||""} onBlur={e=>{ if(e.target.value!==(o.grund||"")) patch(o.organisation,{grund:e.target.value||null},{typ:"notiz",text:"Grund: "+e.target.value}); }} placeholder="z.B. Untervermietung nicht erlaubt" style={inp}/></div>}
-            <textarea key={"no"+o.organisation} defaultValue={o.notizen||""} onBlur={e=>{ if(e.target.value!==(o.notizen||"")) patch(o.organisation,{notizen:e.target.value||null},null); }} placeholder="Notizen zur Firma …" style={{...inp,marginTop:12,minHeight:54,resize:"vertical"}}/>
-            <AkqVerlauf bereich="partner" organisation={o.organisation} dealIds={dealsVon(o.organisation).map(x=>x.id)} deals={dealsVon(o.organisation)} ich={ich} team={team} neu={logTick}/>
-            <div style={{marginTop:16,borderTop:"1px solid var(--line)",paddingTop:12}}>
-              <div style={{fontSize:12,color:"var(--muted)",marginBottom:8,fontWeight:600}}>Mailverlauf{thread&&thread.email?" mit "+thread.email:""}</div>
-              {!thread&&<div style={{fontSize:12,color:"#8a8174"}}>Keine E-Mail-Adresse hinterlegt.</div>}
-              {thread&&thread.loading&&<div style={{fontSize:12,color:"#8a8174"}}>Lädt Mailverlauf …</div>}
-              {thread&&thread.error&&<div style={{fontSize:12,color:"#a4442e"}}>Mailverlauf nicht verfügbar.</div>}
-              {thread&&thread.messages&&thread.messages.length===0&&<div style={{fontSize:12,color:"#8a8174"}}>Keine Mails mit dieser Adresse gefunden.</div>}
-              {thread&&thread.messages&&thread.messages.map((m,i)=>(
-                <div key={i} style={{padding:"6px 0",borderBottom:"1px solid #f0ebe1"}}>
-                  <div onClick={()=>setOpenMsg(openMsg===i?null:i)} style={{display:"flex",gap:8,alignItems:"baseline",cursor:"pointer"}}>
-                    <span style={{flexShrink:0,fontSize:9.5,padding:"1px 6px",borderRadius:8,background:m.direction==="gesendet"?"#e8efde":"#eef1f6",color:m.direction==="gesendet"?"#3a5230":"#3a4a63"}}>{m.direction}</span>
-                    <span style={{flexShrink:0,color:"#a0968a",fontSize:11}}>{fmtD(m.date)}</span>
-                    <span style={{flex:1,color:"var(--ink)",fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject}</span>
-                    {m.direction==="erhalten"&&m.id&&<button onClick={e=>{ e.stopPropagation(); antworten(m); }} style={{flexShrink:0,...knopf2,padding:"1px 8px",fontSize:11,color:"var(--ink)"}}>↩ Antworten</button>}
-                  </div>
-                  {openMsg===i&&<iframe title="mail" srcDoc={m.body||("<div style=\"font-family:sans-serif;font-size:13px;padding:8px\">"+akqEsc(m.preview||"(kein Inhalt)")+"</div>")} sandbox="" style={{width:"100%",height:300,border:"1px solid var(--line)",borderRadius:8,marginTop:6,background:"#fff"}}/>}
-                </div>
-              ))}
-            </div>
+            </AkqMailFenster>)}
           </div>
         </div>
       )}
