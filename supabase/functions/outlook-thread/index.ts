@@ -69,6 +69,8 @@ Deno.serve(async (req) => {
           subject: m.subject || "(kein Betreff)",
           date: m.sentDateTime || m.receivedDateTime || null,
           direction: fromAddr === mb ? "gesendet" : "erhalten",
+          from: fromAddr,
+          fromName: m.from?.emailAddress?.name || "",
           preview: (m.bodyPreview || "").slice(0, 140),
           body: (m.body && m.body.content) || "",
           bodyType: (m.body && m.body.contentType) || "text",

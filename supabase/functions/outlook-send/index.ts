@@ -16,8 +16,8 @@ Deno.serve(async (req) => {
   const wer = await aufrufer(req);
   if (!wer || !(wer.server || wer.role === "admin" || wer.role === "akquise")) return verweigert(cors);
   try {
-    const { to, subject, body, cc, attachments, html, absender } = await req.json().catch(() => ({}));
-    if (!to) return json({ error: "empfaenger fehlt" }, 400);
+    const { to, subject, body, cc, attachments, html, absender, replyTo, postfach } = await req.json().catch(() => ({}));
+    if (!to && !replyTo) return json({ error: "empfaenger fehlt" }, 400);
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const c = await graphConfig(sb);
     if (!c) return json({ error: "not_configured" });
@@ -25,7 +25,39 @@ Deno.serve(async (req) => {
     if (!tok) return json({ error: "auth_failed" });
 
     const wunsch = (wer.server || wer.role === "admin") && absender ? absender : wer.email;
-    const mbox = postfachFuer(c, wunsch);
+    let mbox = postfachFuer(c, wunsch);
+
+    // Antwort im bestehenden Mailverlauf: im Postfach, in dem die Nachricht liegt.
+    // Akquise darf nur aus dem eigenen Postfach oder dem Standardpostfach antworten.
+    if (replyTo) {
+      const pf = postfachFuer(c, postfach || wunsch);
+      if (!(wer.server || wer.role === "admin") && pf !== mbox && pf !== String(c.graph_mailbox).toLowerCase())
+        return json({ error: "fremdes_postfach", detail: "Antworten nur aus dem eigenen Postfach" });
+      mbox = pf;
+      const H = { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" };
+      const base = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mbox)}/messages`;
+      const cr = await fetch(`${base}/${encodeURIComponent(replyTo)}/createReply`, { method: "POST", headers: H, body: "{}" });
+      const draft = await cr.json().catch(() => ({}));
+      if (!cr.ok || !draft.id) return json({ error: "reply_failed", detail: JSON.stringify(draft).slice(0, 300) });
+      const inhalt = (html || ("<div>" + String(body || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") + "</div>")) + ((draft.body && draft.body.content) || "");
+      const upd: any = { body: { contentType: "HTML", content: inhalt } };
+      if (subject) upd.subject = subject;
+      if (to) upd.toRecipients = String(to).split(/[;,]/).map((x) => x.trim()).filter(Boolean).map((a) => ({ emailAddress: { address: a } }));
+      const pr = await fetch(`${base}/${encodeURIComponent(draft.id)}`, { method: "PATCH", headers: H, body: JSON.stringify(upd) });
+      if (!pr.ok) return json({ error: "reply_failed", detail: (await pr.text()).slice(0, 300) });
+      for (const a of (Array.isArray(attachments) ? attachments : [])) {
+        if (!a || !a.url) continue;
+        try {
+          const r = await fetch(a.url); if (!r.ok) continue;
+          const buf = new Uint8Array(await r.arrayBuffer()); let bin = ""; const CH = 0x8000;
+          for (let i = 0; i < buf.length; i += CH) bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + CH)) as unknown as number[]);
+          await fetch(`${base}/${encodeURIComponent(draft.id)}/attachments`, { method: "POST", headers: H, body: JSON.stringify({ "@odata.type": "#microsoft.graph.fileAttachment", name: a.name || "Anhang.pdf", contentType: a.contentType || "application/pdf", contentBytes: btoa(bin) }) });
+        } catch (_) { /* Anhang ueberspringen */ }
+      }
+      const sr = await fetch(`${base}/${encodeURIComponent(draft.id)}/send`, { method: "POST", headers: H });
+      if (sr.status === 202) return json({ ok: true, absender: mbox, antwort: true });
+      return json({ error: "send_failed", absender: mbox, detail: (await sr.text()).slice(0, 300) });
+    }
 
     const toList = String(to).split(/[;,]/).map((x) => x.trim()).filter(Boolean).map((a) => ({ emailAddress: { address: a } }));
     const ccList = (cc ? String(cc).split(/[;,]/).map((x) => x.trim()).filter(Boolean) : []).map((a) => ({ emailAddress: { address: a } }));
