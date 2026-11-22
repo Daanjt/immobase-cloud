@@ -855,7 +855,7 @@ function Dashboard({istAdmin=true,parkVertraege=[],loadParkVertraege,parkplaetze
         </>) : <div className="sc"><div className="sl">Frei</div><div className="sv" style={{fontSize:24,color:wgFree.length>0?"#9b4a3e":"#5a6e4a"}}>{wgFree.length}</div><div className="sn" style={{color:"#8a8174"}}>Zimmer und Wohnungen</div></div>}
         {!istAdmin && <><div className="sc"><div className="sl">Objekte</div><div className="sv" style={{fontSize:24}}>{wgApts.length}</div><div className="sn" style={{color:"#8a8174"}}>{wgAptsZukunft.length>0?`+ ${wgAptsZukunft.length} ab später`:"aktiv"}</div></div><div className="sc"><div className="sl">Mietende &lt; 60 Tage</div><div className="sv" style={{fontSize:24,color:baldEnde.length>0?"#9b4a3e":"#5a6e4a"}}>{baldEnde.length}</div><div className="sn" style={{color:"#8a8174"}}>Objekte</div></div></>}
       </div>
-      {(()=>{const _fz=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _fw=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return(<>{_fz.length>0&&<div className="warn">⚠ <strong>{_fz.length} WG-Zimmer frei:</strong> {_fz.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}{_fw.length>0&&<div className="warn">⚠ <strong>{_fw.length} {_fw.length===1?"Wohnung":"Wohnungen"} frei:</strong> {_fw.map(r=>{const _a=apts.find(a=>a.id===r.aptId);return `${_a.id} ${_a.adresse} (${chf(r.miete)}/Mt.)`;}).join(" · ")}</div>}</>);})()}
+      {(()=>{const _fz=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="WG");const _fw=wgFree.filter(r=>aptKat(apts.find(a=>a.id===r.aptId))==="Wohnung");return(<>{_fz.length>0&&<div className="warn klickbar" onClick={()=>navigateTo&&navigateTo("zimmer")}>⚠ <strong>{_fz.length} WG-Zimmer frei:</strong> {_fz.map(r=>`${r.id} (${chf(r.miete)}/Mt.${r.balkon?" 🌿":""})`).join(" · ")}</div>}{_fw.length>0&&<div className="warn">⚠ <strong>{_fw.length} {_fw.length===1?"Wohnung":"Wohnungen"} frei:</strong> {_fw.map(r=>{const _a=apts.find(a=>a.id===r.aptId);return `${_a.id} ${_a.adresse} (${chf(r.miete)}/Mt.)`;}).join(" · ")}</div>}</>);})()}
 
       {ppHeute.length>0 && (<>
         <div style={{fontFamily:"'Manrope',sans-serif",fontSize:18,fontWeight:600,color:"#1a1814",marginBottom:14,marginTop:8,letterSpacing:".01em"}}>Parkplätze</div>
@@ -871,7 +871,7 @@ function Dashboard({istAdmin=true,parkVertraege=[],loadParkVertraege,parkplaetze
         {ppZeilen.filter(z=>!z.vermietet).length>0 && <div className="warn">⚠ <strong>{ppZeilen.filter(z=>!z.vermietet).length} {ppZeilen.filter(z=>!z.vermietet).length===1?"Parkplatz":"Parkplätze"} frei:</strong> {ppZeilen.filter(z=>!z.vermietet).map(z=>`${z.kurz} (${chf(+z.p.miete_verkauf||0)}/Mt.)`).join(" · ")}</div>}
       </>)}
 
-      {neueBewerber.length>0&&<div className="warn">📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung</div>}
+      {neueBewerber.length>0&&<div className="warn klickbar" onClick={()=>navigateTo&&navigateTo("bewerber")}>📋 <strong>{neueBewerber.length} Bewerber</strong> warten auf Bearbeitung<span className="pfeil">Öffnen →</span></div>}
       {baldEnde.length>0&&<div className="warn-r">🗓 <strong>Mietende &lt;60 Tage:</strong> {baldEnde.map(a=>{const d=parseDMY(a.mietende);return `${a.id} → ${a.mietende} (${Math.ceil((d-heute)/86400000)}d)`;}).join(" · ")}</div>}
 
       {!istAdmin && <BelegungOps wgApts={wgApts} wgAptsZukunft={wgAptsZukunft} rooms={rooms} ppZeilen={ppZeilen} ppZukunft={ppZukunft} navigateTo={navigateTo}/>}

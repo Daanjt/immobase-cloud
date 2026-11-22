@@ -1739,21 +1739,17 @@ www.dthomes.ch`;
         );
       })()}
       
-      <div className="card" style={{marginBottom:20}}>
-        <div className="ct">📋 Bewerbungs-Link (Webseite)</div>
-        <div style={{fontSize:12.5,color:"#8a8478",marginBottom:10}}>Den passenden Link an potenzielle Mieter senden. Dort sehen sie die freien WG-Zimmer bzw. ganzen Wohnungen mit Bildern und können sich direkt bewerben. Bewerbungen erscheinen automatisch hier.</div>
+      <div className="linkleiste" title="Dort sehen Interessenten die freien Zimmer bzw. Wohnungen mit Bildern und bewerben sich direkt. Bewerbungen erscheinen automatisch hier.">
+        <span className="lt">Bewerbungs-Links</span>
         {formLinks.map(([label, link]) => (
-          <div key={link} className="link-box" style={{marginBottom:8}}>
-            <span className="link-text"><strong style={{fontWeight:600,marginRight:8}}>{label}</strong>{link}</span>
-            <button className="btn btn-p btn-sm" onClick={()=>copyLink(link)}>{copied===link?"✓ Kopiert!":"Link kopieren"}</button>
-          </div>
+          <button key={link} className={copied===link?"ok":""} onClick={()=>copyLink(link)}>{copied===link?"✓ Kopiert":"🔗 "+label}</button>
         ))}
       </div>
       {/* Umschalter Liste / Übersicht, per Wischen umschaltbar */}
-      <div style={{display:"flex",gap:6,marginBottom:14}}>
-        <button className={`btn btn-sm ${ansicht==="liste"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("liste")}>Liste</button>
-        <button className={`btn btn-sm ${ansicht==="uebersicht"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("uebersicht")}>Übersicht</button>
-        {istAdmin && <button className={`btn btn-sm ${ansicht==="suchabo"?"btn-p":"btn-g"}`} style={{flex:1,justifyContent:"center"}} onClick={()=>setAnsicht("suchabo")}>Suchabo</button>}
+      <div className="seg voll" style={{marginBottom:14}}>
+        <button className={ansicht==="liste"?"on":""} onClick={()=>setAnsicht("liste")}>Liste</button>
+        <button className={ansicht==="uebersicht"?"on":""} onClick={()=>setAnsicht("uebersicht")}>Übersicht</button>
+        {istAdmin && <button className={ansicht==="suchabo"?"on":""} onClick={()=>setAnsicht("suchabo")}>Suchabo</button>}
       </div>
       <div onTouchStart={e=>{touchX.current=e.touches[0].clientX;}} onTouchEnd={e=>{ if(touchX.current==null)return; const dx=e.changedTouches[0].clientX-touchX.current; touchX.current=null; if(Math.abs(dx)>60 && ansicht!=="suchabo") setAnsicht(dx<0?"uebersicht":"liste"); }}>
       {ansicht==="suchabo" && istAdmin ? <SuchaboListe/> : ansicht==="uebersicht" ? (
@@ -1771,19 +1767,19 @@ www.dthomes.ch`;
               style={{width:"100%"}}
             />
           </div>
-          <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",borderBottom:"1px solid var(--line)",paddingBottom:10}}>
-            <button className={`btn btn-sm ${listMode!=="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("bewerber")}>Bewerber</button>
-            <button className={`btn btn-sm ${listMode==="leads"?"btn-p":"btn-g"}`} onClick={()=>setListMode("leads")}>WG-Leads (wgzimmer/weegee){wgLeadCount>0?(" ("+wgLeadCount+")"):""}</button>
+          <div className="seg voll" style={{marginBottom:8}}>
+            <button className={listMode!=="leads"?"on":""} onClick={()=>setListMode("bewerber")}>Bewerber</button>
+            <button className={listMode==="leads"?"on":""} onClick={()=>setListMode("leads")} title="Anfragen über wgzimmer und weegee">WG-Leads{wgLeadCount>0?<span style={{opacity:.6,marginLeft:4}}>{wgLeadCount}</span>:null}</button>
           </div>
-          {listMode!=="leads" && <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
-            {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={`btn btn-sm ${filterStatus===s?"btn-p":"btn-g"}`} onClick={()=>setFilterStatus(s)} style={{fontSize:10}}>{s}</button>))}
+          {listMode!=="leads" && <div className="seg voll klein" style={{marginBottom:8}}>
+            {["Neu","Zugeteilt","Abgelehnt"].map(s=>(<button key={s} className={filterStatus===s?"on":""} onClick={()=>setFilterStatus(s)}>{s}</button>))}
           </div>}
           {filterStatus==="Neu" && (
             <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:10,flexWrap:"wrap"}}>
               <span style={{fontSize:9.5,color:"#b8af9f",textTransform:"uppercase",letterSpacing:".15em",fontWeight:600,marginRight:2}}>Sortieren</span>
-              {[["neu","Neueste"],["monat","Nach Monat"]].map(([k,l])=>(
-                <button key={k} className={`btn btn-sm ${bewSort===k?"btn-p":"btn-g"}`} onClick={()=>setBewSort(k)} style={{fontSize:10}}>{l}</button>
-              ))}
+              <div className="seg klein">{[["neu","Neueste"],["monat","Nach Monat"]].map(([k,l])=>(
+                <button key={k} className={bewSort===k?"on":""} onClick={()=>setBewSort(k)}>{l}</button>
+              ))}</div>
             </div>
           )}
           {shown.length===0?<div className="empty">Keine Bewerbungen</div>:shown.map((bw,idx)=>{

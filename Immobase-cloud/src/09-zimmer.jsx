@@ -257,7 +257,7 @@ function Zimmer({rooms,tenants,apts,bewerber,updateRoom,updateBewerber,insertTen
     <div>
       <div className="pt">Zimmer</div>
       <div className="ps">{(()=>{const _k=r=>aptKat(apts.find(a=>a.id===r.aptId));const _z=rooms.filter(r=>_k(r)==="WG"),_w=rooms.filter(r=>_k(r)==="Wohnung");return `${_z.length} WG-Zimmer (${_z.filter(r=>!r.occupied).length} frei) · ${_w.length} Wohnungen (${_w.filter(r=>!r.occupied).length} frei)`;})()}</div>
-      <div className="row" style={{flexWrap:"wrap",gap:10}}><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{[["alle","Alle"],["frei","Nur freie"],["belegt","Belegt"]].map(([k,l])=>(<button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>))}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{[["alle","Alle Arten"],["WG","WGs"],["Wohnung","Wohnungen"]].map(([k,l])=>(<button key={k} className={`btn ${art===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setArt(k)}>{l}</button>))}</div></div>
+      <div className="row" style={{flexWrap:"wrap",gap:10}}><div className="seg">{[["alle","Alle"],["frei","Nur freie"],["belegt","Belegt"]].map(([k,l])=>(<button key={k} className={filter===k?"on":""} onClick={()=>setFilter(k)}>{l}</button>))}</div><div className="seg">{[["alle","Alle Arten"],["WG","WGs"],["Wohnung","Wohnungen"]].map(([k,l])=>(<button key={k} className={art===k?"on":""} onClick={()=>setArt(k)}>{l}</button>))}</div></div>
       {grouped.map(({apt,rs})=>(
         <div key={apt.id} className="card">
           <div className="ct" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>

@@ -484,9 +484,9 @@ function Wohnungen({parkplaetze=[],apts,rooms,tenants,partners,updateApt,insertA
         </div>
         {istAdmin && <button className="btn btn-p" onClick={()=>{setNewForm({type:"WG",ort:"Zürich",id:nextAptId()});setAdding(true);}}>+ Neue Wohnung</button>}
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-        {[["alle",`Alle (${wgApts.length+ganzeApts.length+airbnbApts.length+pipelineApts.length})`],["WG",`WGs (${wgApts.length})`],["Wohnung",`Wohnungen (${ganzeApts.length})`],["Airbnb",`Airbnb (${airbnbApts.length})`],["pipeline",`Pipeline (${pipelineApts.length})`]].map(([k,l])=>(
-          <button key={k} className={`btn ${filter===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setFilter(k)}>{l}</button>
+      <div className="seg" style={{marginBottom:14}}>
+        {[["alle","Alle",wgApts.length+ganzeApts.length+airbnbApts.length+pipelineApts.length],["WG","WGs",wgApts.length],["Wohnung","Wohnungen",ganzeApts.length],["Airbnb","Airbnb",airbnbApts.length],["pipeline","Pipeline",pipelineApts.length]].map(([k,l,n])=>(
+          <button key={k} className={filter===k?"on":""} onClick={()=>setFilter(k)}>{l}<span style={{opacity:.55,marginLeft:5}}>{n}</span></button>
         ))}
       </div>
       <div className="list-detail" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>

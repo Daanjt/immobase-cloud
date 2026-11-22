@@ -727,7 +727,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
       <div className="list-detail" style={{display:(typeof viewMode!=="undefined"&&viewMode==="papierkorb")?"none":"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
         <div>
           <input className="inp" style={{width:"100%",marginBottom:8}} placeholder="🔍 Suchen…" value={search} onChange={e=>setSearch(e.target.value)}/>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[["alle","Alle"],["WG","WG"],["Wohnung","Wohnung"]].map(([k,l])=>(<button key={k} className={`btn ${mArt===k?"btn-p":"btn-g"} btn-sm`} onClick={()=>setMArt(k)}>{l}</button>))}</div>
+          <div className="seg voll" style={{marginBottom:10}}>{[["alle","Alle"],["WG","WG"],["Wohnung","Wohnung"]].map(([k,l])=>(<button key={k} className={mArt===k?"on":""} onClick={()=>setMArt(k)}>{l}</button>))}</div>
           <div style={{maxHeight:"calc(100vh - 230px)",overflowY:"auto"}}>
             {filtered.filter(t=>{ if(mArt==="alle") return true; const _r=rooms.find(r=>r.tenantId===t.id)||(t.roomId?rooms.find(r=>r.id===t.roomId):null); const _a=_r?apts.find(a=>a.id===_r.aptId):(t.aptId?apts.find(a=>a.id===t.aptId):null); return aptKat(_a)===mArt; }).map(t=>{
               const on=sel===t.id;
