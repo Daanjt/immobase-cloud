@@ -2274,9 +2274,7 @@ www.dthomes.ch`;
                 <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   <label className="fl" style={{margin:0}}>Anzahl Personen</label>
                   <input className="fi" type="number" min="1" max="10" value={vertragData.personen||1} style={{width:80,margin:0}} onChange={e=>{ const n=Math.max(1,+e.target.value||1); setVertragData(p=>wohnungVertragswerte(p, p.apt, null, n)); updateBewerber(b.id,{personen:n}); }}/>
-                  <label className="fl" style={{margin:"0 0 0 10px"}}>Nebenkosten (CHF/Mt.)</label>
-                  <input className="fi" type="number" min="0" value={vertragData.nebenkosten??""} style={{width:90,margin:0}} onChange={e=>{ const v=e.target.value; setVertragData(p=>wohnungVertragswerte({...p, nkManuell: v===""?null:v}, p.apt, null, p.personen||1)); }}/>
-                  <span style={{fontSize:11.5,color:"#8a8174"}}>werden von der Bruttomiete abgezogen (Nettomiete CHF {vertragData.nettomiete}). Standard: frühere NK der Wohnung. Strom CHF 25 pro Person.</span>
+                  <span style={{fontSize:11.5,color:"#8a8174"}}>Strom CHF 25 pro Person. Nettomiete und Nebenkosten (Standard: frühere NK der Wohnung) unten in der Mietzins-Aufstellung anpassen.</span>
                 </div>
                 <MitmieterEditor value={vertragData.mitmieter} draft={vertragData._mmDraft}
                   onChange={(mm, draft) => { setVertragData(p => ({ ...p, mitmieter: mm, _mmDraft: draft })); updateBewerber(b.id, { mitmieter: mm ? { ...mm, aktiv: true } : (draft && Object.keys(draft).length ? { ...draft, aktiv: false } : null) }); }}/>
@@ -2336,11 +2334,11 @@ www.dthomes.ch`;
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietzins-Aufstellung</div>
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:14}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:8,alignItems:"center",fontSize:12.5}}>
-                <span>Nettomiete</span><input className="fi" type="number" value={vertragData.nettomiete} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,nettomiete:v,bruttomiete:v+p.nebenkosten,total:v+p.nebenkosten+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
-                <span>Nebenkosten</span><input className="fi" type="number" value={vertragData.nebenkosten} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,nebenkosten:v,bruttomiete:p.nettomiete+v,total:p.nettomiete+v+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span>Nettomiete</span><input className="fi" type="number" value={vertragData.nettomiete} onChange={e=>{const v=e.target.value===""?0:+e.target.value;setVertragData(p=>vertragBetraegeNeu(p,{nettomiete:v}));}} style={{textAlign:"right"}}/>
+                <span>Nebenkosten</span><input className="fi" type="number" value={vertragData.nebenkosten} onChange={e=>{const v=e.target.value===""?0:+e.target.value;setVertragData(p=>vertragBetraegeNeu(p,{nebenkosten:v}));}} style={{textAlign:"right"}}/>
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {vertragData.bruttomiete.toLocaleString('de-CH')}</span>
-                <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=+e.target.value;setVertragData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span>Stromkosten</span><input className="fi" type="number" value={vertragData.strom} onChange={e=>{const v=e.target.value===""?0:+e.target.value;setVertragData(p=>vertragBetraegeNeu(p,{strom:v}));}} style={{textAlign:"right"}}/>
                 {vertragData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Servicegebühr</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {vertragData.aufschlag}</span>

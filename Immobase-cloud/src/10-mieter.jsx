@@ -1557,11 +1557,11 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
             <div style={{fontSize:9.5,color:"#8a8174",textTransform:"uppercase",letterSpacing:".25em",marginBottom:10,fontWeight:500}}>Mietzins-Aufstellung</div>
             <div style={{background:"#fefcf7",border:"1px solid #e1d8c5",borderRadius:8,padding:"14px 18px",marginBottom:14}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:8,alignItems:"center",fontSize:12.5}}>
-                <span>Nettomiete</span><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,nettomiete:v,bruttomiete:v+p.nebenkosten,total:v+p.nebenkosten+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
-                <span>Nebenkosten</span><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,nebenkosten:v,bruttomiete:p.nettomiete+v,total:p.nettomiete+v+p.strom+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span>Nettomiete</span><input className="fi" type="number" value={tvData.nettomiete} onChange={e=>{const v=e.target.value===""?0:+e.target.value;setTvData(p=>vertragBetraegeNeu(p,{nettomiete:v}));}} style={{textAlign:"right"}}/>
+                <span>Nebenkosten</span><input className="fi" type="number" value={tvData.nebenkosten} onChange={e=>{const v=e.target.value===""?0:+e.target.value;setTvData(p=>vertragBetraegeNeu(p,{nebenkosten:v}));}} style={{textAlign:"right"}}/>
                 <span style={{fontWeight:600,borderTop:"1px solid #1a1814",paddingTop:6}}>Bruttomiete</span>
                 <span style={{fontWeight:600,textAlign:"right",borderTop:"1px solid #1a1814",paddingTop:6}}>CHF {tvData.bruttomiete.toLocaleString('de-CH')}</span>
-                <span>Stromkosten</span><input className="fi" type="number" value={tvData.strom} onChange={e=>{const v=+e.target.value;setTvData(p=>({...p,strom:v,total:p.bruttomiete+v+p.aufschlag}));}} style={{textAlign:"right"}}/>
+                <span>Stromkosten</span><input className="fi" type="number" value={tvData.strom} onChange={e=>{const v=e.target.value===""?0:+e.target.value;setTvData(p=>vertragBetraegeNeu(p,{strom:v}));}} style={{textAlign:"right"}}/>
                 {tvData.aufschlag>0&&(<>
                   <span style={{color:"#b8843e"}}>Kautions-Servicegebühr</span>
                   <span style={{color:"#b8843e",textAlign:"right",fontWeight:500}}>CHF {tvData.aufschlag}</span>

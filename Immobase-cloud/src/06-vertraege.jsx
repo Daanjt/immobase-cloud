@@ -44,6 +44,21 @@ function wohnungVertragswerte(p, apt, room, personen){
   const fNk = +(apt && apt.frueherer_nk) || 0;
   return { ...p, _bruttoBasis: basis, vertragsart: "wohnung", personen: pers, fruehererNetto: fNetto || "", fruehererNk: fNetto ? fNk : "", fruehererMietzins: fNetto ? fNetto + fNk : "", nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: (brutto + strom) * km, moebliert: false };
 }
+// Mietzins-Aufstellung im Vertrag: Nettomiete, Nebenkosten und Strom frei aenderbar.
+// Bruttomiete, Total und Kaution werden immer aus den Werten im Vertrag neu berechnet.
+function vertragBetraegeNeu(p, aenderung){
+  const q = { ...p, ...aenderung };
+  const netto = Math.max(0, +q.nettomiete || 0);
+  const nk = Math.max(0, +q.nebenkosten || 0);
+  const strom = (q.strom != null && q.strom !== "") ? Math.max(0, +q.strom || 0) : 25;
+  const auf = +q.aufschlag || 0;
+  const km = q.kautionMonate == null ? 3 : +q.kautionMonate || 0;
+  const brutto = netto + nk;
+  const r = { ...q, nettomiete: netto, nebenkosten: nk, strom, bruttomiete: brutto, total: brutto + strom + auf, kautionBetrag: Math.round((brutto + strom) * km * 100) / 100 };
+  // Ganze Wohnung: Werte merken, damit sie beim Aendern der Personenzahl erhalten bleiben
+  if (istWohnungsVertrag(r)) { r._bruttoBasis = brutto; r.nkManuell = nk; }
+  return r;
+}
 function objektLabel(roomId){
   const d = (typeof window!=="undefined" && window.__IB_DATA) || {};
   const r = (d.rooms||[]).find(x=>x.id===roomId); const a = r ? (d.apts||[]).find(x=>x.id===r.aptId) : null;
