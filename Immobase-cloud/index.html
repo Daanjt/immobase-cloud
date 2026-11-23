@@ -1503,6 +1503,55 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 
 /* Untertitel unter eigenen Seitentiteln wie .ps */
 .main [style*="Georgia"][style*="font-size: 24px"] + div{font-size:11px !important;color:var(--muted) !important;letter-spacing:.18em;text-transform:uppercase;margin-top:6px !important;font-weight:400}
+
+/* WhatsApp-Inbox */
+.wa-rahmen{display:flex;margin-top:14px;height:calc(100vh - 190px);min-height:460px;background:var(--surface);border:1px solid var(--beige-line);border-radius:12px;overflow:hidden}
+.wa-rahmen.schmal{height:calc(100vh - 150px)}
+.wa-liste{flex:0 0 330px;display:flex;flex-direction:column;border-right:1px solid var(--beige-line);min-width:0}
+.wa-rahmen.schmal .wa-liste{flex:1;border-right:none}
+.wa-kopf{padding:12px;border-bottom:1px solid var(--beige-line)}
+.wa-scroll{flex:1;overflow-y:auto}
+.wa-leer{padding:18px;color:var(--muted);font-size:13px;text-align:center}
+.wa-zeile{display:flex;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1ece2;align-items:flex-start}
+.wa-zeile:hover{background:#faf7f1}
+.wa-zeile.aktiv{background:var(--beige-soft)}
+.wa-av{flex:0 0 38px;width:38px;height:38px;border-radius:50%;background:#e9e3d7;color:#6b6356;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:.02em}
+.wa-av.mieter{background:#e3ecdf;color:#3d4f2f}
+.wa-av.bewerber{background:#f3e7d3;color:#8a6420}
+.wa-mitte{flex:1;min-width:0}
+.wa-z1,.wa-z2{display:flex;align-items:center;gap:6px}
+.wa-name{flex:1;min-width:0;font-size:13.5px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa-name.fett{font-weight:700}
+.wa-zeit{font-size:11px;color:var(--muted-light);white-space:nowrap}
+.wa-zeit.neu{color:#1f9d55;font-weight:600}
+.wa-z2{margin-top:2px}
+.wa-vorschau{flex:1;min-width:0;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa-badge{flex-shrink:0;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#25d366;color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.wa-tag{flex-shrink:0;font-size:10px;border-radius:6px;padding:1px 6px;font-weight:600}
+.wa-tag.warn{background:#fbeae6;color:#8a3a2e}
+.wa-art{font-size:10.5px;color:var(--muted-light);margin-top:3px;display:flex;align-items:center;gap:6px}
+.wa-chat{flex:1;display:flex;flex-direction:column;min-width:0}
+.wa-nichts{align-items:center;justify-content:center;color:var(--muted-light);font-size:13px;background:#faf7f1}
+.wa-chatkopf{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--beige-line)}
+.wa-zurueck{border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink);padding:0 4px}
+.wa-titel{font-weight:600;font-size:14.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa-sub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa-aktionen{display:flex;gap:6px;flex-shrink:0}
+.wa-verlauf{flex:1;overflow-y:auto;background:#efeae2;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.wa-tagtrenner{text-align:center;margin:8px 0 4px}
+.wa-tagtrenner span{background:#fff;color:#6b6356;font-size:11px;padding:3px 10px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.05)}
+.wa-blase{max-width:78%;border-radius:10px;padding:6px 10px 5px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 1px rgba(0,0,0,.06)}
+.wa-blase.ein{align-self:flex-start;background:#fff;border-top-left-radius:3px}
+.wa-blase.aus{align-self:flex-end;background:#d9fdd3;border-top-right-radius:3px}
+.wa-blase.fehler{background:#fbeae6}
+.wa-meta{font-size:10.5px;color:#8a8174;margin-top:2px;text-align:right}
+.wa-esk{font-size:10.5px;color:#a4442e;margin-top:2px}
+.wa-eingabe{border-top:1px solid var(--beige-line);padding:10px 12px;background:var(--surface)}
+.wa-hinweis{font-size:11.5px;color:var(--muted);margin-bottom:6px}
+.wa-hinweis.warn{color:#a4442e}
+.wa-knoepfe{display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap}
+.wa-fenster{font-size:11px;color:var(--muted-light)}
+@media (max-width:860px){.wa-chatkopf{flex-wrap:wrap}.wa-aktionen{width:100%}.wa-aktionen .btn{flex:1;justify-content:center;text-align:center}.wa-blase{max-width:88%}.wa-rahmen.schmal{height:calc(100vh - 120px)}}
 </style>
 </head>
 <body>

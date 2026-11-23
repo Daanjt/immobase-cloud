@@ -137,31 +137,38 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
     if (dateiRef.current) dateiRef.current.value = "";
   };
 
+  // Initialen fuer den runden Avatar
+  const initialen = (n) => { const t = String(n || "").replace(/[^\p{L}\s]/gu, "").trim().split(/\s+/).filter(Boolean); return t.length ? (t[0][0] + (t.length > 1 ? t[t.length - 1][0] : "")).toUpperCase() : "#"; };
+  const tagLabel = (d) => { const x = new Date(d), h = new Date(); const g = new Date(); g.setDate(h.getDate() - 1);
+    if (x.toDateString() === h.toDateString()) return "Heute"; if (x.toDateString() === g.toDateString()) return "Gestern";
+    return x.toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" }); };
+  const nurZeit = (d) => new Date(d).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
+  const schmal = window.innerWidth <= 860;
+
   const Liste = (
-    <div style={{ flex: "0 0 320px", minWidth: 0, maxWidth: "100%" }}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-        {[["offen", `Offen${anzOffen ? ` (${anzOffen})` : ""}`], ["eskaliert", "Weitergeleitet"], ["alle", "Alle"]].map(([id, l]) =>
-          <button key={id} className={"btn btn-sm " + (filter === id ? "btn-p" : "btn-g")} style={{ width: "auto" }} onClick={() => setFilter(id)}>{l}</button>)}
+    <div className="wa-liste">
+      <div className="wa-kopf">
+        <div className="seg voll klein">{[["offen", `Offen${anzOffen ? ` · ${anzOffen}` : ""}`], ["eskaliert", "Weitergeleitet"], ["alle", "Alle"]].map(([id, l]) =>
+          <button key={id} className={filter === id ? "on" : ""} onClick={() => setFilter(id)}>{l}</button>)}</div>
+        <input className="fi" placeholder="Suchen: Name, Nummer, Text" value={suche} onChange={e => setSuche(e.target.value)} style={{ margin: "8px 0 0" }} />
       </div>
-      <input className="fi" placeholder="Suchen (Name, Nummer, Text)" value={suche} onChange={e => setSuche(e.target.value)} style={{ marginBottom: 8 }} />
-      {laden && <div className="card" style={{ color: "#8a8174" }}>Lädt…</div>}
-      {!laden && !gefiltert.length && <div className="card" style={{ color: "#8a8174", fontSize: 13 }}>{filter === "offen" ? "Keine offenen Chats 🎉" : "Keine Chats"}</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="wa-scroll">
+        {laden && <div className="wa-leer">Lädt…</div>}
+        {!laden && !gefiltert.length && <div className="wa-leer">{filter === "offen" ? "Keine offenen Chats 🎉" : "Keine Chats"}</div>}
         {gefiltert.map(x => {
           const kk = kontakte[x.telefon];
+          const name = (kk && kk.name) || x.name || x.telefon;
+          const ung = x.ungelesen > 0, esk = x.eskaliert && istOffen(x);
           return (
-            <div key={x.telefon} onClick={() => oeffnen(x)} className="card" style={{ cursor: "pointer", padding: "9px 11px", border: x.telefon === aktiv ? "1.5px solid #c89653" : undefined, background: x.telefon === aktiv ? "#fbf6ec" : undefined }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ fontWeight: 600, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(kk && kk.name) || x.name || x.telefon}</div>
-                <div style={{ fontSize: 11, color: "#8a8174", whiteSpace: "nowrap" }}>{waZeit(x.letzte_at)}</div>
-              </div>
-              <div style={{ fontSize: 11, color: "#8a8174", marginTop: 1 }}>{kk ? `${kk.art} · ` : ""}{x.telefon}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 4, alignItems: "center" }}>
-                <div style={{ fontSize: 12.5, color: "#5a5448", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.letzte_richtung === "aus" ? "↩ " : ""}{x.letzte_text}</div>
-                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                  {x.eskaliert && istOffen(x) && <span title="Die KI hat an euch weitergeleitet" style={{ fontSize: 10.5, background: "#fbeae6", color: "#8a3a2e", borderRadius: 10, padding: "1px 7px" }}>⚠</span>}
-                  {x.ungelesen > 0 && <span style={{ fontSize: 10.5, background: "#25d366", color: "#fff", borderRadius: 10, padding: "1px 7px", fontWeight: 600 }}>{x.ungelesen}</span>}
+            <div key={x.telefon} onClick={() => oeffnen(x)} className={"wa-zeile" + (x.telefon === aktiv ? " aktiv" : "")}>
+              <div className={"wa-av" + (kk ? " " + (kk.art === "Mieter" ? "mieter" : "bewerber") : "")}>{initialen(kk ? kk.name : x.name)}</div>
+              <div className="wa-mitte">
+                <div className="wa-z1"><span className={"wa-name" + (ung ? " fett" : "")}>{name}</span><span className={"wa-zeit" + (ung ? " neu" : "")}>{waZeit(x.letzte_at)}</span></div>
+                <div className="wa-z2">
+                  <span className="wa-vorschau">{x.letzte_richtung === "aus" ? "Du: " : ""}{x.letzte_text}</span>
+                  {ung && <span className="wa-badge">{x.ungelesen}</span>}
                 </div>
+                {(kk || esk) && <div className="wa-art">{kk ? kk.art : ""}{esk && <span className="wa-tag warn" title="Die KI hat an euch weitergeleitet">Weitergeleitet</span>}</div>}
               </div>
             </div>);
         })}
@@ -169,63 +176,70 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
     </div>
   );
 
+  // Nachrichten mit Tagestrennern
+  const zeilen = []; let letzterTag = "";
+  verlauf.forEach(m => { const t = new Date(m.created_at).toDateString(); if (t !== letzterTag) { zeilen.push({ trenner: tagLabel(m.created_at), key: "t" + m.id }); letzterTag = t; } zeilen.push(m); });
+
   const Chat = c ? (
-    <div style={{ flex: "1 1 420px", minWidth: 0 }}>
-      <div className="card" style={{ padding: "10px 12px", marginBottom: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <div>
-            <div style={{ fontWeight: 600 }}>{(k && k.name) || c.name || c.telefon}</div>
-            <div style={{ fontSize: 12, color: "#8a8174" }}>{c.telefon}{c.name && k && k.name !== c.name ? ` · WhatsApp-Name: ${c.name}` : ""}{k ? ` · ${k.art}` : " · nicht zugeordnet"}</div>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {k && navigateTo && <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => navigateTo(k.art === "Mieter" ? "mieter" : "bewerber", k.id)}>Zu {k.art === "Mieter" ? "Mieter" : "Bewerber"}</button>}
-            <button className="btn btn-g btn-sm" style={{ width: "auto" }} title="Automatische KI-Antworten für diesen Chat" onClick={() => chatStatus(c.telefon, { ki_aus: !c.ki_aus })}>{c.ki_aus ? "🤖 KI aus" : "🤖 KI an"}</button>
-            {istOffen(c) ? <button className="btn btn-p btn-sm" style={{ width: "auto" }} onClick={() => chatStatus(c.telefon, { erledigt_at: new Date().toISOString(), gelesen_at: new Date().toISOString() })}>✓ Erledigt</button>
-              : <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => chatStatus(c.telefon, { erledigt_at: null })}>Wieder öffnen</button>}
-          </div>
+    <div className="wa-chat">
+      <div className="wa-chatkopf">
+        {schmal && <button className="wa-zurueck" onClick={() => setAktiv(null)} aria-label="Zurück">←</button>}
+        <div className={"wa-av" + (k ? " " + (k.art === "Mieter" ? "mieter" : "bewerber") : "")}>{initialen(k ? k.name : c.name)}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="wa-titel">{(k && k.name) || c.name || c.telefon}</div>
+          <div className="wa-sub">{c.telefon}{k ? ` · ${k.art}` : " · nicht zugeordnet"}{c.name && k && k.name !== c.name ? ` · WhatsApp: ${c.name}` : ""}</div>
+        </div>
+        <div className="wa-aktionen">
+          {k && navigateTo && <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => navigateTo(k.art === "Mieter" ? "mieter" : "bewerber", k.id)}>Profil</button>}
+          <button className={"btn btn-sm " + (c.ki_aus ? "btn-g" : "btn-g")} style={{ width: "auto" }} title="Automatische KI-Antworten für diesen Chat" onClick={() => chatStatus(c.telefon, { ki_aus: !c.ki_aus })}>{c.ki_aus ? "KI aus" : "KI an"}</button>
+          {istOffen(c) ? <button className="btn btn-p btn-sm" style={{ width: "auto" }} onClick={() => chatStatus(c.telefon, { erledigt_at: new Date().toISOString(), gelesen_at: new Date().toISOString() })}>Erledigt</button>
+            : <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => chatStatus(c.telefon, { erledigt_at: null })}>Wieder öffnen</button>}
         </div>
       </div>
-      <div style={{ background: "#efeae2", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6, height: "min(58vh, 560px)", overflowY: "auto" }}>
-        {verlauf.map(m => {
+      <div className="wa-verlauf">
+        {zeilen.map(m => {
+          if (m.trenner) return <div key={m.key} className="wa-tagtrenner"><span>{m.trenner}</span></div>;
           const aus = m.richtung === "aus";
           return (
-            <div key={m.id} style={{ alignSelf: aus ? "flex-end" : "flex-start", maxWidth: "85%", background: aus ? (m.quelle === "ki_fehler" ? "#fbeae6" : "#d9fdd3") : "#fff", borderRadius: 8, padding: "7px 10px", fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", boxShadow: "0 1px 1px rgba(0,0,0,.06)" }}>
+            <div key={m.id} className={"wa-blase " + (aus ? "aus" : "ein") + (m.quelle === "ki_fehler" ? " fehler" : "")}>
               {m.medien_pfad && <div style={{ marginBottom: m.text && !/^(📷|🎬|🎤|📄|Sticker)/.test(m.text) ? 4 : 0 }}><WaMedium m={m} /></div>}
               {m.medien_pfad && /^(📷 Bild|🎬 Video|🎤 Sprachnachricht|📄 |Sticker)/.test(m.text || "") ? null
                 : m.typ === "unsupported" ? <span style={{ color: "#8a8174", fontStyle: "italic" }}>Nachricht von WhatsApp nicht übermittelt</span>
                 : (m.text || `[${m.typ || "?"}]`)}
-              <div style={{ fontSize: 10.5, color: "#8a8174", marginTop: 3, textAlign: "right" }}>{aus && WA_QUELLE[m.quelle] ? WA_QUELLE[m.quelle] + " · " : ""}{waZeit(m.created_at)}</div>
-              {aus && m.ki_eskalieren && <div style={{ fontSize: 10.5, color: "#a4442e", marginTop: 2 }}>⚠ an euch weitergeleitet{m.ki_grund ? `: ${m.ki_grund}` : ""}</div>}
+              <div className="wa-meta">{aus && WA_QUELLE[m.quelle] ? WA_QUELLE[m.quelle] + " · " : ""}{nurZeit(m.created_at)}</div>
+              {aus && m.ki_eskalieren && <div className="wa-esk">An euch weitergeleitet{m.ki_grund ? `: ${m.ki_grund}` : ""}</div>}
             </div>);
         })}
         <div ref={endeRef} />
       </div>
-      <div className="card" style={{ marginTop: 8, padding: "10px 12px" }}>
-        {!fensterOffen && <div style={{ fontSize: 12, color: "#a4442e", marginBottom: 6 }}>Die letzte Nachricht dieses Kontakts ist älter als 24 Stunden. WhatsApp erlaubt dann nur genehmigte Vorlagen, kein freier Text.</div>}
-        {fensterOffen && <div style={{ fontSize: 11, color: "#8a8174", marginBottom: 6 }}>Freier Text möglich, noch ca. {restStd} Std. (24h-Fenster seit der letzten Kundennachricht)</div>}
-        {vorschlag && <div style={{ fontSize: 11.5, marginBottom: 6, color: vorschlag.eskalieren ? "#a4442e" : "#3a5230" }}>🤖 KI-Vorschlag{vorschlag.eskalieren ? " · ⚠ KI würde weiterleiten" : ""}{vorschlag.grund ? ` · ${vorschlag.grund}` : ""}. Du kannst den Text anpassen.</div>}
-        <textarea className="fi" rows={Math.min(10, Math.max(3, text.split("\n").length + 1))} value={text} onChange={e => setText(e.target.value)} placeholder="Antwort schreiben…" disabled={!fensterOffen} style={{ fontFamily: "inherit", lineHeight: 1.45 }} />
-        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} onClick={kiVorschlag}>{busy === "ki" ? "KI denkt…" : "🤖 KI-Vorschlag"}</button>
-          <button className="btn btn-p btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen || !text.trim()} onClick={senden}>{busy === "senden" ? "Sendet…" : "Senden"}</button>
+      <div className="wa-eingabe">
+        {!fensterOffen && <div className="wa-hinweis warn">Letzte Nachricht des Kontakts ist älter als 24 Stunden. Freier Text ist erst wieder möglich, wenn der Kontakt schreibt.</div>}
+        {vorschlag && <div className="wa-hinweis" style={{ color: vorschlag.eskalieren ? "#a4442e" : "#3a5230" }}>KI-Vorschlag{vorschlag.eskalieren ? " · KI würde weiterleiten" : ""}{vorschlag.grund ? ` · ${vorschlag.grund}` : ""}. Du kannst den Text anpassen.</div>}
+        <textarea className="fi" rows={Math.min(8, Math.max(2, text.split("\n").length))} value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (!busy && fensterOffen && text.trim()) senden(); } }}
+          placeholder={fensterOffen ? "Nachricht schreiben…" : "Kein freier Text möglich"} disabled={!fensterOffen} style={{ fontFamily: "inherit", lineHeight: 1.45, margin: 0, resize: "none" }} />
+        <div className="wa-knoepfe">
+          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} onClick={kiVorschlag}>{busy === "ki" ? "KI denkt…" : "KI-Vorschlag"}</button>
           <input ref={dateiRef} type="file" accept="image/jpeg,image/png,video/mp4,application/pdf,.doc,.docx,.xls,.xlsx" style={{ display: "none" }} onChange={e => dateiSenden(e.target.files && e.target.files[0])} />
-          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} title="Bild, Video oder PDF senden. Der Text im Feld wird als Bildunterschrift mitgeschickt." onClick={() => dateiRef.current && dateiRef.current.click()}>{busy === "datei" ? "Sendet…" : "📎 Datei"}</button>
+          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} title="Bild, Video oder PDF senden. Der Text im Feld wird als Bildunterschrift mitgeschickt." onClick={() => dateiRef.current && dateiRef.current.click()}>{busy === "datei" ? "Sendet…" : "Datei"}</button>
           {text && <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy} onClick={() => { setText(""); setVorschlag(null); }}>Verwerfen</button>}
+          <span style={{ flex: 1 }} />
+          {fensterOffen && <span className="wa-fenster">noch {restStd} Std.</span>}
+          <button className="btn btn-p btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen || !text.trim()} onClick={senden}>{busy === "senden" ? "Sendet…" : "Senden"}</button>
         </div>
       </div>
     </div>
   ) : (
-    <div style={{ flex: "1 1 420px", minWidth: 0 }}><div className="card" style={{ color: "#8a8174", fontSize: 13 }}>Chat links auswählen.</div></div>
+    <div className="wa-chat wa-nichts"><span>Chat links auswählen</span></div>
   );
 
   return (
     <div>
       <div className="pt">WhatsApp</div>
-      <div className="ps">Alle Nachrichten an +41 76 688 70 91. Antworten von hier gehen von der D&amp;T-Nummer raus. Antwortet ihr selbst (hier oder vom Handy), pausiert die automatische KI für diesen Chat 6 Stunden.</div>
-      <div style={{ display: "flex", gap: 14, marginTop: 14, flexWrap: "wrap", alignItems: "flex-start" }}>
-        {(!aktiv || window.innerWidth > 860) && Liste}
-        {aktiv && window.innerWidth <= 860 && <button className="btn btn-g btn-sm" style={{ width: "auto", marginBottom: 6 }} onClick={() => setAktiv(null)}>← Alle Chats</button>}
-        {(aktiv || window.innerWidth > 860) && Chat}
+      {!(schmal && aktiv) && <div className="ps">Alle Nachrichten an +41 76 688 70 91. Antwortet ihr selbst, pausiert die automatische KI für diesen Chat 6 Stunden.</div>}
+      <div className={"wa-rahmen" + (schmal ? " schmal" : "")}>
+        {(!aktiv || !schmal) && Liste}
+        {(aktiv || !schmal) && Chat}
       </div>
     </div>
   );
