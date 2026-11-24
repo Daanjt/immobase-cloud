@@ -262,7 +262,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   return (
     <div>
       <div className="pt">WhatsApp</div>
-      {!(schmal && aktiv) && <div className="ps">Alle Nachrichten an +41 76 688 70 91. Antwortet ihr selbst, pausiert die automatische KI für diesen Chat 6 Stunden.</div>}
+      {!(schmal && aktiv) && <div className="ps">Alle Nachrichten an +41 76 688 70 91. Antwortet ihr selbst, beantwortet die KI in diesem Chat während 6 Stunden nur noch Fragen, die sie sicher beantworten kann. Alles andere bleibt bei euch.</div>}
       <div className={"wa-rahmen" + (schmal ? " schmal" : "")}>
         {(!aktiv || !schmal) && Liste}
         {(aktiv || !schmal) && Chat}

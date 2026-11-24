@@ -105,7 +105,8 @@ Deno.serve(async (req) => {
   if (chat?.ki_aus) { await melden("KI ist für diesen Chat ausgeschaltet"); return ok({ gespeichert: true, ki: "aus" }); }
   const { data: mensch } = await sb.from("wa_nachrichten").select("id").eq("telefon", tel).eq("richtung", "aus").in("quelle", ["handy", "immobase", "immobase_ki"])
     .gte("created_at", new Date(Date.now() - 6 * 3600000).toISOString()).limit(1);
-  if (mensch && mensch.length) { await melden("Ihr habt in den letzten 6 Stunden selbst geantwortet, die KI pausiert"); return ok({ gespeichert: true, ki: "pause" }); }
+  // Habt ihr in den letzten 6 Stunden selbst geantwortet, antwortet die KI nur noch, wenn sie die Frage sicher beantworten kann (nicht eskalieren)
+  const menschAktiv = !!(mensch && mensch.length);
 
   // Verlauf der letzten 7 Tage fuer diese Nummer
   const seit = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -114,6 +115,10 @@ Deno.serve(async (req) => {
   const r = await fetch(`${URL_}/functions/v1/ki-antwort`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ nachricht: text, verlauf, telefon: tel }) });
   const k = await r.json().catch(() => ({}));
   if (!r.ok || !k.antwort) { console.error("ki-antwort", k); await melden("Die KI konnte keine Antwort erstellen"); return ok({ ki: "fehler" }); }
+  if (menschAktiv && k.eskalieren) {
+    await melden(`Ihr habt in den letzten 6 Stunden selbst geantwortet. Die KI hat diese Nachricht nicht beantwortet, weil sie sie nicht sicher beantworten kann${k.grund ? `: ${k.grund}` : ""}`, k.antwort);
+    return ok({ gespeichert: true, ki: "pause" });
+  }
   const s = await fetch("https://api.ycloud.com/v2/whatsapp/messages/sendDirectly", {
     method: "POST", headers: { "X-API-Key": waKey()!, "Content-Type": "application/json" },
     body: JSON.stringify({ from: WA_ABSENDER, to: tel, type: "text", text: { body: k.antwort } }),
