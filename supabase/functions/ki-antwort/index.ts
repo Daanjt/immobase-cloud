@@ -32,13 +32,30 @@ function istFrei(r: any, a: any) {
 }
 
 async function angebot(sb: any): Promise<string> {
-  const [{ data: rooms }, { data: apts }] = await Promise.all([
+  const [{ data: rooms }, { data: apts }, { data: mieter }] = await Promise.all([
     sb.from("rooms").select("id, apt_id, occupied, miete, balkon, qm, ausschreib_override, mieter_auszug, moebliert, nachmieter_gesetzt"),
     sb.from("apartments").select("id, type, adresse, plz, ort, zimmer, stockwerk, flaeche, merkmale, matterport_url, mietbeginn, mietende, immer_befristet, ausschreiben, nicht_ausschreiben, vermietungsart, pipeline").eq("type", "WG"),
+    // nur Geburtsdatum + Zuordnung, keine Namen: die KI bekommt pro WG ausschliesslich eine Altersspanne
+    sb.from("tenants").select("apt_id, room_id, geburt, auszug").eq("status", "aktiv").is("deleted_at", null),
   ]);
   const amap: Record<string, any> = {}; (apts || []).forEach((a: any) => { amap[a.id] = a; }); // wie Website: auch Objekte in der Pipeline, sofern ausgeschrieben
   const h = new Date(); h.setHours(0, 0, 0, 0);
   const zeilenWg: string[] = [], zeilenWhg: string[] = [];
+  // Altersspanne der aktuellen Mitbewohner (ohne den Mieter des freien Zimmers)
+  const alterSpanne = (aptId: string, roomId: string): string => {
+    const alter: number[] = [];
+    for (const t of mieter || []) {
+      if (t.apt_id !== aptId || t.room_id === roomId) continue;
+      const aus = pd(t.auszug); if (aus && aus < h) continue;
+      const g = pd(t.geburt); if (!g) continue;
+      let a = h.getFullYear() - g.getFullYear();
+      if (h.getMonth() < g.getMonth() || (h.getMonth() === g.getMonth() && h.getDate() < g.getDate())) a--;
+      if (a > 0 && a < 100) alter.push(a);
+    }
+    if (!alter.length) return " MITBEWOHNER: aktuell noch keine.";
+    const lo = Math.min(...alter), hi = Math.max(...alter);
+    return ` MITBEWOHNER: ${alter.length} Person(en), Altersspanne ${lo === hi ? "ca. " + lo : lo + " bis " + hi} Jahre.`;
+  };
   for (const r of rooms || []) {
     const a = amap[r.apt_id]; if (!istFrei(r, a)) continue;
     let ab = "sofort";
@@ -53,7 +70,7 @@ async function angebot(sb: any): Promise<string> {
     if (a.vermietungsart === "wohnung") {
       zeilenWhg.push(`- Wohnung ${a.zimmer || ""} Zimmer, ${a.flaeche ? a.flaeche + " m², " : ""}${a.stockwerk || ""}, ${ort}: CHF ${r.miete} brutto pro Monat (zzgl. Strom CHF 25 pro Person), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/wohnungen/${slug(a)}${neu}`);
     } else {
-      zeilenWg.push(`- WG-Zimmer ${r.qm ? r.qm + " m²" : ""}${r.balkon ? " mit Balkon" : ""} in einer ${a.zimmer || ""}-Zimmer-WG, ${ort}: CHF ${r.miete} pro Monat inkl. Nebenkosten (zzgl. Strom CHF 25), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/zimmer/${slug(a)}${neu}`);
+      zeilenWg.push(`- WG-Zimmer ${r.qm ? r.qm + " m²" : ""}${r.balkon ? " mit Balkon" : ""} in einer ${a.zimmer || ""}-Zimmer-WG, ${ort}: CHF ${r.miete} pro Monat inkl. Nebenkosten (zzgl. Strom CHF 25), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/zimmer/${slug(a)}${alterSpanne(a.id, r.id)}${neu}`);
     }
   }
   return `Freie WG-Zimmer (Stand heute ${fd(h)}):\n${zeilenWg.join("\n") || "- keine"}\n\nFreie Wohnungen:\n${zeilenWhg.join("\n") || "- keine"}`;
@@ -85,6 +102,7 @@ Deno.serve(async (req) => {
     const system = `Du bist der Assistent von D&T Homes und beantwortest Nachrichten von Wohnungs- und Zimmer-Interessenten per WhatsApp.
 WICHTIG: Schreibe die Antwort immer in der Sprache der letzten Nachricht des Interessenten. Schreibt er Englisch, antworte vollständig auf Englisch; schreibt er Deutsch, auf Deutsch (du-Form). Andere Sprachen: Englisch.
 Halte dich strikt an das hinterlegte Wissen und die Live-Daten unten. Erfinde nichts. Wenn eine Frage damit nicht sicher beantwortet werden kann, oder wenn sie unter "Offene Punkte" fällt, setze "eskalieren": true und schreibe nur eine kurze, freundliche Zwischenantwort (wir klären das und melden uns).
+Fragen zu den aktuellen Mitbewohnern/Mietern: Nenne ausschliesslich die Altersspanne aus "MITBEWOHNER" in den Live-Daten (z.B. "zwischen 22 und 27"). Nie Namen, Geschlecht, Nationalität, Beruf oder andere persönliche Angaben. Steht dort "noch keine" oder fehlt die Angabe, sag, dass wir jeweils Leute suchen, die studieren oder gerade angefangen haben zu arbeiten und zwischen 19 und 35 Jahre alt sind.
 Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}.\nFerienwohnungen: Nennt jemand Daten (und Personenzahl), frage mit "ferienwohnung_verfuegbarkeit" live ab, welche Wohnungen frei sind und was sie kosten. Nenne den Gesamtpreis (total_price) so wie geliefert, in CHF, inkl. Gebühren und Taxen, und verweise für die Buchung auf das jeweilige Inserat bzw. sag, dass wir die Buchung gerne vorbereiten (dann eskalieren). Ist nichts frei oder bookable=false (z.B. Mindestaufenthalt), sag das und nenne den Grund. Fehlen Daten, frag danach. Nie selbst buchen oder reservieren.\nGib deine Antwort am Schluss immer über das Werkzeug "antwort_senden" zurück (antwort, eskalieren, grund, sprache). "grund" ist eine kurze interne Notiz für das Team (Deutsch), warum eskaliert wird oder welche Quellen du genutzt hast.
 
 # Hinterlegtes Wissen
