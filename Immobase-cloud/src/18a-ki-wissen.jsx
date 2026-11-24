@@ -16,8 +16,8 @@ const KI_BEISPIELE = [
   "Brauche ich einen Betreibungsauszug für ein WG-Zimmer?",
 ];
 
-async function kiAntwortHolen(nachricht, verlauf) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/ki-antwort`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ nachricht, verlauf: verlauf||[] }) });
+async function kiAntwortHolen(nachricht, verlauf, extra) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/ki-antwort`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ nachricht, verlauf: verlauf||[], ...(extra||{}) }) });
   const j = await res.json().catch(()=>({}));
   if (!res.ok) throw new Error(j.error || `Fehler ${res.status}`);
   return j;

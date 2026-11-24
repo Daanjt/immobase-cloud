@@ -43,6 +43,8 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const [verlauf, setVerlauf] = useState([]);
   const [text, setText] = useState("");
   const [vorschlag, setVorschlag] = useState(null);
+  const [meName, setMeName] = useState("");
+  useEffect(() => { typeof resolveMeName === "function" && resolveMeName().then(n => setMeName(n || "")).catch(() => {}); }, []);
   const [busy, setBusy] = useState("");
   const dateiRef = React.useRef(null);
   const endeRef = React.useRef(null);
@@ -111,16 +113,18 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const restStd = letzteEin ? Math.max(0, Math.floor((24 * 3600000 - (Date.now() - letzteEin.getTime())) / 3600000)) : 0;
 
   const kiVorschlag = async () => {
-    const ein = [...verlauf].reverse().find(x => x.richtung === "ein" && x.typ === "text");
-    if (!ein) { toast("Keine Kundennachricht zum Beantworten", "error"); return; }
+    // Steht schon Text im Feld (und ist es nicht der letzte KI-Vorschlag), gilt er als Stichpunkte: die KI formuliert daraus die Nachricht
+    const stichpunkte = text.trim() && !(vorschlag && text.trim() === String(vorschlag.antwort || "").trim()) ? text.trim() : "";
+    const ein = [...verlauf].reverse().find(x => x.richtung === "ein" && (x.typ === "text" || x.transkript));
+    if (!ein && !stichpunkte) { toast("Keine Kundennachricht zum Beantworten", "error"); return; }
     setBusy("ki");
     try {
-      const idx = verlauf.indexOf(ein);
+      const idx = ein ? verlauf.indexOf(ein) : verlauf.length - 1;
       // alle Kundennachrichten seit unserer letzten Antwort zusammen beantworten
-      let start = idx; while (start > 0 && verlauf[start - 1].richtung === "ein") start--;
-      const offen = verlauf.slice(start, idx + 1).filter(x => x.typ === "text").map(x => x.text).join("\n");
-      const vorher = verlauf.slice(Math.max(0, start - 12), start).filter(x => x.text).map(x => ({ von: x.richtung === "ein" ? "kunde" : "wir", text: x.text }));
-      const r = await kiAntwortHolen(offen, vorher);
+      let start = idx; while (ein && start > 0 && verlauf[start - 1].richtung === "ein") start--;
+      const offen = ein ? verlauf.slice(start, idx + 1).filter(x => x.richtung === "ein" && (x.typ === "text" || x.transkript)).map(x => x.transkript || x.text).join("\n") : "";
+      const vorher = verlauf.slice(Math.max(0, start - 12), ein ? start : verlauf.length).filter(x => x.text).map(x => ({ von: x.richtung === "ein" ? "kunde" : "wir", text: x.text }));
+      const r = await kiAntwortHolen(offen || "(keine neue Kundennachricht, wir schreiben von uns aus)", vorher, { telefon: aktiv, ...(stichpunkte ? { anweisung: stichpunkte, absender: meName || "Daan" } : {}) });
       setVorschlag(r); setText(r.antwort || "");
     } catch (e) { toast(e.message || "KI-Fehler", "error"); }
     setBusy("");
@@ -236,9 +240,9 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
         {vorschlag && <div className="wa-hinweis" style={{ color: vorschlag.eskalieren ? "#a4442e" : "#3a5230" }}>KI-Vorschlag{vorschlag.eskalieren ? " · KI würde weiterleiten" : ""}{vorschlag.grund ? ` · ${vorschlag.grund}` : ""}. Du kannst den Text anpassen.</div>}
         <textarea className="fi" rows={Math.min(8, Math.max(2, text.split("\n").length))} value={text} onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (!busy && fensterOffen && text.trim()) senden(); } }}
-          placeholder={fensterOffen ? "Nachricht schreiben…" : "Kein freier Text möglich"} disabled={!fensterOffen} style={{ fontFamily: "inherit", lineHeight: 1.45, margin: 0, resize: "none" }} />
+          placeholder={fensterOffen ? "Nachricht schreiben… oder Stichpunkte eingeben und «✨ KI formulieren» klicken" : "Kein freier Text möglich"} disabled={!fensterOffen} style={{ fontFamily: "inherit", lineHeight: 1.45, margin: 0, resize: "none" }} />
         <div className="wa-knoepfe">
-          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} onClick={kiVorschlag}>{busy === "ki" ? "KI denkt…" : "KI-Vorschlag"}</button>
+          <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} onClick={kiVorschlag}>{busy === "ki" ? "KI denkt…" : (text.trim() && !(vorschlag && text.trim() === String(vorschlag.antwort || "").trim()) ? "✨ KI formulieren" : "KI-Vorschlag")}</button>
           <input ref={dateiRef} type="file" accept="image/jpeg,image/png,video/mp4,application/pdf,.doc,.docx,.xls,.xlsx" style={{ display: "none" }} onChange={e => dateiSenden(e.target.files && e.target.files[0])} />
           <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy || !fensterOffen} title="Bild, Video oder PDF senden. Der Text im Feld wird als Bildunterschrift mitgeschickt." onClick={() => dateiRef.current && dateiRef.current.click()}>{busy === "datei" ? "Sendet…" : "Datei"}</button>
           {text && <button className="btn btn-g btn-sm" style={{ width: "auto" }} disabled={!!busy} onClick={() => { setText(""); setVorschlag(null); }}>Verwerfen</button>}

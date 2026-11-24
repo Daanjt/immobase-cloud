@@ -152,6 +152,8 @@ Deno.serve(async (req) => {
     const { data: wissen } = await sb.from("ki_wissen").select("titel, inhalt").eq("aktiv", true).order("sort");
     const wissenText = (wissen || []).map((w: any) => `## ${w.titel}\n${w.inhalt}`).join("\n\n");
     const live = await angebot(sb);
+    const anweisung = String(b.anweisung || "").trim().slice(0, 3000);
+    const absenderName = String(b.absender || "").trim().split(/\s+/)[0].slice(0, 40);
     const mieter = b.telefon ? await mieterKontext(sb, String(b.telefon)).catch(() => "") : "";
 
     // Sprache der Nachricht grob erkennen, damit die Antwort sicher in der richtigen Sprache kommt
@@ -171,9 +173,16 @@ ${wissenText}
 # Live-Daten aus ImmoBase
 ${live}
 ${mieter ? "\n" + mieter : ""}
+${anweisung ? `
+# Stichpunkte vom Team (Vorrang)
+${absenderName || "Jemand"} von D&T Homes hat diese Stichpunkte geschrieben. Formuliere daraus eine schöne, passende WhatsApp-Nachricht an den Kunden, die auf seine letzten Nachrichten eingeht:
+"""
+${anweisung}
+"""
+Regeln dafür: Übernimm alle Inhalte der Stichpunkte sinngemäss und vollständig, erfinde nichts dazu und lass nichts weg. Die Stichpunkte sind vom Team freigegeben, du darfst sie verwenden, auch wenn sie im Wissen fehlen, und setze deswegen nicht "eskalieren". Fakten aus Wissen und Live-Daten darfst du ergänzen, wenn sie direkt passen. Sind die Stichpunkte als Anweisung an dich formuliert ("sag ihm, dass..."), schreibe die Nachricht direkt an den Kunden. Passe die Anrede dem Kunden an: siezt er, schreibe in der Sie-Form, sonst du-Form. Unterschreibe mit "${absenderName || "Daan"}" bzw. bei Sie-Form mit "${absenderName || "Daan"}, D&T Homes". Keine Gedankenstriche. Schweizer Schreibweise (ss statt ß).` : ""}
 
 # Antwortsprache
-${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort ausschliesslich auf Englisch, auch wenn das Wissen oben auf Deutsch ist, und setze \"sprache\": \"en\"." : "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch in der du-Form, ausser die Nachricht ist eindeutig in einer anderen Sprache, dann auf Englisch."}`;
+${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort ausschliesslich auf Englisch, auch wenn das Wissen oben auf Deutsch ist, und setze \"sprache\": \"en\"." : (anweisung ? "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch, in der Sie-Form wenn der Kunde siezt, sonst in der du-Form, ausser" : "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch in der du-Form, ausser")+" die Nachricht ist eindeutig in einer anderen Sprache, dann auf Englisch."}`;
 
     const messages: any[] = [];
     for (const v of verlauf) { const t = String(v?.text || "").trim(); if (t) messages.push({ role: v.von === "wir" ? "assistant" : "user", content: t.slice(0, 2000) }); }
