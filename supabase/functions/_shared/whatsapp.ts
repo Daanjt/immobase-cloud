@@ -5,7 +5,7 @@
 export const WA_ABSENDER = "+41766887091";
 const API = "https://api.ycloud.com/v2";
 
-export type WaArt = "vertrag" | "dokumente" | "uebernahme" | "namensschild" | "bewerbung";
+export type WaArt = "vertrag" | "dokumente" | "uebernahme" | "namensschild" | "bewerbung" | "bewerbung_allgemein";
 
 // Vorlagen (Kategorie UTILITY). {{n}} = Parameter in dieser Reihenfolge.
 export const VORLAGEN: Record<WaArt, { name: string; de: string; en: string; beispiel: string[] }> = {
@@ -32,6 +32,13 @@ export const VORLAGEN: Record<WaArt, { name: string; de: string; en: string; bei
     de: "Hallo {{1}}, hier ist {{2}} von D&T Homes.\n\nVielen Dank für deine Bewerbung. Du hast dich für {{3}} für {{4}} pro Monat beworben, und dein Profil könnte gut passen.\n\nIst das für dich noch aktuell? Wenn ja, gehen wir gemeinsam die nächsten Schritte an. Bei Fragen bin ich gerne für dich da.\n\nLiebe Grüsse",
     en: "Hi {{1}}, this is {{2}} from D&T Homes.\n\nThank you for your application. You applied for {{3}} for {{4}} per month, and your profile could be a great fit.\n\nIs this still relevant for you? If so, we will go through the next steps together. Happy to answer any questions.\n\nKind regards",
     beispiel: ["Anna", "Daan", "ein Zimmer an der Albisriederstrasse 268, Zürich", "CHF 1'090"],
+  },
+  bewerbung_allgemein: {
+    // fuer Bewerber ohne angegebenes Zimmer bzw. ohne angegebene Wohnung
+    name: "dt_bewerbung_allgemein",
+    de: "Hallo {{1}}, hier ist {{2}} von D&T Homes.\n\nVielen Dank für deine Bewerbung. Dein Profil könnte gut zu uns passen.\n\nUnsere aktuell freien Zimmer und Wohnungen findest du hier: www.dthomes.ch\n\nWelches Angebot interessiert dich, und ab wann suchst du? Dann gehen wir gemeinsam die nächsten Schritte an. Bei Fragen bin ich gerne für dich da.\n\nLiebe Grüsse",
+    en: "Hi {{1}}, this is {{2}} from D&T Homes.\n\nThank you for your application. Your profile could be a great fit.\n\nYou can find our currently available rooms and apartments here: www.dthomes.ch\n\nWhich one are you interested in, and from when are you looking? Then we will go through the next steps together. Happy to answer any questions.\n\nKind regards",
+    beispiel: ["Anna", "Daan"],
   },
   namensschild: {
     name: "dt_namensschild",

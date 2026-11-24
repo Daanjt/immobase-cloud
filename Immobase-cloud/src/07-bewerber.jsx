@@ -3,7 +3,7 @@
 async function waBewerberSenden(b, absender, updateBewerber){
   if(!b.phone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
   const erneut = !!b.whatsapp_followup_sent_at;
-  if(!confirm(erneut ? `${b.vorname||"Diesem Bewerber"} hat schon eine WhatsApp von uns erhalten. Nochmals senden?` : `WhatsApp an ${b.vorname||""} ${b.nachname||""} senden?\n\nImmoBase schickt die Vorlage «Interesse an deiner Bewerbung» von der D&T-Nummer.`)) return;
+  if(!confirm(erneut ? `${b.vorname||"Diesem Bewerber"} hat schon eine WhatsApp von uns erhalten. Nochmals senden?` : `WhatsApp an ${b.vorname||""} ${b.nachname||""} senden?\n\n${(b.zugeteiltes_zimmer||b.zimmer_wunsch) ? "ImmoBase schickt die Vorlage «Interesse an deiner Bewerbung» (mit Zimmer und Preis) von der D&T-Nummer." : "Kein Zimmer angegeben. ImmoBase schickt die allgemeine Vorlage von der D&T-Nummer:\n\n«Vielen Dank für deine Bewerbung. Dein Profil könnte gut zu uns passen. Unsere aktuell freien Zimmer und Wohnungen findest du hier: www.dthomes.ch. Welches Angebot interessiert dich, und ab wann suchst du?»"}`)) return;
   try{
     const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"bewerber_kontakt", bewerber_id: b.id, absender: absender || b.owner || "Daan", erneut }) });
     const j = await res.json().catch(()=>({}));

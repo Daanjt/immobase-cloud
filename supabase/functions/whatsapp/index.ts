@@ -151,14 +151,21 @@ Deno.serve(async (req) => {
       const rid = a.zugeteiltes_zimmer || a.zimmer_wunsch;
       const { data: r } = rid ? await sb.from("rooms").select("id, apt_id, miete").eq("id", rid).maybeSingle() : { data: null };
       const { data: ap } = r ? await sb.from("apartments").select("adresse, ort, vermietungsart").eq("id", r.apt_id).maybeSingle() : { data: null };
-      if (!r || !ap) return json({ error: "Beim Bewerber ist kein Zimmer bzw. keine Wohnung hinterlegt" }, 400);
       const en = a.sprache === "en";
+      const absender = String(b.absender || a.owner || "Daan").trim().split(/\s+/)[0];
+      const vorname = String(a.vorname || "").trim().split(/\s+/)[0] || (en ? "there" : "zusammen");
+      if (!r || !ap) {
+        // kein Zimmer bzw. keine Wohnung angegeben: allgemeine Vorlage mit Link auf die freien Angebote
+        const res = await waSenden(sb, { art: "bewerbung_allgemein", ref: b.erneut ? `${a.id}:${Date.now()}` : String(a.id), telefon: tel, en, params: [vorname, absender] });
+        await sb.from("applicants").update({ whatsapp_followup_status: res.status, whatsapp_followup_error: res.fehler || null,
+          whatsapp_followup_language: en ? "en" : "de", ...(res.status === "gesendet" ? { whatsapp_followup_sent_at: new Date().toISOString() } : {}) }).eq("id", a.id);
+        return json({ ...res, vorlage: "allgemein" });
+      }
       const wohnung = ap.vermietungsart === "wohnung";
       const objekt = en ? `${wohnung ? "the apartment" : "a room"} at ${ap.adresse}, ${ap.ort || "Zürich"}` : `${wohnung ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}, ${ap.ort || "Zürich"}`;
       const preis = `CHF ${Number(r.miete || 0).toLocaleString("de-CH").replace(/[’\u2019]/g, "'")}`;
-      const absender = String(b.absender || a.owner || "Daan").trim().split(/\s+/)[0];
       const res = await waSenden(sb, { art: "bewerbung", ref: b.erneut ? `${a.id}:${Date.now()}` : String(a.id), telefon: tel, en,
-        params: [String(a.vorname || "").trim().split(/\s+/)[0] || (en ? "there" : "zusammen"), absender, objekt, preis] });
+        params: [vorname, absender, objekt, preis] });
       await sb.from("applicants").update({ whatsapp_followup_status: res.status, whatsapp_followup_error: res.fehler || null,
         whatsapp_followup_language: en ? "en" : "de", ...(res.status === "gesendet" ? { whatsapp_followup_sent_at: new Date().toISOString() } : {}) }).eq("id", a.id);
       return json(res);
