@@ -18,7 +18,7 @@ function MainApp({rolle}) {
   const [portalOffen, setPortalOffen] = useState({schaeden:0, kuendigungen:0});
   const [waOffen, setWaOffen] = useState(0);
   const refreshPortal = () => {
-    supabase.from("schadenmeldungen").select("id",{count:"exact",head:true}).neq("status","erledigt")
+    supabase.from("schadenmeldungen").select("id",{count:"exact",head:true}).not("status","in","(in_arbeit,erledigt)")
       .then(({count})=>setPortalOffen(o=>({...o, schaeden:count||0}))).catch(()=>{});
     if (rolle === "admin" || rolle === "operations") supabase.from("kuendigungen").select("id",{count:"exact",head:true}).eq("status","eingereicht")
       .then(({count})=>setPortalOffen(o=>({...o, kuendigungen:count||0}))).catch(()=>{});
