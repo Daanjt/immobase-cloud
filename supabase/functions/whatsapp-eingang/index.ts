@@ -76,11 +76,14 @@ Deno.serve(async (req) => {
   const med = MEDIEN.includes(m.type) ? m[m.type] || {} : null;
   const caption = med ? String(med.caption || "").trim() : "";
   const text = m.type === "text" ? String(m.text?.body || "") : m.type === "button" ? String(m.button?.text || "") : m.type === "interactive" ? String(m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || "") : caption;
-  const anzeige = text || (med ? (m.type === "document" && med.filename ? `📄 ${med.filename}` : LABEL[m.type]) : m.type === "location" ? `📍 Standort${m.location?.name ? ": " + m.location.name : ""}` : `[${m.type}]`);
+  const reaktion = m.type === "reaction" ? String(m.reaction?.emoji || "").trim() : "";
+  const anzeige = m.type === "reaction" ? (reaktion ? `${reaktion} (Reaktion)` : "Reaktion entfernt") : text || (med ? (m.type === "document" && med.filename ? `📄 ${med.filename}` : LABEL[m.type]) : m.type === "location" ? `📍 Standort${m.location?.name ? ": " + m.location.name : ""}` : `[${m.type}]`);
   const { data: neu, error: dup } = await sb.from("wa_nachrichten").insert({ richtung: "ein", telefon: tel, name: m.customerProfile?.name || null, text: anzeige, typ: m.type, wamid: m.wamid || m.id, roh: ev }).select("id").maybeSingle();
   if (dup) return ok({ dup: true }); // schon verarbeitet (YCloud wiederholt Webhooks)
   if (med && med.link && neu) await medienSpeichern(sb, neu.id, tel, m.type, med).catch((e) => console.error("medien", e));
 
+  // Reaktionen (Emoji auf eine Nachricht) nur speichern, keine KI und keine Benachrichtigung
+  if (m.type === "reaction") return ok({ gespeichert: true });
   const name = m.customerProfile?.name || null;
   const melden = (grund: string, ki?: string) => benachrichtigen(sb, c, tel, name, anzeige, grund, ki);
 
@@ -103,7 +106,7 @@ Deno.serve(async (req) => {
   const seit = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data: hist } = await sb.from("wa_nachrichten").select("richtung, text, wamid").eq("telefon", tel).gte("created_at", seit).order("created_at", { ascending: true }).limit(30);
   const verlauf = (hist || []).filter((x: any) => x.wamid !== (m.wamid || m.id)).slice(-12).map((x: any) => ({ von: x.richtung === "ein" ? "kunde" : "wir", text: x.text || "" }));
-  const r = await fetch(`${URL_}/functions/v1/ki-antwort`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ nachricht: text, verlauf }) });
+  const r = await fetch(`${URL_}/functions/v1/ki-antwort`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ nachricht: text, verlauf, telefon: tel }) });
   const k = await r.json().catch(() => ({}));
   if (!r.ok || !k.antwort) { console.error("ki-antwort", k); await melden("Die KI konnte keine Antwort erstellen"); return ok({ ki: "fehler" }); }
   const s = await fetch("https://api.ycloud.com/v2/whatsapp/messages/sendDirectly", {

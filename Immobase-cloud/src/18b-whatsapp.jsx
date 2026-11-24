@@ -69,6 +69,22 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   useEffect(() => { if (!aktiv) return; ladeVerlauf(aktiv); const iv = setInterval(() => ladeVerlauf(aktiv), 10000); return () => clearInterval(iv); }, [aktiv]);
   useEffect(() => { if (endeRef.current) endeRef.current.scrollIntoView({ block: "end" }); }, [verlauf.length, aktiv]);
 
+  // Schadenmeldungen der Wohnung des Mieters (auch von Mitbewohnern), damit man sie im Chat sieht
+  const [schaeden, setSchaeden] = useState([]);
+  useEffect(() => {
+    setSchaeden([]);
+    const k = aktiv ? kontakte[waNorm(aktiv)] : null;
+    if (!k || k.art !== "Mieter") return;
+    (async () => {
+      const { data: rm } = await supabase.from("rooms").select("apt_id").eq("tenant_id", k.id).limit(1);
+      const t = (tenants || []).find(x => x.id === k.id) || {};
+      const aptId = (rm && rm[0] && rm[0].apt_id) || t.apt_id || t.aptId || null;
+      const q = supabase.from("schadenmeldungen").select("id, titel, status, created_at, tenant_id").neq("status", "erledigt").order("created_at", { ascending: false }).limit(10);
+      const { data } = aptId ? await q.or(`apt_id.eq.${aptId},tenant_id.eq.${k.id}`) : await q.eq("tenant_id", k.id);
+      setSchaeden(data || []);
+    })().catch(() => {});
+  }, [aktiv, kontakte]);
+
   const chatStatus = async (tel, felder) => {
     const { error } = await supabase.from("wa_chats").upsert({ telefon: tel, ...felder, updated_at: new Date().toISOString(), updated_by: "ImmoBase" }, { onConflict: "telefon" });
     if (error) toast("Speichern fehlgeschlagen", "error");
@@ -188,6 +204,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="wa-titel">{(k && k.name) || c.name || c.telefon}</div>
           <div className="wa-sub">{c.telefon}{k ? ` · ${k.art}` : " · nicht zugeordnet"}{c.name && k && k.name !== c.name ? ` · WhatsApp: ${c.name}` : ""}</div>
+          {schaeden.length > 0 && <div className="wa-sub" style={{ cursor: navigateTo ? "pointer" : "default", color: "#8a3a2e" }} title={schaeden.map(x => `${x.titel} (${x.status === "in_arbeit" ? "in Bearbeitung" : x.status})`).join("\n")} onClick={() => navigateTo && navigateTo("schaeden", null)}>🔧 {schaeden.length} offene Schadenmeldung{schaeden.length > 1 ? "en" : ""}: {schaeden.map(x => x.titel).join(", ")}</div>}
         </div>
         <div className="wa-aktionen">
           {k && navigateTo && <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => navigateTo(k.art === "Mieter" ? "mieter" : "bewerber", k.id)}>Profil</button>}
