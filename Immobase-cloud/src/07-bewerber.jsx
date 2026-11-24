@@ -869,6 +869,23 @@ function Bewerber({istAdmin,bewerber,rooms,tenants,apts,updateBewerber,deleteBew
       .then(({data})=>{ const tpls=(data||[]).filter(v=>(v.zielgruppe==="bewerber"||v.zielgruppe==="beide")&&!v.nur_wg); if(tpls[0]) setWaTplB(tpls[0]); })
       .catch(()=>{});
   },[]);
+  function waPrivatB(bb, e){
+    if(e) e.stopPropagation();
+    const cleanPhone = String(bb.phone||"").replace(/\D/g,"");
+    if(!cleanPhone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
+    const roomObj = (rooms||[]).find(r=>r.id===bb.zimmerWunsch);
+    const aptObj = roomObj ? (apts||[]).find(a=>a.id===roomObj.aptId) : null;
+    const empf = { ...bb,
+      adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      zimmer: (roomObj&&roomObj.id)||"",
+      zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
+      absender: meNameB || (bb.owner&&String(bb.owner).trim()) || "Daan",
+    };
+    const tplText = waTplB ? vorlageTexte(waTplB, bb.sprache, aptIstWohnung(aptObj)).inhalt : "";
+    const text = tplText ? platzhalterFuellen(tplText, empf) : "";
+    window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
+    if(meNameB && !(bb.owner&&String(bb.owner).trim())){ updateBewerber(bb.id,{owner:meNameB}); }
+  }
   function waShortcutB(bb, e){
     if(e) e.stopPropagation();
     waBewerberSenden(bb, meNameB, updateBewerber);
@@ -1812,6 +1829,7 @@ www.dthomes.ch`;
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp von der D&T-Nummer senden (offizielle Vorlage)" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp{b.whatsapp_followup_sent_at?" ✓":""}</button>
+                <button className="btn btn-g btn-sm" onClick={(e)=>waPrivatB(b,e)} title="Im eigenen WhatsApp öffnen (privat, nicht von der D&T-Nummer)">WhatsApp privat</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#f0ebe1",color:"#3a352d",borderColor:"#d8d0c0"}}>↻ Als Nachmieter übernehmen</button>}
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
@@ -1860,7 +1878,7 @@ www.dthomes.ch`;
                 ["Parkplatz", b.parkplatz_wunsch ? <strong style={{color:"#2c4a6e"}}>🅿️ gewünscht</strong> : "-"],
                 ["Reinigung", b.reinigung_wunsch ? <strong style={{color:"#2c4a6e"}}>🧽 Offerte gewünscht</strong> : "-"],
                 ["Umzug", b.umzug_wunsch ? <strong style={{color:"#2c4a6e"}}>📦 Offerte gewünscht</strong> : "-"],
-                ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> {waNorm(b.phone) && <a href={`?seite=whatsapp&chat=${waNorm(b.phone).replace("+","")}`} title="Chat in der WhatsApp-Inbox öffnen" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>Chat</a>}</span>:"-"],
+                ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> {waNorm(b.phone) && <a href={`?seite=whatsapp&chat=${waNorm(b.phone).replace("+","")}`} title="Chat in der WhatsApp-Inbox öffnen" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>Chat</a>} <a href="#" onClick={(e)=>{e.preventDefault();waPrivatB(b,e);}} title="Im eigenen WhatsApp öffnen" style={{marginLeft:8,color:"#8a8174",fontWeight:500,textDecoration:"none"}}>privat</a></span>:"-"],
                 ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
                 ["Geschlecht",b.gender||"-"],
                 ["Nationalität",b.nat||"-"],
