@@ -252,7 +252,8 @@ async function ppSchluesselSenden(pp){
   if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
   return j;
 }
-function ppVermietet(p){ return !!(p.tenant_id || (p.mieter_extern||"").trim()); }
+// Vergeben erst, wenn der Vertrag unterschrieben ist: solange ein Vertrag nur versendet/offen ist, gilt der Platz als frei (reserviert)
+function ppVermietet(p){ return !!(p.tenant_id || (p.mieter_extern||"").trim()) && !p.vertrag_ausstehend; }
 // Anteil des Zeitraums [s,e], in dem ab..bis gilt (z.B. Anmietung ab 16.11. = halber November)
 function ppAnteil(ab, bis, s, e){
   const T=86400000, tag=(d)=>Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/T);
@@ -662,7 +663,7 @@ function ParkVertragNeuModal({pps, start, apts, tenants, onClose, onWeiter}){
       sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
       miete_verkauf: +f.miete_verkauf, vermietet_ab: f.vermietet_ab.trim(), vermietet_bis: (f.vermietet_bis||"").trim() || befristetBis || null,
       kuendigungsfrist: parseInt(f.kuendigungsfrist)||1, kennzeichen: (f.kennzeichen||"").trim()||null,
-      schluessel_anzahl: parseInt(f.schluessel_anzahl)||null, ausschreiben: false, updated_at: new Date().toISOString(),
+      schluessel_anzahl: parseInt(f.schluessel_anzahl)||null, ausschreiben: false, vertrag_ausstehend: true, updated_at: new Date().toISOString(),
     };
     const {error} = await supabase.from("parkplaetze").update(row).eq("id", pp.id);
     setBusy(false);
@@ -795,7 +796,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
               <tbody>{liste.map(p=>{ const m=(+p.miete_verkauf||0)-(+p.miete_einkauf||0); const name=ppMieterName(p,tenants); const apt=(apts||[]).find(a=>a.id===p.apt_id); const inaktiv=!ppUebernommen(p); return (
                 <tr key={p.id} style={inaktiv?{opacity:.45}:undefined} title={inaktiv?"Noch nicht übernommen":undefined}>
                   <td style={{...td,fontWeight:600}}>{p.bezeichnung}{istAdmin && !name && !inaktiv ? <span onClick={()=>toggleOnline(p)} title={p.ausschreiben?`Auf der Website ausgeschrieben${p.frei_ab?`, frei ab ${p.frei_ab}`:""}. Klicken zum Ausblenden.`:"Nicht auf der Website. Klicken zum Ausschreiben."} style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,cursor:"pointer",background:p.ausschreiben?"#e3ebf4":"#f0ebe1",color:p.ausschreiben?"#2c4a6e":"#8a8174"}}>{p.ausschreiben?"online":"offline"}</span> : (p.ausschreiben && <span style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#e3ebf4",color:"#2c4a6e"}}>online</span>)}<div style={{fontSize:10.5,color:"#8a8174",fontWeight:400}}>{inaktiv?"noch nicht übernommen · ":""}{PP_ART[p.art||"einstellplatz"]||p.art}{apt?<> · zu <WohnungLink id={apt.id}/>{apt.stockwerk?` · ${apt.stockwerk}`:""}</>:""}{!name&&p.frei_ab?` · frei ab ${p.frei_ab}`:""}</div></td>
-                  <td data-label="Mieter" style={td}>{inaktiv ? <span style={{color:"#a89f8f"}}>-</span> : name ? <>{p.tenant_id?<MieterLink id={p.tenant_id}>{name}</MieterLink>:name}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
+                  <td data-label="Mieter" style={td}>{inaktiv ? <span style={{color:"#a89f8f"}}>-</span> : name ? <>{p.tenant_id?<MieterLink id={p.tenant_id}>{name}</MieterLink>:name}{p.vertrag_ausstehend && <span title="Vertrag versendet, noch nicht unterschrieben. Der Platz gilt noch als frei." style={{marginLeft:6,fontSize:9.5,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"#f6eedb",color:"#8a6d3b",whiteSpace:"nowrap"}}>reserviert</span>}{p.vermietet_ab && <div style={{fontSize:10.5,color:"#8a8174"}}>ab {p.vermietet_ab}{p.vermietet_bis?` bis ${p.vermietet_bis}`:""}</div>}</> : <span style={{color:"#b8843e"}}>frei</span>}</td>
                   {istAdmin&&<td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>}
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
                   {istAdmin&&<td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>}
