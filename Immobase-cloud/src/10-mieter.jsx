@@ -8,9 +8,70 @@ function nsMieterGanzeWohnung(tenants, rooms, apts){
     return a&&a.vermietungsart==="wohnung"?{t,a}:null;
   }).filter(Boolean);
 }
+// WG: alle aktuellen Mieter der Wohnung, Gravur "V. Nachname / V. Nachname"
+function nsKurz(t){ const v=String(t.vorname||"").trim(), n=String(t.nachname||"").trim(); return [v?v[0].toUpperCase()+".":"", n].filter(Boolean).join(" "); }
+function nsWgListe(tenants, rooms, apts){
+  return (apts||[]).filter(a=>!a.pipeline && a.vermietungsart!=="wohnung" && (a.type||"WG")==="WG").map(a=>{
+    const ms=(tenants||[]).filter(t=>t.status!=="archiviert" && (((rooms||[]).find(r=>r.tenantId===t.id)||{}).aptId===a.id || (t.roomId && ((rooms||[]).find(r=>r.id===t.roomId)||{}).aptId===a.id)));
+    ms.sort((x,y)=>String(x.nachname||"").localeCompare(String(y.nachname||""),"de"));
+    return {a, ms, vorschlag: ms.map(nsKurz).filter(Boolean).join(" / ")};
+  }).filter(x=>x.ms.length).sort((x,y)=>(x.a.adresse||"").localeCompare(y.a.adresse||"")||String(x.a.refnr||"").localeCompare(String(y.a.refnr||"")));
+}
+function WgNamensschild({a, ms, vorschlag}){
+  const [info, setInfo] = useState(null); // {namensschild, namensschild_bestellt_at}
+  const [name, setName] = useState(vorschlag);
+  const [an, setAn] = useState(/^Josefstrasse\s+20[02]\b/i.test(a.adresse||"") ? "info@schluessel-mezza.ch" : "");
+  const [vs, setVs] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const d = (x)=>x?new Date(x).toLocaleDateString("de-CH"):"";
+  useEffect(()=>{ supabase.from("apartments").select("namensschild, namensschild_bestellt_at").eq("id", a.id).maybeSingle().then(({data})=>setInfo(data||{})); }, [a.id]);
+  async function rufe(extra){
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/mieter-portal`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"namensschild_wg_bestellen", apt_id:a.id, name:name.trim(), an:an.trim(), ...extra }) });
+    const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`); return j;
+  }
+  async function vorschau(){ setBusy(true); setMsg(""); try{ setVs(await rufe({vorschau:true})); }catch(e){ setMsg(e.message); } setBusy(false); }
+  async function senden(){ setBusy(true); setMsg(""); try{ const j=await rufe({betreff:vs.betreff, text:vs.text}); setInfo({namensschild:j.name, namensschild_bestellt_at:new Date().toISOString()}); setVs(null); setMsg(`Bestellt bei ${j.an}`); }catch(e){ setMsg(e.message); } setBusy(false); }
+  const bestellt = info && info.namensschild_bestellt_at;
+  const veraltet = bestellt && (info.namensschild||"") !== vorschlag;
+  return (
+    <div className="card" style={{marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+        <div>
+          <div style={{fontWeight:600,fontSize:14}}>{a.adresse}{a.refnr?` · Wohnung ${a.refnr}`:""}</div>
+          <div style={{fontSize:12,color:"#8a8174"}}>WG · {ms.length} Mieter{a.stockwerk?` · ${a.stockwerk}`:""}</div>
+        </div>
+        {info && <span style={{background:bestellt?(veraltet?"#f6eedb":"#e8eadb"):"#fbeae6",color:bestellt?(veraltet?"#8a6d3b":"#3d4f2f"):"#a4442e",fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:10}}>{bestellt?(veraltet?"Bewohner geändert":"Bestellt"):"Noch nicht bestellt"}</span>}
+      </div>
+      <div style={{background:"#faf8f3",border:"1px solid #efe7d6",borderRadius:8,padding:"12px 14px",marginTop:10,fontSize:13}}>
+        {bestellt && <div style={{marginBottom:8}}><span style={{fontWeight:600}}>{info.namensschild}</span><span style={{color:"#3a5230",fontSize:11.5}}> · bestellt am {d(info.namensschild_bestellt_at)}</span>{veraltet && <div style={{fontSize:11.5,color:"#8a6d3b",marginTop:2}}>Die aktuellen Bewohner weichen ab. Bei Bedarf neu bestellen.</div>}</div>}
+        {(!bestellt || veraltet) && <>
+          <label className="fl">Gravur (alle Bewohner)</label>
+          <input className="fi" value={name} maxLength={160} onChange={e=>setName(e.target.value)} placeholder="z.B. A. Muster / B. Beispiel"/>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",marginTop:8}}>
+            <div style={{flex:"1 1 220px"}}><label className="fl">Schilderhersteller (E-Mail)</label><input className="fi" value={an} onChange={e=>setAn(e.target.value)} placeholder="bestellung@hersteller.ch"/></div>
+            <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy||name.trim().length<2||!an.trim()} onClick={vorschau}>{busy&&!vs?"Lädt…":"✓ Go: Vorschau"}</button>
+          </div>
+        </>}
+        {vs && <div style={{marginTop:10,background:"#fff",border:"1px solid #e3dccb",borderRadius:8,padding:10}}>
+          <div className="fl" style={{marginBottom:3}}>An</div><div style={{fontWeight:600,marginBottom:8}}>{vs.an}</div>
+          <label className="fl">Betreff</label><input className="fi" value={vs.betreff} onChange={e=>setVs({...vs,betreff:e.target.value})}/>
+          <label className="fl" style={{marginTop:8,display:"block"}}>Text</label><textarea className="fi" rows={16} style={{fontFamily:"inherit",lineHeight:1.45}} value={vs.text} onChange={e=>setVs({...vs,text:e.target.value})}/>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+            <button className="btn btn-g btn-sm" style={{width:"auto"}} disabled={busy} onClick={()=>setVs(null)}>Abbrechen</button>
+            <button className="btn btn-p btn-sm" style={{width:"auto"}} disabled={busy||!vs.betreff.trim()||!vs.text.trim()} onClick={senden}>{busy?"Sendet…":"✉ Bestellung senden"}</button>
+          </div>
+        </div>}
+        {msg && <div style={{fontSize:11.5,marginTop:6,color:/Bestellt/.test(msg)?"#3a5230":"#a4442e"}}>{msg}</div>}
+      </div>
+    </div>
+  );
+}
 function nsStand(t){ return t.namensschild_bestellt_at?"bestellt":((t.namensschild||"").trim()?"freigabe":"offen"); }
 function NamensschilderPage({tenants, rooms, apts, navigateTo, loadAll}){
   const [filter, setFilter] = useState("");
+  const [art, setArt] = useState("wohnungen");
+  const wgs = nsWgListe(tenants, rooms, apts);
   const liste = nsMieterGanzeWohnung(tenants, rooms, apts).sort((x,y)=>(x.a.adresse||"").localeCompare(y.a.adresse||"")||String(x.a.refnr||"").localeCompare(String(y.a.refnr||"")));
   const n = (k)=>liste.filter(x=>nsStand(x.t)===k).length;
   const ST = {offen:["Noch nicht angegeben","#a4442e","#fbeae6"],freigabe:["Zur Freigabe","#8a6d3b","#f6eedb"],bestellt:["Bestellt","#3d4f2f","#e8eadb"]};
@@ -19,7 +80,12 @@ function NamensschilderPage({tenants, rooms, apts, navigateTo, loadAll}){
   return (
     <div>
       <div className="pt">Namensschilder</div>
-      <div className="ps">Briefkasten &amp; Klingel bei ganzen Wohnungen. Die Mieter geben den Namen im Mieterportal an, hier gibst du das Go für die Bestellung.</div>
+      <div className="ps">{art==="wg"?"Briefkasten & Klingel bei WGs: ein Schild pro Wohnung mit allen Bewohnern (V. Nachname). Lieferung an die WG, Rechnung an D&T.":"Briefkasten & Klingel bei ganzen Wohnungen. Die Mieter geben den Namen im Mieterportal an, hier gibst du das Go für die Bestellung."}</div>
+      <div style={{display:"flex",gap:6,marginTop:12}}>
+        {[["wohnungen","Ganze Wohnungen"],["wg",`WGs (${wgs.length})`]].map(([k,l])=><button key={k} className={`btn btn-sm ${art===k?"btn-p":"btn-g"}`} style={{width:"auto"}} onClick={()=>setArt(k)}>{l}</button>)}
+      </div>
+      {art==="wg" && <div style={{marginTop:14}}>{wgs.length===0 ? <div className="card" style={{color:"#8a8174"}}>Keine WGs mit Mietern.</div> : wgs.map(x=><WgNamensschild key={x.a.id+":"+x.vorschlag} {...x}/>)}</div>}
+      {art==="wohnungen" && <>
       <div style={{display:"flex",gap:10,flexWrap:"wrap",margin:"14px 0"}}>
         {[["","Alle",liste.length,"#5a5448","#f3efe7"],["offen",ST.offen[0],n("offen"),ST.offen[1],ST.offen[2]],["freigabe",ST.freigabe[0],n("freigabe"),ST.freigabe[1],ST.freigabe[2]],["bestellt",ST.bestellt[0],n("bestellt"),ST.bestellt[1],ST.bestellt[2]]].map(([k,l,z,c,bg])=>(
           <button key={k||"alle"} onClick={()=>setFilter(k)} style={{background:bg,color:c,border:filter===k?`2px solid ${c}`:"2px solid transparent",borderRadius:10,padding:"10px 14px",cursor:"pointer",textAlign:"left",minWidth:130,fontFamily:"inherit"}}>
@@ -39,6 +105,7 @@ function NamensschilderPage({tenants, rooms, apts, navigateTo, loadAll}){
           {st==="offen" && <div style={{fontSize:12,color:"#8a8174",marginTop:6}}>{t.namensschild_erinnert_at?`Erinnert am ${d(t.namensschild_erinnert_at)}`:"Noch nicht erinnert"}</div>}
           {st!=="offen" && <MieterNamensschild key={t.id+(t.namensschild_bestellt_at||"")} tenant={t} onBestellt={loadAll}/>}
         </div>); })}
+      </>}
     </div>
   );
 }

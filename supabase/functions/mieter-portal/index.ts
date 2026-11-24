@@ -737,6 +737,34 @@ async function namensschildBestellen(req: Request, b: any) {
   await sb.from("tenants").update({ namensschild: name, namensschild_at: t.namensschild_at || jetzt, namensschild_bestellt_at: jetzt }).eq("id", t.id);
   return json({ ok: true, name, an: hersteller });
 }
+// WG: ein Schild pro Wohnung mit allen Namen ("V. Nachname / ..."), Lieferung an die WG, Rechnung an D&T
+async function namensschildWgBestellen(req: Request, b: any) {
+  if (!(await istAdminOderServer(req))) return fehler("Nicht berechtigt", 403);
+  const { data: apt } = await sb.from("apartments").select("id, adresse, plz, ort, refnr, stockwerk, vermietungsart, type, namensschild_bestellt_at").eq("id", String(b.apt_id || "")).maybeSingle();
+  if (!apt) return fehler("Wohnung nicht gefunden.", 404);
+  if (apt.vermietungsart === "wohnung") return fehler("Ganze Wohnungen bestellen über den Mieter.");
+  const name = String(b.name || "").replace(/\s+/g, " ").trim();
+  if (name.length < 2 || name.length > 160) return fehler("Bitte gültige Namen (2 bis 160 Zeichen) angeben.");
+  const an = String(b.an || schilderHersteller(apt) || "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(an)) return fehler("Bitte die E-Mail des Schilderherstellers angeben.");
+  const ortZ = [apt.plz, apt.ort].filter(Boolean).join(" ");
+  const wo = `${apt.adresse}, ${ortZ}${apt.stockwerk ? `, ${apt.stockwerk}` : ""}`;
+  const v = {
+    betreff: `Namensschilder ${apt.adresse}`,
+    text: `Guten Tag\n\nWir bräuchten neue Namensschilder für Briefkasten und Klingel:\n\nLiegenschaft: ${wo}\nGravur: ${name}\n\nLieferadresse:\nD&T Homes\n${apt.adresse}\n${ortZ}\n\nRechnungsadresse:\nD&T Partners GmbH\nVia Campeun 40\n7403 Rhäzüns\n\nVielen Dank!\n\nFreundliche Grüsse\n\nDaan Theijse\n\nD&T Homes\nwww.dthomes.ch`,
+  };
+  if (b.vorschau) return json({ an, betreff: v.betreff, text: v.text });
+  const betreff = String(b.betreff || v.betreff).trim().slice(0, 200);
+  const text = String(b.text || v.text).trim().slice(0, 5000);
+  if (!betreff || !text) return fehler("Betreff und Text dürfen nicht leer sein.");
+  try {
+    const r = await fetch(`${URL_}/functions/v1/send-message`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ to: an, betreff, text, sprache: "de", persoenlich: true }) });
+    if (!r.ok) throw new Error(await r.text());
+  } catch (_) { return fehler("Mailversand fehlgeschlagen.", 502); }
+  await sb.from("apartments").update({ namensschild: name, namensschild_bestellt_at: new Date().toISOString() }).eq("id", apt.id);
+  return json({ ok: true, name, an });
+}
 // Bestellmail an den Schilderhersteller (Liegenschaft, Gravur, Liefer- und Rechnungsadresse)
 function schilderMail(t: any, apt: any, name: string) {
   const mieter = `${t.vorname || ""} ${t.nachname || ""}`.trim();
@@ -997,6 +1025,7 @@ Deno.serve(async (req) => {
       case "pp_schluessel_senden": return await ppSchluesselSenden(req, b);
       case "namensschild_erinnerung": return await namensschildErinnerung(req, b);
       case "namensschild_bestellen": return await namensschildBestellen(req, b);
+      case "namensschild_wg_bestellen": return await namensschildWgBestellen(req, b);
     }
     const s = await mieterPerSitzung(req);
     if (!s) return fehler("Bitte melde dich neu an.", 401);
