@@ -160,7 +160,11 @@ Deno.serve(async (req) => {
     const w = (re: RegExp) => (nachricht.toLowerCase().match(re) || []).length;
     const en = w(/\b(the|and|is|are|can|you|my|we|please|hello|hi|thanks|available|room|rent|together|would|what|how)\b/g);
     const de = w(/\b(und|ist|ich|das|der|die|nicht|ein|eine|bitte|hallo|danke|kann|wie|wann|zimmer|wohnung|möchte|gerne)\b/g);
-    const sprache = en > de ? "en" : "de";
+    // feste Sprache pro Chat (in der WhatsApp-Inbox einstellbar), sonst automatisch erkennen
+    let festSprache = "";
+    if (b.telefon) { const { data: wc } = await sb.from("wa_chats").select("ki_sprache").eq("telefon", normTelefon(String(b.telefon))).maybeSingle(); festSprache = String(wc?.ki_sprache || ""); }
+    const SPRACHNAME: Record<string, string> = { de: "Deutsch", en: "Englisch", nl: "Niederländisch", fr: "Französisch", it: "Italienisch", es: "Spanisch" };
+    const sprache = SPRACHNAME[festSprache] ? festSprache : (en > de ? "en" : "de");
     const system = `Du bist der Assistent von D&T Homes und beantwortest Nachrichten von Wohnungs- und Zimmer-Interessenten per WhatsApp.
 WICHTIG: Schreibe die Antwort immer in der Sprache der letzten Nachricht des Interessenten. Schreibt er Englisch, antworte vollständig auf Englisch; schreibt er Deutsch, auf Deutsch (du-Form). Andere Sprachen: Englisch.
 Halte dich strikt an das hinterlegte Wissen und die Live-Daten unten. Erfinde nichts. Wenn eine Frage damit nicht sicher beantwortet werden kann, oder wenn sie unter "Offene Punkte" fällt, setze "eskalieren": true und schreibe nur eine kurze, freundliche Zwischenantwort (wir klären das und melden uns).
@@ -182,7 +186,7 @@ ${anweisung}
 Regeln dafür: Übernimm alle Inhalte der Stichpunkte sinngemäss und vollständig, erfinde nichts dazu und lass nichts weg. Die Stichpunkte sind vom Team freigegeben, du darfst sie verwenden, auch wenn sie im Wissen fehlen, und setze deswegen nicht "eskalieren". Fakten aus Wissen und Live-Daten darfst du ergänzen, wenn sie direkt passen. Sind die Stichpunkte als Anweisung an dich formuliert ("sag ihm, dass..."), schreibe die Nachricht direkt an den Kunden. Passe die Anrede dem Kunden an: siezt er, schreibe in der Sie-Form, sonst du-Form. Unterschreibe mit "${absenderName || "Daan"}" bzw. bei Sie-Form mit "${absenderName || "Daan"}, D&T Homes". Keine Gedankenstriche. Schweizer Schreibweise (ss statt ß).` : ""}
 
 # Antwortsprache
-${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort ausschliesslich auf Englisch, auch wenn das Wissen oben auf Deutsch ist, und setze \"sprache\": \"en\"." : (anweisung ? "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch, in der Sie-Form wenn der Kunde siezt, sonst in der du-Form, ausser" : "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch in der du-Form, ausser")+" die Nachricht ist eindeutig in einer anderen Sprache, dann auf Englisch."}`;
+${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SPRACHNAME[festSprache]}. Schreibe die Antwort ausschliesslich auf ${SPRACHNAME[festSprache]} (lockere Du-Form, ausser der Kontakt siezt), egal in welcher Sprache die Nachricht, das Wissen oder die Stichpunkte sind, und setze "sprache": "${festSprache}".` : sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort ausschliesslich auf Englisch, auch wenn das Wissen oben auf Deutsch ist, und setze \"sprache\": \"en\"." : (anweisung ? "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch, in der Sie-Form wenn der Kunde siezt, sonst in der du-Form, ausser" : "Die Nachricht ist auf Deutsch (oder unklar). Schreibe die Antwort auf Deutsch in der du-Form, ausser")+" die Nachricht ist eindeutig in einer anderen Sprache, dann auf Englisch."}`;
 
     const messages: any[] = [];
     for (const v of verlauf) { const t = String(v?.text || "").trim(); if (t) messages.push({ role: v.von === "wir" ? "assistant" : "user", content: t.slice(0, 2000) }); }
@@ -199,7 +203,7 @@ ${sprache === "en" ? "Die Nachricht ist auf Englisch. Schreibe die Antwort aussc
         antwort: { type: "string", description: "Text der WhatsApp-Antwort an den Interessenten" },
         eskalieren: { type: "boolean", description: "true, wenn das Team übernehmen soll" },
         grund: { type: "string", description: "Kurze interne Notiz auf Deutsch" },
-        sprache: { type: "string", enum: ["de", "en"] },
+        sprache: { type: "string", enum: ["de", "en", "nl", "fr", "it", "es"] },
       }, required: ["antwort", "eskalieren", "grund", "sprache"] },
     }, {
       name: "ferienwohnung_verfuegbarkeit",

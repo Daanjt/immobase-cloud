@@ -213,6 +213,9 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
         <div className="wa-aktionen">
           {k && navigateTo && <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => navigateTo(k.art === "Mieter" ? "mieter" : "bewerber", k.id)}>Profil</button>}
           <button className={"btn btn-sm " + (c.ki_aus ? "btn-g" : "btn-g")} style={{ width: "auto" }} title="Automatische KI-Antworten für diesen Chat" onClick={() => chatStatus(c.telefon, { ki_aus: !c.ki_aus })}>{c.ki_aus ? "KI aus" : "KI an"}</button>
+          <select className="fi" style={{ width: "auto", padding: "4px 8px", fontSize: 12, margin: 0 }} title="In welcher Sprache die KI mit diesem Kontakt schreibt" value={c.ki_sprache || ""} onChange={e => chatStatus(c.telefon, { ki_sprache: e.target.value || null })}>
+            <option value="">KI-Sprache: automatisch</option><option value="de">KI: Deutsch</option><option value="en">KI: Englisch</option><option value="nl">KI: Niederländisch</option><option value="fr">KI: Französisch</option><option value="it">KI: Italienisch</option><option value="es">KI: Spanisch</option>
+          </select>
           {istOffen(c) ? <button className="btn btn-p btn-sm" style={{ width: "auto" }} onClick={() => chatStatus(c.telefon, { erledigt_at: new Date().toISOString(), gelesen_at: new Date().toISOString() })}>Erledigt</button>
             : <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => chatStatus(c.telefon, { erledigt_at: null })}>Wieder öffnen</button>}
         </div>
