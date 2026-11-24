@@ -19,6 +19,8 @@ const esc = (x: string) => String(x || "").replace(/&/g, "&amp;").replace(/</g, 
 // Mail an das Team, wenn eine WhatsApp-Nachricht eine Antwort von euch braucht. Hoechstens 1 Mail pro Chat in 30 Minuten.
 async function benachrichtigen(sb: any, c: Record<string, string>, tel: string, name: string | null, text: string, grund: string, ki?: string) {
   try {
+    // E-Mail-Benachrichtigung abschaltbar (app_config whatsapp_benachrichtigung_email = "aus"): dann nur Anzeige in ImmoBase
+    if (String(c.whatsapp_benachrichtigung_email || "").trim().toLowerCase() === "aus") return;
     const apiKey = Deno.env.get("RESEND_API_KEY");
     const an = String(c.whatsapp_benachrichtigung_email || "daan.theijse@dthomes.ch").split(/[,;\s]+/).filter(Boolean);
     if (!apiKey || !an.length) return;
