@@ -508,8 +508,11 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
   const [tab, setTab] = useState("meldungen");
   const [liste, setListe] = useState(null);
   const [lg, setLg] = useState({});
-  const [filter, setFilter] = useState("offen");
   const [adr, setAdr] = useState("");
+  const [offenId, setOffenId] = useState(null); // Meldung, deren Details offen sind
+  const [alleErledigt, setAlleErledigt] = useState(false);
+  const [ziehen, setZiehen] = useState(null); // id der gezogenen Karte
+  const [ueber, setUeber] = useState(""); // Spalte unter der Maus beim Ziehen
   const [fwd, setFwd] = useState(null);
   const [info, setInfo] = useState(null); // Liste von Meldungen desselben Mieters
   const [infoRest, setInfoRest] = useState([]); // weitere Mieter nach einer Sammelmeldung
@@ -525,7 +528,19 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
   const name = (id) => { const t = tenantVon(id); return t ? `${t.vorname || ""} ${t.nachname || ""}`.trim() : id; };
   const adressen = [...new Set((apts || []).filter((a) => !a.pipeline && a.adresse).map((a) => a.adresse))].sort((a, b) => a.localeCompare(b, "de"));
   const alle = liste || [];
-  const zeigen = alle.filter((s) => (filter === "alle" || (filter === "offen" ? s.status !== "erledigt" : s.status === filter)) && (!adr || aptAdresse(apts, s.apt_id) === adr));
+  const zeigen = alle.filter((s) => !adr || aptAdresse(apts, s.apt_id) === adr);
+  const vor30 = Date.now() - 30 * 86400000;
+  const spalte = (k) => zeigen.filter((s) => (s.status || "neu") === k);
+  const erledigtAlle = spalte("erledigt");
+  const erledigtZeigen = alleErledigt ? erledigtAlle : erledigtAlle.filter((s) => new Date(s.erledigt_at || s.updated_at || s.created_at).getTime() >= vor30);
+  const offen = offenId != null ? alle.find((s) => s.id === offenId) : null;
+  async function statusSetzen(id, status) {
+    const s0 = alle.find((x) => x.id === id); if (!s0 || s0.status === status) return;
+    const patch = { status, updated_at: new Date().toISOString(), erledigt_at: status === "erledigt" ? new Date().toISOString() : null };
+    setListe((l) => (l || []).map((x) => x.id === id ? { ...x, ...patch } : x));
+    const { error } = await supabase.from("schadenmeldungen").update(patch).eq("id", id);
+    if (error) { toast("Speichern fehlgeschlagen", "error"); laden(); } else toast(`Verschoben nach «${(SCHADEN_STATUS.find(([k]) => k === status) || [])[1]}»`);
+  }
   const nNeu = alle.filter((s) => s.status === "neu").length, nOffen = alle.filter((s) => s.status !== "erledigt").length;
   const fwdApt = fwd ? (apts || []).find((a) => a.id === fwd.apt_id) : null;
   // Offene, noch nicht weitergeleitete Meldungen derselben Wohnung: werden als Sammelmeldung vorgeschlagen
@@ -548,23 +563,66 @@ function SchaedenPage({ tenants, apts, navigateTo, istAdmin = true }) {
         <div style={{ display: "flex", gap: 6 }}>{tabBtn("meldungen", "Meldungen")}{tabBtn("liegenschaften", "Liegenschaften & Ansprechpersonen")}</div>
       </div>
       {tab === "meldungen" && (
-        <div className="card" style={{ marginTop: 14 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <select className="fi" style={{ width: "auto" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="offen">Offen</option><option value="neu">Neu</option><option value="in_arbeit">In Arbeit</option><option value="erledigt">Erledigt</option><option value="alle">Alle</option>
-            </select>
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
             <select className="fi" style={{ width: "auto" }} value={adr} onChange={(e) => setAdr(e.target.value)}>
               <option value="">Alle Liegenschaften</option>{adressen.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
+            <span style={{ fontSize: 11.5, color: "#8a8174" }}>Karte anklicken für Details. Zum Verschieben ziehen oder im Detail den Status ändern.</span>
           </div>
           {liste === null && <div style={{ fontSize: 12.5, color: "#8a8174" }}>Lädt…</div>}
-          {liste !== null && zeigen.length === 0 && <div style={{ fontSize: 12.5, color: "#8a8174" }}>Keine Meldungen.</div>}
-          {zeigen.map((s) => (
-            <div key={s.id + ":" + s.updated_at}>
-              <div style={{ fontSize: 11, color: "#8a8174", margin: "4px 0 4px 2px" }}>{aptAdresse(apts, s.apt_id) || "–"}{gleicheWohnung(s) > 1 ? <span style={{ color: "#8a6d3b", fontWeight: 600 }}> · {gleicheWohnung(s)} offene Meldungen in dieser Wohnung, können zusammen weitergeleitet werden</span> : null}</div>
-              <SchadenKarte s={s} tenantName={name(s.tenant_id)} onTenant={() => navigateTo && navigateTo("mieter", s.tenant_id)} onGeaendert={laden} onWeiterleiten={istAdmin ? setFwd : null} onInformieren={istAdmin ? (x) => { setInfo([x]); setInfoRest([]); } : null} />
+          {liste !== null && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, alignItems: "start" }}>
+              {SCHADEN_STATUS.map(([k, l]) => {
+                const karten = k === "erledigt" ? erledigtZeigen : spalte(k);
+                const farbe = { neu: "#8a3a2e", in_arbeit: "#8a6d3b", erledigt: "#5a6e4a" }[k];
+                return (
+                  <div key={k} onDragOver={(e) => { e.preventDefault(); if (ueber !== k) setUeber(k); }} onDragLeave={() => setUeber("")}
+                    onDrop={(e) => { e.preventDefault(); setUeber(""); if (ziehen != null) statusSetzen(ziehen, k); setZiehen(null); }}
+                    style={{ background: ueber === k ? "#efe9dd" : "#f6f3ec", border: "1px solid var(--line-soft,#e8e3d8)", borderRadius: 12, padding: 10, minHeight: 120 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "2px 4px 10px" }}>
+                      <div style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", fontWeight: 700, color: farbe }}>{l}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#8a8174" }}>{k === "erledigt" ? erledigtAlle.length : karten.length}</div>
+                    </div>
+                    {karten.length === 0 && <div style={{ fontSize: 12, color: "#a89f8f", padding: "6px 4px" }}>{k === "erledigt" ? "Nichts in den letzten 30 Tagen" : "Keine Meldungen"}</div>}
+                    {karten.map((s) => {
+                      const [dr, drBg, drC] = DRINGLICHKEIT[s.dringlichkeit] || DRINGLICHKEIT.normal;
+                      return (
+                        <div key={s.id} draggable={istAdmin} onDragStart={() => setZiehen(s.id)} onDragEnd={() => { setZiehen(null); setUeber(""); }} onClick={() => setOffenId(s.id)}
+                          style={{ background: "#fff", border: "1px solid #e8e3d8", borderRadius: 9, padding: "9px 11px", marginBottom: 8, cursor: "pointer", opacity: ziehen === s.id ? .5 : 1 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>{s.titel}</div>
+                            {s.dringlichkeit && s.dringlichkeit !== "normal" && <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 99, background: drBg, color: drC, whiteSpace: "nowrap" }}>{dr}</span>}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: "#8a8174", marginTop: 3 }}>{aptAdresse(apts, s.apt_id) || "–"} · {name(s.tenant_id)}</div>
+                          <div style={{ fontSize: 11, color: "#a89f8f", marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <span>{fmtZeitP(s.created_at).split(",")[0]}</span>
+                            {(s.fotos || []).length > 0 && <span>📷 {s.fotos.length}</span>}
+                            {s.weitergeleitet_at && <span style={{ color: "#5a6e4a" }}>✓ weitergeleitet</span>}
+                            {gleicheWohnung(s) > 1 && <span style={{ color: "#8a6d3b" }}>{gleicheWohnung(s)} in dieser Wohnung</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {k === "erledigt" && erledigtAlle.length > erledigtZeigen.length && <button className="btn btn-g btn-sm" style={{ width: "100%" }} onClick={() => setAlleErledigt(true)}>Ältere anzeigen ({erledigtAlle.length - erledigtZeigen.length})</button>}
+                    {k === "erledigt" && alleErledigt && <button className="btn btn-g btn-sm" style={{ width: "100%" }} onClick={() => setAlleErledigt(false)}>Nur letzte 30 Tage</button>}
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
+        </div>
+      )}
+      {offen && (
+        <div className="ov" onClick={(e) => e.target === e.currentTarget && setOffenId(null)}>
+          <div className="modal" style={{ width: 640 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 11.5, color: "#8a8174" }}>{aptAdresse(apts, offen.apt_id) || "–"}{gleicheWohnung(offen) > 1 ? ` · ${gleicheWohnung(offen)} offene Meldungen in dieser Wohnung, können zusammen weitergeleitet werden` : ""}</div>
+              <button className="btn btn-g btn-sm" style={{ width: "auto" }} onClick={() => setOffenId(null)}>✕</button>
+            </div>
+            <SchadenKarte key={offen.id + ":" + offen.updated_at} s={offen} tenantName={name(offen.tenant_id)} onTenant={() => { setOffenId(null); navigateTo && navigateTo("mieter", offen.tenant_id); }} onGeaendert={laden}
+              onWeiterleiten={istAdmin ? (x) => { setOffenId(null); setFwd(x); } : null} onInformieren={istAdmin ? (x) => { setOffenId(null); setInfo([x]); setInfoRest([]); } : null} />
+          </div>
         </div>
       )}
       {tab === "liegenschaften" && (
