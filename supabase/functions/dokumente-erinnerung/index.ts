@@ -84,7 +84,8 @@ Deno.serve(async (req) => {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
       let wa: any = null;
-      try {
+      // Erinnerungen (nr >= 1) nur per Mail, keine WhatsApp
+      if (p.nr === 0) try {
         const tel = await telefonVon(sb, { tenant_id: p.c.tenant_id, bewerber_id: p.c.bewerber_id });
         wa = await waSenden(sb, { art: "dokumente", ref: `${p.c.id}:${p.nr}`, telefon: tel, en: !!en, params: [String(p.c.mieter_vorname || "").trim().split(/\s+/)[0] || (en ? "there" : "zusammen"), `${PORTAL}/dokumente/${p.c.token}`] });
       } catch (e) { console.error("whatsapp dokumente", e); }

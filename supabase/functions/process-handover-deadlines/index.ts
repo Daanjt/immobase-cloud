@@ -506,11 +506,7 @@ Deno.serve(async (req: Request) => {
               throw mailErr;
             }
           }
-          try {
-            const sbw = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-            const tel = await telefonVon(sbw, { tenant_id: p.tenant_id, bewerber_id: p.bewerber_id, fallback: p.mieter_telefon });
-            await waSenden(sbw, { art: "uebernahme", ref: `${p.id}:${stufe}`, telefon: tel, en, params: [name, fristText(p.deadline, en), signUrl] });
-          } catch (waErr) { console.error("whatsapp uebernahme", waErr); }
+          // Erinnerungen nur per Mail (keine WhatsApp)
           if (stufe === "final") results.reminder_12d_sent++; else results.reminder_7d_sent++;
         }
       } catch (e) {
