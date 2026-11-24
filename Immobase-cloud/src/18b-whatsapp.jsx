@@ -62,7 +62,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   };
   const ladeVerlauf = async (tel) => {
     if (!tel) return;
-    const { data } = await supabase.from("wa_nachrichten").select("id, richtung, text, typ, quelle, ki_eskalieren, ki_grund, created_at, name, medien_pfad, medien_mime, medien_name").eq("telefon", tel).order("created_at", { ascending: true }).limit(300);
+    const { data } = await supabase.from("wa_nachrichten").select("id, richtung, text, typ, quelle, ki_eskalieren, ki_grund, created_at, name, medien_pfad, medien_mime, medien_name, transkript").eq("telefon", tel).order("created_at", { ascending: true }).limit(300);
     setVerlauf(data || []);
   };
   useEffect(() => { ladeChats(); const iv = setInterval(ladeChats, 15000); return () => clearInterval(iv); }, []);
@@ -220,7 +220,9 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
           return (
             <div key={m.id} className={"wa-blase " + (aus ? "aus" : "ein") + (m.quelle === "ki_fehler" ? " fehler" : "")}>
               {m.medien_pfad && <div style={{ marginBottom: m.text && !/^(📷|🎬|🎤|📄|Sticker)/.test(m.text) ? 4 : 0 }}><WaMedium m={m} /></div>}
-              {m.medien_pfad && /^(📷 Bild|🎬 Video|🎤 Sprachnachricht|📄 |Sticker)/.test(m.text || "") ? null
+              {m.typ === "audio" && m.transkript ? <div style={{ fontStyle: "italic", marginTop: 4 }}><span style={{ fontSize: 10.5, color: "#8a8174", fontStyle: "normal", display: "block" }}>Abschrift</span>{m.transkript}</div>
+                : m.typ === "audio" && m.medien_pfad ? <button className="btn btn-g btn-sm" style={{ width: "auto", marginTop: 4 }} disabled={busy === "tr" + m.id} onClick={async () => { setBusy("tr" + m.id); try { const j = await waFn({ aktion: "transkribieren", id: m.id }); if (!j.text) toast("Keine Sprache erkannt", "error"); await ladeVerlauf(aktiv); } catch (e) { toast(e.message, "error"); } finally { setBusy(""); } }}>{busy === "tr" + m.id ? "Wird umgewandelt…" : "📝 In Text umwandeln"}</button>
+                : m.medien_pfad && /^(📷 Bild|🎬 Video|🎤 Sprachnachricht|📄 |Sticker)/.test(m.text || "") ? null
                 : m.typ === "unsupported" ? <span style={{ color: "#8a8174", fontStyle: "italic" }}>Nachricht von WhatsApp nicht übermittelt</span>
                 : (m.text || `[${m.typ || "?"}]`)}
               <div className="wa-meta">{aus && WA_QUELLE[m.quelle] ? WA_QUELLE[m.quelle] + " · " : ""}{nurZeit(m.created_at)}</div>

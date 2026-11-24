@@ -33,13 +33,48 @@ function istFrei(r: any, a: any) {
 }
 
 
+
+const PORTAL = "https://mieter.dthomes.ch";
+const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const chfF = (n: any) => `CHF ${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/[’\u2019]/g, "'")}`;
+// Eigene Daten des Mieters (nur seine eigenen, nie die von anderen)
+async function mieterDaten(sb: any, t: any): Promise<string> {
+  const [{ data: pay }, { data: kue }, { data: hp }] = await Promise.all([
+    sb.from("payments").select("jahr, monat, betrag_soll, betrag_ist, status, mahnung_1_sent_at").eq("tenant_id", t.id).eq("status", "offen").order("jahr").order("monat").limit(12),
+    sb.from("kuendigungen").select("art, datum, status, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(1),
+    sb.from("handover_protocols").select("type, status, deadline, token").eq("tenant_id", t.id).in("status", ["sent", "in_progress"]).limit(3),
+  ]);
+  const h = new Date();
+  const offen = (pay || []).filter((p: any) => new Date(p.jahr, p.monat - 1, 1) <= h);
+  const z: string[] = [];
+  z.push(`Eigene Mietdaten: Einzug ${t.einzug || "-"}${t.auszug ? `, Mietende ${t.auszug}` : ", unbefristet bzw. kein Auszug erfasst"}${t.mietzins ? `, Miete ${chfF(t.mietzins)} pro Monat` : ""}${t.strom ? ` plus Strom ${chfF(t.strom)}` : ""}.`);
+  if (t.kaution_betrag) z.push(`Kaution: ${chfF(t.kaution_betrag)}${t.kaution_art ? ` (${t.kaution_art})` : ""}, ${t.kaution_eingegangen_am ? `eingegangen am ${fd(pd(t.kaution_eingegangen_am) || new Date(t.kaution_eingegangen_am))}` : "Eingang bei uns noch nicht erfasst"}.`);
+  z.push(offen.length ? `Offene Mietzahlungen laut unserer Buchhaltung: ${offen.map((p: any) => `${MONATE[p.monat - 1]} ${p.jahr} (${chfF(p.betrag_soll - (p.betrag_ist || 0))} offen${p.mahnung_1_sent_at ? ", gemahnt" : ""})`).join(", ")}. Zahlungen der letzten Tage sind evtl. noch nicht verbucht.` : "Offene Mietzahlungen: keine.");
+  if (kue && kue[0]) z.push(`Kündigung: ${kue[0].art || "Kündigung"} per ${kue[0].datum || "-"}, Status ${kue[0].status}.`);
+  for (const p of hp || []) z.push(`Offenes ${p.type === "auszug" ? "Abgabeprotokoll" : "Übernahmeprotokoll"}${p.deadline ? ` (bis ${fd(new Date(p.deadline))})` : ""}: ${PORTAL}/uebernahme/${p.token}`);
+  if (t.portal_token) z.push(`Persönlicher Link zum Mieterportal (Schäden melden, Dokumente, Kündigung, Namensschild): ${PORTAL}/p/${t.portal_token}`);
+  return z.join("\n");
+}
+// Bewerber: Stand der eigenen Bewerbung
+async function bewerberKontext(sb: any, tel: string): Promise<string> {
+  const { data: as } = await sb.from("applicants").select("vorname, phone, status, zimmer_wunsch, zugeteiltes_zimmer, einzug, eingereicht_am, created_at").order("created_at", { ascending: false }).limit(500);
+  const a = (as || []).find((x: any) => normTelefon(x.phone) === tel);
+  if (!a) return "";
+  const rid = a.zugeteiltes_zimmer || a.zimmer_wunsch;
+  const { data: r } = rid ? await sb.from("rooms").select("apt_id").eq("id", rid).maybeSingle() : { data: null };
+  const { data: ap } = r ? await sb.from("apartments").select("adresse, ort, vermietungsart").eq("id", r.apt_id).maybeSingle() : { data: null };
+  const stand: Record<string, string> = { Neu: "eingegangen, wird geprüft", Zugeteilt: "positiv, ein Zimmer bzw. eine Wohnung ist zugeteilt", "Bestätigt": "bestätigt", Abgelehnt: "abgesagt" };
+  return `# Absender
+Die Nachricht kommt von jemandem, der sich bei uns beworben hat (Vorname ${a.vorname || "-"}), am ${fd(new Date(a.eingereicht_am || a.created_at))}${ap ? ` für ${ap.vermietungsart === "wohnung" ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}` : ", ohne bestimmtes Zimmer"}${a.einzug ? `, gewünschter Einzug ${a.einzug}` : ""}. Stand der Bewerbung: ${stand[a.status] || a.status}.
+Regeln für Bewerber: Du kannst bestätigen, dass die Bewerbung bei uns eingegangen ist. Sag nie zu oder ab und mach keine Versprechen zum Entscheid. Bei Fragen zum Entscheid, zum Vertrag oder zu Terminen setze "eskalieren": true. Ist die Bewerbung abgesagt, sag nichts dazu, sondern eskaliere.`;
+}
 // Absender ist aktueller Mieter? Dann Wohnung + Schadenmeldungen dieser Wohnung (ohne Namen der Mitbewohner)
 const SM_STATUS: Record<string, string> = { neu: "eingegangen, noch nicht bearbeitet", in_arbeit: "in Bearbeitung", erledigt: "erledigt" };
 async function mieterKontext(sb: any, telefon: string): Promise<string> {
   const tel = normTelefon(telefon); if (!tel) return "";
-  const { data: ts } = await sb.from("tenants").select("id, vorname, phone, apt_id, room_id").eq("status", "aktiv").is("deleted_at", null);
+  const { data: ts } = await sb.from("tenants").select("id, vorname, phone, apt_id, room_id, einzug, auszug, mietzins, strom, kaution_betrag, kaution_art, kaution_eingegangen_am, portal_token").eq("status", "aktiv").is("deleted_at", null);
   const t = (ts || []).find((x: any) => normTelefon(x.phone) === tel);
-  if (!t) return "";
+  if (!t) return await bewerberKontext(sb, tel);
   const { data: rm } = await sb.from("rooms").select("id, apt_id").or(`tenant_id.eq.${t.id}${t.room_id ? `,id.eq.${t.room_id}` : ""}`).limit(1);
   const aptId = t.apt_id || rm?.[0]?.apt_id || null;
   const { data: ap } = aptId ? await sb.from("apartments").select("adresse, plz, ort").eq("id", aptId).maybeSingle() : { data: null };
@@ -49,9 +84,10 @@ async function mieterKontext(sb: any, telefon: string): Promise<string> {
   const z = (sm || []).map((x: any) => `- «${x.titel}»${x.ort_im_objekt ? ` (${x.ort_im_objekt})` : ""}, gemeldet am ${fd(new Date(x.created_at))} ${x.tenant_id === t.id ? "von ihm/ihr selbst" : "von einer Mitbewohnerin bzw. einem Mitbewohner"}, Status: ${SM_STATUS[x.status] || x.status}${x.weitergeleitet_at ? `, am ${fd(new Date(x.weitergeleitet_at))} an die Verwaltung weitergeleitet` : ""}${x.antwort ? `, unsere letzte Rückmeldung: ${String(x.antwort).slice(0, 300)}` : ""}${x.beschreibung ? `. Beschreibung: ${String(x.beschreibung).slice(0, 300)}` : ""}`);
   return `# Absender
 Die Nachricht kommt von einem aktuellen Mieter bzw. einer aktuellen Mieterin von D&T Homes (Vorname ${t.vorname || "-"}${ap ? `, wohnt an der ${ap.adresse}, ${[ap.plz, ap.ort].filter(Boolean).join(" ")}` : ""}). Es ist kein Interessent.
+${await mieterDaten(sb, t)}
 Schadenmeldungen dieser Wohnung (letzte 90 Tage):
 ${z.join("\n") || "- keine"}
-Regeln für Mieter: Geht es um einen Schaden oder Defekt, der oben schon gemeldet ist (auch von einer Mitbewohnerin bzw. einem Mitbewohner), bestätige, dass die Meldung bei uns vorliegt, nenne den Status und verlange keine neue Meldung im Mieterportal. Nenne nie Namen von Mitbewohnern. Schickt der Mieter Unterlagen oder neue Infos dazu (z.B. Kostenvoranschlag, Techniker war da, Termin), bedanke dich, sag, dass wir es anschauen und uns melden, und setze "eskalieren": true. Nur wenn der Schaden oben noch nicht gemeldet ist, bitte darum, ihn im Mieterportal zu melden (mit Fotos), und setze bei Dringendem (Wasser, Heizung, Strom, Schloss) "eskalieren": true.`;
+Regeln für Mieter: Nutze die eigenen Mietdaten oben, um Fragen zu Miete, Kaution, Zahlungen, Kündigung und Protokollen direkt zu beantworten, und schick bei Bedarf den persönlichen Link zum Mieterportal. Gib nie Daten anderer Mieter heraus. Bei Streitfragen zu Zahlungen, Kündigungen oder Kaution-Rückzahlung setze "eskalieren": true. Geht es um einen Schaden oder Defekt, der oben schon gemeldet ist (auch von einer Mitbewohnerin bzw. einem Mitbewohner), bestätige, dass die Meldung bei uns vorliegt, nenne den Status und verlange keine neue Meldung im Mieterportal. Nenne nie Namen von Mitbewohnern. Schickt der Mieter Unterlagen oder neue Infos dazu (z.B. Kostenvoranschlag, Techniker war da, Termin), bedanke dich, sag, dass wir es anschauen und uns melden, und setze "eskalieren": true. Nur wenn der Schaden oben noch nicht gemeldet ist, bitte darum, ihn im Mieterportal zu melden (mit Fotos), und setze bei Dringendem (Wasser, Heizung, Strom, Schloss) "eskalieren": true.`;
 }
 
 async function angebot(sb: any): Promise<string> {

@@ -141,6 +141,11 @@ Deno.serve(async (req) => {
       await sb.from("wa_chats").upsert({ telefon: tel, gelesen_at: new Date().toISOString(), updated_at: new Date().toISOString(), updated_by: String(b.von || "ImmoBase") }, { onConflict: "telefon" });
       return json({ ok: true });
     }
+    if (b.aktion === "transkribieren") {
+      const { nachrichtTranskribieren } = await import("../_shared/wa-medien.ts");
+      try { return json({ text: await nachrichtTranskribieren(sb, String(b.id || "")) }); }
+      catch (e) { return json({ error: String((e as Error)?.message || e) }, 400); }
+    }
     if (b.aktion === "vorlagen_einreichen") return json({ ergebnis: await vorlagenEinreichen(Array.isArray(b.nur) ? b.nur : undefined) });
     if (b.aktion === "bewerber_kontakt") {
       // Erste Kontaktaufnahme mit einem Bewerber (Vorlage dt_bewerbung_interesse)

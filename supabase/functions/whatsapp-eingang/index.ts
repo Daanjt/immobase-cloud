@@ -3,7 +3,7 @@
 // antwortet die KI allen, sonst nur den Testnummern. Braucht eine Nachricht euch, geht eine Mail raus.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normTelefon, waKey, WA_ABSENDER } from "../_shared/whatsapp.ts";
-import { MEDIEN, LABEL, medienSpeichern } from "../_shared/wa-medien.ts";
+import { MEDIEN, LABEL, medienSpeichern, nachrichtTranskribieren } from "../_shared/wa-medien.ts";
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
 const KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,12 +75,17 @@ Deno.serve(async (req) => {
   // Text bzw. Bildunterschrift; Medien (Bild, Video, Audio, Dokument, Sticker) werden in Storage gespeichert
   const med = MEDIEN.includes(m.type) ? m[m.type] || {} : null;
   const caption = med ? String(med.caption || "").trim() : "";
-  const text = m.type === "text" ? String(m.text?.body || "") : m.type === "button" ? String(m.button?.text || "") : m.type === "interactive" ? String(m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || "") : caption;
+  let text = m.type === "text" ? String(m.text?.body || "") : m.type === "button" ? String(m.button?.text || "") : m.type === "interactive" ? String(m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || "") : caption;
   const reaktion = m.type === "reaction" ? String(m.reaction?.emoji || "").trim() : "";
-  const anzeige = m.type === "reaction" ? (reaktion ? `${reaktion} (Reaktion)` : "Reaktion entfernt") : text || (med ? (m.type === "document" && med.filename ? `📄 ${med.filename}` : LABEL[m.type]) : m.type === "location" ? `📍 Standort${m.location?.name ? ": " + m.location.name : ""}` : `[${m.type}]`);
+  let anzeige = m.type === "reaction" ? (reaktion ? `${reaktion} (Reaktion)` : "Reaktion entfernt") : text || (med ? (m.type === "document" && med.filename ? `📄 ${med.filename}` : LABEL[m.type]) : m.type === "location" ? `📍 Standort${m.location?.name ? ": " + m.location.name : ""}` : `[${m.type}]`);
   const { data: neu, error: dup } = await sb.from("wa_nachrichten").insert({ richtung: "ein", telefon: tel, name: m.customerProfile?.name || null, text: anzeige, typ: m.type, wamid: m.wamid || m.id, roh: ev }).select("id").maybeSingle();
   if (dup) return ok({ dup: true }); // schon verarbeitet (YCloud wiederholt Webhooks)
-  if (med && med.link && neu) await medienSpeichern(sb, neu.id, tel, m.type, med).catch((e) => console.error("medien", e));
+  const gespeichert = med && med.link && neu ? await medienSpeichern(sb, neu.id, tel, m.type, med).catch((e) => { console.error("medien", e); return null; }) : null;
+  // Sprachnachricht: in Text umwandeln, damit ihr sie lesen und die KI darauf antworten kann
+  if (m.type === "audio" && gespeichert && neu) {
+    const t = await nachrichtTranskribieren(sb, neu.id, gespeichert.bytes, gespeichert.mime).catch((e) => { console.error("transkript", e); return null; });
+    if (t && !text) { text = t; anzeige = `🎤 ${t}`; }
+  }
 
   // Reaktionen (Emoji auf eine Nachricht) nur speichern, keine KI und keine Benachrichtigung
   if (m.type === "reaction") return ok({ gespeichert: true });
