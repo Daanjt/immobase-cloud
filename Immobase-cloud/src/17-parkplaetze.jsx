@@ -632,10 +632,97 @@ function ReinigungPage(){
   );
 }
 
+// Parkplatzvertrag direkt erstellen: Platz waehlen, Mieter*in und Konditionen erfassen, danach Vorschau und Versand
+function ParkVertragNeuModal({pps, start, apts, tenants, onClose, onWeiter}){
+  const leer = (p)=>({ ppId: p?p.id:"", mieterArt: p&&p.tenant_id?"mieter":"extern", tenant_id: p&&p.tenant_id||"", mieter_extern: p&&p.mieter_extern||"", mieter_email: p&&p.mieter_email||"", mieter_telefon: p&&p.mieter_telefon||"", mieter_adresse: p&&p.mieter_adresse||"", sprache: p&&p.sprache||"de", miete_verkauf: p&&p.miete_verkauf!=null?p.miete_verkauf:"", vermietet_ab: p&&p.vermietet_ab||"", vermietet_bis: p&&p.vermietet_bis||"", kuendigungsfrist: p&&p.kuendigungsfrist||1, kennzeichen: p&&p.kennzeichen||"", schluessel_anzahl: p&&p.schluessel_anzahl!=null?p.schluessel_anzahl:"" });
+  const [f, setF] = useState(()=>leer(start));
+  const [busy, setBusy] = useState(false);
+  const set = (k)=>(e)=>setF(x=>({...x,[k]:e.target.value}));
+  const pp = (pps||[]).find(x=>x.id===f.ppId) || null;
+  const waehle = (id)=>{ const p=(pps||[]).find(x=>x.id===id); setF(leer(p)); };
+  const befristetBis = pp ? ppBefristetBis(pp.adresse, apts) : "";
+  const aktiveMieter = (tenants||[]).filter(t=>(t.status||"aktiv")==="aktiv").sort((a,b)=>`${a.vorname} ${a.nachname}`.localeCompare(`${b.vorname} ${b.nachname}`));
+  const liste = (pps||[]).slice().sort((a,b)=>(a.adresse||"").localeCompare(b.adresse||"") || ((a.nummer==null?9999:a.nummer)-(b.nummer==null?9999:b.nummer)) || (a.bezeichnung||"").localeCompare(b.bezeichnung||""));
+  const t = f.mieterArt==="mieter" ? aktiveMieter.find(x=>x.id===f.tenant_id) : null;
+  const fehlt = [];
+  if(!pp) fehlt.push("Parkplatz");
+  if(f.mieterArt==="mieter" ? !t : !(f.mieter_extern||"").trim()) fehlt.push("Mieter*in");
+  if(f.mieterArt==="mieter" ? (t && !(t.email||"").trim()) : !(f.mieter_email||"").trim()) fehlt.push("E-Mail");
+  if(!(+f.miete_verkauf>0)) fehlt.push("Miete");
+  if(!parseDMY(f.vermietet_ab)) fehlt.push("Mietbeginn");
+  async function weiter(){
+    if(fehlt.length){ toast("Es fehlt noch: " + fehlt.join(", "), "error"); return; }
+    setBusy(true);
+    const row = {
+      tenant_id: f.mieterArt==="mieter" ? f.tenant_id : null,
+      mieter_extern: f.mieterArt==="extern" ? f.mieter_extern.trim() : null,
+      mieter_email: f.mieterArt==="extern" ? (f.mieter_email||"").trim() : null,
+      mieter_telefon: f.mieterArt==="extern" ? ((f.mieter_telefon||"").trim()||null) : null,
+      mieter_adresse: f.mieterArt==="extern" ? ((f.mieter_adresse||"").trim()||null) : null,
+      sprache: f.mieterArt==="extern" ? (f.sprache||"de") : "de",
+      miete_verkauf: +f.miete_verkauf, vermietet_ab: f.vermietet_ab.trim(), vermietet_bis: (f.vermietet_bis||"").trim() || befristetBis || null,
+      kuendigungsfrist: parseInt(f.kuendigungsfrist)||1, kennzeichen: (f.kennzeichen||"").trim()||null,
+      schluessel_anzahl: parseInt(f.schluessel_anzahl)||null, ausschreiben: false, updated_at: new Date().toISOString(),
+    };
+    const {error} = await supabase.from("parkplaetze").update(row).eq("id", pp.id);
+    setBusy(false);
+    if(error){ toast("Speichern fehlgeschlagen","error"); return; }
+    onWeiter({...pp, ...row});
+  }
+  return (
+    <div className="ov" onClick={e=>e.target===e.currentTarget&&!busy&&onClose()}>
+      <div className="modal" style={{width:560}}>
+        <div className="mt">Parkplatzvertrag erstellen</div>
+        <div className="fg"><label className="fl">Parkplatz</label><select className="fi" value={f.ppId} onChange={e=>waehle(e.target.value)}>
+          <option value="">Bitte wählen…</option>
+          {liste.map(p=>{ const n=ppMieterName(p,tenants); return <option key={p.id} value={p.id}>{p.bezeichnung}{n?` · ${n}`:" · frei"}</option>; })}
+        </select></div>
+        {pp && <>
+          <div style={{display:"flex",gap:6,margin:"6px 0 10px",flexWrap:"wrap"}}>
+            {[["mieter","Bestehende*r Mieter*in"],["extern","Externe Person"]].map(([k,l])=>(
+              <button key={k} type="button" className={`btn btn-sm ${f.mieterArt===k?"btn-p":"btn-g"}`} style={{width:"auto"}} onClick={()=>setF(x=>({...x,mieterArt:k}))}>{l}</button>
+            ))}
+          </div>
+          {f.mieterArt==="mieter" && <div className="fg"><label className="fl">Mieter*in</label><select className="fi" value={f.tenant_id||""} onChange={set("tenant_id")}>
+            <option value="">Bitte wählen…</option>{aktiveMieter.map(m=><option key={m.id} value={m.id}>{m.vorname} {m.nachname}</option>)}</select>
+            {t && <div style={{fontSize:11.5,color:(t.email||"").trim()?"#8a8174":"#9b4a3e",marginTop:4}}>{(t.email||"").trim()?`Vertrag geht an ${t.email}`:"Bei diesem Mieter ist keine E-Mail hinterlegt"}</div>}</div>}
+          {f.mieterArt==="extern" && <>
+            <div className="frow">
+              <div className="fg"><label className="fl">Vorname Nachname</label><input className="fi" value={f.mieter_extern} onChange={set("mieter_extern")} placeholder="z.B. Hans Muster"/></div>
+              <div className="fg"><label className="fl">E-Mail</label><input className="fi" type="email" value={f.mieter_email} onChange={set("mieter_email")}/></div>
+            </div>
+            <div className="frow">
+              <div className="fg"><label className="fl">Telefon</label><input className="fi" value={f.mieter_telefon} onChange={set("mieter_telefon")}/></div>
+              <div className="fg"><label className="fl">Vertragssprache</label><select className="fi" value={f.sprache} onChange={set("sprache")}><option value="de">Deutsch</option><option value="en">Deutsch + englische Übersetzung</option></select></div>
+            </div>
+            <div className="fg"><label className="fl">Wohnadresse</label><input className="fi" value={f.mieter_adresse} onChange={set("mieter_adresse")} placeholder="Strasse Nr., PLZ Ort"/></div>
+          </>}
+          <div className="frow pp3">
+            <div className="fg"><label className="fl">Miete CHF / Mt.</label><input className="fi" type="number" step="5" value={f.miete_verkauf} onChange={set("miete_verkauf")}/></div>
+            <div className="fg"><label className="fl">Ab</label><input className="fi" value={f.vermietet_ab} onChange={set("vermietet_ab")} placeholder="TT.MM.JJJJ"/></div>
+            <div className="fg"><label className="fl">Bis</label><input className="fi" value={f.vermietet_bis} onChange={set("vermietet_bis")} placeholder={befristetBis||"leer = unbefristet"}/></div>
+          </div>
+          <div className="frow">
+            <div className="fg"><label className="fl">Kündigungsfrist</label><select className="fi" value={f.kuendigungsfrist} onChange={set("kuendigungsfrist")}><option value="1">1 Monat auf Monatsende</option><option value="2">2 Monate auf Monatsende</option><option value="3">3 Monate auf Monatsende</option></select></div>
+            <div className="fg"><label className="fl">Kennzeichen</label><input className="fi" value={f.kennzeichen} onChange={set("kennzeichen")} placeholder="optional"/></div>
+            <div className="fg" style={{maxWidth:120}}><label className="fl">Schlüssel</label><input className="fi" type="number" min="0" max="10" value={f.schluessel_anzahl} onChange={set("schluessel_anzahl")} placeholder="0"/></div>
+          </div>
+        </>}
+        {pp && fehlt.length>0 && <div style={{fontSize:12,color:"#8a6d3b",marginTop:6}}>Es fehlt noch: {fehlt.join(", ")}</div>}
+        <div className="ma">
+          <button className="btn btn-g" disabled={busy} onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-p" disabled={busy||fehlt.length>0} onClick={weiter}>{busy?"Speichert…":"Weiter zur Vorschau"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PP_ART={einstellplatz:"Tiefgarage",aussen:"Aussenparkplatz",motorrad:"Motorradplatz"};
 function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadParkVertraege, apts, tenants, rooms, istAdmin=true}){
   const [edit, setEdit] = useState(null);
   const [vertragFuer, setVertragFuer] = useState(null);
+  const [vertragNeu, setVertragNeu] = useState(null); // {start}
   const [anfragen, setAnfragen] = useState([]);
   const [zuteilen, setZuteilen] = useState(null); // {anfrage, pp}
   const [alleAnfragen, setAlleAnfragen] = useState(false);
@@ -655,7 +742,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}><div><div className="pt">Parkplätze</div><div className="ps">{pps.length} übernommen · {pps.length-frei} vermietet · {frei} frei{ppsAlle.length>pps.length?` · ${ppsAlle.length-pps.length} noch nicht übernommen`:""}</div></div>
-        {istAdmin && <button className="btn btn-p" style={{width:"auto"}} onClick={()=>setEdit({bezeichnung:"Parkplatz", adresse:"", anzahl:1})}>+ Parkplatz</button>}</div>
+        {istAdmin && <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="btn btn-g" style={{width:"auto"}} onClick={()=>setVertragNeu({start:null})}>📄 Parkplatzvertrag erstellen</button><button className="btn btn-p" style={{width:"auto"}} onClick={()=>setEdit({bezeichnung:"Parkplatz", adresse:"", anzahl:1})}>+ Parkplatz</button></div>}</div>
       <div className="sg" style={{marginBottom:18}}>
         {istAdmin && <div className="sc"><div className="sl">Einnahmen</div><div className="sv" style={{fontSize:24,color:"#5a6e4a"}}>{chf(fin.einnahmen).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>}
         {istAdmin && <div className="sc"><div className="sl">Kosten</div><div className="sv" style={{fontSize:24}}>{chf(fin.kosten).replace("CHF ","")}</div><div className="sn" style={{color:"#8a8174"}}>CHF / Mt.</div></div>}
@@ -712,7 +799,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
                   {istAdmin&&<td data-label="Einkauf" style={{...td,textAlign:"right"}}>{p.miete_einkauf!=null?chf(+p.miete_einkauf):"-"}</td>}
                   <td data-label="Vermietung" style={{...td,textAlign:"right",color:name?"inherit":"#a89f8f"}}>{p.miete_verkauf!=null?chf(+p.miete_verkauf):"-"}</td>
                   {istAdmin&&<td data-label="Marge" style={{...td,textAlign:"right",color:m>=0?"#3d4f2f":"#9b4a3e"}}>{(p.miete_verkauf!=null||p.miete_einkauf!=null)?`${m>=0?"+":""}${chf(m)}`:"-"}</td>}
-                  {istAdmin && <td data-label="Vertrag" style={td}>{(()=>{ const c=ppAktuellerVertrag(p, parkVertraege); if(!name) return <span style={{color:"#a89f8f"}}>-</span>;
+                  {istAdmin && <td data-label="Vertrag" style={td}>{(()=>{ const c=ppAktuellerVertrag(p, parkVertraege); if(inaktiv) return <span style={{color:"#a89f8f"}}>-</span>; if(!name) return <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setVertragNeu({start:p})}>📄 Vertrag</button>;
                     if(c && c.status==="mieter_signiert") return <CountersignButton contract={c} onDone={loadParkVertraege} onSigned={()=>{}}/>;
                     if(c){ const [l,col,bg]=PP_STATUS[c.status]||[c.status,"#8a8174","#f0ebe1"]; return <span onClick={()=>setVertragFuer(p)} style={{cursor:"pointer",fontSize:11,padding:"3px 8px",borderRadius:10,color:col,background:bg,whiteSpace:"nowrap"}}>{l}</span>; }
                     return <button className="btn btn-g btn-sm" style={{width:"auto"}} onClick={()=>setVertragFuer(p)}>📄 Vertrag</button>; })()}</td>}
@@ -723,6 +810,7 @@ function ParkplaetzePage({parkplaetze, loadParkplaetze, parkVertraege=[], loadPa
         );
       })}
       {vertragFuer && <ParkVertragModal pp={(pps.find(x=>x.id===vertragFuer.id))||vertragFuer} apts={apts} tenants={tenants} rooms={rooms} vertraege={parkVertraege} onClose={()=>setVertragFuer(null)} onChanged={async()=>{ await Promise.all([loadParkVertraege&&loadParkVertraege(), loadParkplaetze&&loadParkplaetze()]); }} onEdit={()=>{ const p=vertragFuer; setVertragFuer(null); setEdit(p); }}/>}
+      {vertragNeu && <ParkVertragNeuModal pps={pps} start={vertragNeu.start} apts={apts} tenants={tenants} onClose={()=>setVertragNeu(null)} onWeiter={async(p)=>{ setVertragNeu(null); loadParkplaetze && await loadParkplaetze(); setVertragFuer(p); }}/>}
       {edit && <ParkplatzModal pp={edit} apts={apts} tenants={tenants} onClose={()=>setEdit(null)} onSaved={()=>{ setEdit(null); loadParkplaetze&&loadParkplaetze(); }}/>}
       {zuteilen && <ParkplatzModal pp={zuteilen.pp} apts={apts} tenants={tenants} onClose={()=>setZuteilen(null)} onSaved={async()=>{ const a=zuteilen.anfrage; setZuteilen(null); await supabase.from("parkplatz_anfragen").update({status:"zugeteilt", parkplatz_id:zuteilen.pp.id}).eq("id",a.id); ladeAnfragen(); loadParkplaetze&&loadParkplaetze(); }}/>}
     </div>
