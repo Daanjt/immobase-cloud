@@ -1,5 +1,18 @@
 // Auto-WhatsApp-Knopf erst zeigen, wenn die Meta-Vorlage genehmigt und der Testmodus aus ist
-const WA_AUTO_AKTIV = false;
+// Erste WhatsApp an Bewerber: offizielle Vorlage dt_bewerbung_interesse, ImmoBase sendet von der D&T-Nummer
+async function waBewerberSenden(b, absender, updateBewerber){
+  if(!b.phone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
+  const erneut = !!b.whatsapp_followup_sent_at;
+  if(!confirm(erneut ? `${b.vorname||"Diesem Bewerber"} hat schon eine WhatsApp von uns erhalten. Nochmals senden?` : `WhatsApp an ${b.vorname||""} ${b.nachname||""} senden?\n\nImmoBase schickt die Vorlage «Interesse an deiner Bewerbung» von der D&T-Nummer.`)) return;
+  try{
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"bewerber_kontakt", bewerber_id: b.id, absender: absender || b.owner || "Daan", erneut }) });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
+    const txt = { gesendet:"WhatsApp gesendet. Die Antwort erscheint in der WhatsApp-Inbox.", testmodus:"Testmodus aktiv: nicht gesendet", schon_gesendet:"Wurde schon gesendet", keine_nummer:"Keine gültige Telefonnummer", aus:"WhatsApp ist nicht eingerichtet", fehler:"Fehler: "+(j.fehler||"") }[j.status] || j.status;
+    toast(txt, j.status==="gesendet"?undefined:"error");
+    if(j.status==="gesendet" && updateBewerber){ updateBewerber(b.id,{ whatsapp_followup_sent_at:new Date().toISOString(), ...(absender && !(b.owner&&String(b.owner).trim()) ? {owner:absender} : {}) }); }
+  }catch(err){ toast(err.message,"error"); }
+}
 // ─── BEWERBER ────────────────────────────────────────────────────────────────
 // ── Geteilte Vertrags-Helfer (Top-Level: Versand UND Download nutzen denselben Weg) ──
 function daanDatumStr() {
@@ -648,21 +661,9 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
   },[]);
   function waShortcut(b, e){
     if(e) e.stopPropagation();
-    const cleanPhone = String(b.phone||"").replace(/\D/g,"");
-    if(!cleanPhone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
-    const roomObj = (rooms||[]).find(r=>r.id===b.zimmerWunsch);
-    const aptObj = roomObj ? (apts||[]).find(a=>a.id===roomObj.aptId) : null;
-    const empf = { ...b,
-      adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
-      zimmer: (roomObj&&roomObj.id)||"",
-      zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
-      absender: meName || (b.owner&&String(b.owner).trim()) || "Daan",
-    };
-    const tplText = waTpl ? vorlageTexte(waTpl, b.sprache, aptIstWohnung(aptObj)).inhalt : "";
-    const text = tplText ? platzhalterFuellen(tplText, empf) : "";
-    window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
-    if(meName && !(b.owner&&String(b.owner).trim()) && updateBewerber){ updateBewerber(b.id,{owner:meName}); }
+    waBewerberSenden(b, meName, updateBewerber);
   }
+
   const aktiv = ["Neu","In Prüfung","Bestätigt","Zugeteilt"];
   const isFrei = (r)=> !r.occupied && !r.tenantId;
   const tenantKeys = new Set();
@@ -684,7 +685,7 @@ function BewerberUebersicht({bewerber, apts, rooms, tenants, contracts, onWohnun
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"3px 0",fontSize:11}}>
         <span onClick={(e)=>{e.stopPropagation(); onSelectBewerber&&onSelectBewerber(b.id);}} style={{color:"var(--ink)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}><span style={{textDecoration:"underline",textDecorationColor:"var(--line)"}}>{nameOf(b)}</span>{context?<span style={{color:"var(--muted)",fontSize:10}}> · {context}</span>:null}</span>
         <span style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          <button onClick={(e)=>waShortcut(b,e)} title="Erste WhatsApp-Nachricht senden" style={{border:"none",background:"none",cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>💬</button>
+          <button onClick={(e)=>waShortcut(b,e)} title={b.whatsapp_followup_sent_at?"WhatsApp schon gesendet":"Erste WhatsApp von der D&T-Nummer senden"} style={{border:"none",background:"none",cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>💬</button>
           {b.nachfolge_token && <span title={`Nachfolge von ${nachfolgeVon(b)}`} style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#efebe3",color:"#5a5448",whiteSpace:"nowrap"}}>↻ Nachfolge</span>}
           {b.sprache==="en" && <span title="Bewirbt sich auf Englisch" style={{fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:"#e6eef6",color:"#2c4a6e"}}>EN</span>}
           {b.owner && <span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:3,background:b.owner==="Daan"?"#e0e8f0":"#f0e6dc",color:b.owner==="Daan"?"#3a4d66":"#7a5c3c",letterSpacing:".05em",whiteSpace:"nowrap"}}>👤 {b.owner}</span>}
@@ -870,34 +871,7 @@ function Bewerber({istAdmin,bewerber,rooms,tenants,apts,updateBewerber,deleteBew
   },[]);
   function waShortcutB(bb, e){
     if(e) e.stopPropagation();
-    const cleanPhone = String(bb.phone||"").replace(/\D/g,"");
-    if(!cleanPhone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
-    const roomObj = (rooms||[]).find(r=>r.id===bb.zimmerWunsch);
-    const aptObj = roomObj ? (apts||[]).find(a=>a.id===roomObj.aptId) : null;
-    const empf = { ...bb,
-      adresse: [aptObj&&aptObj.adresse, [aptObj&&aptObj.plz, aptObj&&aptObj.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
-      zimmer: (roomObj&&roomObj.id)||"",
-      zimmerpreis: (roomObj&&roomObj.miete) ? ("CHF "+(+roomObj.miete).toLocaleString('de-CH')) : "",
-      absender: meNameB || (bb.owner&&String(bb.owner).trim()) || "Daan",
-    };
-    const tplText = waTplB ? vorlageTexte(waTplB, bb.sprache, aptIstWohnung(aptObj)).inhalt : "";
-    const text = tplText ? platzhalterFuellen(tplText, empf) : "";
-    window.open("https://wa.me/"+cleanPhone+"?text="+encodeURIComponent(text), "_blank");
-    if(meNameB && !(bb.owner&&String(bb.owner).trim())){ updateBewerber(bb.id,{owner:meNameB}); }
-  }
-  async function waAutoB(bb, e){
-    if(e) e.stopPropagation();
-    if(!bb.phone){ alert("Für diesen Bewerber ist keine Telefonnummer hinterlegt."); return; }
-    const erneut = !!bb.whatsapp_followup_sent_at;
-    if(!confirm(erneut ? "Diesem Bewerber wurde schon eine automatische WhatsApp geschickt. Nochmals senden?" : `Interesse jetzt automatisch per WhatsApp bei ${bb.vorname||""} anfragen?`)) return;
-    try{
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${((await supabase.auth.getSession()).data.session||{}).access_token||""}` }, body: JSON.stringify({ aktion:"bewerber_kontakt", bewerber_id: bb.id, absender: meNameB || bb.owner || "Daan", erneut }) });
-      const j = await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(j.error||`Fehler ${res.status}`);
-      const txt = { gesendet:"WhatsApp gesendet", testmodus:"Testmodus aktiv: nicht gesendet (nur an Testnummern)", schon_gesendet:"Wurde schon gesendet", keine_nummer:"Keine gültige Nummer", aus:"WhatsApp ist nicht eingerichtet", fehler:"Fehler: "+(j.fehler||"") }[j.status] || j.status;
-      toast(txt, j.status==="gesendet"?undefined:"error");
-      if(j.status==="gesendet"){ updateBewerber(bb.id,{ whatsapp_followup_sent_at:new Date().toISOString(), ...(meNameB && !(bb.owner&&String(bb.owner).trim()) ? {owner:meNameB} : {}) }); }
-    }catch(err){ toast(err.message,"error"); }
+    waBewerberSenden(bb, meNameB, updateBewerber);
   }
   const [editForm,setEditForm]=useState({});
   const [vertragData,setVertragData]=useState(null);
@@ -1837,8 +1811,7 @@ www.dthomes.ch`;
                 </div>
               </div>
               <div className="detail-actions" style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp-Nachricht senden" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp</button>
-                {WA_AUTO_AKTIV && <button className="btn btn-sm" onClick={(e)=>waAutoB(b,e)} title="Interesse automatisch per WhatsApp anfragen (offizielle Vorlage, ImmoBase sendet direkt)" style={{background:"#fff",color:"#3d6b45",borderColor:"#4e7d55"}}>📲 Auto-WhatsApp{b.whatsapp_followup_sent_at?" ✓":""}</button>}
+                <button className="btn btn-sm" onClick={(e)=>waShortcutB(b,e)} title="Erste WhatsApp von der D&T-Nummer senden (offizielle Vorlage)" style={{background:"#4e7d55",color:"#fff",borderColor:"#4e7d55"}}>💬 WhatsApp{b.whatsapp_followup_sent_at?" ✓":""}</button>
                 <button className="btn btn-g btn-sm" onClick={openEdit}>✏ Bearbeiten</button>
                 {vormieterVon(b) && !b.nachfolge_angenommen_at && b.status!=="Abgelehnt" && <button className="btn btn-sm" onClick={uebernahmeStarten} style={{background:"#f0ebe1",color:"#3a352d",borderColor:"#d8d0c0"}}>↻ Als Nachmieter übernehmen</button>}
                 <button className="btn btn-p btn-sm" onClick={openVertragModal}>📄 Vertrag</button>
@@ -1887,7 +1860,7 @@ www.dthomes.ch`;
                 ["Parkplatz", b.parkplatz_wunsch ? <strong style={{color:"#2c4a6e"}}>🅿️ gewünscht</strong> : "-"],
                 ["Reinigung", b.reinigung_wunsch ? <strong style={{color:"#2c4a6e"}}>🧽 Offerte gewünscht</strong> : "-"],
                 ["Umzug", b.umzug_wunsch ? <strong style={{color:"#2c4a6e"}}>📦 Offerte gewünscht</strong> : "-"],
-                ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> <a href={`https://wa.me/${(b.phone||"").replace(/\D/g,"").replace(/^00/,"").replace(/^0/,"41")}?text=${encodeURIComponent((()=>{ const _r=(rooms||[]).find(r=>r.id===(b.zugeteiltes_zimmer||b.zimmerWunsch)); const _a=_r?(apts||[]).find(a=>a.id===_r.aptId):null; return aptIstWohnung(_a) ? ("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Auf https://www.dthomes.ch/wohnungen findest du unsere Wohnungen mit mehr Bildern und 3D-Rundgang. Die Besichtigung läuft bei uns über den 3D-Rundgang, und wenn dir eine Wohnung gefällt, kannst du dich dort direkt bewerben. Liebe Grüsse, Daan") : ("Hallo "+(b.vorname||"")+", vielen Dank für deine Anfrage, schön dass du dich gemeldet hast! Wir haben aktuell mehrere Zimmer frei. Auf https://www.dthomes.ch/zimmer findest du Bilder und kannst dich direkt bewerben, wenn du Interesse hast. Liebe Grüsse, Daan"); })())}`} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>WhatsApp</a></span>:"-"],
+                ["Telefon",b.phone?<span><a href={`tel:${b.phone}`}>{b.phone}</a> {waNorm(b.phone) && <a href={`?seite=whatsapp&chat=${waNorm(b.phone).replace("+","")}`} title="Chat in der WhatsApp-Inbox öffnen" style={{marginLeft:8,color:"#1a8f4c",fontWeight:600,textDecoration:"none"}}>Chat</a>}</span>:"-"],
                 ["Geburtsdatum", fmtDateDE(b.geburt) || "-"],
                 ["Geschlecht",b.gender||"-"],
                 ["Nationalität",b.nat||"-"],
