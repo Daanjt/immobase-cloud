@@ -105,10 +105,7 @@ Deno.serve(async (req) => {
   // KI pausiert: im Posteingang ausgeschaltet oder ein Mensch hat in den letzten 6 Stunden geantwortet
   const { data: chat } = await sb.from("wa_chats").select("ki_aus").eq("telefon", tel).maybeSingle();
   if (chat?.ki_aus) { await melden("KI ist für diesen Chat ausgeschaltet"); return ok({ gespeichert: true, ki: "aus" }); }
-  const { data: mensch } = await sb.from("wa_nachrichten").select("id").eq("telefon", tel).eq("richtung", "aus").in("quelle", ["handy", "immobase", "immobase_ki"])
-    .gte("created_at", new Date(Date.now() - 6 * 3600000).toISOString()).limit(1);
-  // Habt ihr in den letzten 6 Stunden selbst geantwortet, antwortet die KI nur noch, wenn sie die Frage sicher beantworten kann (nicht eskalieren)
-  const menschAktiv = !!(mensch && mensch.length);
+  // Habt ihr kürzlich selbst geantwortet, gilt dasselbe wie sonst: die KI antwortet nur, wenn sie es sicher weiss (siehe unten)
 
   // Verlauf der letzten 7 Tage fuer diese Nummer
   const seit = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -117,9 +114,11 @@ Deno.serve(async (req) => {
   const r = await fetch(`${URL_}/functions/v1/ki-antwort`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ nachricht: text, verlauf, telefon: tel }) });
   const k = await r.json().catch(() => ({}));
   if (!r.ok || !k.antwort) { console.error("ki-antwort", k); await melden("Die KI konnte keine Antwort erstellen"); return ok({ ki: "fehler" }); }
-  if (menschAktiv && k.eskalieren) {
-    await melden(`Ihr habt in den letzten 6 Stunden selbst geantwortet. Die KI hat diese Nachricht nicht beantwortet, weil sie sie nicht sicher beantworten kann${k.grund ? `: ${k.grund}` : ""}`, k.antwort);
-    return ok({ gespeichert: true, ki: "pause" });
+  // Weiss die KI es nicht sicher (eskalieren), sendet sie nichts: die Nachricht bleibt offen in ImmoBase, mit ihrem Vorschlag zum Übernehmen
+  if (k.eskalieren) {
+    if (neu) await sb.from("wa_nachrichten").update({ ki_eskalieren: true, ki_grund: k.grund || null, ki_vorschlag: k.antwort || null }).eq("id", neu.id);
+    await melden(`Die KI hat nicht geantwortet${k.grund ? `: ${k.grund}` : ""}`, k.antwort);
+    return ok({ gespeichert: true, ki: "offen" });
   }
   const s = await fetch("https://api.ycloud.com/v2/whatsapp/messages/sendDirectly", {
     method: "POST", headers: { "X-API-Key": waKey()!, "Content-Type": "application/json" },
@@ -128,6 +127,5 @@ Deno.serve(async (req) => {
   const sj = await s.json().catch(() => ({}));
   await sb.from("wa_nachrichten").insert({ richtung: "aus", telefon: tel, text: k.antwort, typ: "text", wamid: sj.wamid || sj.id || null, ki_eskalieren: !!k.eskalieren, ki_grund: k.grund || null, quelle: s.ok ? "ki" : "ki_fehler", roh: s.ok ? null : sj });
   if (!s.ok) await melden("Die KI-Antwort konnte nicht gesendet werden", k.antwort);
-  else if (k.eskalieren) await melden(k.grund ? `Die KI hat an euch weitergeleitet: ${k.grund}` : "Die KI hat an euch weitergeleitet", k.antwort);
   return ok({ beantwortet: s.ok });
 });

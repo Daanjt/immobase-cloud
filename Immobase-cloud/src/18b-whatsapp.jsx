@@ -64,7 +64,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   };
   const ladeVerlauf = async (tel) => {
     if (!tel) return;
-    const { data } = await supabase.from("wa_nachrichten").select("id, richtung, text, typ, quelle, ki_eskalieren, ki_grund, created_at, name, medien_pfad, medien_mime, medien_name, transkript").eq("telefon", tel).order("created_at", { ascending: true }).limit(300);
+    const { data } = await supabase.from("wa_nachrichten").select("id, richtung, text, typ, quelle, ki_eskalieren, ki_grund, ki_vorschlag, created_at, name, medien_pfad, medien_mime, medien_name, transkript").eq("telefon", tel).order("created_at", { ascending: true }).limit(300);
     setVerlauf(data || []);
   };
   useEffect(() => { ladeChats(); const iv = setInterval(ladeChats, 15000); return () => clearInterval(iv); }, []);
@@ -234,11 +234,17 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
                 : (m.text || `[${m.typ || "?"}]`)}
               <div className="wa-meta">{aus && WA_QUELLE[m.quelle] ? WA_QUELLE[m.quelle] + " · " : ""}{nurZeit(m.created_at)}</div>
               {aus && m.ki_eskalieren && <div className="wa-esk">An euch weitergeleitet{m.ki_grund ? `: ${m.ki_grund}` : ""}</div>}
+              {!aus && m.ki_eskalieren && <div className="wa-esk">KI hat nicht geantwortet{m.ki_grund ? `: ${m.ki_grund}` : ""}</div>}
             </div>);
         })}
         <div ref={endeRef} />
       </div>
       <div className="wa-eingabe">
+        {(() => { const l = verlauf[verlauf.length - 1]; return l && l.richtung === "ein" && l.ki_vorschlag && fensterOffen && !text.trim() ? (
+          <div className="wa-hinweis" style={{ display: "flex", gap: 10, alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div style={{ minWidth: 0 }}><b>Vorschlag der KI (nicht gesendet):</b><div style={{ whiteSpace: "pre-wrap", marginTop: 3 }}>{l.ki_vorschlag}</div></div>
+            <button className="btn btn-g btn-sm" style={{ width: "auto", flexShrink: 0 }} onClick={() => setText(l.ki_vorschlag)}>Übernehmen</button>
+          </div>) : null; })()}
         {!fensterOffen && <div className="wa-hinweis warn">Letzte Nachricht des Kontakts ist älter als 24 Stunden. Freier Text ist erst wieder möglich, wenn der Kontakt schreibt.</div>}
         {vorschlag && <div className="wa-hinweis" style={{ color: vorschlag.eskalieren ? "#a4442e" : "#3a5230" }}>KI-Vorschlag{vorschlag.eskalieren ? " · KI würde weiterleiten" : ""}{vorschlag.grund ? ` · ${vorschlag.grund}` : ""}. Du kannst den Text anpassen.</div>}
         <textarea className="fi" rows={Math.min(8, Math.max(2, text.split("\n").length))} value={text} onChange={e => setText(e.target.value)}
@@ -262,7 +268,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   return (
     <div>
       <div className="pt">WhatsApp</div>
-      {!(schmal && aktiv) && <div className="ps">Alle Nachrichten an +41 76 688 70 91. Antwortet ihr selbst, beantwortet die KI in diesem Chat während 6 Stunden nur noch Fragen, die sie sicher beantworten kann. Alles andere bleibt bei euch.</div>}
+      {!(schmal && aktiv) && <div className="ps">Alle Nachrichten an +41 76 688 70 91. Die KI antwortet nur, wenn sie es sicher weiss. Alles andere bleibt hier offen, mit ihrem Vorschlag zum Übernehmen.</div>}
       <div className={"wa-rahmen" + (schmal ? " schmal" : "")}>
         {(!aktiv || !schmal) && Liste}
         {(aktiv || !schmal) && Chat}
