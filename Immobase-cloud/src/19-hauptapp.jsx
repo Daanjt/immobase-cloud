@@ -23,7 +23,7 @@ function MainApp({rolle}) {
     if (rolle === "admin" || rolle === "operations") supabase.from("kuendigungen").select("id",{count:"exact",head:true}).eq("status","eingereicht")
       .then(({count})=>setPortalOffen(o=>({...o, kuendigungen:count||0}))).catch(()=>{});
     if (rolle === "admin") supabase.from("wa_chat_liste").select("letzte_richtung, eskaliert, erledigt_at, letzte_ein_at").limit(500)
-      .then(({data})=>setWaOffen((data||[]).filter(c=>(!c.erledigt_at || new Date(c.letzte_ein_at||0) > new Date(c.erledigt_at)) && (c.letzte_richtung==="ein" || c.eskaliert)).length)).catch(()=>{});
+      .then(({data})=>setWaOffen((data||[]).filter(c=>(!c.erledigt_at || new Date(c.letzte_ein_at||0) > new Date(c.erledigt_at)) && c.letzte_richtung==="ein").length)).catch(()=>{});
   };
   useEffect(() => { refreshPortal(); const iv = setInterval(refreshPortal, 60000); return () => clearInterval(iv); }, [page]);
   const refreshPortfolioWatch = () => {

@@ -36,7 +36,6 @@ const WA_QUELLE = { ki: "🤖 KI automatisch", ki_fehler: "⚠ KI-Fehler", handy
 function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const [chats, setChats] = useState([]);
   const [laden, setLaden] = useState(true);
-  const [filter, setFilter] = useState("offen");
   const [suche, setSuche] = useState("");
   // Direktlink aus der Benachrichtigungs-Mail: ?seite=whatsapp&chat=41791234567
   const [aktiv, setAktiv] = useState(() => { try { const q = new URLSearchParams(window.location.search).get("chat"); if (q) { window.history.replaceState(null, "", window.location.pathname); return "+" + q.replace(/[^\d]/g, ""); } } catch (e) {} return null; });
@@ -98,14 +97,13 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   };
 
   const istOffen = (c) => !c.erledigt_at || new Date(c.letzte_ein_at || 0) > new Date(c.erledigt_at);
-  const braucht = (c) => istOffen(c) && (c.letzte_richtung === "ein" || c.eskaliert);
+  // alle Chats zeigen (neueste oben); unbeantwortete sind markiert
+  const unbeantwortet = (c) => istOffen(c) && c.letzte_richtung === "ein";
   const gefiltert = chats.filter(c => {
-    if (filter === "offen" && !braucht(c)) return false;
-    if (filter === "eskaliert" && !(c.eskaliert && istOffen(c))) return false;
     if (suche.trim()) { const q = suche.toLowerCase(); const k = kontakte[c.telefon]; if (![c.telefon, c.name, k && k.name, c.letzte_text].some(x => String(x || "").toLowerCase().includes(q))) return false; }
     return true;
   });
-  const anzOffen = chats.filter(braucht).length;
+  const anzOffen = chats.filter(unbeantwortet).length;
   const c = chats.find(x => x.telefon === aktiv);
   const k = aktiv ? kontakte[aktiv] : null;
   const letzteEin = c && c.letzte_ein_at ? new Date(c.letzte_ein_at) : null;
@@ -168,27 +166,31 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const Liste = (
     <div className="wa-liste">
       <div className="wa-kopf">
-        <div className="seg voll klein">{[["offen", `Offen${anzOffen ? ` · ${anzOffen}` : ""}`], ["eskaliert", "Weitergeleitet"], ["alle", "Alle"]].map(([id, l]) =>
-          <button key={id} className={filter === id ? "on" : ""} onClick={() => setFilter(id)}>{l}</button>)}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#8a8174" }}>
+          <span>{chats.length} Chats</span>
+          {anzOffen > 0 && <span className="wa-tag warn">{anzOffen} unbeantwortet</span>}
+        </div>
         <input className="fi" placeholder="Suchen: Name, Nummer, Text" value={suche} onChange={e => setSuche(e.target.value)} style={{ margin: "8px 0 0" }} />
       </div>
       <div className="wa-scroll">
         {laden && <div className="wa-leer">Lädt…</div>}
-        {!laden && !gefiltert.length && <div className="wa-leer">{filter === "offen" ? "Keine offenen Chats 🎉" : "Keine Chats"}</div>}
+        {!laden && !gefiltert.length && <div className="wa-leer">{suche.trim() ? "Nichts gefunden" : "Keine Chats"}</div>}
         {gefiltert.map(x => {
           const kk = kontakte[x.telefon];
           const name = (kk && kk.name) || x.name || x.telefon;
-          const ung = x.ungelesen > 0, esk = x.eskaliert && istOffen(x);
+          const ung = x.ungelesen > 0, offen = unbeantwortet(x), kiAntwort = x.letzte_richtung === "aus" && x.letzte_quelle === "ki";
           return (
             <div key={x.telefon} onClick={() => oeffnen(x)} className={"wa-zeile" + (x.telefon === aktiv ? " aktiv" : "")}>
               <div className={"wa-av" + (kk ? " " + (kk.art === "Mieter" ? "mieter" : "bewerber") : "")}>{initialen(kk ? kk.name : x.name)}</div>
               <div className="wa-mitte">
                 <div className="wa-z1"><span className={"wa-name" + (ung ? " fett" : "")}>{name}</span><span className={"wa-zeit" + (ung ? " neu" : "")}>{waZeit(x.letzte_at)}</span></div>
                 <div className="wa-z2">
-                  <span className="wa-vorschau">{x.letzte_richtung === "aus" ? "Du: " : ""}{x.letzte_text}</span>
+                  <span className="wa-vorschau">{x.letzte_richtung === "aus" ? (kiAntwort ? "KI: " : "Du: ") : ""}{x.letzte_text}</span>
                   {ung && <span className="wa-badge">{x.ungelesen}</span>}
                 </div>
-                {(kk || esk) && <div className="wa-art">{kk ? kk.art : ""}{esk && <span className="wa-tag warn" title="Die KI hat an euch weitergeleitet">Weitergeleitet</span>}</div>}
+                {(kk || offen || kiAntwort) && <div className="wa-art">{kk ? kk.art : ""}
+                  {offen && <span className="wa-tag warn" title={x.eskaliert ? "Die KI hat nicht geantwortet, ihr Vorschlag liegt im Chat" : "Noch nicht beantwortet"}>Unbeantwortet</span>}
+                  {kiAntwort && <span className="wa-tag" title="Die KI hat selbst geantwortet">KI hat geantwortet</span>}</div>}
               </div>
             </div>);
         })}
