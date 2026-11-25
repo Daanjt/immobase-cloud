@@ -79,7 +79,10 @@ async function bewerberKontext(sb: any, tel: string): Promise<string> {
   const stand: Record<string, string> = { Neu: "eingegangen, wird geprüft", Zugeteilt: "positiv, ein Zimmer bzw. eine Wohnung ist zugeteilt", "Bestätigt": "bestätigt", Abgelehnt: "abgesagt" };
   return `# Absender
 Die Nachricht kommt von jemandem, der sich bei uns beworben hat (Vorname ${a.vorname || "-"}), am ${fd(new Date(a.eingereicht_am || a.created_at))}${ap ? ` für ${ap.vermietungsart === "wohnung" ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}` : ", ohne bestimmtes Zimmer"}${a.einzug ? `, gewünschter Einzug ${a.einzug}` : ""}. Stand der Bewerbung: ${stand[a.status] || a.status}.${vz}
-Regeln für Bewerber: Du kannst bestätigen, dass die Bewerbung bei uns eingegangen ist. Sag nie zu oder ab und mach keine Versprechen zum Entscheid. Bei Fragen zum Entscheid, zum Vertrag oder zu Terminen setze "eskalieren": true. Ist die Bewerbung abgesagt, sag nichts dazu, sondern eskaliere.`;
+Regeln für Bewerber (Ziel: Vertrag unterschreiben lassen, du bist im Verkauf):
+- Bestätigt der Bewerber sein Interesse (z.B. "ja, noch aktuell" auf unsere Nachricht) oder fragt nach den nächsten Schritten, schreib NICHT "wir prüfen deine Bewerbung", sondern treib es aktiv Richtung Vertrag: Freu dich, und biete an, ihm den Untermietvertrag schon zuzuschicken. Mit seiner Unterschrift ist das Zimmer für ihn reserviert. Ist das Zimmer noch bewohnt: Besichtigung vor Ort ist kurz vor Einzug möglich, er muss vorher nichts bezahlen und kann bis und mit Besichtigung zurücktreten, falls es wesentlich von Fotos, Grundriss und 3D-Rundgang abweicht. Frag nach dem gewünschten Einzugsdatum, falls es fehlt, und ob wir den Vertrag schicken dürfen. Setze dann "senden": true und "eskalieren": true (das Team schickt den Vertrag).
+- Sagt er ja zum Vertrag, bestätige, dass wir ihn gleich vorbereiten und per E-Mail schicken ("senden": true, "eskalieren": true).
+- Nie schreiben, dass er das Zimmer sicher bekommt, bevor der Vertrag unterschrieben ist. Bei einer abgesagten Bewerbung nichts dazu sagen und "senden": false.`;
 }
 // Absender ist aktueller Mieter? Dann Wohnung + Schadenmeldungen dieser Wohnung (ohne Namen der Mitbewohner)
 const SM_STATUS: Record<string, string> = { neu: "eingegangen, noch nicht bearbeitet", in_arbeit: "in Bearbeitung", erledigt: "erledigt" };
