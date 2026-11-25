@@ -151,9 +151,9 @@ async function angebot(sb: any): Promise<string> {
     const mbW = pd(a.mietbeginn);
     const neu = mbW && mbW > h ? ` HINWEIS NOCH BEWOHNT: Verfügbar ab ${fd(mbW)}, aktuell noch bewohnt. Besichtigung vor Ort erst kurz vor Mietbeginn möglich. Nicht erwähnen, dass wir die Wohnung übernehmen oder anmieten, nur ab wann sie verfügbar ist (Rücktrittsklausel und Zahlung erst nach Besichtigung kurz erwähnen).` : "";
     if (a.vermietungsart === "wohnung") {
-      zeilenWhg.push(`- Wohnung ${a.zimmer || ""} Zimmer, ${a.flaeche ? a.flaeche + " m², " : ""}${a.stockwerk || ""}, ${ort}: CHF ${r.miete} brutto pro Monat (zzgl. Strom CHF 25 pro Person), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/wohnungen/${slug(a)}${neu}`);
+      zeilenWhg.push(`- Wohnung ${a.zimmer || ""} Zimmer, ${a.flaeche ? a.flaeche + " m², " : ""}${a.stockwerk || ""}, ${ort}: CHF ${r.miete} brutto pro Monat (zzgl. Strom CHF 25 pro Person), frei ab ${ab}, ${dauer}. ${String(a.matterport_url || "").trim() ? "Fotos und 3D-Rundgang" : "Nur Fotos, KEIN 3D-Rundgang"}. Link: www.dthomes.ch/wohnungen/${slug(a)}${neu}`);
     } else {
-      zeilenWg.push(`- WG-Zimmer ${r.qm ? r.qm + " m²" : ""}${r.balkon ? " mit Balkon" : ""} in einer ${a.zimmer || ""}-Zimmer-WG, ${ort}: CHF ${r.miete} pro Monat inkl. Nebenkosten (zzgl. Strom CHF 25), frei ab ${ab}, ${dauer}. Link: www.dthomes.ch/zimmer/${slug(a)}${alterSpanne(a.id, r.id)}${neu}`);
+      zeilenWg.push(`- WG-Zimmer ${r.qm ? r.qm + " m²" : ""}${r.balkon ? " mit Balkon" : ""} in einer ${a.zimmer || ""}-Zimmer-WG, ${ort}: CHF ${r.miete} pro Monat inkl. Nebenkosten (zzgl. Strom CHF 25), frei ab ${ab}, ${dauer}. ${String(a.matterport_url || "").trim() ? "Fotos und 3D-Rundgang" : "Nur Fotos, KEIN 3D-Rundgang"}. Link: www.dthomes.ch/zimmer/${slug(a)}${alterSpanne(a.id, r.id)}${neu}`);
     }
   }
   return `Freie WG-Zimmer (Stand heute ${fd(h)}):\n${zeilenWg.join("\n") || "- keine"}\n\nFreie Wohnungen:\n${zeilenWhg.join("\n") || "- keine"}`;
@@ -202,6 +202,7 @@ Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekda
 ${wissenText}
 
 # Zusätzliche Regeln (wichtig)
+- 3D-Rundgang nur erwähnen, wenn er beim Objekt in den Live-Daten steht ("Fotos und 3D-Rundgang"). Steht "Nur Fotos, KEIN 3D-Rundgang" (z.B. Schaffhauserstrasse), sprich nur von den Fotos auf der Website, auch beim Rücktrittsrecht ("falls es wesentlich von den Fotos und dem Grundriss abweicht"). Ist unklar, welches Objekt gemeint ist, sprich allgemein von "Fotos (und wo vorhanden 3D-Rundgang)".
 - Keine Verfügbarkeitsgarantien: Schreib nie, dass ein Zimmer "sicher" bis zu einem Datum frei bleibt. Freie Zimmer können jederzeit vergeben werden; sag stattdessen, dass es aktuell frei ist und man sich am besten rasch bewirbt.
 - Fristen, Beträge, Behördenregeln (z.B. Anmeldefristen beim Kreisbüro) und andere Fakten nur nennen, wenn sie im Wissen oder in den Live-Daten stehen. Sonst nichts erfinden und "eskalieren": true setzen.
 - "eskalieren" und "senden" sind zwei verschiedene Dinge:
