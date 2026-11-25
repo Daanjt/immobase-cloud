@@ -238,9 +238,11 @@ function UebergabeProtokoll({tenant, room, apt, uploadDocument, updateTenant, do
   // Prefill mit aktuellen tenant-Schluesselwerten wenn Modal geoeffnet wird
   React.useEffect(() => {
     if (showStartModal && tenant) {
-      setStartSchluesselNr(String((apt&&apt.schluesselAnzahl)||tenant.schluesselAnzahl||""));
+      // Vorschlag = Schlüssel des Mieters. Die Schlüssel der Wohnung (was wir von der Verwaltung erhalten haben) nur bei ganzen Wohnungen, dort bekommt der Mieter alle.
+      const tAnz = parseInt(tenant.schluesselAnzahl)||0;
+      setStartSchluesselNr(String(aptKat(apt)==="WG" ? (tAnz||1) : (tAnz||(apt&&apt.schluesselAnzahl)||"")));
       // Extraschluessel der Wohnung gehoeren in einer WG meist allen (Keller, Briefkasten ...)
-      if (aptKat(apt)==="WG") { setStartWgSchluessel((apt&&apt.extraSchluessel)||""); setStartExtraSchluessel(""); }
+      if (aptKat(apt)==="WG") { setStartWgSchluessel(""); setStartExtraSchluessel((tenant.extraSchluessel||"").trim()); }
       else { setStartExtraSchluessel((apt&&apt.extraSchluessel)||""); setStartWgSchluessel(""); }
     }
   }, [showStartModal, tenant?.id]);

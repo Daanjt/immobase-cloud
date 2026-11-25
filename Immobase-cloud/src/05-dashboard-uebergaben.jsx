@@ -201,7 +201,8 @@ function Uebergaben({apts,rooms,tenants,bewerber,protokolle,navigateTo,updateTen
     setSNr(((t.schluesselNr||"").trim() || (t.schluesselAnzahl||"").toString().trim()));
     setSExtra((t.extraSchluessel||"").trim());
     setNormalCount(+(t.schluesselAnzahl)||1);
-    if (aptKat(eintrag.apt)==="WG") { setWgText((eintrag.apt&&eintrag.apt.extraSchluessel)||""); setExtraText(""); }
+    // WG: nicht die Schlüssel vorschlagen, die wir für die ganze Wohnung erhalten haben, nur die des Mieters
+    if (aptKat(eintrag.apt)==="WG") { setWgText(""); setExtraText((t.extraSchluessel||"").trim()); }
     else { setExtraText((eintrag.apt&&eintrag.apt.extraSchluessel)||""); setWgText(""); }
     setStartFor(eintrag);
   };
