@@ -39,14 +39,22 @@ const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "A
 const chfF = (n: any) => `CHF ${Number(n || 0).toLocaleString("de-CH", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/[’\u2019]/g, "'")}`;
 // Eigene Daten des Mieters (nur seine eigenen, nie die von anderen)
 async function mieterDaten(sb: any, t: any): Promise<string> {
-  const [{ data: pay }, { data: kue }, { data: hp }] = await Promise.all([
+  const [{ data: pay }, { data: kue }, { data: hp }, { data: vt }] = await Promise.all([
     sb.from("payments").select("jahr, monat, betrag_soll, betrag_ist, status, mahnung_1_sent_at").eq("tenant_id", t.id).eq("status", "offen").order("jahr").order("monat").limit(12),
     sb.from("kuendigungen").select("art, datum, status, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(1),
     sb.from("handover_protocols").select("type, status, deadline, token").eq("tenant_id", t.id).in("status", ["sent", "in_progress"]).limit(3),
+    sb.from("contracts").select("contract_type, status, sent_at, signed_at, countersigned_at, created_at").or(`tenant_id.eq.${t.id}${t.email ? `,mieter_email.ilike.${String(t.email).replace(/[,()]/g, "")}` : ""}`).neq("contract_type", "parkplatz").not("status", "in", "(zurueckgezogen,storniert,abgelaufen)").order("created_at", { ascending: false }).limit(1),
   ]);
   const h = new Date();
+  const c = vt && vt[0];
+  const dz = (x: any) => x ? fd(new Date(x)) : "";
+  const vertragZeile = !c ? "" : c.status === "signiert"
+    ? `Mietvertrag: vollständig unterschrieben (Mieter am ${dz(c.signed_at)}, von uns gegengezeichnet am ${dz(c.countersigned_at)}). Der unterschriebene Vertrag wurde ihm per E-Mail zugeschickt; er findet ihn auch im Mieterportal unter Dokumente.`
+    : c.status === "mieter_signiert" ? `Mietvertrag: von ihm am ${dz(c.signed_at)} unterschrieben, unsere Gegenzeichnung folgt in Kürze; danach erhält er den unterschriebenen Vertrag per E-Mail.`
+    : `Mietvertrag: am ${dz(c.sent_at || c.created_at)} per E-Mail zum digitalen Unterschreiben verschickt, noch nicht unterschrieben (Link in der E-Mail).`;
   const offen = (pay || []).filter((p: any) => new Date(p.jahr, p.monat - 1, 1) <= h);
   const z: string[] = [];
+  if (vertragZeile) z.push(vertragZeile);
   z.push(`Eigene Mietdaten: Einzug ${t.einzug || "-"}${t.auszug ? `, Mietende ${t.auszug}` : ", unbefristet bzw. kein Auszug erfasst"}${t.mietzins ? `, Miete ${chfF(t.mietzins)} pro Monat` : ""}${t.strom ? ` plus Strom ${chfF(t.strom)}` : ""}.`);
   if (t.kaution_betrag) z.push(`Kaution: ${chfF(t.kaution_betrag)}${t.kaution_art ? ` (${t.kaution_art})` : ""}, ${t.kaution_eingegangen_am ? `eingegangen am ${fd(pd(t.kaution_eingegangen_am) || new Date(t.kaution_eingegangen_am))}` : "Eingang im System nicht vermerkt (das Feld wird nicht immer gepflegt: sag dem Mieter NICHT, dass die Kaution fehlt, sondern dass wir es prüfen, und setze \"eskalieren\": true)"}.`);
   z.push(offen.length ? `Offene Mietzahlungen laut unserer Buchhaltung: ${offen.map((p: any) => `${MONATE[p.monat - 1]} ${p.jahr} (${chfF(p.betrag_soll - (p.betrag_ist || 0))} offen${p.mahnung_1_sent_at ? ", gemahnt" : ""})`).join(", ")}. Zahlungen der letzten Tage sind evtl. noch nicht verbucht.` : "Offene Mietzahlungen: keine.");
@@ -57,23 +65,36 @@ async function mieterDaten(sb: any, t: any): Promise<string> {
 }
 // Bewerber: Stand der eigenen Bewerbung
 async function bewerberKontext(sb: any, tel: string): Promise<string> {
-  const { data: as } = await sb.from("applicants").select("vorname, phone, status, zimmer_wunsch, zugeteiltes_zimmer, einzug, eingereicht_am, created_at").order("created_at", { ascending: false }).limit(500);
+  const { data: as } = await sb.from("applicants").select("id, vorname, phone, status, zimmer_wunsch, zugeteiltes_zimmer, einzug, eingereicht_am, created_at").order("created_at", { ascending: false }).limit(1000);
   const a = (as || []).find((x: any) => normTelefon(x.phone) === tel);
   if (!a) return "";
+  const { data: vt } = await sb.from("contracts").select("status, sent_at, signed_at, countersigned_at, created_at").eq("bewerber_id", a.id).not("status", "in", "(zurueckgezogen,storniert,abgelaufen)").order("created_at", { ascending: false }).limit(1);
+  const c = vt && vt[0];
+  const vz = !c ? "" : c.status === "signiert" ? " Vertrag: vollständig unterschrieben, der unterschriebene Vertrag wurde per E-Mail zugeschickt."
+    : c.status === "mieter_signiert" ? " Vertrag: von ihm unterschrieben, unsere Gegenzeichnung folgt in Kürze, danach kommt der Vertrag per E-Mail."
+    : ` Vertrag: am ${fd(new Date(c.sent_at || c.created_at))} per E-Mail zum digitalen Unterschreiben verschickt, noch nicht unterschrieben.`;
   const rid = a.zugeteiltes_zimmer || a.zimmer_wunsch;
   const { data: r } = rid ? await sb.from("rooms").select("apt_id").eq("id", rid).maybeSingle() : { data: null };
   const { data: ap } = r ? await sb.from("apartments").select("adresse, ort, vermietungsart").eq("id", r.apt_id).maybeSingle() : { data: null };
   const stand: Record<string, string> = { Neu: "eingegangen, wird geprüft", Zugeteilt: "positiv, ein Zimmer bzw. eine Wohnung ist zugeteilt", "Bestätigt": "bestätigt", Abgelehnt: "abgesagt" };
   return `# Absender
-Die Nachricht kommt von jemandem, der sich bei uns beworben hat (Vorname ${a.vorname || "-"}), am ${fd(new Date(a.eingereicht_am || a.created_at))}${ap ? ` für ${ap.vermietungsart === "wohnung" ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}` : ", ohne bestimmtes Zimmer"}${a.einzug ? `, gewünschter Einzug ${a.einzug}` : ""}. Stand der Bewerbung: ${stand[a.status] || a.status}.
+Die Nachricht kommt von jemandem, der sich bei uns beworben hat (Vorname ${a.vorname || "-"}), am ${fd(new Date(a.eingereicht_am || a.created_at))}${ap ? ` für ${ap.vermietungsart === "wohnung" ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}` : ", ohne bestimmtes Zimmer"}${a.einzug ? `, gewünschter Einzug ${a.einzug}` : ""}. Stand der Bewerbung: ${stand[a.status] || a.status}.${vz}
 Regeln für Bewerber: Du kannst bestätigen, dass die Bewerbung bei uns eingegangen ist. Sag nie zu oder ab und mach keine Versprechen zum Entscheid. Bei Fragen zum Entscheid, zum Vertrag oder zu Terminen setze "eskalieren": true. Ist die Bewerbung abgesagt, sag nichts dazu, sondern eskaliere.`;
 }
 // Absender ist aktueller Mieter? Dann Wohnung + Schadenmeldungen dieser Wohnung (ohne Namen der Mitbewohner)
 const SM_STATUS: Record<string, string> = { neu: "eingegangen, noch nicht bearbeitet", in_arbeit: "in Bearbeitung", erledigt: "erledigt" };
 async function mieterKontext(sb: any, telefon: string): Promise<string> {
   const tel = normTelefon(telefon); if (!tel) return "";
-  const { data: ts } = await sb.from("tenants").select("id, vorname, phone, apt_id, room_id, einzug, auszug, mietzins, strom, kaution_betrag, kaution_art, kaution_eingegangen_am, portal_token").eq("status", "aktiv").is("deleted_at", null);
-  const t = (ts || []).find((x: any) => normTelefon(x.phone) === tel);
+  const { data: ts } = await sb.from("tenants").select("id, vorname, nachname, email, phone, apt_id, room_id, einzug, auszug, mietzins, strom, kaution_betrag, kaution_art, kaution_eingegangen_am, portal_token").eq("status", "aktiv").is("deleted_at", null);
+  let t = (ts || []).find((x: any) => normTelefon(x.phone) === tel);
+  let andereNummer = false;
+  if (!t) {
+    // schreibt von einer anderen Nummer? Gleiche Person, wenn eine Bewerbung mit dieser Nummer denselben Vor- und Nachnamen hat wie ein aktiver Mieter
+    const { data: as } = await sb.from("applicants").select("vorname, nachname, phone").order("created_at", { ascending: false }).limit(1000);
+    const nm = (x: any) => `${String(x?.vorname || "").trim()} ${String(x?.nachname || "").trim()}`.toLowerCase().replace(/\s+/g, " ");
+    const a = (as || []).find((x: any) => normTelefon(x.phone) === tel);
+    if (a && nm(a).length > 3) { t = (ts || []).find((x: any) => nm(x) === nm(a)); andereNummer = !!t; }
+  }
   if (!t) return await bewerberKontext(sb, tel);
   const { data: rm } = await sb.from("rooms").select("id, apt_id").or(`tenant_id.eq.${t.id}${t.room_id ? `,id.eq.${t.room_id}` : ""}`).limit(1);
   const aptId = t.apt_id || rm?.[0]?.apt_id || null;
@@ -83,7 +104,7 @@ async function mieterKontext(sb: any, telefon: string): Promise<string> {
   const { data: sm } = aptId ? await q.or(`apt_id.eq.${aptId},tenant_id.eq.${t.id}`) : await q.eq("tenant_id", t.id);
   const z = (sm || []).map((x: any) => `- «${x.titel}»${x.ort_im_objekt ? ` (${x.ort_im_objekt})` : ""}, gemeldet am ${fd(new Date(x.created_at))} ${x.tenant_id === t.id ? "von ihm/ihr selbst" : "von einer Mitbewohnerin bzw. einem Mitbewohner"}, Status: ${SM_STATUS[x.status] || x.status}${x.weitergeleitet_at ? `, am ${fd(new Date(x.weitergeleitet_at))} an die Verwaltung weitergeleitet` : ""}${x.antwort ? `, unsere letzte Rückmeldung: ${String(x.antwort).slice(0, 300)}` : ""}${x.beschreibung ? `. Beschreibung: ${String(x.beschreibung).slice(0, 300)}` : ""}`);
   return `# Absender
-Die Nachricht kommt von einem aktuellen Mieter bzw. einer aktuellen Mieterin von D&T Homes (Vorname ${t.vorname || "-"}${ap ? `, wohnt an der ${ap.adresse}, ${[ap.plz, ap.ort].filter(Boolean).join(" ")}` : ""}). Es ist kein Interessent.
+Die Nachricht kommt von einem aktuellen Mieter bzw. einer aktuellen Mieterin von D&T Homes (Vorname ${t.vorname || "-"}${ap ? `, wohnt an der ${ap.adresse}, ${[ap.plz, ap.ort].filter(Boolean).join(" ")}` : ""}). Es ist kein Interessent.${andereNummer ? " (Er schreibt von einer anderen Nummer als der bei uns hinterlegten; erkannt über seine frühere Bewerbung mit dieser Nummer.)" : ""}
 ${await mieterDaten(sb, t)}
 Schadenmeldungen dieser Wohnung (letzte 90 Tage):
 ${z.join("\n") || "- keine"}
