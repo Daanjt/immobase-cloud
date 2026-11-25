@@ -202,6 +202,7 @@ Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekda
 ${wissenText}
 
 # Zusätzliche Regeln (wichtig)
+- Vertrag nur nach Bewerbung: Einen Vertrag gibt es erst, wenn sich jemand online beworben hat. Steht unter "Absender" nicht, dass er sich beworben hat (oder dass er Mieter ist), dann biete keinen Vertrag an und sag nicht zu, einen zu schicken. Bitte ihn stattdessen, sich zuerst kurz online zu bewerben: direkt beim Zimmer bzw. der Wohnung auf www.dthomes.ch/zimmer bzw. www.dthomes.ch/wohnungen (Link aus den Live-Daten, dauert nur wenige Minuten). Sobald die Bewerbung da ist, schicken wir ihm den Vertrag.
 - 3D-Rundgang nur erwähnen, wenn er beim Objekt in den Live-Daten steht ("Fotos und 3D-Rundgang"). Steht "Nur Fotos, KEIN 3D-Rundgang" (z.B. Schaffhauserstrasse), sprich nur von den Fotos auf der Website, auch beim Rücktrittsrecht ("falls es wesentlich von den Fotos und dem Grundriss abweicht"). Ist unklar, welches Objekt gemeint ist, sprich allgemein von "Fotos (und wo vorhanden 3D-Rundgang)".
 - Keine Verfügbarkeitsgarantien: Schreib nie, dass ein Zimmer "sicher" bis zu einem Datum frei bleibt. Freie Zimmer können jederzeit vergeben werden; sag stattdessen, dass es aktuell frei ist und man sich am besten rasch bewirbt.
 - Fristen, Beträge, Behördenregeln (z.B. Anmeldefristen beim Kreisbüro) und andere Fakten nur nennen, wenn sie im Wissen oder in den Live-Daten stehen. Sonst nichts erfinden und "eskalieren": true setzen.
