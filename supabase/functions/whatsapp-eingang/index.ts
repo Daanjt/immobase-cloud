@@ -110,6 +110,11 @@ Deno.serve(async (req) => {
   // Verlauf der letzten 7 Tage fuer diese Nummer
   const seit = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data: hist } = await sb.from("wa_nachrichten").select("richtung, text, wamid").eq("telefon", tel).gte("created_at", seit).order("created_at", { ascending: true }).limit(30);
+  // reine Bestätigungen ("ok", "danke", "👍") brauchen keine Antwort: nicht antworten und Chat als erledigt markieren
+  if (/^\s*(ok(ay)?|oki|super|perfekt|perfect|great|top|alles klar|passt|danke( dir| schön| vielmals)?|merci|thx|thanks?( a lot| you)?|thank you|cool|nice|gut|sehr gut|👍|🙏|👌|😊|🙂|❤️)[\s!.👍🙏😊🙂]*$/i.test(text || "")) {
+    await sb.from("wa_chats").upsert({ telefon: tel, erledigt_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "telefon" });
+    return ok({ gespeichert: true, ki: "bestaetigung" });
+  }
   const verlauf = (hist || []).filter((x: any) => x.wamid !== (m.wamid || m.id)).slice(-12).map((x: any) => ({ von: x.richtung === "ein" ? "kunde" : "wir", text: x.text || "" }));
   const r = await fetch(`${URL_}/functions/v1/ki-antwort`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ nachricht: text, verlauf, telefon: tel }) });
   const k = await r.json().catch(() => ({}));

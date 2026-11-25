@@ -181,7 +181,10 @@ Deno.serve(async (req) => {
     const mieter = b.telefon ? await mieterKontext(sb, String(b.telefon)).catch(() => "") : "";
 
     // Sprache der Nachricht grob erkennen, damit die Antwort sicher in der richtigen Sprache kommt
-    const w = (re: RegExp) => (nachricht.toLowerCase().match(re) || []).length;
+    // aktuelle Nachricht plus frühere Nachrichten des Kunden: bei kurzen Nachrichten ("Ok") zählt, wie er sonst schreibt
+    const kundeVorher = (Array.isArray(b.verlauf) ? b.verlauf : []).filter((x: any) => x && x.von === "kunde").map((x: any) => String(x.text || "")).slice(-6).join(" \n ");
+    const spracheText = `${nachricht} \n ${kundeVorher}`.toLowerCase();
+    const w = (re: RegExp) => (spracheText.match(re) || []).length;
     const en = w(/\b(the|and|is|are|can|you|my|we|please|hello|hi|thanks|available|room|rent|together|would|what|how)\b/g);
     const de = w(/\b(und|ist|ich|das|der|die|nicht|ein|eine|bitte|hallo|danke|kann|wie|wann|zimmer|wohnung|möchte|gerne)\b/g);
     // feste Sprache pro Chat (in der WhatsApp-Inbox einstellbar), sonst automatisch erkennen
