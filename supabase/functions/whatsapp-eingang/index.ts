@@ -115,7 +115,8 @@ Deno.serve(async (req) => {
   const k = await r.json().catch(() => ({}));
   if (!r.ok || !k.antwort) { console.error("ki-antwort", k); await melden("Die KI konnte keine Antwort erstellen"); return ok({ ki: "fehler" }); }
   // Weiss die KI es nicht sicher (eskalieren), sendet sie nichts: die Nachricht bleibt offen in ImmoBase, mit ihrem Vorschlag zum Übernehmen
-  if (k.eskalieren) {
+  const senden = typeof k.senden === "boolean" ? k.senden : !k.eskalieren;
+  if (!senden) {
     if (neu) await sb.from("wa_nachrichten").update({ ki_eskalieren: true, ki_grund: k.grund || null, ki_vorschlag: k.antwort || null }).eq("id", neu.id);
     await melden(`Die KI hat nicht geantwortet${k.grund ? `: ${k.grund}` : ""}`, k.antwort);
     return ok({ gespeichert: true, ki: "offen" });

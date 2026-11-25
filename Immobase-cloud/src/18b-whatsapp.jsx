@@ -99,7 +99,8 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
 
   const istOffen = (c) => !c.erledigt_at || new Date(c.letzte_ein_at || 0) > new Date(c.erledigt_at);
   // alle Chats zeigen (neueste oben); unbeantwortete sind markiert
-  const unbeantwortet = (c) => istOffen(c) && c.letzte_richtung === "ein";
+  // unbeantwortet: Kunde hat zuletzt geschrieben; zu prüfen: KI hat geantwortet, aber das Team soll etwas anschauen
+  const unbeantwortet = (c) => istOffen(c) && (c.letzte_richtung === "ein" || (!!c.eskaliert && c.letzte_quelle === "ki"));
   const gefiltert = chats.filter(c => {
     if (nurOffen && !unbeantwortet(c)) return false;
     if (suche.trim()) { const q = suche.toLowerCase(); const k = kontakte[c.telefon]; if (![c.telefon, c.name, k && k.name, c.letzte_text].some(x => String(x || "").toLowerCase().includes(q))) return false; }
@@ -191,8 +192,9 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
                   {ung ? <span className="wa-badge">{x.ungelesen}</span> : offen ? <span className="wa-punkt" title="Muss noch beantwortet werden" /> : null}
                 </div>
                 {(kk || kiAntwort || (offen && x.eskaliert)) && <div className="wa-art">{kk ? kk.art : ""}
-                  {offen && x.eskaliert && <span className="wa-tag warn" title="Die KI hat nicht geantwortet, ihr Vorschlag liegt im Chat">KI-Vorschlag</span>}
-                  {kiAntwort && <span className="wa-tag" title="Die KI hat selbst geantwortet">KI hat geantwortet</span>}</div>}
+                  {offen && x.eskaliert && !kiAntwort && x.letzte_richtung === "ein" && <span className="wa-tag warn" title="Die KI hat nicht geantwortet, ihr Vorschlag liegt im Chat">KI-Vorschlag</span>}
+                  {kiAntwort && <span className="wa-tag" title="Die KI hat selbst geantwortet">KI hat geantwortet</span>}
+                  {kiAntwort && x.eskaliert && istOffen(x) && <span className="wa-tag warn" title={"Die KI hat geantwortet, ihr sollt aber etwas prüfen oder entscheiden. Mit «Erledigt» im Chat abhaken."}>Zu prüfen</span>}</div>}
               </div>
             </div>);
         })}
