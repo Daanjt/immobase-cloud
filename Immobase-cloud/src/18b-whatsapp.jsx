@@ -42,6 +42,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const [verlauf, setVerlauf] = useState([]);
   const [text, setText] = useState("");
   const [vorschlag, setVorschlag] = useState(null);
+  const [nurOffen, setNurOffen] = useState(false);
   const [meName, setMeName] = useState("");
   useEffect(() => { typeof resolveMeName === "function" && resolveMeName().then(n => setMeName(n || "")).catch(() => {}); }, []);
   const [busy, setBusy] = useState("");
@@ -100,6 +101,7 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   // alle Chats zeigen (neueste oben); unbeantwortete sind markiert
   const unbeantwortet = (c) => istOffen(c) && c.letzte_richtung === "ein";
   const gefiltert = chats.filter(c => {
+    if (nurOffen && !unbeantwortet(c)) return false;
     if (suche.trim()) { const q = suche.toLowerCase(); const k = kontakte[c.telefon]; if (![c.telefon, c.name, k && k.name, c.letzte_text].some(x => String(x || "").toLowerCase().includes(q))) return false; }
     return true;
   });
@@ -166,15 +168,15 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
   const Liste = (
     <div className="wa-liste">
       <div className="wa-kopf">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#8a8174" }}>
-          <span>{chats.length} Chats</span>
-          {anzOffen > 0 && <span className="wa-tag warn">{anzOffen} unbeantwortet</span>}
+        <div className="seg voll klein">
+          <button className={!nurOffen ? "on" : ""} onClick={() => setNurOffen(false)}>Alle · {chats.length}</button>
+          <button className={nurOffen ? "on" : ""} onClick={() => setNurOffen(true)}>Unbeantwortet{anzOffen ? ` · ${anzOffen}` : ""}</button>
         </div>
         <input className="fi" placeholder="Suchen: Name, Nummer, Text" value={suche} onChange={e => setSuche(e.target.value)} style={{ margin: "8px 0 0" }} />
       </div>
       <div className="wa-scroll">
         {laden && <div className="wa-leer">Lädt…</div>}
-        {!laden && !gefiltert.length && <div className="wa-leer">{suche.trim() ? "Nichts gefunden" : "Keine Chats"}</div>}
+        {!laden && !gefiltert.length && <div className="wa-leer">{suche.trim() ? "Nichts gefunden" : nurOffen ? "Alles beantwortet 🎉" : "Keine Chats"}</div>}
         {gefiltert.map(x => {
           const kk = kontakte[x.telefon];
           const name = (kk && kk.name) || x.name || x.telefon;
@@ -183,13 +185,13 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
             <div key={x.telefon} onClick={() => oeffnen(x)} className={"wa-zeile" + (x.telefon === aktiv ? " aktiv" : "")}>
               <div className={"wa-av" + (kk ? " " + (kk.art === "Mieter" ? "mieter" : "bewerber") : "")}>{initialen(kk ? kk.name : x.name)}</div>
               <div className="wa-mitte">
-                <div className="wa-z1"><span className={"wa-name" + (ung ? " fett" : "")}>{name}</span><span className={"wa-zeit" + (ung ? " neu" : "")}>{waZeit(x.letzte_at)}</span></div>
+                <div className="wa-z1"><span className={"wa-name" + (ung || offen ? " fett" : "")}>{name}</span><span className={"wa-zeit" + (ung || offen ? " neu" : "")}>{waZeit(x.letzte_at)}</span></div>
                 <div className="wa-z2">
                   <span className="wa-vorschau">{x.letzte_richtung === "aus" ? (kiAntwort ? "KI: " : "Du: ") : ""}{x.letzte_text}</span>
-                  {ung && <span className="wa-badge">{x.ungelesen}</span>}
+                  {ung ? <span className="wa-badge">{x.ungelesen}</span> : offen ? <span className="wa-punkt" title="Muss noch beantwortet werden" /> : null}
                 </div>
-                {(kk || offen || kiAntwort) && <div className="wa-art">{kk ? kk.art : ""}
-                  {offen && <span className="wa-tag warn" title={x.eskaliert ? "Die KI hat nicht geantwortet, ihr Vorschlag liegt im Chat" : "Noch nicht beantwortet"}>Unbeantwortet</span>}
+                {(kk || kiAntwort || (offen && x.eskaliert)) && <div className="wa-art">{kk ? kk.art : ""}
+                  {offen && x.eskaliert && <span className="wa-tag warn" title="Die KI hat nicht geantwortet, ihr Vorschlag liegt im Chat">KI-Vorschlag</span>}
                   {kiAntwort && <span className="wa-tag" title="Die KI hat selbst geantwortet">KI hat geantwortet</span>}</div>}
               </div>
             </div>);
