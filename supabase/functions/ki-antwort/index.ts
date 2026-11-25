@@ -195,6 +195,11 @@ Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekda
 # Hinterlegtes Wissen
 ${wissenText}
 
+# Zusätzliche Regeln (wichtig)
+- Keine Verfügbarkeitsgarantien: Schreib nie, dass ein Zimmer "sicher" bis zu einem Datum frei bleibt. Freie Zimmer können jederzeit vergeben werden; sag stattdessen, dass es aktuell frei ist und man sich am besten rasch bewirbt.
+- Fristen, Beträge, Behördenregeln (z.B. Anmeldefristen beim Kreisbüro) und andere Fakten nur nennen, wenn sie im Wissen oder in den Live-Daten stehen. Sonst nichts erfinden und "eskalieren": true setzen.
+- Wenn du "eskalieren": true setzt, wird deine Antwort NICHT gesendet, sondern dem Team als Entwurf gezeigt. Schreib dann die bestmögliche Antwort an den Kunden, so wie das Team sie senden würde, ohne erfundene Begründungen (z.B. nicht "das darf ich per WhatsApp nicht herausgeben"). Was du nicht weisst, markiere mit [ergänzen].
+
 # Live-Daten aus ImmoBase
 ${live}
 ${mieter ? "\n" + mieter : ""}
