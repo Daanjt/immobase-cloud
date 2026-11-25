@@ -346,6 +346,9 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
     const heikel = /\b(art\.?\s*\d{2,3}|anwalt|lawyer|schlichtung|mietzinsreduktion|mietzinsminderung|rent reduction|reduction (of|in) (the )?rent|klage|beschwerde|complaint|betreibung)/i;
     const gesetz = /\b\d{3}[a-z]?\s*(OR|CO)\b|\b(OR|CO)\s*\d{3}/; // z.B. "259d OR", "CO 259"
     const t = `${b.nachricht || ""}\n${out.grund || ""}`;
+    // Bewerber (nicht abgesagt): Verkaufsgespräch, Antworten gehen raus, solange nichts offen markiert ist
+    const istBewerber = /Regeln für Bewerber/.test(mieter) && !/Stand der Bewerbung: abgesagt/.test(mieter);
+    if (istBewerber && !/\[ergänzen\]/i.test(String(out.antwort || ""))) senden = true;
     if (heikel.test(t) || gesetz.test(t)) senden = false;
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) out.senden = false;
     return json({ antwort: out.antwort, eskalieren: !!out.eskalieren, senden: /\bA\d{1,3}-\d{1,2}\b/.test(out.antwort) ? false : senden, grund: out.grund || "", sprache: out.sprache || "de", ...(elev8Fehler ? { elev8_fehler: elev8Fehler } : {}) });
