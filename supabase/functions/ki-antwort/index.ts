@@ -200,7 +200,7 @@ ${wissenText}
 - Fristen, Beträge, Behördenregeln (z.B. Anmeldefristen beim Kreisbüro) und andere Fakten nur nennen, wenn sie im Wissen oder in den Live-Daten stehen. Sonst nichts erfinden und "eskalieren": true setzen.
 - "eskalieren" und "senden" sind zwei verschiedene Dinge:
   · "eskalieren": true heisst nur, dass das Team sich etwas anschauen oder entscheiden muss (z.B. Ausnahme von der Mindestmietdauer, Vertrag zusenden, Zahlung prüfen, Rechtsfrage).
-  · "senden": true heisst, deine Antwort ist korrekt und darf direkt an den Kunden gehen. Das ist der Normalfall: Beantworte alles, was du sicher weisst, stelle Rückfragen (z.B. welches Zimmer, Link zum Inserat), und schreib bei dem Punkt, den das Team entscheiden muss, kurz, dass wir uns dazu melden. Auch eine kurze Bestätigung ("Danke für die Info, wir schauen es uns an") darf gesendet werden.
+  · "senden": true heisst, deine Antwort ist korrekt und darf direkt an den Kunden gehen. Das ist der Normalfall: Beantworte alles, was du sicher weisst, stelle Rückfragen (z.B. welches Zimmer, Link zum Inserat), und schreib bei dem Punkt, den das Team entscheiden muss, kurz, dass wir uns dazu melden. Auch eine kurze Bestätigung darf gesendet werden, z.B. wenn ein Mieter mitteilt, dass eine Zahlung später kommt: "Danke für die Info, wir schauen nach dem Eingang" (senden: true, eskalieren: true).
   · "senden": false nur, wenn du keine der Fragen sicher beantworten kannst und nur eine Hinhalte-Antwort möglich wäre, oder bei heiklen Themen (Rechtsfragen, Mietzinsreduktion, Streit, Beschwerden, Absagen). Dann wird nichts gesendet und dein Text ist ein Entwurf für das Team: ohne erfundene Begründungen, Unbekanntes mit [ergänzen] markieren.
   · Hat das Team einen Punkt noch nicht beantwortet (z.B. eine Ausnahme), beantworte trotzdem neue, einfache Fragen des Kunden ("welches Zimmer ist am günstigsten?") und sende.
   · Korrigiere frühere falsche Aussagen im Verlauf nicht eigenmächtig, sondern setze "eskalieren": true.
@@ -335,7 +335,10 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
     // Gedankenstriche entfernen, interne Zimmer-IDs nie nach aussen
     out.antwort = out.antwort.replace(/\s[–—]\s/g, ", ").replace(/[–—]/g, "-");
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) { out.eskalieren = true; out.grund = (out.grund || "") + " | interne Zimmer-ID in Antwort"; }
-    const senden = typeof out.senden === "boolean" ? out.senden : !out.eskalieren;
+    let senden = typeof out.senden === "boolean" ? out.senden : !out.eskalieren;
+    // heikle Themen nie automatisch senden (Recht, Mietzinsreduktion, Beschwerden)
+    const heikel = /\b(art\.?\s*\d+|259|OR\b|CO\b|anwalt|lawyer|schlichtung|mietzinsreduktion|mietzinsminderung|rent reduction|reduction of (the )?rent|klage|beschwerde|complaint|betreibung)/i;
+    if (heikel.test(String(b.nachricht || "")) || heikel.test(String(out.grund || ""))) senden = false;
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) out.senden = false;
     return json({ antwort: out.antwort, eskalieren: !!out.eskalieren, senden: /\bA\d{1,3}-\d{1,2}\b/.test(out.antwort) ? false : senden, grund: out.grund || "", sprache: out.sprache || "de", ...(elev8Fehler ? { elev8_fehler: elev8Fehler } : {}) });
   } catch (e) {
