@@ -124,8 +124,10 @@ function WhatsAppPage({ tenants, bewerber, navigateTo }) {
       // alle Kundennachrichten seit unserer letzten Antwort zusammen beantworten
       let start = idx; while (ein && start > 0 && verlauf[start - 1].richtung === "ein") start--;
       const offen = ein ? verlauf.slice(start, idx + 1).filter(x => x.richtung === "ein" && (x.typ === "text" || x.transkript)).map(x => x.transkript || x.text).join("\n") : "";
-      const vorher = verlauf.slice(Math.max(0, start - 12), ein ? start : verlauf.length).filter(x => x.text).map(x => ({ von: x.richtung === "ein" ? "kunde" : "wir", text: x.text }));
-      const r = await kiAntwortHolen(offen || "(keine neue Kundennachricht, wir schreiben von uns aus)", vorher, { telefon: aktiv, ...(stichpunkte ? { anweisung: stichpunkte, absender: meName || "Daan" } : {}) });
+      // Ist die letzte Nachricht schon von uns, ist alles beantwortet: dann den ganzen Verlauf (inkl. unserer Antworten) mitgeben
+      const beantwortet = !!stichpunkte && verlauf.length && verlauf[verlauf.length - 1].richtung !== "ein";
+      const vorher = (beantwortet ? verlauf.slice(Math.max(0, verlauf.length - 16)) : verlauf.slice(Math.max(0, start - 12), ein ? start : verlauf.length)).filter(x => x.text || x.transkript).map(x => ({ von: x.richtung === "ein" ? "kunde" : "wir", text: x.transkript || x.text }));
+      const r = await kiAntwortHolen(beantwortet ? "(keine neue Kundennachricht, wir schreiben von uns aus)" : (offen || "(keine neue Kundennachricht, wir schreiben von uns aus)"), vorher, { telefon: aktiv, ...(stichpunkte ? { anweisung: stichpunkte, absender: meName || "Daan" } : {}) });
       setVorschlag(r); setText(r.antwort || "");
     } catch (e) { toast(e.message || "KI-Fehler", "error"); }
     setBusy("");
