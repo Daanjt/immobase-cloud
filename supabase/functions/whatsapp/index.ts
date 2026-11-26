@@ -241,6 +241,36 @@ Deno.serve(async (req) => {
         await sb.from("wa_nachrichten").insert({ richtung: "aus", telefon: tel, text, typ: "text", wamid: j.wamid || j.id || null, quelle: "ki", ki_grund: "Automatische Erinnerung zur Bewerbung" });
         erg.push({ tel, ok: true });
       }
+      // Abgebrochene Bewerbungen auf der Webseite (bewerbung_entwuerfe): einmal per Mail erinnern, 2 bis 48 Std. danach
+      const { data: ents } = await sb.from("bewerbung_entwuerfe").select("*").is("erinnert_at", null).is("erledigt", null)
+        .lte("created_at", new Date(jetzt - 2 * 3600000).toISOString()).gte("created_at", new Date(jetzt - 48 * 3600000).toISOString()).limit(50);
+      const { data: apsMail } = await sb.from("applicants").select("email, phone, created_at").gte("created_at", new Date(jetzt - 60 * 86400000).toISOString());
+      for (const e of ents || []) {
+        const beworben = (apsMail || []).some((a: any) => (e.email && String(a.email || "").toLowerCase() === String(e.email).toLowerCase()) || (e.phone && end9(a.phone) === end9(e.phone) && end9(e.phone).length === 9));
+        if (beworben || bekannt.has(end9(e.phone || "")) && end9(e.phone || "").length === 9) { if (!b.dry) await sb.from("bewerbung_entwuerfe").update({ erledigt: "beworben" }).eq("id", e.id); erg.push({ entwurf: e.id, skip: "beworben" }); continue; }
+        if (!e.email) { if (!b.dry) await sb.from("bewerbung_entwuerfe").update({ erledigt: "keine_mail" }).eq("id", e.id); continue; }
+        // gleiche Mail nur einmal erinnern
+        const { data: dup } = await sb.from("bewerbung_entwuerfe").select("id").ilike("email", e.email).not("erinnert_at", "is", null).limit(1);
+        if (dup?.length) { if (!b.dry) await sb.from("bewerbung_entwuerfe").update({ erledigt: "schon_erinnert" }).eq("id", e.id); continue; }
+        const en = e.sprache === "en";
+        let objekt = "", aptId = "";
+        if (e.zimmer) {
+          const { data: r } = await sb.from("rooms").select("apt_id, miete").eq("id", e.zimmer).maybeSingle();
+          const { data: ap } = r ? await sb.from("apartments").select("adresse").eq("id", r.apt_id).maybeSingle() : { data: null };
+          if (r && ap) { aptId = r.apt_id; const preis = `CHF ${Number(r.miete || 0).toLocaleString("de-CH").replace(/[’\u2019]/g, "'")}`; objekt = en ? ` for a room at ${ap.adresse} (${preis} per month)` : ` für ein Zimmer an der ${ap.adresse} (${preis} pro Monat)`; }
+        }
+        const link = `https://www.dthomes.ch/${en ? "en/" : ""}zimmer${aptId ? "?zimmer=" + aptId : ""}`;
+        const vn = String(e.vorname || "").trim().split(/\s+/)[0];
+        const betreff = en ? "Your application at D&T Homes is not submitted yet" : "Deine Bewerbung bei D&T Homes ist noch nicht abgeschickt";
+        const text = en
+          ? `Hi${vn ? " " + vn : ""},\n\nyou started applying${objekt}, but the application has not been submitted yet.\n\nYou can finish it here in a few minutes, no account or registration needed:\n${link}\n\nIf you have any questions, just reply to this email or message us on WhatsApp: +41 76 688 70 91.\n\nBest regards\nYour D&T Homes Team`
+          : `Hallo${vn ? " " + vn : ""},\n\ndu hast angefangen, dich${objekt} zu bewerben, die Bewerbung aber noch nicht abgeschickt.\n\nHier kannst du sie in wenigen Minuten fertig ausfüllen, ein Konto oder eine Registrierung brauchst du nicht:\n${link}\n\nBei Fragen antworte einfach auf diese Mail oder schreib uns auf WhatsApp: +41 76 688 70 91.\n\nLiebe Grüsse\nDein D&T Homes Team`;
+        if (b.dry) { erg.push({ entwurf: e.id, an: e.email, betreff, text }); continue; }
+        await sb.from("bewerbung_entwuerfe").update({ erinnert_at: new Date().toISOString() }).eq("id", e.id);
+        const r = await fetch(`${URL_}/functions/v1/send-message`, { method: "POST", headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ to: e.email, betreff, text, sprache: en ? "en" : "de" }) });
+        erg.push({ entwurf: e.id, ok: r.ok, status: r.status });
+      }
       return json({ ergebnis: erg });
     }
     if (b.aktion === "ausstehend") {
