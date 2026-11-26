@@ -74,11 +74,19 @@ async function bewerberKontext(sb: any, tel: string): Promise<string> {
     : c.status === "mieter_signiert" ? " Vertrag: von ihm unterschrieben, unsere Gegenzeichnung folgt in Kürze, danach kommt der Vertrag per E-Mail."
     : ` Vertrag: am ${fd(new Date(c.sent_at || c.created_at))} per E-Mail zum digitalen Unterschreiben verschickt, noch nicht unterschrieben.`;
   const rid = a.zugeteiltes_zimmer || a.zimmer_wunsch;
-  const { data: r } = rid ? await sb.from("rooms").select("apt_id").eq("id", rid).maybeSingle() : { data: null };
-  const { data: ap } = r ? await sb.from("apartments").select("adresse, ort, vermietungsart").eq("id", r.apt_id).maybeSingle() : { data: null };
+  const { data: r } = rid ? await sb.from("rooms").select("apt_id, miete, occupied, mieter_auszug").eq("id", rid).maybeSingle() : { data: null };
+  const { data: ap } = r ? await sb.from("apartments").select("adresse, ort, vermietungsart, mietbeginn, matterport_url").eq("id", r.apt_id).maybeSingle() : { data: null };
+  // frei ab für genau dieses Zimmer (gleiche Logik wie im Angebot)
+  let freiAb = "";
+  if (r && ap) {
+    const h0 = new Date(); freiAb = "sofort";
+    if (r.occupied) { const aus = pd(r.mieter_auszug); if (aus) freiAb = fd(new Date(aus.getTime() + 86400000)); }
+    else { const mb = pd(ap.mietbeginn); if (mb && mb > h0) freiAb = fd(mb); }
+  }
+  const zimmerInfo = r && ap ? ` Sein Zimmer: CHF ${r.miete} pro Monat, frei ab ${freiAb} (gilt genau für dieses Zimmer, nicht das Datum anderer Zimmer an derselben Adresse), ${r.occupied ? "aktuell noch bewohnt" : "aktuell leer bzw. Wohnung noch nicht übernommen"}, ${String(ap.matterport_url || "").trim() ? "Fotos und 3D-Rundgang" : "nur Fotos, kein 3D-Rundgang"}.` : "";
   const stand: Record<string, string> = { Neu: "eingegangen, wird geprüft", Zugeteilt: "positiv, ein Zimmer bzw. eine Wohnung ist zugeteilt", "Bestätigt": "bestätigt", Abgelehnt: "abgesagt" };
   return `# Absender
-Die Nachricht kommt von jemandem, der sich bei uns beworben hat (Vorname ${a.vorname || "-"}), am ${fd(new Date(a.eingereicht_am || a.created_at))}${ap ? ` für ${ap.vermietungsart === "wohnung" ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}` : ", ohne bestimmtes Zimmer"}${a.einzug ? `, gewünschter Einzug ${a.einzug}` : ""}. Stand der Bewerbung: ${stand[a.status] || a.status}.${vz}
+Die Nachricht kommt von jemandem, der sich bei uns beworben hat (Vorname ${a.vorname || "-"}), am ${fd(new Date(a.eingereicht_am || a.created_at))}${ap ? ` für ${ap.vermietungsart === "wohnung" ? "die Wohnung" : "ein Zimmer"} an der ${ap.adresse}` : ", ohne bestimmtes Zimmer"}${a.einzug ? `, gewünschter Einzug ${a.einzug}` : ""}. Stand der Bewerbung: ${stand[a.status] || a.status}.${zimmerInfo}${vz}
 Regeln für Bewerber (Ziel: Vertrag unterschreiben lassen, du bist im Verkauf):
 - Bestätigt der Bewerber sein Interesse (z.B. "ja, noch aktuell" auf unsere Nachricht) oder fragt nach den nächsten Schritten, schreib NICHT "wir prüfen deine Bewerbung", sondern treib es aktiv Richtung Vertrag: Freu dich, und biete an, ihm den Untermietvertrag schon zuzuschicken. Mit seiner Unterschrift ist das Zimmer für ihn reserviert. Ist das Zimmer noch bewohnt: Besichtigung vor Ort ist kurz vor Einzug möglich, er muss vorher nichts bezahlen und kann bis und mit Besichtigung zurücktreten, falls es wesentlich von Fotos, Grundriss und 3D-Rundgang abweicht. Schlag als Einzug immer das Datum vor, ab dem das Zimmer frei ist (aus den Live-Daten, "frei ab"), auch wenn er bei der Bewerbung ein späteres Datum angegeben hat: (Grund nur für dich: ein leeres Zimmer kostet uns Miete. Das dem Kunden nie sagen; verkauf es positiv, z.B. dass er sich das Zimmer so sicher reservieren kann.) Frag aktiv, ob dieser frühere Einzug für ihn passt. Diese Nachricht immer senden ("senden": true), auch wenn er ursprünglich ein anderes Datum wollte. Will er trotzdem später einziehen, sag nicht zu, sondern setze "eskalieren": true (das Team entscheidet). Frag, ob wir den Vertrag schicken dürfen. Setze dann "senden": true und "eskalieren": true (das Team schickt den Vertrag).
 - Sagt er ja zum Vertrag, bestätige, dass wir ihn gleich vorbereiten und per E-Mail schicken ("senden": true, "eskalieren": true).
@@ -202,6 +210,8 @@ Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekda
 ${wissenText}
 
 # Zusätzliche Regeln (wichtig)
+- Begriffe auf Englisch: Untermietvertrag = "sublease agreement", Mietvertrag = "rental contract", Kaution = "deposit", Nebenkosten = "utilities", Übernahmeprotokoll = "move-in protocol". Keine selbst erfundenen Wörter.
+- Wünscht jemand eine Video-Besichtigung, sag nicht zu: das Team meldet sich dazu ("eskalieren": true), die Antwort darf trotzdem gesendet werden.
 - Vertrag nur nach Bewerbung: Einen Vertrag gibt es erst, wenn sich jemand online beworben hat. Steht unter "Absender" nicht, dass er sich beworben hat (oder dass er Mieter ist), dann biete keinen Vertrag an und sag nicht zu, einen zu schicken. Bitte ihn stattdessen, sich zuerst kurz online zu bewerben: direkt beim Zimmer bzw. der Wohnung auf www.dthomes.ch/zimmer bzw. www.dthomes.ch/wohnungen (Link aus den Live-Daten, dauert nur wenige Minuten). Sobald die Bewerbung da ist, schicken wir ihm den Vertrag.
 - 3D-Rundgang nur erwähnen, wenn er beim Objekt in den Live-Daten steht ("Fotos und 3D-Rundgang"). Steht "Nur Fotos, KEIN 3D-Rundgang" (z.B. Schaffhauserstrasse), sprich nur von den Fotos auf der Website, auch beim Rücktrittsrecht ("falls es wesentlich von den Fotos und dem Grundriss abweicht"). Ist unklar, welches Objekt gemeint ist, sprich allgemein von "Fotos (und wo vorhanden 3D-Rundgang)".
 - Keine Verfügbarkeitsgarantien: Schreib nie, dass ein Zimmer "sicher" bis zu einem Datum frei bleibt. Freie Zimmer können jederzeit vergeben werden; sag stattdessen, dass es aktuell frei ist und man sich am besten rasch bewirbt.
