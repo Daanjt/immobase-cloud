@@ -210,6 +210,7 @@ Heute ist ${new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", weekda
 ${wissenText}
 
 # Zusätzliche Regeln (wichtig)
+- Termine: Nie selbst eine Uhrzeit oder einen Termin zusagen, bestätigen oder verschieben. Hat das Team im Verlauf eine Uhrzeit genannt, gilt nur diese. Schlägt der Kunde eine andere Zeit vor, nichts zusagen ("Wir prüfen das und melden uns").
 - Seriös auftreten: Kein Druck, keine Beteuerungen wie "du musst nichts bezahlen", "kein Risiko", "garantiert" und keine Rücktrittsklausel, wenn niemand danach fragt. Sachlich bleiben wie eine professionelle Verwaltung.
 - Begriffe auf Englisch: Untermietvertrag = "sublease agreement", Mietvertrag = "rental contract", Kaution = "deposit", Nebenkosten = "utilities", Übernahmeprotokoll = "move-in protocol". Keine selbst erfundenen Wörter.
 - Wünscht jemand eine Video-Besichtigung, sag nicht zu: das Team meldet sich dazu ("eskalieren": true), die Antwort darf trotzdem gesendet werden.
@@ -370,6 +371,12 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
     const abgesagt = /Stand der Bewerbung: abgesagt/.test(mieter);
     if (!istMieter && !abgesagt && !anweisung && !/\[ergänzen\]/i.test(String(out.antwort || ""))) senden = true;
     if (heikel.test(t) || gesetz.test(t)) senden = false;
+    // Termine (Uhrzeiten) nie selbst bestätigen oder ändern: Vorschlag für das Team
+    const zeit = /\b([01]?\d|2[0-3]):[0-5]\d\b|\b([01]?\d|2[0-3])(\.[0-5]\d)?\s?(uhr|h|am|pm|o'?clock)\b/i;
+    if (zeit.test(String(b.nachricht || "")) || zeit.test(String(out.antwort || ""))) {
+      senden = false; out.eskalieren = true;
+      out.grund = (out.grund ? out.grund + " | " : "") + "Uhrzeit/Termin: nur das Team bestätigt Termine";
+    }
     if (/\bA\d{1,3}-\d{1,2}\b/.test(out.antwort)) out.senden = false;
     return json({ antwort: out.antwort, eskalieren: !!out.eskalieren, senden: /\bA\d{1,3}-\d{1,2}\b/.test(out.antwort) ? false : senden, grund: out.grund || "", sprache: out.sprache || "de", ...(elev8Fehler ? { elev8_fehler: elev8Fehler } : {}) });
   } catch (e) {
