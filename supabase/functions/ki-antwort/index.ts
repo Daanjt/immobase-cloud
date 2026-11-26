@@ -232,7 +232,11 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
     while (messages.length && messages[0].role === "assistant") messages.shift();
     // aufeinanderfolgende gleiche Rollen zusammenfassen
     const msgs: any[] = [];
-    for (const m of [...messages, { role: "user", content: nachricht }]) {
+    // Mit Stichpunkten: die letzte Nachricht ist der Auftrag des Teams (nicht die Kundennachricht), damit die KI die Stichpunkte umsetzt
+    const letzte = anweisung
+      ? `[Interner Auftrag vom Team, nicht vom Kunden]\nLetzte Nachricht des Kunden (nur als Kontext): ${nachricht}\n\nSchreib jetzt die Nachricht an den Kunden, die genau diese Stichpunkte vollständig umsetzt (auch wenn sie nichts mit seiner letzten Nachricht zu tun haben):\n${anweisung}`
+      : nachricht;
+    for (const m of [...messages, { role: "user", content: letzte }]) {
       if (msgs.length && msgs[msgs.length - 1].role === m.role) msgs[msgs.length - 1].content += "\n" + m.content; else msgs.push({ ...m });
     }
     const TOOLS = [{

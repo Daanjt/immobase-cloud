@@ -111,7 +111,8 @@ Deno.serve(async (req) => {
   const seit = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data: hist } = await sb.from("wa_nachrichten").select("richtung, text, wamid").eq("telefon", tel).gte("created_at", seit).order("created_at", { ascending: true }).limit(30);
   // reine Bestätigungen ("ok", "danke", "👍") brauchen keine Antwort: nicht antworten und Chat als erledigt markieren
-  if (/^\s*(ok(ay)?|oki|super|perfekt|perfect|great|top|alles klar|passt|danke( dir| schön| vielmals)?|merci|thx|thanks?( a lot| you)?|thank you|cool|nice|gut|sehr gut|👍|🙏|👌|😊|🙂|❤️)[\s!.👍🙏😊🙂]*$/i.test(text || "")) {
+  const nurText = String(text || "").replace(/[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200d\ufe0f]/gu, " ").replace(/[!.,]+/g, " ").trim();
+  if (String(text || "").trim() && (!nurText || /^(ok(ay)?|oki|okey|super|perfekt|perfect|great|top|alles klar|passt( so)?|danke( dir| schön| vielmals)?|vielen dank|merci( vielmals)?|thx|thanks?( a lot| you)?|thank you( so much)?|cool|nice|gut|sehr gut|bis bald|bis dann|bis morgen|see you( soon)?|tschüss|ciao|bye|gracias|grazie|dank je( wel)?|bedankt|top danke|super danke|ok danke|okay danke)( ?(dir|euch|you))?$/i.test(nurText))) {
     await sb.from("wa_chats").upsert({ telefon: tel, erledigt_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "telefon" });
     return ok({ gespeichert: true, ki: "bestaetigung" });
   }
