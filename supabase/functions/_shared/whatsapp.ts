@@ -5,7 +5,7 @@
 export const WA_ABSENDER = "+41766887091";
 const API = "https://api.ycloud.com/v2";
 
-export type WaArt = "vertrag" | "dokumente" | "uebernahme" | "namensschild" | "bewerbung" | "bewerbung_allgemein";
+export type WaArt = "vertrag" | "dokumente" | "uebernahme" | "namensschild" | "bewerbung" | "bewerbung_allgemein" | "verlaengerung";
 
 // Vorlagen (Kategorie UTILITY). {{n}} = Parameter in dieser Reihenfolge.
 export const VORLAGEN: Record<WaArt, { name: string; de: string; en: string; beispiel: string[] }> = {
@@ -39,6 +39,13 @@ export const VORLAGEN: Record<WaArt, { name: string; de: string; en: string; bei
     de: "Hallo {{1}}, hier ist {{2}} von D&T Homes.\n\nVielen Dank für deine Bewerbung. Dein Profil könnte gut zu uns passen.\n\nUnsere aktuell freien Zimmer und Wohnungen findest du hier: www.dthomes.ch\n\nWelches Angebot interessiert dich, und ab wann suchst du? Dann gehen wir gemeinsam die nächsten Schritte an. Bei Fragen bin ich gerne für dich da.\n\nLiebe Grüsse",
     en: "Hi {{1}}, this is {{2}} from D&T Homes.\n\nThank you for your application. Your profile could be a great fit.\n\nYou can find our currently available rooms and apartments here: www.dthomes.ch\n\nWhich one are you interested in, and from when are you looking? Then we will go through the next steps together. Happy to answer any questions.\n\nKind regards",
     beispiel: ["Anna", "Daan"],
+  },
+  verlaengerung: {
+    // Anfrage an bestehende Mieter, ob sie verlaengern moechten (Antwort kommt im Chat)
+    name: "dt_verlaengerung_angebot",
+    de: "Hallo {{1}}, hier ist {{2}} von D&T Homes.\n\nDein Mietverhältnis an der {{3}} kann bis {{4}} verlängert werden. Hast du Interesse an einer Verlängerung?\n\nAntworte einfach hier im Chat, dann schicken wir dir den Nachtrag zur digitalen Unterschrift.\n\nLiebe Grüsse",
+    en: "Hi {{1}}, this is {{2}} from D&T Homes.\n\nYour tenancy at {{3}} can be extended until {{4}}. Are you interested in an extension?\n\nJust reply here in the chat and we will send you the addendum to sign digitally.\n\nKind regards",
+    beispiel: ["Anna", "Daan", "Feldeggstrasse 30, Zürich", "28.02.2027"],
   },
   namensschild: {
     name: "dt_namensschild",

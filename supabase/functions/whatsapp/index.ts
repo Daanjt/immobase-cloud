@@ -175,6 +175,25 @@ Deno.serve(async (req) => {
         whatsapp_followup_language: en ? "en" : "de", ...(res.status === "gesendet" ? { whatsapp_followup_sent_at: new Date().toISOString() } : {}) }).eq("id", a.id);
       return json(res);
     }
+    if (b.aktion === "verlaengerung_angebot") {
+      // Bestehenden Mieter per Vorlage fragen, ob er verlaengern moechte. {tenant_id, bis, absender}
+      const { data: t } = await sb.from("tenants").select("id, vorname, phone, sprache, room_id, apt_id").eq("id", String(b.tenant_id || "")).maybeSingle();
+      if (!t) return json({ error: "Mieter nicht gefunden" }, 404);
+      const tel = normTelefon(t.phone);
+      if (!tel) return json({ error: "Keine gültige Telefonnummer beim Mieter" }, 400);
+      const bis = String(b.bis || "").trim();
+      if (!/^\d{2}\.\d{2}\.\d{4}$/.test(bis)) return json({ error: "Datum im Format TT.MM.JJJJ nötig" }, 400);
+      let aptId = String(b.apt_id || t.apt_id || "");
+      if (!aptId) { const { data: r } = await sb.from("rooms").select("apt_id").or(`tenant_id.eq.${t.id}${t.room_id ? `,id.eq.${t.room_id}` : ""}`).limit(1).maybeSingle(); aptId = r?.apt_id || ""; }
+      const { data: ap } = aptId ? await sb.from("apartments").select("adresse, ort").eq("id", aptId).maybeSingle() : { data: null };
+      if (!ap) return json({ error: "Wohnung des Mieters nicht gefunden" }, 404);
+      const en = t.sprache === "en";
+      const vorname = String(t.vorname || "").trim().split(/\s+/)[0] || (en ? "there" : "zusammen");
+      const absender = String(b.absender || "Daan").trim().split(/\s+/)[0];
+      const res = await waSenden(sb, { art: "verlaengerung", ref: `${t.id}:${bis}${b.erneut ? ":" + Date.now() : ""}`, telefon: tel, en,
+        params: [vorname, absender, `${ap.adresse}, ${ap.ort || "Zürich"}`, bis] });
+      return json(res);
+    }
     if (b.aktion === "ausstehend") {
       if (!waKey()) return json({ aktiv: false });
       const seit = new Date(Date.now() - 3 * 86400000).toISOString();

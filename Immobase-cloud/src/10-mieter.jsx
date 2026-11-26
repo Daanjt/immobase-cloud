@@ -212,6 +212,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
   const [viewMode,setViewMode]=useState("aktiv"); // "aktiv" | "archiviert"
   const [mArt,setMArt]=useState("alle"); // "alle" | "WG" | "Wohnung"
   const [changingRoom,setChangingRoom]=useState(null); // tenant whose room is being changed
+  const [verlWa,setVerlWa]=useState(null); // {tenant, bis, sending} Verlaengerung per WhatsApp anfragen
   const [newRoomId,setNewRoomId]=useState("");
   const [qrBillSending,setQrBillSending]=useState(null); // tenant.id currently sending
   
@@ -831,6 +832,7 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
                 <button className="btn btn-g btn-sm" onClick={()=>{setForm({...tenant,_originalId:tenant.id});setEditing(true);}}>✏ Bearbeiten</button>
                 {<button className="btn btn-p btn-sm" title="Neuen Vertrag mit Parametern erstellen (z.B. Verlängerung) und verschicken" onClick={()=>openTenantVertrag(tenant)}>📝 Neuer Vertrag</button>}
                 {!vm && <button className="btn btn-g btn-sm" title="Verlängerung (Nachtrag) mit neuem Enddatum, gleiche Basis, zur Unterschrift" onClick={()=>openNachtrag(tenant)}>⏱ Verlängerung</button>}
+                {!vm && tenant.status!=="archiviert" && <button className="btn btn-g btn-sm" title="Per WhatsApp fragen, ob der Mieter verlängern möchte (Antwort kommt im WhatsApp-Tab)" onClick={()=>setVerlWa({tenant, bis:"", sending:false})}>💬 Verlängerung anfragen</button>}
                 {<button className="btn btn-s btn-sm" title="Kaution bei Evorest vorausgefüllt eröffnen" onClick={()=>window.open(buildEvorestUrl(tenant, apt, (partners||[]).find(p=>p.name===(apt&&apt.eigentuemer))), "_blank")}>💰 Evorest</button>}
                 {!vm && tenant.status!=="archiviert" && (
                   <button className="btn btn-g btn-sm" onClick={()=>{setChangingRoom(tenant);setNewRoomId("");}}>🔄 Zimmer wechseln</button>
@@ -1250,6 +1252,32 @@ function Mieter({parkplaetze=[],tenants,rooms,apts,partners,contracts,loadContra
       </div></div>}
 
       {/* ZIMMER-WECHSEL MODAL */}
+      {verlWa && (
+        <div className="ov" onClick={e=>e.target===e.currentTarget&&!verlWa.sending&&setVerlWa(null)}>
+          <div className="modal" style={{width:460}}>
+            <div className="mt">💬 Verlängerung per WhatsApp anfragen</div>
+            <div style={{fontSize:13,color:"#4a4439",marginBottom:12}}>
+              <strong>{verlWa.tenant.vorname} {verlWa.tenant.nachname}</strong> bekommt eine WhatsApp-Nachricht mit der Frage, ob er bis zum neuen Datum verlängern möchte. Die Antwort siehst du im WhatsApp-Tab, danach den Nachtrag über «⏱ Verlängerung» schicken.
+            </div>
+            <label className="fl">Verlängerung möglich bis (TT.MM.JJJJ)</label>
+            <input className="inp" placeholder="28.02.2027" value={verlWa.bis} onChange={e=>setVerlWa({...verlWa, bis:e.target.value.trim()})}/>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
+              <button className="btn btn-g btn-sm" disabled={verlWa.sending} onClick={()=>setVerlWa(null)}>Abbrechen</button>
+              <button className="btn btn-p btn-sm" disabled={verlWa.sending || !/^\d{2}\.\d{2}\.\d{4}$/.test(verlWa.bis)} onClick={async()=>{
+                setVerlWa({...verlWa, sending:true});
+                try {
+                  const tok = ((await supabase.auth.getSession()).data.session||{}).access_token||"";
+                  const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp`, { method:"POST", headers:{ "Content-Type":"application/json", apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${tok}` }, body: JSON.stringify({ aktion:"verlaengerung_angebot", tenant_id: verlWa.tenant.id, bis: verlWa.bis, absender: verlWa.tenant.owner || "Daan" }) });
+                  const j = await res.json().catch(()=>({}));
+                  if (!res.ok || j.error) throw new Error(j.error || `Fehler ${res.status}`);
+                  const txt = { gesendet:"WhatsApp gesendet", schon_gesendet:"Für dieses Datum wurde schon angefragt", keine_nummer:"Keine gültige Telefonnummer", testmodus:"Testmodus: nicht gesendet", aus:"WhatsApp ist nicht eingerichtet" }[j.status] || (j.fehler ? "Fehler: "+j.fehler : String(j.status||""));
+                  toast(txt); setVerlWa(null);
+                } catch(e) { toast("Fehler: "+e.message); setVerlWa(v=>v&&{...v, sending:false}); }
+              }}>{verlWa.sending?"Senden …":"Per WhatsApp senden"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {changingRoom && (() => {
         const currentRoom = rooms.find(r => r.tenantId === changingRoom.id) || (changingRoom.roomId ? rooms.find(r => r.id === changingRoom.roomId) : null);
         // Alle Zimmer ausser dem aktuellen
