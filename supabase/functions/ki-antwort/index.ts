@@ -342,6 +342,21 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
       if ((!out || typeof out.antwort !== "string") && text) out = { antwort: text, eskalieren: true, grund: "Antwort ohne Struktur, bitte prüfen", sprache };
     }
     if (!out || typeof out.antwort !== "string" || !out.antwort.trim()) return json({ error: "Antwort nicht lesbar" }, 502);
+    // du-Form erzwingen: deutsche Antwort mit Sie-Form oder "Guten Tag Herr/Frau" wird umgeschrieben
+    if ((out.sprache || sprache) === "de" && /(\b(Ihnen|Ihr|Ihre|Ihren|Ihrem|Ihrer)\b|[a-zäöü,]\s+Sie\b|\b(Guten Tag|Sehr geehrte[rs]?)\s+(Herr|Frau)\b)/.test(out.antwort)) {
+      try {
+        const rr = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "x-api-key": c.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+          body: JSON.stringify({ model: c.anthropic_model, max_tokens: 800,
+            system: "Du schreibst WhatsApp-Nachrichten von D&T Homes um. Schreibe den Text vollständig in die lockere du-Form um (du, dir, dein). Ersetze eine Begrüssung wie 'Guten Tag Herr X' durch 'Hallo' plus Vorname, falls bekannt, sonst nur 'Hallo'. Ändere sonst nichts am Inhalt, keine Gedankenstriche, Schweizer Schreibweise (ss). Gib nur den umgeschriebenen Text zurück.",
+            messages: [{ role: "user", content: out.antwort }] }),
+        });
+        const jj = await rr.json();
+        const t = (jj.content || []).map((x: any) => x.text || "").join("").trim();
+        if (rr.ok && t) out.antwort = t;
+      } catch (_) { /* Original behalten */ }
+    }
     // Sicherheitsnetz: Steuer-Markup, das ins Antwortfeld gerutscht ist, abschneiden und auswerten
     {
       const a = out.antwort;
