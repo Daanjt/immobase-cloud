@@ -194,6 +194,55 @@ Deno.serve(async (req) => {
         params: [vorname, absender, `${ap.adresse}, ${ap.ort || "Zürich"}`, bis] });
       return json(res);
     }
+    if (b.aktion === "nachfassen") {
+      // Interessenten, die per WhatsApp gefragt, sich aber nicht beworben haben: einmalige Erinnerung mit Bewerbungslink,
+      // solange das 24h-Fenster noch offen ist (16 bis 23.5 Std. nach ihrer letzten Nachricht, nur 8 bis 20 Uhr).
+      const key = waKey(); if (!key) return json({ aktiv: false });
+      const { data: cfg } = await sb.from("app_config").select("value").eq("key", "wa_nachfassen").maybeSingle();
+      if (String(cfg?.value || "an") === "aus" && !b.dry) return json({ aus: true });
+      const std = +new Date().toLocaleString("en-GB", { timeZone: "Europe/Zurich", hour: "2-digit", hour12: false });
+      if ((std < 8 || std > 20) && !b.dry) return json({ ruhezeit: true });
+      const jetzt = Date.now();
+      const { data: chats } = await sb.from("wa_chat_liste").select("telefon, name, letzte_ein_at, letzte_richtung, ki_aus, ki_sprache")
+        .gte("letzte_ein_at", new Date(jetzt - 23.5 * 3600000).toISOString()).lte("letzte_ein_at", new Date(jetzt - 16 * 3600000).toISOString());
+      const { data: schon } = await sb.from("wa_chats").select("telefon").not("nachgefasst_at", "is", null);
+      const gefasst = new Set((schon || []).map((x: any) => x.telefon));
+      const end9 = (t: string) => String(t || "").replace(/\D/g, "").slice(-9);
+      const { data: aps } = await sb.from("applicants").select("phone");
+      const { data: tns } = await sb.from("tenants").select("phone");
+      const bekannt = new Set([...(aps || []), ...(tns || [])].map((x: any) => end9(x.phone)).filter((x: string) => x.length === 9));
+      const erg: any[] = [];
+      for (const c of chats || []) {
+        const tel = c.telefon;
+        if (c.ki_aus || gefasst.has(tel) || bekannt.has(end9(tel)) || c.letzte_richtung !== "aus") { continue; }
+        const { data: ms } = await sb.from("wa_nachrichten").select("richtung, text").eq("telefon", tel).order("created_at", { ascending: true }).limit(60);
+        const aus = (ms || []).filter((m: any) => m.richtung === "aus").map((m: any) => String(m.text || "")).join("\n");
+        const ein = (ms || []).filter((m: any) => m.richtung === "ein").map((m: any) => String(m.text || "")).join("\n");
+        // nur Interessenten fuer Zimmer/Wohnungen (nicht Ferienwohnungen, nicht Absagen)
+        if (!/dthomes\.ch\/(zimmer|wohnungen)|bewerb|apply|application/i.test(aus)) { erg.push({ tel, skip: "kein Interessent" }); continue; }
+        if (/leider (keine|kein|nicht)|unfortunately/i.test(aus.slice(-600))) { erg.push({ tel, skip: "Absage" }); continue; }
+        if (/gefunden|found (a|another|something)|kein interesse|not interested|hat sich erledigt/i.test(ein.slice(-400))) { erg.push({ tel, skip: "kein Interesse mehr" }); continue; }
+        const wohnung = /dthomes\.ch\/wohnungen/i.test(aus) && !/dthomes\.ch\/zimmer/i.test(aus);
+        const link = wohnung ? "https://www.dthomes.ch/wohnungen" : "https://www.dthomes.ch/zimmer";
+        const en = c.ki_sprache === "en" || (!c.ki_sprache && /\b(the|and|is|are|room|looking|hello|thanks|please)\b/i.test(ein) && !/\b(ich|und|das|zimmer|hallo|danke|bitte)\b/i.test(ein));
+        const roh = String(c.name || "").trim().split(/\s+/)[0];
+        const vn = /^[A-Za-zÀ-ÿ'-]{2,20}$/.test(roh) ? roh.charAt(0).toUpperCase() + roh.slice(1) : "";
+        const text = en
+          ? `Hi${vn ? " " + vn : ""}, a quick reminder from D&T Homes: if one of our ${wohnung ? "apartments" : "rooms"} is a fit for you, the best next step is to apply online, it only takes a few minutes: ${link}\n\nThat way we can reserve it for you. If you have any questions, just reply here.\n\nBest regards, Daan`
+          : `Hallo${vn ? " " + vn : ""}, kurze Erinnerung von D&T Homes: Wenn dich ${wohnung ? "eine unserer Wohnungen" : "eines unserer Zimmer"} interessiert, bewirb dich am besten direkt online, das dauert nur ein paar Minuten: ${link}\n\nSo können wir ${wohnung ? "sie" : "es"} für dich reservieren. Bei Fragen schreib mir einfach hier.\n\nLiebe Grüsse, Daan`;
+        if (b.dry) { erg.push({ tel, text }); continue; }
+        await sb.from("wa_chats").upsert({ telefon: tel, nachgefasst_at: new Date().toISOString() }, { onConflict: "telefon" });
+        const r = await fetch("https://api.ycloud.com/v2/whatsapp/messages/sendDirectly", {
+          method: "POST", headers: { "X-API-Key": key, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: WA_ABSENDER, to: tel, type: "text", text: { body: text } }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { erg.push({ tel, fehler: JSON.stringify(j).slice(0, 200) }); continue; }
+        await sb.from("wa_nachrichten").insert({ richtung: "aus", telefon: tel, text, typ: "text", wamid: j.wamid || j.id || null, quelle: "ki", ki_grund: "Automatische Erinnerung zur Bewerbung" });
+        erg.push({ tel, ok: true });
+      }
+      return json({ ergebnis: erg });
+    }
     if (b.aktion === "ausstehend") {
       if (!waKey()) return json({ aktiv: false });
       const seit = new Date(Date.now() - 3 * 86400000).toISOString();
