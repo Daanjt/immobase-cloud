@@ -273,6 +273,16 @@ Deno.serve(async (req) => {
       }
       return json({ ergebnis: erg });
     }
+    if (b.aktion === "asset_bild") {
+      // Bild (base64) in den Bucket "assets" unter apartments/<ID>/ legen (z.B. Fotos von der Verwaltung). Nur Admin/Server.
+      const pfad = String(b.pfad || "");
+      if (!/^apartments\/A\d+\/[\w.-]+\.(jpg|jpeg|png|webp)$/i.test(pfad)) return json({ error: "ungueltiger Pfad" }, 400);
+      const bytes = Uint8Array.from(atob(String(b.base64 || "")), (c) => c.charCodeAt(0));
+      if (!bytes.length || bytes.length > 4_000_000) return json({ error: "Datei leer oder zu gross" }, 400);
+      const { error } = await sb.storage.from("assets").upload(pfad, bytes, { contentType: pfad.endsWith(".png") ? "image/png" : pfad.endsWith(".webp") ? "image/webp" : "image/jpeg", upsert: true });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, pfad });
+    }
     if (b.aktion === "ausstehend") {
       if (!waKey()) return json({ aktiv: false });
       const seit = new Date(Date.now() - 3 * 86400000).toISOString();
