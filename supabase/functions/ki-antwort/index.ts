@@ -360,7 +360,7 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
     // Sicherheitsnetz: Steuer-Markup, das ins Antwortfeld gerutscht ist, abschneiden und auswerten
     {
       const a = out.antwort;
-      const cut = a.search(/<\/?(antwort|parameter|invoke|function_calls)\b|<\/antml|<parameter\s/i);
+      const cut = a.search(/<\/?(antw\w*|answer|parameter|invoke|function_calls)\b|<\/antml|<parameter\s/i);
       if (cut >= 0) {
         const rest = a.slice(cut);
         const pm = (k: string) => (rest.match(new RegExp(`name="${k}">\\s*([\\s\\S]*?)\\s*(?:</parameter>|<parameter|$)`, "i")) || [])[1];
@@ -373,6 +373,8 @@ ${SPRACHNAME[festSprache] ? `Mit diesem Kontakt kommunizieren wir immer auf ${SP
         out.antwort = a.slice(0, cut);
       }
     }
+    // Restliche XML-artige Tags (z.B. vertippte Schlusstags wie </antwart>) entfernen
+    out.antwort = out.antwort.replace(/<\/?[A-Za-z_][\w:-]*\s*\/?>/g, "").trim();
     // WhatsApp kennt kein Markdown: [text](url) zu url, **fett** zu *fett*
     out.antwort = out.antwort
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_m: string, t: string, u: string) => (u.replace(/^https?:\/\//, "").replace(/\/$/, "") === t.replace(/^https?:\/\//, "").replace(/\/$/, "") ? t : `${t}: ${u}`))
